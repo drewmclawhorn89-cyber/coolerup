@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { Compass, Heart, Home, LogOut, Plus, Search, User, Users } from "lucide-react";
+import { Compass, Heart, Home, LogOut, Plus, Search, User, Users, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { VideoCard } from "@/components/VideoCard";
 import { UploadDialog } from "@/components/UploadDialog";
 import { fetchMyLikes, fetchVideos, type Video } from "@/lib/loop";
@@ -48,6 +49,7 @@ function Index() {
   const [muted, setMuted] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
 
   const load = () =>
     fetchVideos()
@@ -68,13 +70,13 @@ function Index() {
     if (tab === "liked") list = list.filter((v) => liked.has(v.id));
     if (tab === "mine") list = me ? list.filter((v) => v.username === me) : [];
     return list;
-  }, [videos, query, tab, liked]);
+  }, [videos, query, tab, liked, me]);
 
   const [title, sub] = query ? [`Results for "${query}"`, `${shown.length} videos`] : HEADERS[tab];
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
-      <aside className="flex w-72 shrink-0 flex-col gap-6 border-r bg-sidebar p-6">
+    <div className="flex h-dvh overflow-hidden bg-background">
+      <aside className="hidden w-72 shrink-0 flex-col gap-6 border-r bg-sidebar p-6 md:flex">
         <div>
           <h1 className="font-display text-4xl tracking-tight">
             loop<span className="text-primary">.</span>
@@ -138,11 +140,29 @@ function Index() {
       </aside>
 
       <main className="flex min-w-0 flex-1 flex-col">
-        <header className="px-10 pb-2 pt-6">
-          <h2 className="font-display text-3xl">{title}</h2>
-          <p className="text-sm text-muted-foreground">{sub}</p>
+        <div className="mobile-topbar grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b bg-sidebar px-4 md:hidden">
+          <h1 className="min-w-0 font-display text-2xl">loop<span className="text-primary">.</span></h1>
+          <div className="flex shrink-0 items-center gap-2">
+            <Button variant="ghost" size="icon" aria-label={searchOpen ? "Close search" : "Search videos"} onClick={() => setSearchOpen((open) => !open)}>
+              {searchOpen ? <X /> : <Search />}
+            </Button>
+            <Button variant="ghost" size="icon" aria-label={auth.user ? "Sign out" : "Sign in with Google"} onClick={auth.user ? auth.signOut : auth.signIn}>
+              {auth.avatar ? <img src={auth.avatar} alt="" className="h-8 w-8 rounded-full object-cover" /> : auth.user ? <LogOut /> : <User />}
+            </Button>
+          </div>
+        </div>
+        {searchOpen && (
+          <label className="flex shrink-0 items-center gap-3 border-b bg-sidebar px-4 py-3 md:hidden">
+            <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <input autoFocus aria-label="Search videos" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search videos" className="min-w-0 flex-1 bg-transparent text-base outline-none" />
+            {query && <Button variant="ghost" size="icon" aria-label="Clear search" onClick={() => setQuery("")}><X /></Button>}
+          </label>
+        )}
+        <header className="shrink-0 px-4 py-2 md:px-10 md:pb-2 md:pt-6">
+          <h2 className="break-words font-display text-base md:text-3xl">{title}</h2>
+          <p className="hidden text-sm text-muted-foreground md:block">{sub}</p>
         </header>
-        <div className="no-scrollbar flex-1 snap-y snap-mandatory overflow-y-scroll">
+        <div className="no-scrollbar min-h-0 flex-1 snap-y snap-mandatory overflow-y-scroll overscroll-y-contain">
           {error && <Empty text="Couldn't load videos. Refresh to try again." />}
           {!error && videos === null && <Empty text="Loading your feed…" />}
           {videos && shown.length === 0 && <Empty text="Nothing here yet." />}
@@ -164,6 +184,15 @@ function Index() {
             />
           ))}
         </div>
+        <nav aria-label="Phone navigation" className="mobile-bottom-nav grid shrink-0 grid-cols-6 border-t bg-sidebar px-1 md:hidden">
+          {NAV.slice(0, 3).map(({ id, label, icon: Icon }) => (
+            <Button key={id} variant="ghost" onClick={() => setTab(id)} aria-current={tab === id ? "page" : undefined} className={`h-14 min-w-0 flex-col gap-1 rounded-none px-0 text-[9px] [&_svg]:size-5 ${tab === id ? "text-primary" : "text-muted-foreground"}`}><Icon />{label}</Button>
+          ))}
+          <Button aria-label="Upload video" onClick={() => (auth.user ? setUploading(true) : auth.signIn())} className="m-auto h-9 w-10 rounded-lg px-0 [&_svg]:size-6"><Plus /></Button>
+          {NAV.slice(3).map(({ id, label, icon: Icon }) => (
+            <Button key={id} variant="ghost" onClick={() => setTab(id)} aria-current={tab === id ? "page" : undefined} className={`h-14 min-w-0 flex-col gap-1 rounded-none px-0 text-[9px] [&_svg]:size-5 ${tab === id ? "text-primary" : "text-muted-foreground"}`}><Icon />{id === "mine" ? "You" : label}</Button>
+          ))}
+        </nav>
       </main>
 
       <aside className="hidden w-80 shrink-0 flex-col justify-center p-8 xl:flex">

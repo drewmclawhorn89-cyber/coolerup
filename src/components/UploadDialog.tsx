@@ -54,11 +54,11 @@ export function UploadDialog({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-overlay p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-overlay p-3 sm:p-4" onClick={onClose}>
       <form
         onSubmit={submit}
         onClick={(e) => e.stopPropagation()}
-        className="flex w-full max-w-2xl gap-6 rounded-2xl border bg-card p-6"
+        className="flex max-h-[calc(100dvh-2rem)] w-full max-w-2xl flex-col gap-4 overflow-y-auto rounded-2xl border bg-card p-4 sm:flex-row sm:gap-6 sm:p-6"
       >
         <label
           onDragOver={(e) => e.preventDefault()}
@@ -66,7 +66,7 @@ export function UploadDialog({
             e.preventDefault();
             pick(e.dataTransfer.files[0]);
           }}
-          className="flex aspect-[9/16] w-48 shrink-0 cursor-pointer flex-col items-center justify-center gap-2 overflow-hidden rounded-xl border-2 border-dashed bg-secondary text-center text-sm text-muted-foreground"
+          className="flex h-40 w-full shrink-0 cursor-pointer flex-col items-center justify-center gap-2 overflow-hidden rounded-xl border-2 border-dashed bg-secondary text-center text-sm text-muted-foreground sm:aspect-[9/16] sm:h-auto sm:w-48"
         >
           {preview ? (
             <video src={preview} autoPlay muted loop playsInline className="h-full w-full object-cover" />
@@ -79,7 +79,7 @@ export function UploadDialog({
           )}
           <input type="file" accept="video/*" className="hidden" onChange={(e) => pick(e.target.files?.[0])} />
         </label>
-        <div className="flex flex-1 flex-col gap-4">
+        <div className="flex min-w-0 flex-1 flex-col gap-4 [&_input]:text-base [&_textarea]:text-base">
           <div className="flex items-center justify-between">
             <h2 className="font-display text-2xl">Upload video</h2>
             <button type="button" onClick={onClose} aria-label="Close">

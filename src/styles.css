@@ -152,6 +152,7 @@
   --ring: oklch(0.645 0.236 12.5);
   --sidebar: oklch(0.08 0 0);
   --overlay: oklch(0 0 0 / 55%);
+  --video-caption-background: linear-gradient(to top, oklch(0 0 0 / 85%), transparent);
 }
 
 @theme inline {
@@ -177,4 +178,16 @@
   &::-webkit-scrollbar {
     display: none;
   }
+}
+
+.video-caption {
+  background: var(--video-caption-background);
+  pointer-events: none;
+}
+.mobile-topbar {
+  padding-top: max(0.5rem, env(safe-area-inset-top));
+  padding-bottom: 0.5rem;
+}
+.mobile-bottom-nav, .mobile-comments {
+  padding-bottom: env(safe-area-inset-bottom);
 }

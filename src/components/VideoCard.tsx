@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCount, getDeviceId, resolveVideoUrl, type Video } from "@/lib/loop";
 import { Comments } from "./Comments";
+import { Button } from "@/components/ui/button";
 
 export function VideoCard({
   video,
@@ -95,10 +96,10 @@ export function VideoCard({
   };
 
   return (
-    <section className="flex h-full snap-start snap-always items-center justify-center py-4">
-      <div className="flex items-end gap-4">
-        <div className="flex flex-col gap-3">
-          <div className="relative aspect-[9/16] h-[calc(100vh-11rem)] max-h-[760px] overflow-hidden rounded-2xl bg-card">
+    <section className="flex h-full snap-start snap-always items-center justify-center md:py-4">
+      <div className="relative flex h-full w-full items-end md:h-auto md:w-auto md:gap-4">
+        <div className="flex h-full min-w-0 flex-1 flex-col md:h-auto md:flex-none md:gap-3">
+          <div className="relative h-full w-full overflow-hidden bg-card md:aspect-[9/16] md:h-[calc(100dvh-11rem)] md:max-h-[760px] md:w-auto md:rounded-2xl">
             {src && (
               <video
                 ref={ref}
@@ -119,37 +120,41 @@ export function VideoCard({
               />
             )}
             {!playing && src && (
-              <button
+              <Button variant="ghost" size="icon"
                 onClick={togglePlay}
                 aria-label="Play"
                 className="absolute inset-0 m-auto flex h-16 w-16 items-center justify-center rounded-full bg-overlay text-foreground backdrop-blur"
               >
                 <Play className="ml-1 h-7 w-7 fill-current" />
-              </button>
+              </Button>
             )}
             {burst && (
               <Heart className="pointer-events-none absolute inset-0 m-auto h-24 w-24 animate-ping fill-primary text-primary" />
             )}
-            <button
+            <Button variant="ghost" size="icon"
               onClick={onToggleMute}
               aria-label={muted ? "Unmute" : "Mute"}
               className="absolute right-3 top-3 rounded-full bg-overlay p-2 text-foreground backdrop-blur"
             >
               {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
-            </button>
+            </Button>
+            <div className="video-caption absolute inset-x-0 bottom-2 pb-5 pl-4 pr-20 pt-16 md:hidden">
+              <p className="break-words text-sm font-bold">@{video.username}</p>
+              <p className="mt-1 line-clamp-3 break-words text-sm">{video.caption}</p>
+            </div>
             <div onClick={seek} className="absolute inset-x-0 bottom-0 h-3 cursor-pointer">
               <div className="absolute inset-x-0 bottom-0 h-1 bg-foreground/20">
                 <div className="h-full bg-primary" style={{ width: `${progress}%` }} />
               </div>
             </div>
           </div>
-          <div className="max-w-[calc((100vh-11rem)*9/16)]">
+          <div className="hidden max-w-[calc((100dvh-11rem)*9/16)] md:block">
             <p className="font-bold">@{video.username}</p>
             <p className="text-sm text-muted-foreground">{video.caption}</p>
           </div>
         </div>
-        <div className="mb-16 flex flex-col items-center gap-5">
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary font-display text-lg uppercase text-primary-foreground">
+        <div className="absolute bottom-16 right-2 flex flex-col items-center gap-4 md:static md:mb-16 md:gap-5">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary font-display text-lg uppercase text-primary-foreground md:h-12 md:w-12">
             {video.username[0]}
           </div>
           <Action label={formatCount(likes)} onClick={toggleLike} active={liked}>
@@ -186,13 +191,13 @@ function Action({
   active?: boolean;
 }) {
   return (
-    <button onClick={onClick} className="flex flex-col items-center gap-1 text-xs font-semibold">
+    <Button variant="ghost" onClick={onClick} aria-label={typeof children === "object" && children ? undefined : label} className="h-auto flex-col gap-1 p-0 text-xs font-semibold hover:bg-transparent [&_svg]:size-6">
       <span
-        className={`flex h-12 w-12 items-center justify-center rounded-full bg-secondary transition hover:bg-accent ${active ? "scale-110" : ""}`}
+        className={`flex h-11 w-11 items-center justify-center rounded-full bg-overlay backdrop-blur-sm transition hover:bg-accent md:h-12 md:w-12 md:bg-secondary ${active ? "scale-110" : ""}`}
       >
         {children}
       </span>
       {label}
-    </button>
+    </Button>
   );
 }

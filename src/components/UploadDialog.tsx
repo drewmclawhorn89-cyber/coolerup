@@ -1,12 +1,20 @@
 import { useEffect, useState } from "react";
 import { Upload, X } from "lucide-react";
 import { toast } from "sonner";
-import { ME, uploadVideo } from "@/lib/loop";
+import { uploadVideo } from "@/lib/loop";
 
-export function UploadDialog({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+export function UploadDialog({
+  onClose,
+  onDone,
+  defaultUsername,
+}: {
+  onClose: () => void;
+  onDone: () => void;
+  defaultUsername: string;
+}) {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState("");
-  const [username, setUsername] = useState(ME);
+  const [username, setUsername] = useState(defaultUsername);
   const [caption, setCaption] = useState("");
   const [busy, setBusy] = useState(false);
 

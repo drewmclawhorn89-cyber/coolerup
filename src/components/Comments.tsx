@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { ME } from "@/lib/loop";
+import { useAuth } from "@/hooks/useAuth";
 
 type Comment = { id: string; username: string; body: string; created_at: string };
 
@@ -18,6 +18,7 @@ export function Comments({
   const [items, setItems] = useState<Comment[] | null>(null);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
+  const { handle, signIn } = useAuth();
 
   useEffect(() => {
     supabase
@@ -35,7 +36,7 @@ export function Comments({
     setBusy(true);
     const { data, error } = await supabase
       .from("comments")
-      .insert({ video_id: videoId, username: ME, body: body.slice(0, 300) })
+      .insert({ video_id: videoId, username: handle ?? "guest", body: body.slice(0, 300) })
       .select("id, username, body, created_at")
       .single();
     setBusy(false);

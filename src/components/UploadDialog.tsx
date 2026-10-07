@@ -19,8 +19,14 @@ export function UploadDialog({ onClose, onDone }: { onClose: () => void; onDone:
 
   const pick = (f?: File) => {
     if (!f) return;
-    if (!f.type.startsWith("video/")) return toast.error("Please choose a video file");
-    if (f.size > 50 * 1024 * 1024) return toast.error("Videos must be under 50 MB");
+    if (!f.type.startsWith("video/")) {
+      toast.error("Please choose a video file");
+      return;
+    }
+    if (f.size > 50 * 1024 * 1024) {
+      toast.error("Videos must be under 50 MB");
+      return;
+    }
     setFile(f);
   };
 

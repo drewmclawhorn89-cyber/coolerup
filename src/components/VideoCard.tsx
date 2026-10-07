@@ -37,7 +37,7 @@ export function VideoCard({
     if (!el) return;
     const obs = new IntersectionObserver(
       ([e]) => {
-        if (e.isIntersecting && e.intersectionRatio > 0.6) el.play().catch(() => {});
+        if (e && e.isIntersecting && e.intersectionRatio > 0.6) el.play().catch(() => {});
         else el.pause();
       },
       { threshold: [0, 0.6, 1] },

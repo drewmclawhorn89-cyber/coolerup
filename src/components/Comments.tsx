@@ -39,7 +39,10 @@ export function Comments({
       .select("id, username, body, created_at")
       .single();
     setBusy(false);
-    if (error) return toast.error("Couldn't post comment");
+    if (error) {
+      toast.error("Couldn't post comment");
+      return;
+    }
     setItems((c) => [data, ...(c ?? [])]);
     setText("");
     onAdded();

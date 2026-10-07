@@ -78,21 +78,32 @@ export function Comments({
             </div>
           ))}
         </div>
-        <form onSubmit={submit} className="flex gap-2 border-t p-4">
-          <input
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            maxLength={300}
-            placeholder="Add a comment…"
-            className="flex-1 rounded-full bg-secondary px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
-          />
-          <button
-            disabled={busy || !text.trim()}
-            className="rounded-full bg-primary px-4 text-sm font-bold text-primary-foreground disabled:opacity-50"
-          >
-            Post
-          </button>
-        </form>
+        {!handle ? (
+          <div className="border-t p-4">
+            <button
+              onClick={signIn}
+              className="w-full rounded-full bg-primary py-2.5 text-sm font-bold text-primary-foreground"
+            >
+              Sign in with Google to comment
+            </button>
+          </div>
+        ) : (
+          <form onSubmit={submit} className="flex gap-2 border-t p-4">
+            <input
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              maxLength={300}
+              placeholder="Add a comment…"
+              className="flex-1 rounded-full bg-secondary px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+            />
+            <button
+              disabled={busy || !text.trim()}
+              className="rounded-full bg-primary px-4 text-sm font-bold text-primary-foreground disabled:opacity-50"
+            >
+              Post
+            </button>
+          </form>
+        )}
       </aside>
     </div>
   );

@@ -21,11 +21,11 @@ export function useAuth() {
   }, []);
 
   const name: string | null =
-    user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email?.split("@")[0] || null;
+    user?.user_metadata?.['full_name'] || user?.user_metadata?.['name'] || user?.email?.split("@")[0] || null;
   const handle = name
     ? name.toLowerCase().replace(/[^a-z0-9._]/g, "").slice(0, 40) || "user"
     : null;
-  const avatar: string | null = user?.user_metadata?.avatar_url ?? null;
+  const avatar: string | null = user?.user_metadata?.['avatar_url'] ?? null;
 
   const signIn = async () => {
     const result = await lovable.auth.signInWithOAuth("google", {

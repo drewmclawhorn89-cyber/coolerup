@@ -14,13 +14,103 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      comments: {
+        Row: {
+          body: string
+          created_at: string
+          id: string
+          username: string
+          video_id: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          id?: string
+          username: string
+          video_id: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          id?: string
+          username?: string
+          video_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comments_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "videos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      likes: {
+        Row: {
+          created_at: string
+          device_id: string
+          video_id: string
+        }
+        Insert: {
+          created_at?: string
+          device_id: string
+          video_id: string
+        }
+        Update: {
+          created_at?: string
+          device_id?: string
+          video_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "likes_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "videos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      videos: {
+        Row: {
+          caption: string
+          comments_count: number
+          created_at: string
+          id: string
+          likes_count: number
+          shares_count: number
+          username: string
+          video_url: string
+        }
+        Insert: {
+          caption?: string
+          comments_count?: number
+          created_at?: string
+          id?: string
+          likes_count?: number
+          shares_count?: number
+          username: string
+          video_url: string
+        }
+        Update: {
+          caption?: string
+          comments_count?: number
+          created_at?: string
+          id?: string
+          likes_count?: number
+          shares_count?: number
+          username?: string
+          video_url?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      increment_share: { Args: { _video_id: string }; Returns: undefined }
     }
     Enums: {
       [_ in never]: never

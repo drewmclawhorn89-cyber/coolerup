@@ -1,9 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { Compass, Heart, Home, Plus, Search, User, Users } from "lucide-react";
+import { Compass, Heart, Home, LogOut, Plus, Search, User, Users } from "lucide-react";
 import { VideoCard } from "@/components/VideoCard";
 import { UploadDialog } from "@/components/UploadDialog";
-import { fetchMyLikes, fetchVideos, ME, type Video } from "@/lib/loop";
+import { fetchMyLikes, fetchVideos, type Video } from "@/lib/loop";
+import { useAuth } from "@/hooks/useAuth";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -38,6 +39,8 @@ const HEADERS: Record<Tab, [string, string]> = {
 };
 
 function Index() {
+  const auth = useAuth();
+  const me = auth.handle;
   const [videos, setVideos] = useState<Video[] | null>(null);
   const [liked, setLiked] = useState<Set<string>>(new Set());
   const [tab, setTab] = useState<Tab>("foryou");
@@ -61,9 +64,9 @@ function Index() {
     const q = query.trim().toLowerCase();
     if (q) list = list.filter((v) => v.caption.toLowerCase().includes(q) || v.username.toLowerCase().includes(q));
     if (tab === "explore") list = [...list].sort((a, b) => b.likes_count - a.likes_count);
-    if (tab === "following") list = list.filter((v) => v.username !== ME);
+    if (tab === "following") list = list.filter((v) => v.username !== me);
     if (tab === "liked") list = list.filter((v) => liked.has(v.id));
-    if (tab === "mine") list = list.filter((v) => v.username === ME);
+    if (tab === "mine") list = me ? list.filter((v) => v.username === me) : [];
     return list;
   }, [videos, query, tab, liked]);
 
@@ -102,20 +105,36 @@ function Index() {
           ))}
         </nav>
         <button
-          onClick={() => setUploading(true)}
+          onClick={() => (auth.user ? setUploading(true) : auth.signIn())}
           className="flex items-center justify-center gap-2 rounded-full bg-primary py-3.5 font-bold text-primary-foreground shadow-[0_10px_30px_-10px_var(--primary)] transition hover:brightness-110"
         >
           <Plus className="h-5 w-5" /> Upload video
         </button>
-        <div className="mt-auto flex items-center gap-3 rounded-xl bg-secondary p-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary font-display text-primary-foreground">
-            D
+        {auth.ready && auth.user ? (
+          <div className="mt-auto flex items-center gap-3 rounded-xl bg-secondary p-3">
+            {auth.avatar ? (
+              <img src={auth.avatar} alt="" className="h-10 w-10 rounded-full object-cover" />
+            ) : (
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary font-display uppercase text-primary-foreground">
+                {auth.name?.[0]}
+              </div>
+            )}
+            <div className="min-w-0 flex-1 text-sm">
+              <p className="text-muted-foreground">Signed in as</p>
+              <p className="truncate font-bold">{auth.name}</p>
+            </div>
+            <button onClick={auth.signOut} aria-label="Sign out" className="text-muted-foreground hover:text-foreground">
+              <LogOut className="h-4 w-4" />
+            </button>
           </div>
-          <div className="text-sm">
-            <p className="text-muted-foreground">Signed in as</p>
-            <p className="font-bold">Drew</p>
-          </div>
-        </div>
+        ) : (
+          <button
+            onClick={auth.signIn}
+            className="mt-auto flex items-center justify-center gap-2 rounded-xl border bg-secondary p-3 font-bold transition hover:bg-accent"
+          >
+            Sign in with Google
+          </button>
+        )}
       </aside>
 
       <main className="flex min-w-0 flex-1 flex-col">
@@ -157,7 +176,7 @@ function Index() {
           </p>
           <p className="mt-6 text-muted-foreground">The world wants your point of view</p>
           <button
-            onClick={() => setUploading(true)}
+            onClick={() => (auth.user ? setUploading(true) : auth.signIn())}
             className="mt-8 w-full rounded-full border border-primary py-3 font-bold text-primary transition hover:bg-primary hover:text-primary-foreground"
           >
             Share yours
@@ -165,8 +184,9 @@ function Index() {
         </div>
       </aside>
 
-      {uploading && (
+      {uploading && auth.handle && (
         <UploadDialog
+          defaultUsername={auth.handle}
           onClose={() => setUploading(false)}
           onDone={() => {
             setUploading(false);

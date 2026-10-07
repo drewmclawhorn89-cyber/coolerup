@@ -11,7 +11,6 @@ export type Video = {
   created_at: string;
 };
 
-export const ME = "drew";
 const STORAGE_PREFIX = "storage:";
 
 export function getDeviceId() {

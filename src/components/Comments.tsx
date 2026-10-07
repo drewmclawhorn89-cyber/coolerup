@@ -50,10 +50,10 @@ export function Comments({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-overlay" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-end justify-end bg-overlay sm:items-stretch" onClick={onClose}>
       <aside
         onClick={(e) => e.stopPropagation()}
-        className="flex h-full w-full max-w-md flex-col border-l bg-card"
+        className="mobile-comments flex h-[75dvh] w-full max-w-md flex-col rounded-t-2xl border bg-card sm:h-full sm:rounded-none sm:border-l"
       >
         <header className="flex items-center justify-between border-b p-4">
           <h2 className="font-bold">Comments {items ? `(${items.length})` : ""}</h2>
@@ -61,7 +61,7 @@ export function Comments({
             <X className="h-5 w-5" />
           </button>
         </header>
-        <div className="flex-1 space-y-4 overflow-y-auto p-4">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
           {items === null && <p className="text-sm text-muted-foreground">Loading…</p>}
           {items?.length === 0 && (
             <p className="text-sm text-muted-foreground">No comments yet. Be the first.</p>
@@ -71,7 +71,7 @@ export function Comments({
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-bold uppercase">
                 {c.username[0]}
               </div>
-              <div>
+              <div className="min-w-0 break-words">
                 <p className="text-xs font-bold text-muted-foreground">@{c.username}</p>
                 <p className="text-sm">{c.body}</p>
               </div>
@@ -94,7 +94,7 @@ export function Comments({
               onChange={(e) => setText(e.target.value)}
               maxLength={300}
               placeholder="Add a comment…"
-              className="flex-1 rounded-full bg-secondary px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+              className="min-w-0 flex-1 rounded-full bg-secondary px-4 py-2 text-base outline-none focus:ring-2 focus:ring-ring sm:text-sm"
             />
             <button
               disabled={busy || !text.trim()}

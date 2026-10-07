@@ -8,3 +8,5 @@
 > Commits you push to the connected branch sync back to Lovable and show up in
 > the editor, so keep the branch in a working state.
 <!-- LOVABLE:END -->
+
+- Keep phone navigation and video sizing responsive within the existing feed components; use dynamic viewport height and safe-area insets so installed apps and browser controls do not hide actions.

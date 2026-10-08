@@ -173,6 +173,7 @@ export function VideoCard({
           >
             {video.username[0]}
           </Link>
+                <button onClick={()=>setIsFollowing(!isFollowing)} className={`px-3 py-1 rounded-full text- font-bold ${isFollowing?'bg-white text-black':'bg-[#00f2ea] text-black border'}`}>{isFollowing?'Following':'Follow'}</button>
           <Action label={formatCount(likes)} onClick={toggleLike} active={liked}>
             <Heart className={`h-6 w-6 ${liked ? "fill-primary text-primary" : ""}`} />
           </Action>

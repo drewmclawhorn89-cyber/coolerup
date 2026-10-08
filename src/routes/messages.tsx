@@ -47,7 +47,9 @@ function Messages() {
     if (auth.user) load();
   }, [auth.user?.id]);
 
-  useEffect(() => endRef.current?.scrollIntoView(), [msgs.length, toUser]);
+  useEffect(() => {
+    endRef.current?.scrollIntoView();
+  }, [msgs.length, toUser]);
 
   const send = async () => {
     const body = text.trim();

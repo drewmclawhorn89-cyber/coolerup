@@ -86,3 +86,7 @@ export default function Messages() {
     </div>
   );
 }
+create table if not exists public.direct_messages (id uuid primary key default gen_random_uuid(), from_username text not null, to_username text not null, message text not null, created_at timestamptz default now());
+alter table public.direct_messages enable row level security;
+drop policy if exists "open2" on public.direct_messages;
+create policy "open2" on public.direct_messages for all using (true) with check (true);

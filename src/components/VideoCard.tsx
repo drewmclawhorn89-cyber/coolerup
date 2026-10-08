@@ -32,7 +32,23 @@ export function VideoCard({
   const [showComments, setShowComments] = useState(false);
   const [showShare, setShowShare] = useState(false);
   const [burst, setBurst] = useState(false);
-  const [isFollowing, setIsFollowing] = useState(false);
+    const [isFollowing, setIsFollowing] = useState(false);
+  const myUsername = "drew"; // FREE: change this to your login later
+
+  useEffect(() => {
+    const load = async () => {
+      const { data } = await supabase.from("follows").select("id").eq("follower_username", myUsername).eq("following_username", video.username).maybeSingle();
+      if(data) setIsFollowing(true);
+    };
+    if(video.username!==myUsername) load();
+  }, [video.username]);
+
+  const toggleFollow = async () => {
+    const next = !isFollowing;
+    setIsFollowing(next);
+    if(next) await supabase.from("follows").insert({ follower_username: myUsername, following_username: video.username });
+    else await supabase.from("follows").delete().eq("follower_username", myUsername).eq("following_username", video.username);
+  };
   useEffect(() => {
     let blobUrl = "";
     let alive = true;

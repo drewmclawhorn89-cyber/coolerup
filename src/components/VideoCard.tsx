@@ -4,7 +4,8 @@ import { Heart, MessageCircle, Share2, Play, Volume2, VolumeX } from "lucide-rea
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCount, getDeviceId, resolveVideoUrl, type Video } from "@/lib/loop";
-import { getSaved } from "@/lib/offline"; import { isBanned, banUser } from "@/lib/moderation";
+import { getSaved } from "@/lib/offline";
+import { useAuth } from "@/hooks/useAuth";
 import { Comments } from "./Comments";
 import { ShareMenu } from "./ShareMenu";
 import { Button } from "@/components/ui/button";
@@ -32,22 +33,32 @@ export function VideoCard({
   const [showComments, setShowComments] = useState(false);
   const [showShare, setShowShare] = useState(false);
   const [burst, setBurst] = useState(false);
-    const [isFollowing, setIsFollowing] = useState(false);
-  const myUsername = "drew"; // FREE: change this to your login later
+  const [isFollowing, setIsFollowing] = useState(false);
+  const auth = useAuth();
+  const myUsername = auth.handle;
 
   useEffect(() => {
-    const load = async () => {
-      const { data } = await supabase.from("follows").select("id").eq("follower_username", myUsername).eq("following_username", video.username).maybeSingle();
-      if(data) setIsFollowing(true);
-    };
-    if(video.username!==myUsername) load();
-  }, [video.username]);
+    if (!auth.user || !myUsername || video.username === myUsername) return;
+    supabase
+      .from("follows")
+      .select("id")
+      .eq("follower_id", auth.user.id)
+      .eq("following_username", video.username)
+      .maybeSingle()
+      .then(({ data }) => setIsFollowing(!!data));
+  }, [video.username, auth.user?.id, myUsername]);
 
   const toggleFollow = async () => {
+    if (!auth.user || !myUsername) return auth.signIn();
     const next = !isFollowing;
     setIsFollowing(next);
-    if(next) await supabase.from("follows").insert({ follower_username: myUsername, following_username: video.username });
-    else await supabase.from("follows").delete().eq("follower_username", myUsername).eq("following_username", video.username);
+    const { error } = next
+      ? await supabase.from("follows").insert({ follower_id: auth.user.id, follower_username: myUsername, following_username: video.username })
+      : await supabase.from("follows").delete().eq("follower_id", auth.user.id).eq("following_username", video.username);
+    if (error) {
+      setIsFollowing(!next);
+      toast.error("Couldn't update follow");
+    }
   };
   useEffect(() => {
     let blobUrl = "";
@@ -189,7 +200,14 @@ export function VideoCard({
           >
             {video.username[0]}
           </Link>
-                <button onClick={()=>setIsFollowing(!isFollowing)} className={`px-3 py-1 rounded-full text- font-bold ${isFollowing?'bg-white text-black':'bg-[#00f2ea] text-black border'}`}>{isFollowing?'Following':'Follow'}</button>
+          {video.username !== myUsername && (
+            <button
+              onClick={toggleFollow}
+              className={`-mt-3 rounded-full px-3 py-1 text-xs font-bold transition ${isFollowing ? "bg-secondary text-foreground" : "bg-primary text-primary-foreground"}`}
+            >
+              {isFollowing ? "Following" : "Follow"}
+            </button>
+          )}
           <Action label={formatCount(likes)} onClick={toggleLike} active={liked}>
             <Heart className={`h-6 w-6 ${liked ? "fill-primary text-primary" : ""}`} />
           </Action>

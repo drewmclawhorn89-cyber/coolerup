@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { Heart, MessageCircle, Share2, Play, Volume2, VolumeX } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCount, getDeviceId, resolveVideoUrl, type Video } from "@/lib/loop";
+import { getSaved } from "@/lib/offline";
 import { Comments } from "./Comments";
+import { ShareMenu } from "./ShareMenu";
 import { Button } from "@/components/ui/button";
 
 export function VideoCard({
@@ -27,11 +30,29 @@ export function VideoCard({
   const [comments, setComments] = useState(video.comments_count);
   const [shares, setShares] = useState(video.shares_count);
   const [showComments, setShowComments] = useState(false);
+  const [showShare, setShowShare] = useState(false);
   const [burst, setBurst] = useState(false);
 
   useEffect(() => {
-    resolveVideoUrl(video.video_url).then(setSrc);
-  }, [video.video_url]);
+    let blobUrl = "";
+    let alive = true;
+    getSaved(video.id)
+      .catch(() => null)
+      .then(async (saved) => {
+        if (!alive) return;
+        if (saved) {
+          blobUrl = URL.createObjectURL(saved.blob);
+          setSrc(blobUrl);
+        } else {
+          const u = await resolveVideoUrl(video.video_url);
+          if (alive) setSrc(u);
+        }
+      });
+    return () => {
+      alive = false;
+      if (blobUrl) URL.revokeObjectURL(blobUrl);
+    };
+  }, [video.id, video.video_url]);
 
   useEffect(() => {
     const el = ref.current;
@@ -73,19 +94,9 @@ export function VideoCard({
     }
   };
 
-  const share = async () => {
-    const url = `${window.location.origin}/?v=${video.id}`;
-    try {
-      if (navigator.share) await navigator.share({ title: `@${video.username} on Loop`, url });
-      else {
-        await navigator.clipboard.writeText(url);
-        toast.success("Link copied");
-      }
-      setShares((n) => n + 1);
-      await supabase.rpc("increment_share", { _video_id: video.id });
-    } catch {
-      /* cancelled */
-    }
+  const onShared = async () => {
+    setShares((n) => n + 1);
+    if (navigator.onLine) await supabase.rpc("increment_share", { _video_id: video.id });
   };
 
   const seek = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -139,7 +150,7 @@ export function VideoCard({
               {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
             </Button>
             <div className="video-caption absolute inset-x-0 bottom-2 pb-5 pl-4 pr-20 pt-16 md:hidden">
-              <p className="break-words text-sm font-bold">@{video.username}</p>
+              <Link to="/u/$username" params={{ username: video.username }} className="break-words text-sm font-bold">@{video.username}</Link>
               <p className="mt-1 line-clamp-3 break-words text-sm">{video.caption}</p>
             </div>
             <div onClick={seek} className="absolute inset-x-0 bottom-0 h-3 cursor-pointer">
@@ -149,21 +160,26 @@ export function VideoCard({
             </div>
           </div>
           <div className="hidden max-w-[calc((100dvh-11rem)*9/16)] md:block">
-            <p className="font-bold">@{video.username}</p>
+            <Link to="/u/$username" params={{ username: video.username }} className="font-bold hover:text-primary">@{video.username}</Link>
             <p className="text-sm text-muted-foreground">{video.caption}</p>
           </div>
         </div>
         <div className="absolute bottom-16 right-2 flex flex-col items-center gap-4 md:static md:mb-16 md:gap-5">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary font-display text-lg uppercase text-primary-foreground md:h-12 md:w-12">
+          <Link
+            to="/u/$username"
+            params={{ username: video.username }}
+            aria-label={`View @${video.username}'s profile`}
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-primary font-display text-lg uppercase text-primary-foreground md:h-12 md:w-12"
+          >
             {video.username[0]}
-          </div>
+          </Link>
           <Action label={formatCount(likes)} onClick={toggleLike} active={liked}>
             <Heart className={`h-6 w-6 ${liked ? "fill-primary text-primary" : ""}`} />
           </Action>
           <Action label={formatCount(comments)} onClick={() => setShowComments(true)}>
             <MessageCircle className="h-6 w-6" />
           </Action>
-          <Action label={formatCount(shares)} onClick={share}>
+          <Action label={formatCount(shares)} onClick={() => setShowShare(true)}>
             <Share2 className="h-6 w-6" />
           </Action>
         </div>
@@ -175,6 +191,7 @@ export function VideoCard({
           onAdded={() => setComments((n) => n + 1)}
         />
       )}
+      {showShare && <ShareMenu video={video} onClose={() => setShowShare(false)} onShared={onShared} />}
     </section>
   );
 }

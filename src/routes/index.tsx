@@ -1,10 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { Compass, Heart, Home, LogOut, Plus, Search, User, Users, X } from "lucide-react";
+import { Compass, Download, Heart, Home, LogOut, Plus, Search, User, Users, WifiOff, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { VideoCard } from "@/components/VideoCard";
 import { UploadDialog } from "@/components/UploadDialog";
 import { fetchMyLikes, fetchVideos, type Video } from "@/lib/loop";
+import { listSaved, onOfflineChange } from "@/lib/offline";
 import { useAuth } from "@/hooks/useAuth";
 
 export const Route = createFileRoute("/")({
@@ -21,13 +22,14 @@ export const Route = createFileRoute("/")({
   component: Index,
 });
 
-type Tab = "foryou" | "explore" | "following" | "liked" | "mine";
+type Tab = "foryou" | "explore" | "following" | "liked" | "saved" | "mine";
 
 const NAV: { id: Tab; label: string; icon: typeof Home }[] = [
   { id: "foryou", label: "For You", icon: Home },
   { id: "explore", label: "Explore", icon: Compass },
   { id: "following", label: "Following", icon: Users },
   { id: "liked", label: "Liked", icon: Heart },
+  { id: "saved", label: "Saved", icon: Download },
   { id: "mine", label: "Your videos", icon: User },
 ];
 
@@ -36,6 +38,7 @@ const HEADERS: Record<Tab, [string, string]> = {
   explore: ["Explore", "Most loved right now"],
   following: ["Following", "Creators you keep coming back to"],
   liked: ["Liked", "Everything you've hearted"],
+  saved: ["Saved", "Watch anytime, even without a connection"],
   mine: ["Your videos", "Your point of view, on loop"],
 };
 
@@ -43,6 +46,8 @@ function Index() {
   const auth = useAuth();
   const me = auth.handle;
   const [videos, setVideos] = useState<Video[] | null>(null);
+  const [saved, setSaved] = useState<Video[]>([]);
+  const [online, setOnline] = useState(true);
   const [liked, setLiked] = useState<Set<string>>(new Set());
   const [tab, setTab] = useState<Tab>("foryou");
   const [query, setQuery] = useState("");
@@ -53,26 +58,47 @@ function Index() {
 
   const load = () =>
     fetchVideos()
-      .then(setVideos)
+      .then((v) => {
+        setVideos(v);
+        setError(false);
+      })
       .catch(() => setError(true));
 
   useEffect(() => {
     load();
-    fetchMyLikes().then(setLiked);
+    fetchMyLikes().then(setLiked).catch(() => {});
+    const refresh = () => listSaved().then((s) => setSaved(s.map((x) => x.video))).catch(() => {});
+    refresh();
+    const off = onOfflineChange(refresh);
+    const update = () => {
+      setOnline(navigator.onLine);
+      if (navigator.onLine) load();
+    };
+    setOnline(navigator.onLine);
+    window.addEventListener("online", update);
+    window.addEventListener("offline", update);
+    return () => {
+      off();
+      window.removeEventListener("online", update);
+      window.removeEventListener("offline", update);
+    };
   }, []);
 
+  const offlineMode = !online || (error && saved.length > 0);
+  const activeTab: Tab = offlineMode ? "saved" : tab;
+
   const shown = useMemo(() => {
-    let list = videos ?? [];
+    let list = activeTab === "saved" ? saved : (videos ?? []);
     const q = query.trim().toLowerCase();
     if (q) list = list.filter((v) => v.caption.toLowerCase().includes(q) || v.username.toLowerCase().includes(q));
-    if (tab === "explore") list = [...list].sort((a, b) => b.likes_count - a.likes_count);
-    if (tab === "following") list = list.filter((v) => v.username !== me);
-    if (tab === "liked") list = list.filter((v) => liked.has(v.id));
-    if (tab === "mine") list = me ? list.filter((v) => v.username === me) : [];
+    if (activeTab === "explore") list = [...list].sort((a, b) => b.likes_count - a.likes_count);
+    if (activeTab === "following") list = list.filter((v) => v.username !== me);
+    if (activeTab === "liked") list = list.filter((v) => liked.has(v.id));
+    if (activeTab === "mine") list = me ? list.filter((v) => v.username === me) : [];
     return list;
-  }, [videos, query, tab, liked, me]);
+  }, [videos, saved, query, activeTab, liked, me]);
 
-  const [title, sub] = query ? [`Results for "${query}"`, `${shown.length} videos`] : HEADERS[tab];
+  const [title, sub] = query ? [`Results for "${query}"`, `${shown.length} videos`] : HEADERS[activeTab];
 
   return (
     <div className="flex h-dvh overflow-hidden bg-background">

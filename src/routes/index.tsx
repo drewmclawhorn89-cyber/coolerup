@@ -124,7 +124,7 @@ function Index() {
               key={id}
               onClick={() => setTab(id)}
               className={`flex items-center gap-3 rounded-xl px-4 py-3 text-left font-bold transition ${
-                tab === id ? "bg-primary/10 text-primary" : "text-foreground hover:bg-secondary"
+                activeTab === id ? "bg-primary/10 text-primary" : "text-foreground hover:bg-secondary"
               }`}
             >
               <Icon className="h-5 w-5" />
@@ -184,17 +184,24 @@ function Index() {
             {query && <Button variant="ghost" size="icon" aria-label="Clear search" onClick={() => setQuery("")}><X /></Button>}
           </label>
         )}
+        {offlineMode && (
+          <div className="flex shrink-0 items-center gap-2 bg-primary/10 px-4 py-2 text-sm font-bold text-primary md:px-10">
+            <WifiOff className="h-4 w-4" /> You're offline — watching saved videos
+          </div>
+        )}
         <header className="shrink-0 px-4 py-2 md:px-10 md:pb-2 md:pt-6">
           <h2 className="break-words font-display text-base md:text-3xl">{title}</h2>
           <p className="hidden text-sm text-muted-foreground md:block">{sub}</p>
         </header>
         <div className="no-scrollbar min-h-0 flex-1 snap-y snap-mandatory overflow-y-scroll overscroll-y-contain">
-          {error && <Empty text="Couldn't load videos. Refresh to try again." />}
-          {!error && videos === null && <Empty text="Loading your feed…" />}
-          {videos && shown.length === 0 && <Empty text="Nothing here yet." />}
+          {error && !offlineMode && <Empty text="Couldn't load videos. Refresh to try again." />}
+          {!error && videos === null && activeTab !== "saved" && <Empty text="Loading your feed…" />}
+          {(videos || activeTab === "saved") && shown.length === 0 && (
+            <Empty text={activeTab === "saved" ? "No saved videos yet. Tap Share → Save for offline on any video." : "Nothing here yet."} />
+          )}
           {shown.map((v) => (
             <VideoCard
-              key={`${tab}-${v.id}`}
+              key={`${activeTab}-${v.id}`}
               video={v}
               liked={liked.has(v.id)}
               muted={muted}
@@ -210,13 +217,13 @@ function Index() {
             />
           ))}
         </div>
-        <nav aria-label="Phone navigation" className="mobile-bottom-nav grid shrink-0 grid-cols-6 border-t bg-sidebar px-1 md:hidden">
+        <nav aria-label="Phone navigation" className="mobile-bottom-nav grid shrink-0 grid-cols-7 border-t bg-sidebar px-1 md:hidden">
           {NAV.slice(0, 3).map(({ id, label, icon: Icon }) => (
-            <Button key={id} variant="ghost" onClick={() => setTab(id)} aria-current={tab === id ? "page" : undefined} className={`h-14 min-w-0 flex-col gap-1 rounded-none px-0 text-[9px] [&_svg]:size-5 ${tab === id ? "text-primary" : "text-muted-foreground"}`}><Icon />{label}</Button>
+            <Button key={id} variant="ghost" onClick={() => setTab(id)} aria-current={activeTab === id ? "page" : undefined} className={`h-14 min-w-0 flex-col gap-1 rounded-none px-0 text-[9px] [&_svg]:size-5 ${activeTab === id ? "text-primary" : "text-muted-foreground"}`}><Icon />{label}</Button>
           ))}
           <Button aria-label="Upload video" onClick={() => (auth.user ? setUploading(true) : auth.signIn())} className="m-auto h-9 w-10 rounded-lg px-0 [&_svg]:size-6"><Plus /></Button>
           {NAV.slice(3).map(({ id, label, icon: Icon }) => (
-            <Button key={id} variant="ghost" onClick={() => setTab(id)} aria-current={tab === id ? "page" : undefined} className={`h-14 min-w-0 flex-col gap-1 rounded-none px-0 text-[9px] [&_svg]:size-5 ${tab === id ? "text-primary" : "text-muted-foreground"}`}><Icon />{id === "mine" ? "You" : label}</Button>
+            <Button key={id} variant="ghost" onClick={() => setTab(id)} aria-current={activeTab === id ? "page" : undefined} className={`h-14 min-w-0 flex-col gap-1 rounded-none px-0 text-[9px] [&_svg]:size-5 ${activeTab === id ? "text-primary" : "text-muted-foreground"}`}><Icon />{id === "mine" ? "You" : label}</Button>
           ))}
         </nav>
       </main>

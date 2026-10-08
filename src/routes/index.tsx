@@ -1,5 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { Compass, Download, Heart, Home, LogOut, MessageCircle, Plus, Search, User, Users, WifiOff, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { VideoCard } from "@/components/VideoCard";
@@ -124,16 +124,26 @@ function Index() {
         </label>
         <nav className="flex flex-col gap-1">
           {NAV.map(({ id, label, icon: Icon }) => (
-            <button
-              key={id}
-              onClick={() => setTab(id)}
-              className={`flex items-center gap-3 rounded-xl px-4 py-3 text-left font-bold transition ${
-                activeTab === id ? "bg-primary/10 text-primary" : "text-foreground hover:bg-secondary"
-              }`}
-            >
-              <Icon className="h-5 w-5" />
-              {label}
-            </button>
+            <Fragment key={id}>
+              <button
+                onClick={() => setTab(id)}
+                className={`flex items-center gap-3 rounded-xl px-4 py-3 text-left font-bold transition ${
+                  activeTab === id ? "bg-primary/10 text-primary" : "text-foreground hover:bg-secondary"
+                }`}
+              >
+                <Icon className="h-5 w-5" />
+                {label}
+              </button>
+              {id === "liked" && (
+                <Link
+                  to="/messages"
+                  className="flex items-center gap-3 rounded-xl px-4 py-3 font-bold transition hover:bg-secondary"
+                >
+                  <MessageCircle className="h-5 w-5" />
+                  Messages
+                </Link>
+              )}
+            </Fragment>
           ))}
         </nav>
         <button

@@ -160,21 +160,26 @@ export function VideoCard({
             </div>
           </div>
           <div className="hidden max-w-[calc((100dvh-11rem)*9/16)] md:block">
-            <p className="font-bold">@{video.username}</p>
+            <Link to="/u/$username" params={{ username: video.username }} className="font-bold hover:text-primary">@{video.username}</Link>
             <p className="text-sm text-muted-foreground">{video.caption}</p>
           </div>
         </div>
         <div className="absolute bottom-16 right-2 flex flex-col items-center gap-4 md:static md:mb-16 md:gap-5">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary font-display text-lg uppercase text-primary-foreground md:h-12 md:w-12">
+          <Link
+            to="/u/$username"
+            params={{ username: video.username }}
+            aria-label={`View @${video.username}'s profile`}
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-primary font-display text-lg uppercase text-primary-foreground md:h-12 md:w-12"
+          >
             {video.username[0]}
-          </div>
+          </Link>
           <Action label={formatCount(likes)} onClick={toggleLike} active={liked}>
             <Heart className={`h-6 w-6 ${liked ? "fill-primary text-primary" : ""}`} />
           </Action>
           <Action label={formatCount(comments)} onClick={() => setShowComments(true)}>
             <MessageCircle className="h-6 w-6" />
           </Action>
-          <Action label={formatCount(shares)} onClick={share}>
+          <Action label={formatCount(shares)} onClick={() => setShowShare(true)}>
             <Share2 className="h-6 w-6" />
           </Action>
         </div>
@@ -186,6 +191,7 @@ export function VideoCard({
           onAdded={() => setComments((n) => n + 1)}
         />
       )}
+      {showShare && <ShareMenu video={video} onClose={() => setShowShare(false)} onShared={onShared} />}
     </section>
   );
 }

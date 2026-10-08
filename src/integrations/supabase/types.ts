@@ -49,23 +49,29 @@ export type Database = {
       direct_messages: {
         Row: {
           created_at: string
+          from_id: string | null
           from_username: string
           id: string
           message: string
+          to_id: string | null
           to_username: string
         }
         Insert: {
           created_at?: string
+          from_id?: string | null
           from_username: string
           id?: string
           message: string
+          to_id?: string | null
           to_username: string
         }
         Update: {
           created_at?: string
+          from_id?: string | null
           from_username?: string
           id?: string
           message?: string
+          to_id?: string | null
           to_username?: string
         }
         Relationships: []
@@ -73,18 +79,21 @@ export type Database = {
       follows: {
         Row: {
           created_at: string
+          follower_id: string | null
           follower_username: string
           following_username: string
           id: string
         }
         Insert: {
           created_at?: string
+          follower_id?: string | null
           follower_username: string
           following_username: string
           id?: string
         }
         Update: {
           created_at?: string
+          follower_id?: string | null
           follower_username?: string
           following_username?: string
           id?: string
@@ -138,6 +147,24 @@ export type Database = {
           message?: string | null
           receiver_id?: string | null
           sender_id?: string | null
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          handle: string
+          id: string
+        }
+        Insert: {
+          created_at?: string
+          handle: string
+          id: string
+        }
+        Update: {
+          created_at?: string
+          handle?: string
+          id?: string
         }
         Relationships: []
       }

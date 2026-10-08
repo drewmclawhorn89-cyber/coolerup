@@ -264,3 +264,6 @@ function Index() {
 function Empty({ text }: { text: string }) {
   return <div className="flex h-full items-center justify-center text-muted-foreground">{text}</div>;
 }
+<a href="/messages" className="fixed bottom-20 right-4 bg-[#00f2ea] text-black w-14 h-14 rounded-full flex items-center justify-center shadow-lg z-50">
+  <MessageCircle />
+</a>

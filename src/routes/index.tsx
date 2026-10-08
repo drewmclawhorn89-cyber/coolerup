@@ -24,7 +24,9 @@ export const Route = createFileRoute("/")({
 
 type Tab = "foryou" | "explore" | "following" | "liked" | "saved" | "mine";
 
-const NAV: { id: Tab; label: string; icon: typeof Home }[] = [
+type NavItem = { id: Tab; label: string; icon: typeof Home; to?: string };
+
+const NAV: NavItem[] = [
   { id: "foryou", label: "For You", icon: Home },
   { id: "explore", label: "Explore", icon: Compass },
   { id: "following", label: "Following", icon: Users },
@@ -32,6 +34,8 @@ const NAV: { id: Tab; label: string; icon: typeof Home }[] = [
   { id: "saved", label: "Saved", icon: Download },
   { id: "mine", label: "Your videos", icon: User },
 ];
+
+const MESSAGES: NavItem = { id: "liked", label: "Messages", icon: MessageCircle, to: "/messages" };
 
 const HEADERS: Record<Tab, [string, string]> = {
   foryou: ["For You", "A fresh perspective with every scroll"],
@@ -246,13 +250,6 @@ function Index() {
         </div>
       </aside>
 
-      <a
-        href="/messages"
-        aria-label="Messages"
-        className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg md:bottom-6"
-      >
-        <MessageCircle />
-      </a>
 
       {uploading && auth.handle && (
         <UploadDialog

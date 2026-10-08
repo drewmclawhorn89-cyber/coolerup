@@ -1,5 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { Compass, Download, Heart, Home, LogOut, MessageCircle, Plus, Search, User, Users, WifiOff, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { VideoCard } from "@/components/VideoCard";
@@ -32,6 +32,7 @@ const NAV: { id: Tab; label: string; icon: typeof Home }[] = [
   { id: "saved", label: "Saved", icon: Download },
   { id: "mine", label: "Your videos", icon: User },
 ];
+
 
 const HEADERS: Record<Tab, [string, string]> = {
   foryou: ["For You", "A fresh perspective with every scroll"],
@@ -120,16 +121,26 @@ function Index() {
         </label>
         <nav className="flex flex-col gap-1">
           {NAV.map(({ id, label, icon: Icon }) => (
-            <button
-              key={id}
-              onClick={() => setTab(id)}
-              className={`flex items-center gap-3 rounded-xl px-4 py-3 text-left font-bold transition ${
-                activeTab === id ? "bg-primary/10 text-primary" : "text-foreground hover:bg-secondary"
-              }`}
-            >
-              <Icon className="h-5 w-5" />
-              {label}
-            </button>
+            <Fragment key={id}>
+              <button
+                onClick={() => setTab(id)}
+                className={`flex items-center gap-3 rounded-xl px-4 py-3 text-left font-bold transition ${
+                  activeTab === id ? "bg-primary/10 text-primary" : "text-foreground hover:bg-secondary"
+                }`}
+              >
+                <Icon className="h-5 w-5" />
+                {label}
+              </button>
+              {id === "liked" && (
+                <Link
+                  to="/messages"
+                  className="flex items-center gap-3 rounded-xl px-4 py-3 font-bold transition hover:bg-secondary"
+                >
+                  <MessageCircle className="h-5 w-5" />
+                  Messages
+                </Link>
+              )}
+            </Fragment>
           ))}
         </nav>
         <button
@@ -217,13 +228,18 @@ function Index() {
             />
           ))}
         </div>
-        <nav aria-label="Phone navigation" className="mobile-bottom-nav grid shrink-0 grid-cols-7 border-t bg-sidebar px-1 md:hidden">
+        <nav aria-label="Phone navigation" className="mobile-bottom-nav grid shrink-0 grid-cols-8 border-t bg-sidebar px-1 md:hidden">
           {NAV.slice(0, 3).map(({ id, label, icon: Icon }) => (
             <Button key={id} variant="ghost" onClick={() => setTab(id)} aria-current={activeTab === id ? "page" : undefined} className={`h-14 min-w-0 flex-col gap-1 rounded-none px-0 text-[9px] [&_svg]:size-5 ${activeTab === id ? "text-primary" : "text-muted-foreground"}`}><Icon />{label}</Button>
           ))}
           <Button aria-label="Upload video" onClick={() => (auth.user ? setUploading(true) : auth.signIn())} className="m-auto h-9 w-10 rounded-lg px-0 [&_svg]:size-6"><Plus /></Button>
           {NAV.slice(3).map(({ id, label, icon: Icon }) => (
-            <Button key={id} variant="ghost" onClick={() => setTab(id)} aria-current={activeTab === id ? "page" : undefined} className={`h-14 min-w-0 flex-col gap-1 rounded-none px-0 text-[9px] [&_svg]:size-5 ${activeTab === id ? "text-primary" : "text-muted-foreground"}`}><Icon />{id === "mine" ? "You" : label}</Button>
+            <Fragment key={id}>
+              <Button variant="ghost" onClick={() => setTab(id)} aria-current={activeTab === id ? "page" : undefined} className={`h-14 min-w-0 flex-col gap-1 rounded-none px-0 text-[9px] [&_svg]:size-5 ${activeTab === id ? "text-primary" : "text-muted-foreground"}`}><Icon />{id === "mine" ? "You" : label}</Button>
+              {id === "liked" && (
+                <Link to="/messages" aria-label="Messages" className="flex h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-none px-0 text-[9px] text-muted-foreground [&_svg]:size-5"><MessageCircle />Messages</Link>
+              )}
+            </Fragment>
           ))}
         </nav>
       </main>
@@ -246,13 +262,6 @@ function Index() {
         </div>
       </aside>
 
-      <a
-        href="/messages"
-        aria-label="Messages"
-        className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg md:bottom-6"
-      >
-        <MessageCircle />
-      </a>
 
       {uploading && auth.handle && (
         <UploadDialog

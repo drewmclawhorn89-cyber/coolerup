@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { Heart, MessageCircle, Share2, Play, Volume2, VolumeX } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCount, getDeviceId, resolveVideoUrl, type Video } from "@/lib/loop";
+import { getSaved } from "@/lib/offline";
 import { Comments } from "./Comments";
+import { ShareMenu } from "./ShareMenu";
 import { Button } from "@/components/ui/button";
 
 export function VideoCard({
@@ -27,11 +30,29 @@ export function VideoCard({
   const [comments, setComments] = useState(video.comments_count);
   const [shares, setShares] = useState(video.shares_count);
   const [showComments, setShowComments] = useState(false);
+  const [showShare, setShowShare] = useState(false);
   const [burst, setBurst] = useState(false);
 
   useEffect(() => {
-    resolveVideoUrl(video.video_url).then(setSrc);
-  }, [video.video_url]);
+    let blobUrl = "";
+    let alive = true;
+    getSaved(video.id)
+      .catch(() => null)
+      .then(async (saved) => {
+        if (!alive) return;
+        if (saved) {
+          blobUrl = URL.createObjectURL(saved.blob);
+          setSrc(blobUrl);
+        } else {
+          const u = await resolveVideoUrl(video.video_url);
+          if (alive) setSrc(u);
+        }
+      });
+    return () => {
+      alive = false;
+      if (blobUrl) URL.revokeObjectURL(blobUrl);
+    };
+  }, [video.id, video.video_url]);
 
   useEffect(() => {
     const el = ref.current;
@@ -73,19 +94,9 @@ export function VideoCard({
     }
   };
 
-  const share = async () => {
-    const url = `${window.location.origin}/?v=${video.id}`;
-    try {
-      if (navigator.share) await navigator.share({ title: `@${video.username} on Loop`, url });
-      else {
-        await navigator.clipboard.writeText(url);
-        toast.success("Link copied");
-      }
-      setShares((n) => n + 1);
-      await supabase.rpc("increment_share", { _video_id: video.id });
-    } catch {
-      /* cancelled */
-    }
+  const onShared = async () => {
+    setShares((n) => n + 1);
+    if (navigator.onLine) await supabase.rpc("increment_share", { _video_id: video.id });
   };
 
   const seek = (e: React.MouseEvent<HTMLDivElement>) => {

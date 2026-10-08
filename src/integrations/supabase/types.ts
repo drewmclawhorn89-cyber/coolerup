@@ -46,6 +46,51 @@ export type Database = {
           },
         ]
       }
+      direct_messages: {
+        Row: {
+          created_at: string
+          from_username: string
+          id: string
+          message: string
+          to_username: string
+        }
+        Insert: {
+          created_at?: string
+          from_username: string
+          id?: string
+          message: string
+          to_username: string
+        }
+        Update: {
+          created_at?: string
+          from_username?: string
+          id?: string
+          message?: string
+          to_username?: string
+        }
+        Relationships: []
+      }
+      follows: {
+        Row: {
+          created_at: string
+          follower_username: string
+          following_username: string
+          id: string
+        }
+        Insert: {
+          created_at?: string
+          follower_username: string
+          following_username: string
+          id?: string
+        }
+        Update: {
+          created_at?: string
+          follower_username?: string
+          following_username?: string
+          id?: string
+        }
+        Relationships: []
+      }
       likes: {
         Row: {
           created_at: string

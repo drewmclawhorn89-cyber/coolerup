@@ -56,11 +56,17 @@ function Messages() {
     const to = toUser.trim().replace(/^@/, "").toLowerCase();
     if (!body || !to || !auth.user || !me) return;
     const { data: target } = await supabase.from("profiles").select("id").eq("handle", to).maybeSingle();
-    if (!target) return toast.error(`@${to} hasn't joined Loop yet`);
+    if (!target) {
+      toast.error(`@${to} hasn't joined Loop yet`);
+      return;
+    }
     const { error } = await supabase
       .from("direct_messages")
       .insert({ from_id: auth.user.id, to_id: target.id, from_username: me, to_username: to, message: body });
-    if (error) return toast.error("Couldn't send message");
+    if (error) {
+      toast.error("Couldn't send message");
+      return;
+    }
     setText("");
     load();
   };

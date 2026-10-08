@@ -35,7 +35,6 @@ const NAV: NavItem[] = [
   { id: "mine", label: "Your videos", icon: User },
 ];
 
-const MESSAGES: NavItem = { id: "liked", label: "Messages", icon: MessageCircle, to: "/messages" };
 
 const HEADERS: Record<Tab, [string, string]> = {
   foryou: ["For You", "A fresh perspective with every scroll"],

@@ -4,7 +4,7 @@ import { Heart, MessageCircle, Share2, Play, Volume2, VolumeX } from "lucide-rea
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCount, getDeviceId, resolveVideoUrl, type Video } from "@/lib/loop";
-import { getSaved } from "@/lib/offline";
+import { getSaved } from "@/lib/offline"; import { isBanned, banUser } from "@/lib/moderation";
 import { Comments } from "./Comments";
 import { ShareMenu } from "./ShareMenu";
 import { Button } from "@/components/ui/button";
@@ -32,7 +32,7 @@ export function VideoCard({
   const [showComments, setShowComments] = useState(false);
   const [showShare, setShowShare] = useState(false);
   const [burst, setBurst] = useState(false);
-
+  const [isFollowing, setIsFollowing] = useState(false);
   useEffect(() => {
     let blobUrl = "";
     let alive = true;

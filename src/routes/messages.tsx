@@ -1,7 +1,22 @@
+import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
-export default function Messages() {
+export const Route = createFileRoute("/messages")({
+  head: () => ({
+    meta: [
+      { title: "Messages — Loop" },
+      { name: "description", content: "Chat with creators on Loop." },
+      { property: "og:title", content: "Messages — Loop" },
+      { property: "og:description", content: "Chat with creators on Loop." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+    ],
+  }),
+  component: Messages,
+});
+
+function Messages() {
   const myUsername = "drew"; // change to your real username later
   const [toUser, setToUser] = useState("");
   const [text, setText] = useState("");

@@ -27,6 +27,17 @@ export function useAuth() {
     : null;
   const avatar: string | null = user?.user_metadata?.['avatar_url'] ?? null;
 
+  // Claim this account's handle so follows and messages can be tied to it.
+  useEffect(() => {
+    if (!user || !handle) return;
+    supabase
+      .from("profiles")
+      .upsert({ id: user.id, handle }, { onConflict: "id" })
+      .then(({ error }) => {
+        if (error?.code === "23505") toast.error(`@${handle} is already taken by another account`);
+      });
+  }, [user?.id, handle]);
+
   const signIn = async () => {
     const result = await lovable.auth.signInWithOAuth("google", {
       redirect_uri: window.location.origin,

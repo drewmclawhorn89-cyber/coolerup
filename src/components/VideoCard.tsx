@@ -150,7 +150,7 @@ export function VideoCard({
               {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
             </Button>
             <div className="video-caption absolute inset-x-0 bottom-2 pb-5 pl-4 pr-20 pt-16 md:hidden">
-              <p className="break-words text-sm font-bold">@{video.username}</p>
+              <Link to="/u/$username" params={{ username: video.username }} className="break-words text-sm font-bold">@{video.username}</Link>
               <p className="mt-1 line-clamp-3 break-words text-sm">{video.caption}</p>
             </div>
             <div onClick={seek} className="absolute inset-x-0 bottom-0 h-3 cursor-pointer">

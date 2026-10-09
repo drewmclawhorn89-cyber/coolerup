@@ -14,16 +14,9 @@ function formatCount(n: number) {
   return String(n);
 }
 
-type Video = {
-  id: string;
-  video_url: string;
-  likes_count: number;
-  username: string;
-};
-
 function Profile() {
   const { username } = Route.useParams();
-  const [videos][setVideos] = useState<Video[] | null>(null);
+  const [videos][setVideos] = useState<any[] | null>(null);
   const [open][setOpen] = useState<number | null>(null);
   const [isMe][setIsMe] = useState(false);
   const [editing][setEditing] = useState(false);
@@ -34,55 +27,33 @@ function Profile() {
   useEffect(() => {
     if (!username) return;
     setNewUsername(username);
-
-    supabase.from("videos").select("*").eq("username", username).then(({ data }) => setVideos(data as any));
-
-    supabase.from("profiles").select("*").eq("username", username).single().then(({ data }) => {
-      if (data) setBio(data.bio || "");
+    supabase.from("videos").select("*").eq("username", username).then(({ data }) => setVideos(data));
+    supabase.from("profiles").select("*").eq("username", username).maybeSingle().then(({ data }) => {
+      if (data?.bio) setBio(data.bio);
     });
-
-    // Check if this is MY profile - secure way
-    supabase.auth.getUser().then(({ data }) => {
+    supabase.auth.getUser().then(async ({ data }) => {
       if (!data.user) return;
       setMyId(data.user.id);
-      const metaUsername = data.user.user_metadata?.username;
-      const emailName = data.user.email?.split("@")[0];
-      if (metaUsername === username || emailName === username) {
+      const { data: myProfile } = await supabase.from("profiles").select("username,bio").eq("user_id", data.user.id).maybeSingle();
+      if (myProfile?.username === username) {
         setIsMe(true);
+        if (myProfile.bio) setBio(myProfile.bio);
+      } else {
+        const meta = data.user.user_metadata?.username;
+        if (meta === username) setIsMe(true);
       }
-      // also check profiles table user_id
-      supabase.from("profiles").select("user_id").eq("user_id", data.user.id).single().then(({ data: prof }) => {
-        if (prof) {
-          // if logged in user's profile username matches url, it's me
-          supabase.from("profiles").select("username").eq("user_id", data.user!.id).single().then(({ data: myProf }) => {
-            if (myProf?.username === username) setIsMe(true);
-          });
-        }
-      });
     });
   }, [username]);
 
   const saveProfile = async () => {
     if (!myId) return;
-
-    // Save bio
-    const { error } = await supabase.from("profiles").upsert(
-      { user_id: myId, username: newUsername, bio },
-      { onConflict: "user_id" }
-    );
-
-    if (error) {
-      alert("Save failed: " + error.message + " - Check RLS policies in Step 1");
-      return;
-    }
-
-    // If username changed, update auth metadata too
+    await supabase.from("profiles").upsert({ user_id: myId, username: newUsername, bio }, { onConflict: "user_id" });
+    await supabase.auth.updateUser({ data: { username: newUsername, bio } });
     if (newUsername!== username) {
-      await supabase.auth.updateUser({ data: { username: newUsername } });
       window.location.href = `/u/${newUsername}`;
+    } else {
+      setEditing(false);
     }
-
-    setEditing(false);
   };
 
   const totalLikes = (videos?? []).reduce((a: any, v: any) => a + (v.likes_count || 0), 0);
@@ -90,47 +61,25 @@ function Profile() {
   return (
     <div className="min-h-dvh bg-background">
       <div className="mx-auto max-w-4xl px-4 pt-4">
-        <Link to="/" className="inline-flex items-center gap-2 text-sm text-muted-foreground">
-          <ArrowLeft className="h-4 w-4" /> Home
-        </Link>
-
+        <Link to="/" className="inline-flex items-center gap-2 text-sm text-muted-foreground"><ArrowLeft className="h-4 w-4" /> Home</Link>
         <div className="flex flex-col items-center gap-3 py-8 text-center">
-          <div className="flex h-24 w-24 items-center justify-center rounded-full bg-primary text-4xl uppercase text-primary-foreground">
-            {username?.[0]}
-          </div>
+          <div className="flex h-24 w-24 items-center justify-center rounded-full bg-primary text-4xl uppercase text-primary-foreground">{username?.[0]}</div>
           <h1 className="text-2xl">@{username}</h1>
-
           {editing? (
             <div className="w-full max-w-sm space-y-3">
-              <input value={newUsername} onChange={e => setNewUsername(e.target.value)} placeholder="Username" className="w-full rounded-md border bg-background p-2 text-sm" />
-              <textarea value={bio} onChange={e => setBio(e.target.value)} placeholder="Your bio..." className="w-full rounded-md border bg-background p-2 text-sm" rows={3} />
-              <Button onClick={saveProfile} size="sm" className="w-full"><Save className="mr-2 h-4 w-4"/> Save</Button>
+              <input value={newUsername} onChange={e => setNewUsername(e.target.value)} className="w-full rounded-md border p-2 text-sm" placeholder="Username" />
+              <textarea value={bio} onChange={e => setBio(e.target.value)} className="w-full rounded-md border p-2 text-sm" rows={3} placeholder="Your bio..." />
+              <Button onClick={saveProfile} size="sm" className="w-full"><Save className="mr-2 h-4 w-4"/> Save profile</Button>
               <Button variant="ghost" size="sm" className="w-full" onClick={() => setEditing(false)}>Cancel</Button>
             </div>
           ) : (
             <p className="text-sm text-muted-foreground max-w-sm">{bio || "No bio yet."}</p>
           )}
-
-          <div className="flex gap-8 text-sm">
-            <span><b>{videos?.length?? "-"}</b> videos</span>
-            <span><b>{formatCount(totalLikes)}</b> likes</span>
-          </div>
-
-          {isMe &&!editing && (
-            <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
-              <Edit3 className="mr-2 h-4 w-4"/> Edit profile
-            </Button>
-          )}
-          {!isMe && (
-            <p className="text-xs text-muted-foreground">This is {username}'s profile - you can't edit it</p>
-          )}
+          <div className="flex gap-8 text-sm"><span><b>{videos?.length?? "-"}</b> videos</span><span><b>{formatCount(totalLikes)}</b> likes</span></div>
+          {isMe &&!editing && <Button variant="outline" size="sm" onClick={() => setEditing(true)}><Edit3 className="mr-2 h-4 w-4"/> Edit profile</Button>}
         </div>
-
-        {videos === null && <p className="py-20 text-center text-muted-foreground">Loading...</p>}
-        {videos?.length === 0 && <p className="py-20 text-center text-muted-foreground">No videos yet.</p>}
-
         <div className="grid grid-cols-3 gap-1">
-          {videos?.map((v, i) => (
+          {videos?.map((v: any, i: number) => (
             <button key={v.id} onClick={() => setOpen(i)} className="relative aspect-[9/16] overflow-hidden rounded-md bg-zinc-800">
               <video src={`${v.video_url}#t=0.5`} muted playsInline preload="metadata" className="h-full w-full object-cover" />
               <span className="absolute bottom-1 left-2 text-xs font-bold text-white">{formatCount(v.likes_count)} likes</span>
@@ -138,14 +87,11 @@ function Profile() {
           ))}
         </div>
       </div>
-
       {open!== null && videos && (
         <div className="fixed inset-0 z-40 bg-black">
-          <Button variant="ghost" size="icon" onClick={() => setOpen(null)} className="absolute left-3 top-3 z-50 text-white">
-            <X />
-          </Button>
+          <Button variant="ghost" size="icon" onClick={() => setOpen(null)} className="absolute left-3 top-3 z-50 text-white"><X /></Button>
           <div className="h-dvh overflow-y-scroll snap-y snap-mandatory">
-            {videos.map((v) => (
+            {videos.map((v: any) => (
               <div key={v.id} className="h-dvh snap-start flex items-center justify-center">
                 <video src={v.video_url} className="h-full w-full object-cover" controls loop playsInline />
               </div>

@@ -90,26 +90,29 @@ const [editUsername, setEditUsername] = useState("");
               />
             </div>
           ))}
-        </Viewer>{showEdit && (
-  <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
-    <div className="bg-zinc-900 rounded-2xl p-6 w-full max-w-sm border border-zinc-800">
-      <h2 className="text-white font-bold text-lg mb-4">Edit Profile</h2>
-      <input value={editUsername} onChange={e=>setEditUsername(e.target.value)} placeholder="Username" className="w-full bg-zinc-800 text-white rounded-lg p-3 mb-3" />
-      <textarea value={editBio} onChange={e=>setEditBio(e.target.value)} placeholder="Bio" maxLength={150} className="w-full bg-zinc-800 text-white rounded-lg p-3 mb-4 h-24" />
-      <div className="flex gap-2">
-        <button onClick={()=>setShowEdit(false)} className="flex-1 bg-zinc-700 text-white py-2.5 rounded-full">Cancel</button>
-        <button onClick={async()=>{
-          const { error } = await supabase.from('profiles').update({ username: editUsername, bio: editBio }).eq('username', username);
-          if(!error){ setShowEdit(false); location.href = `/u/${editUsername}` } else alert(error.message)
-        }} className="flex-1 bg-white text-black py-2.5 rounded-full font-bold">Save</button>
-      </div>
-    </div>
-  </div>
-)}
+         </Viewer>
+      ))}
+
+      {showEdit && (
+        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+          <div className="bg-zinc-900 rounded-2xl p-6 w-full max-w-sm border border-zinc-800">
+            <h2 className="text-white font-bold text-lg mb-4">Edit Profile</h2>
+            <input value={editUsername} onChange={e=>setEditUsername(e.target.value)} placeholder="Username" className="w-full bg-zinc-800 text-white rounded-lg p-3 mb-3" />
+            <textarea value={editBio} onChange={e=>setEditBio(e.target.value)} placeholder="Bio" maxLength={150} className="w-full bg-zinc-800 text-white rounded-lg p-3 mb-4 h-24" />
+            <div className="flex gap-2">
+              <button onClick={()=>setShowEdit(false)} className="flex-1 bg-zinc-700 text-white py-2.5 rounded-full">Cancel</button>
+              <button onClick={async()=>{
+                const { error } = await supabase.from('profiles').update({ username: editUsername, bio: editBio }).eq('username', username);
+                if(error){ alert(error.message) } else { setShowEdit(false); location.href = `/u/${editUsername}` }
+              }} className="flex-1 bg-white text-black py-2.5 rounded-full font-bold">Save</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
-}
+} 
+} 
 
 function Tile({ video, onClick }: { video: Video; onClick: () => void }) {
   const [src, setSrc] = useState("");

@@ -1,8 +1,12 @@
-import { useState, useEffect, useRef } from "react";
-import { useParams, Link } from "react-router-dom";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Play, X, ArrowLeft } from "lucide-react";
+import { X, ArrowLeft } from "lucide-react";
+
+export const Route = createFileRoute("/u/$username")({
+  component: Profile,
+});
 
 function formatCount(n: number) {
   if (n >= 1000000) return (n/1000000).toFixed(1)+"M";
@@ -17,23 +21,14 @@ type Video = {
   username: string;
 };
 
-function Tile({ video, onClick }: { video: Video; onClick: () => void }) {
-  return (
-    <button onClick={onClick} className="relative aspect-[9/16] overflow-hidden rounded-md bg-zinc-800">
-      <video src={`${video.video_url}#t=0.5`} muted playsInline preload="metadata" className="h-full w-full object-cover" />
-      <span className="absolute bottom-1 left-2 text-xs font-bold text-white">{formatCount(video.likes_count)} likes</span>
-    </button>
-  );
-}
-
-export default function Profile() {
-  const { username } = useParams();
-  const [videos, setVideos] = useState<Video[] | null>(null);
-  const [open, setOpen] = useState<number | null>(null);
+function Profile() {
+  const { username } = Route.useParams();
+  const [videos][setVideos] = useState<Video[] | null>(null);
+  const [open][setOpen] = useState<number | null>(null);
 
   useEffect(() => {
     if (!username) return;
-    supabase.from('videos').select('*').eq('username', username).then(({data}) => setVideos(data as any));
+    supabase.from("videos").select("*").eq("username", username).then(({data}) => setVideos(data as any));
   }, [username]);
 
   const totalLikes = (videos?? []).reduce((a: any, v: any) => a + (v.likes_count || 0), 0);
@@ -60,7 +55,10 @@ export default function Profile() {
 
         <div className="grid grid-cols-3 gap-1">
           {videos?.map((v, i) => (
-            <Tile key={v.id} video={v} onClick={() => setOpen(i)} />
+            <button key={v.id} onClick={() => setOpen(i)} className="relative aspect-[9/16] overflow-hidden rounded-md bg-zinc-800">
+              <video src={`${v.video_url}#t=0.5`} muted playsInline preload="metadata" className="h-full w-full object-cover" />
+              <span className="absolute bottom-1 left-2 text-xs font-bold text-white">{formatCount(v.likes_count)} likes</span>
+            </button>
           ))}
         </div>
       </div>

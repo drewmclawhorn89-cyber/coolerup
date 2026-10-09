@@ -26,7 +26,9 @@ function Profile() {
   const [liked, setLiked] = useState<Set<string>>(new Set());
   const [open, setOpen] = useState<number | null>(null);
   const [muted, setMuted] = useState(true);
-
+const [showEdit, setShowEdit] = useState(false);
+const [editBio, setEditBio] = useState("");
+const [editUsername, setEditUsername] = useState("");
   useEffect(() => {
     setVideos(null);
     supabase
@@ -50,7 +52,7 @@ function Profile() {
           <div className="flex h-24 w-24 items-center justify-center rounded-full bg-primary font-display text-4xl uppercase text-primary-foreground">
             {username[0]}
           </div>
-          <h1 className="font-display text-2xl break-all">@{username}</h1>
+          <h1 className="font-display text-2xl break-all">@{username}</h1>  <button onClick={() => { setEditUsername(username); setShowEdit(true); }} className="mt-3 bg-white text-black px-6 py-2.5 rounded-full text-sm font-bold">Edit Profile</button>
           <div className="flex gap-8 text-sm">
             <span><b className="text-lg">{videos?.length ?? "–"}</b> <span className="text-muted-foreground">videos</span></span>
             <span><b className="text-lg">{formatCount(totalLikes)}</b> <span className="text-muted-foreground">likes</span></span>
@@ -83,7 +85,22 @@ function Profile() {
               />
             </div>
           ))}
-        </Viewer>
+        </Viewer>{showEdit && (
+  <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+    <div className="bg-zinc-900 rounded-2xl p-6 w-full max-w-sm border border-zinc-800">
+      <h2 className="text-white font-bold text-lg mb-4">Edit Profile</h2>
+      <input value={editUsername} onChange={e=>setEditUsername(e.target.value)} placeholder="Username" className="w-full bg-zinc-800 text-white rounded-lg p-3 mb-3" />
+      <textarea value={editBio} onChange={e=>setEditBio(e.target.value)} placeholder="Bio" maxLength={150} className="w-full bg-zinc-800 text-white rounded-lg p-3 mb-4 h-24" />
+      <div className="flex gap-2">
+        <button onClick={()=>setShowEdit(false)} className="flex-1 bg-zinc-700 text-white py-2.5 rounded-full">Cancel</button>
+        <button onClick={async()=>{
+          const { error } = await supabase.from('profiles').update({ username: editUsername, bio: editBio }).eq('username', username);
+          if(!error){ setShowEdit(false); location.href = `/u/${editUsername}` } else alert(error.message)
+        }} className="flex-1 bg-white text-black py-2.5 rounded-full font-bold">Save</button>
+      </div>
+    </div>
+  </div>
+)}
       )}
     </div>
   );

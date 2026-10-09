@@ -32,13 +32,13 @@ function Profile() {
 
   const saveUsername = async () => {
     if (!myId) return alert("Not logged in");
-    if (!newUsername) return alert("Username can't be empty");
+    if (!newUsername) return alert("Empty");
     if (newUsername === username) {
       setEditing(false);
       return;
     }
     const { data: exists } = await supabase.from("profiles").select("username").eq("username", newUsername).maybeSingle();
-    if (exists) return alert("That username is already taken");
+    if (exists) return alert("Taken");
 
     const { error } = await supabase.from("profiles").upsert(
       { user_id: myId, username: newUsername, bio },
@@ -70,34 +70,26 @@ function Profile() {
                   <Edit3 className="mr-2 h-4 w-4" /> Edit username
                 </Button>
               )}
-              {!isMe && <p className="text-xs text-muted-foreground">Viewing @{username}</p>}
             </>
           ) : (
             <div className="w-full max-w-sm space-y-4">
-              <div>
-                <label className="text-sm font-medium">New Username</label>
-                <input
-                  value={newUsername}
-                  onChange={(e) => setNewUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""))}
-                  className="w-full mt-1 rounded-md border bg-background p-3"
-                  placeholder="new username"
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium">Bio</label>
-                <textarea
-                  value={bio}
-                  onChange={(e) => setBio(e.target.value)}
-                  className="w-full mt-1 rounded-md border bg-background p-3"
-                  rows={3}
-                />
-              </div>
+              <input
+                value={newUsername}
+                onChange={(e) => setNewUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""))}
+                className="w-full rounded-md border bg-background p-3"
+                placeholder="new username"
+              />
+              <textarea
+                value={bio}
+                onChange={(e) => setBio(e.target.value)}
+                className="w-full rounded-md border bg-background p-3"
+                rows={3}
+                placeholder="Bio"
+              />
               <Button onClick={saveUsername} className="w-full">
                 <Save className="mr-2 h-4 w-4" /> Save
               </Button>
-              <Button variant="ghost" className="w-full" onClick={() => setEditing(false)}>
-                Cancel
-              </Button>
+              <Button variant="ghost" className="w-full" onClick={() => setEditing(false)}>Cancel</Button>
             </div>
           )}
         </div>

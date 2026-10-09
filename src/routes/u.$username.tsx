@@ -85,7 +85,61 @@ const [editUsername, setEditUsername] = useState("");
                     if (on) n.add(v.id);
                     else n.delete(v.id);
                     return n;
-                  })
+                  })import { useState, useEffect, useRef } from "react";
+import { useParams, Link } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Play, Heart, X, ArrowLeft } from "lucide-react";
+
+function formatCount(n: number) { if (n >= 1000000) return (n/1000000).toFixed(1)+"M"; if (n >= 1000) return (n/1000).toFixed(1)+"K"; return String(n); }
+type Video = { id: string; video_url: string; likes_count: number; username: string };
+
+export default function Profile() {
+  const { username } = useParams();
+  const [videos, setVideos] = useState<Video[] | null>(null);
+  const [open, setOpen] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!username) return;
+    supabase.from('videos').select('*').eq('username', username).then(({data}) => setVideos(data as any));
+  }, [username]);
+
+  const totalLikes = (videos?? []).reduce((a: any, v: any) => a + (v.likes_count || 0), 0);
+
+  return (
+    <div className="min-h-dvh bg-background">
+      <div className="mx-auto max-w-4xl px-4 pt-4">
+        <Link to="/" className="inline-flex items-center gap-2 text-sm font-bold text-muted-foreground"><ArrowLeft className="h-4 w-4" /> Home</Link>
+        <div className="flex flex-col items-center gap-3 py-8 text-center">
+          <div className="flex h-24 w-24 items-center justify-center rounded-full bg-primary text-4xl uppercase text-primary-foreground">{username?.[0]}</div>
+          <h1 className="text-2xl">@{username}</h1>
+          <div className="flex gap-8 text-sm">
+            <span><b>{videos?.length?? "-"}</b> videos</span>
+            <span><b>{formatCount(totalLikes)}</b> likes</span>
+          </div>
+        </div>
+        <div className="grid grid-cols-3 gap-1">
+          {videos?.map((v, i) => (
+            <button key={v.id} onClick={() => setOpen(i)} className="relative aspect-[9/16] overflow-hidden rounded-md bg-zinc-800">
+              <video src={`${v.video_url}#t=0.5`} muted className="h-full w-full object-cover" />
+              <span className="absolute bottom-1 left-2 flex items-center gap-1 text-xs font-bold text-white"><Play className="h-3 w-3 fill-current" /> {formatCount(v.likes_count)}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+      {open!== null && videos && (
+        <div className="fixed inset-0 z-40 bg-black">
+          <Button variant="ghost" size="icon" onClick={() => setOpen(null)} className="absolute left-3 top-3 z-50 text-white"><X /></Button>
+          <div className="h-dvh overflow-y-scroll snap-y snap-mandatory">
+            {videos.map((v) => (
+              <div key={v.id} className="h-dvh snap-start"><video src={v.video_url} className="h-full w-full object-cover" controls loop /></div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
                 }
               />
             </div>

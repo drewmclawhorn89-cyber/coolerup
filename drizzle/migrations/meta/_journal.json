@@ -22,6 +22,13 @@
       "when": 1791483157461,
       "tag": "0002_secure_follows_messages_profiles",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1791515669460,
+      "tag": "0003_profiles_edit_and_safety",
+      "breakpoints": true
     }
   ]
 }

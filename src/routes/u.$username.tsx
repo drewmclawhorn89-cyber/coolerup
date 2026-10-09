@@ -52,12 +52,17 @@ const [editUsername, setEditUsername] = useState("");
           <div className="flex h-24 w-24 items-center justify-center rounded-full bg-primary font-display text-4xl uppercase text-primary-foreground">
             {username[0]}
           </div>
-          <h1 className="font-display text-2xl break-all">@{username}</h1>  <button onClick={() => { setEditUsername(username); setShowEdit(true); }} className="mt-3 bg-white text-black px-6 py-2.5 rounded-full text-sm font-bold">Edit Profile</button>
-          <div className="flex gap-8 text-sm">
-            <span><b className="text-lg">{videos?.length ?? "–"}</b> <span className="text-muted-foreground">videos</span></span>
-            <span><b className="text-lg">{formatCount(totalLikes)}</b> <span className="text-muted-foreground">likes</span></span>
-          </div>
+          <h1 className="font-display text-2xl break-all">@{username}</h1>
+        <button onClick={() => { setEditUsername(username||""); setShowEdit(true); }} className="mt-3 bg-white text-black px-6 py-2.5 rounded-full text-sm font-bold">Edit Profile</button>
+        <div className="flex gap-8 text-sm">
+          <span><b className="text-lg">{videos?.length ?? "-"}</b> <span className="text-muted-foreground">videos</span></span>
+          <span><b className="text-lg">{formatCount(totalLikes)}</b> <span className="text-muted-foreground">likes</span></span>
         </div>
+          
+            
+            
+          
+        
         {videos === null && <p className="py-20 text-center text-muted-foreground">Loading…</p>}
         {videos?.length === 0 && <p className="py-20 text-center text-muted-foreground">No videos yet.</p>}
         <div className="grid grid-cols-3 gap-1 md:gap-2">

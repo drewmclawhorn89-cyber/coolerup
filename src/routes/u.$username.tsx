@@ -23,25 +23,69 @@ type Video = {
 
 function Profile() {
   const { username } = Route.useParams();
-  const [videos, setVideos] = useState<Video[] | null>(null);
-  const [open, setOpen] = useState<number | null>(null);
-  const [editing, setEditing] = useState(false);
-  const [bio, setBio] = useState("");
+  const [videos][setVideos] = useState<Video[] | null>(null);
+  const [open][setOpen] = useState<number | null>(null);
+  const [isMe][setIsMe] = useState(false);
+  const [editing][setEditing] = useState(false);
+  const [bio][setBio] = useState("");
+  const [newUsername][setNewUsername] = useState(username);
+  const [myId][setMyId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!username) return;
+    setNewUsername(username);
+
     supabase.from("videos").select("*").eq("username", username).then(({ data }) => setVideos(data as any));
-    supabase.from("profiles").select("bio").eq("username", username).single().then(({ data }) => {
+
+    supabase.from("profiles").select("*").eq("username", username).single().then(({ data }) => {
       if (data) setBio(data.bio || "");
+    });
+
+    // Check if this is MY profile - secure way
+    supabase.auth.getUser().then(({ data }) => {
+      if (!data.user) return;
+      setMyId(data.user.id);
+      const metaUsername = data.user.user_metadata?.username;
+      const emailName = data.user.email?.split("@")[0];
+      if (metaUsername === username || emailName === username) {
+        setIsMe(true);
+      }
+      // also check profiles table user_id
+      supabase.from("profiles").select("user_id").eq("user_id", data.user.id).single().then(({ data: prof }) => {
+        if (prof) {
+          // if logged in user's profile username matches url, it's me
+          supabase.from("profiles").select("username").eq("user_id", data.user!.id).single().then(({ data: myProf }) => {
+            if (myProf?.username === username) setIsMe(true);
+          });
+        }
+      });
     });
   }, [username]);
 
   const saveProfile = async () => {
-    await supabase.from("profiles").upsert({ username, bio });
+    if (!myId) return;
+
+    // Save bio
+    const { error } = await supabase.from("profiles").upsert(
+      { user_id: myId, username: newUsername, bio },
+      { onConflict: "user_id" }
+    );
+
+    if (error) {
+      alert("Save failed: " + error.message + " - Check RLS policies in Step 1");
+      return;
+    }
+
+    // If username changed, update auth metadata too
+    if (newUsername!== username) {
+      await supabase.auth.updateUser({ data: { username: newUsername } });
+      window.location.href = `/u/${newUsername}`;
+    }
+
     setEditing(false);
   };
 
-  const totalLikes = (videos ?? []).reduce((a: any, v: any) => a + (v.likes_count || 0), 0);
+  const totalLikes = (videos?? []).reduce((a: any, v: any) => a + (v.likes_count || 0), 0);
 
   return (
     <div className="min-h-dvh bg-background">
@@ -49,31 +93,42 @@ function Profile() {
         <Link to="/" className="inline-flex items-center gap-2 text-sm text-muted-foreground">
           <ArrowLeft className="h-4 w-4" /> Home
         </Link>
+
         <div className="flex flex-col items-center gap-3 py-8 text-center">
           <div className="flex h-24 w-24 items-center justify-center rounded-full bg-primary text-4xl uppercase text-primary-foreground">
             {username?.[0]}
           </div>
           <h1 className="text-2xl">@{username}</h1>
-          {editing ? (
-            <div className="w-full max-w-sm space-y-2">
+
+          {editing? (
+            <div className="w-full max-w-sm space-y-3">
+              <input value={newUsername} onChange={e => setNewUsername(e.target.value)} placeholder="Username" className="w-full rounded-md border bg-background p-2 text-sm" />
               <textarea value={bio} onChange={e => setBio(e.target.value)} placeholder="Your bio..." className="w-full rounded-md border bg-background p-2 text-sm" rows={3} />
               <Button onClick={saveProfile} size="sm" className="w-full"><Save className="mr-2 h-4 w-4"/> Save</Button>
+              <Button variant="ghost" size="sm" className="w-full" onClick={() => setEditing(false)}>Cancel</Button>
             </div>
           ) : (
             <p className="text-sm text-muted-foreground max-w-sm">{bio || "No bio yet."}</p>
           )}
+
           <div className="flex gap-8 text-sm">
-            <span><b>{videos?.length ?? "-"}</b> videos</span>
+            <span><b>{videos?.length?? "-"}</b> videos</span>
             <span><b>{formatCount(totalLikes)}</b> likes</span>
           </div>
-          {!editing && (
+
+          {isMe &&!editing && (
             <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
-              <Edit3 className="mr-2 h-4 w-4"/> Edit profile - everyone can edit their own
+              <Edit3 className="mr-2 h-4 w-4"/> Edit profile
             </Button>
           )}
+          {!isMe && (
+            <p className="text-xs text-muted-foreground">This is {username}'s profile - you can't edit it</p>
+          )}
         </div>
+
         {videos === null && <p className="py-20 text-center text-muted-foreground">Loading...</p>}
         {videos?.length === 0 && <p className="py-20 text-center text-muted-foreground">No videos yet.</p>}
+
         <div className="grid grid-cols-3 gap-1">
           {videos?.map((v, i) => (
             <button key={v.id} onClick={() => setOpen(i)} className="relative aspect-[9/16] overflow-hidden rounded-md bg-zinc-800">
@@ -83,7 +138,8 @@ function Profile() {
           ))}
         </div>
       </div>
-      {open !== null && videos && (
+
+      {open!== null && videos && (
         <div className="fixed inset-0 z-40 bg-black">
           <Button variant="ghost" size="icon" onClick={() => setOpen(null)} className="absolute left-3 top-3 z-50 text-white">
             <X />

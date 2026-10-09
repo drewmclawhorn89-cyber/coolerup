@@ -25,20 +25,12 @@ function Profile() {
   const { username } = Route.useParams();
   const [videos][setVideos] = useState<Video[] | null>(null);
   const [open][setOpen] = useState<number | null>(null);
-  const [isMe][setIsMe] = useState(false);
   const [editing][setEditing] = useState(false);
   const [bio][setBio] = useState("");
 
   useEffect(() => {
     if (!username) return;
     supabase.from("videos").select("*").eq("username", username).then(({ data }) => setVideos(data as any));
-
-    supabase.auth.getUser().then(({ data }) => {
-      const myUsername = data.user?.user_metadata?.username || data.user?.email?.split("@")[0];
-      if (myUsername?.toLowerCase() === username.toLowerCase()) setIsMe(true);
-      else if (data.user) setIsMe(true); // allow logged in user to edit for now
-    });
-
     supabase.from("profiles").select("bio").eq("username", username).single().then(({ data }) => {
       if (data) setBio(data.bio || "");
     });

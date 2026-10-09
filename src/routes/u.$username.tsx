@@ -37,24 +37,17 @@ function Profile() {
       setEditing(false);
       return;
     }
-
-    // Check if taken
     const { data: exists } = await supabase.from("profiles").select("username").eq("username", newUsername).maybeSingle();
     if (exists) return alert("That username is already taken");
 
-    // Update profile table
     const { error } = await supabase.from("profiles").upsert(
       { user_id: myId, username: newUsername, bio },
       { onConflict: "user_id" }
     );
     if (error) return alert(error.message);
 
-    // Update auth
     await supabase.auth.updateUser({ data: { username: newUsername } });
-
-    // Update your videos so they show under new name
     await supabase.from("videos").update({ username: newUsername }).eq("user_id", myId);
-
     window.location.href = `/u/${newUsername}`;
   };
 
@@ -68,7 +61,6 @@ function Profile() {
           <div className="flex h-24 w-24 items-center justify-center rounded-full bg-primary text-4xl uppercase text-primary-foreground">
             {username?.[0]}
           </div>
-
           {!editing? (
             <>
               <h1 className="text-3xl">@{username}</h1>
@@ -78,6 +70,7 @@ function Profile() {
                   <Edit3 className="mr-2 h-4 w-4" /> Edit username
                 </Button>
               )}
+              {!isMe && <p className="text-xs text-muted-foreground">Viewing @{username}</p>}
             </>
           ) : (
             <div className="w-full max-w-sm space-y-4">
@@ -102,7 +95,9 @@ function Profile() {
               <Button onClick={saveUsername} className="w-full">
                 <Save className="mr-2 h-4 w-4" /> Save
               </Button>
-              <Button variant="ghost" className="w-full" onClick={() => setEditing(false)}>Cancel</Button>
+              <Button variant="ghost" className="w-full" onClick={() => setEditing(false)}>
+                Cancel
+              </Button>
             </div>
           )}
         </div>

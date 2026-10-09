@@ -25,7 +25,7 @@ function Profile() {
       if (!data.user) return;
       setMyId(data.user.id);
       const { data: p } = await supabase.from("profiles").select("username").eq("user_id", data.user.id).maybeSingle();
-      const current = p?.username || data.user.user_metadata?.username || data.user.email?.split("@")[0];
+      const current = p?.username || (data.user.user_metadata as any)?.username || data.user.email?.split("@")[0];
       if (current === username) setIsMe(true);
     });
   }, [username]);

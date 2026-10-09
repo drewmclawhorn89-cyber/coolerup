@@ -1,68 +1,124 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState, useEffect } from "react";
+import { createFileRoute } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, X } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 
 export const Route = createFileRoute("/u/$username")({
-  component: Profile,
+  component: ProfilePage,
 });
 
-function Profile() {
+function ProfilePage() {
   const { username } = Route.useParams();
-  const [videos, setVideos] = useState<any[] | null>(null);
-  const [open, setOpen] = useState<number | null>(null);
+  const [profile, setProfile] = useState<any>(null);
+  const [isMe, setIsMe] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [bio, setBio] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [avatar, setAvatar] = useState("");
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase.from("videos").select("*").eq("username", username).order("created_at", { ascending: false }).then(({ data }) => {
-      setVideos(data || []);
-    });
+    const load = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      const cleanName = username.replace("@", "");
+      const myName = (user?.user_metadata as any)?.username || user?.email?.split("@")[0] || "";
+
+      setIsMe(cleanName.toLowerCase() === myName.toLowerCase().replace("@", ""));
+
+      const { data } = await supabase.from("profiles").select("*").ilike("username", `%${cleanName}%`).maybeSingle();
+
+      if (data) {
+        setProfile(data);
+        setBio(data.bio || "");
+        setDisplayName(data.display_name || data.username || "");
+        setAvatar(data.avatar_url || "");
+      } else {
+        // fallback if profile doesn't exist
+        setProfile({ username: cleanName, display_name: cleanName, bio: "", avatar_url: "" });
+        setDisplayName(cleanName);
+      }
+      setLoading(false);
+    };
+    load();
   }, [username]);
 
-  const totalLikes = (videos || []).reduce((a, v) => a + (v.likes_count || 0), 0);
+  const save = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const updates = {
+      username: username.replace("@", ""),
+      display_name: displayName,
+      bio: bio,
+      avatar_url: avatar,
+      updated_at: new Date().toISOString(),
+      id: user.id
+    };
+
+    const { error } = await supabase.from("profiles").upsert(updates).select().single();
+
+    if (!error) {
+      setProfile({...profile,...updates });
+      setEditing(false);
+      alert("Profile saved!");
+    } else {
+      alert("Error: " + error.message);
+    }
+  };
+
+  if (loading) return <div className="p-10">Loading...</div>;
 
   return (
-    <div className="min-h-dvh bg-background">
-      <div className="mx-auto max-w-4xl px-4 pt-4">
-        <Link to="/" className="inline-flex items-center gap-2 text-sm text-muted-foreground">
-          <ArrowLeft className="h-4 w-4" /> Home
-        </Link>
+    <div className="min-h-screen bg-black text-white p-6 max-w-lg mx-auto">
+      <div className="flex flex-col items-center gap-4 mt-10">
+        <img
+          src={avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${username}`}
+          className="w-28 h-28 rounded-full object-cover border-2 border-white"
+        />
 
-        <div className="flex flex-col items-center gap-3 py-8 text-center">
-          <div className="flex h-24 w-24 items-center justify-center rounded-full bg-primary text-4xl uppercase text-primary-foreground">
-            {username?.[0]}
-          </div>
-          <h1 className="text-2xl">@{username}</h1>
-          <div className="flex gap-8 text-sm">
-            <span><b>{videos?.length?? "-"}</b> videos</span>
-            <span><b>{totalLikes}</b> likes</span>
-          </div>
-        </div>
+        {!editing? (
+          <>
+            <h1 className="text-2xl font-bold">@{profile?.username || username}</h1>
+            <h2 className="text-lg opacity-80">{profile?.display_name}</h2>
+            <p className="text-center opacity-60 mt-2">{profile?.bio || "No bio yet"}</p>
 
-        <div className="grid grid-cols-3 gap-1">
-          {videos?.map((v, i) => (
-            <button key={v.id} onClick={() => setOpen(i)} className="relative aspect-[9/16] overflow-hidden rounded-md bg-zinc-800">
-              <video src={`${v.video_url}#t=0.5`} muted playsInline preload="metadata" className="h-full w-full object-cover" />
-              <div className="absolute bottom-1 left-1 text- text-white bg-black/50 px-1 rounded">♥ {v.likes_count || 0}</div>
-            </button>
-          ))}
-        </div>
-      </div>
+            {isMe && (
+              <Button onClick={() => setEditing(true)} className="mt-6 w-full">
+                Edit Profile
+              </Button>
+            )}
+          </>
+        ) : (
+          <>
+            <h1 className="text-xl font-bold">Edit Profile</h1>
 
-      {open!== null && videos && (
-        <div className="fixed inset-0 z-40 bg-black">
-          <Button variant="ghost" size="icon" onClick={() => setOpen(null)} className="absolute left-3 top-3 z-50 text-white">
-            <X />
-          </Button>
-          <div className="h-dvh overflow-y-scroll snap-y snap-mandatory">
-            {videos.map((v) => (
-              <div key={v.id} className="h-dvh snap-start flex items-center justify-center">
-                <video src={v.video_url} className="h-full w-full object-cover" controls loop playsInline />
+            <div className="w-full space-y-4 mt-4">
+              <div>
+                <label className="text-sm opacity-60">Display Name</label>
+                <Input value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="Drew" className="bg-zinc-900 border-zinc-800" />
               </div>
-            ))}
-          </div>
-        </div>
-      )}
+
+              <div>
+                <label className="text-sm opacity-60">Avatar URL</label>
+                <Input value={avatar} onChange={(e) => setAvatar(e.target.value)} placeholder="https://..." className="bg-zinc-900 border-zinc-800" />
+                <p className="text-xs opacity-40 mt-1">Paste an image link from imgur or upload to Supabase storage later</p>
+              </div>
+
+              <div>
+                <label className="text-sm opacity-60">Bio</label>
+                <Textarea value={bio} onChange={(e) => setBio(e.target.value)} placeholder="Your bio..." className="bg-zinc-900 border-zinc-800" />
+              </div>
+
+              <div className="flex gap-2">
+                <Button onClick={save} className="flex-1">Save</Button>
+                <Button variant="outline" onClick={() => setEditing(false)} className="flex-1">Cancel</Button>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }

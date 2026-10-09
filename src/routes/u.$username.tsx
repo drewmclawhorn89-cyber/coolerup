@@ -9,8 +9,8 @@ export const Route = createFileRoute("/u/$username")({
 });
 
 function formatCount(n: number) {
-  if (n >= 1000000) return (n/1000000).toFixed(1)+"M";
-  if (n >= 1000) return (n/1000).toFixed(1)+"K";
+  if (n >= 1000000) return (n / 1000000).toFixed(1) + "M";
+  if (n >= 1000) return (n / 1000).toFixed(1) + "K";
   return String(n);
 }
 
@@ -23,15 +23,15 @@ type Video = {
 
 function Profile() {
   const { username } = Route.useParams();
-  const [videos][setVideos] = useState<Video[] | null>(null);
-  const [open][setOpen] = useState<number | null>(null);
+  const [videos, setVideos] = useState<Video[] | null>(null);
+  const [open, setOpen] = useState<number | null>(null);
 
   useEffect(() => {
     if (!username) return;
-    supabase.from("videos").select("*").eq("username", username).then(({data}) => setVideos(data as any));
+    supabase.from("videos").select("*").eq("username", username).then(({ data }) => setVideos(data as any));
   }, [username]);
 
-  const totalLikes = (videos?? []).reduce((a: any, v: any) => a + (v.likes_count || 0), 0);
+  const totalLikes = (videos ?? []).reduce((a: any, v: any) => a + (v.likes_count || 0), 0);
 
   return (
     <div className="min-h-dvh bg-background">
@@ -45,7 +45,7 @@ function Profile() {
           </div>
           <h1 className="text-2xl">@{username}</h1>
           <div className="flex gap-8 text-sm">
-            <span><b>{videos?.length?? "-"}</b> videos</span>
+            <span><b>{videos?.length ?? "-"}</b> videos</span>
             <span><b>{formatCount(totalLikes)}</b> likes</span>
           </div>
         </div>
@@ -63,7 +63,7 @@ function Profile() {
         </div>
       </div>
 
-      {open!== null && videos && (
+      {open !== null && videos && (
         <div className="fixed inset-0 z-40 bg-black">
           <Button variant="ghost" size="icon" onClick={() => setOpen(null)} className="absolute left-3 top-3 z-50 text-white">
             <X />

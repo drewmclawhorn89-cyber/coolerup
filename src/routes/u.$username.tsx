@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Edit3, Save } from "lucide-react";
+import { ArrowLeft, X } from "lucide-react";
 
 export const Route = createFileRoute("/u/$username")({
   component: Profile,
@@ -10,56 +10,59 @@ export const Route = createFileRoute("/u/$username")({
 
 function Profile() {
   const { username } = Route.useParams();
-  const [isMe, setIsMe] = useState(false);
-  const [editing, setEditing] = useState(false);
-  const [bio, setBio] = useState("");
-  const [newUsername, setNewUsername] = useState(username);
-  const [myId, setMyId] = useState<string | null>(null);
   const [videos, setVideos] = useState<any[] | null>(null);
+  const [open, setOpen] = useState<number | null>(null);
 
   useEffect(() => {
-    setNewUsername(username);
-    supabase.from("videos").select("*").eq("username", username).then(({ data }) => setVideos(data || []));
-    supabase.from("profiles").select("bio").eq("username", username).maybeSingle().then(({ data }) => {
-      if (data?.bio) setBio(data.bio);
-    });
-    supabase.auth.getUser().then(async ({ data }) => {
-      if (!data.user) return;
-      setMyId(data.user.id);
-      const { data: p } = await supabase.from("profiles").select("username").eq("user_id", data.user.id).maybeSingle();
-      const current = p?.username || (data.user.user_metadata as any)?.username || data.user.email?.split("@")[0];
-      if (current === username) setIsMe(true);
+    supabase.from("videos").select("*").eq("username", username).order("created_at", { ascending: false }).then(({ data }) => {
+      setVideos(data || []);
     });
   }, [username]);
 
-  const save = async () => {
-    if (!myId) return alert("Not logged in");
-    if (newUsername!== username) {
-      const { data: exists } = await supabase.from("profiles").select("username").eq("username", newUsername).maybeSingle();
-      if (exists) return alert("Taken");
-    }
-    await supabase.from("profiles").upsert({ user_id: myId, username: newUsername, bio }, { onConflict: "user_id" });
-    await supabase.auth.updateUser({ data: { username: newUsername } });
-    await supabase.from("videos").update({ username: newUsername }).eq("user_id", myId);
-    window.location.href = `/u/${newUsername}`;
-  };
+  const totalLikes = (videos || []).reduce((a, v) => a + (v.likes_count || 0), 0);
 
   return (
     <div className="min-h-dvh bg-background">
       <div className="mx-auto max-w-4xl px-4 pt-4">
-        <Link to="/" className="inline-flex items-center gap-2 text-sm text-muted-foreground"><ArrowLeft className="h-4 w-4" /> Home</Link>
-        <div className="flex flex-col items-center gap-4 py-10">
-          <div className="flex h-24 w-24 items-center justify-center rounded-full bg-primary text-4xl uppercase text-primary-foreground">{username?.[0]}</div>
-          <h1 className="text-3xl">@{username}</h1>
-          {!editing? (
-            <>
-              <p className="text-sm text-muted-foreground">{bio || "No bio"}</p>
-              <p className="text-xs">{videos?.length?? 0} videos</p>
-              {isMe && <Button variant="outline" size="sm" onClick={() => setEditing(true)}><Edit3 className="mr-2 h-4 w-4" />Edit username & bio</Button>}
-            </>
-          ) : (
-            <div className="w-full max-w-sm space-y-3">
-              <input value={newUsername} onChange={(e) => setNewUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""))} className="w-full rounded-md border p-3 bg-background" />
-              <textarea value={bio} onChange={(e) => setBio(e.target.value)} className="w-full rounded-md border p-3 bg-background" rows={3} placeholder="Bio" />
-              <Button onClick={save} className="w-full"><Save className="mr-2 h-4 w-4" />Save</Button>
-              <Button
+        <Link to="/" className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+          <ArrowLeft className="h-4 w-4" /> Home
+        </Link>
+
+        <div className="flex flex-col items-center gap-3 py-8 text-center">
+          <div className="flex h-24 w-24 items-center justify-center rounded-full bg-primary text-4xl uppercase text-primary-foreground">
+            {username?.[0]}
+          </div>
+          <h1 className="text-2xl">@{username}</h1>
+          <div className="flex gap-8 text-sm">
+            <span><b>{videos?.length?? "-"}</b> videos</span>
+            <span><b>{totalLikes}</b> likes</span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-3 gap-1">
+          {videos?.map((v, i) => (
+            <button key={v.id} onClick={() => setOpen(i)} className="relative aspect-[9/16] overflow-hidden rounded-md bg-zinc-800">
+              <video src={`${v.video_url}#t=0.5`} muted playsInline preload="metadata" className="h-full w-full object-cover" />
+              <div className="absolute bottom-1 left-1 text- text-white bg-black/50 px-1 rounded">♥ {v.likes_count || 0}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {open!== null && videos && (
+        <div className="fixed inset-0 z-40 bg-black">
+          <Button variant="ghost" size="icon" onClick={() => setOpen(null)} className="absolute left-3 top-3 z-50 text-white">
+            <X />
+          </Button>
+          <div className="h-dvh overflow-y-scroll snap-y snap-mandatory">
+            {videos.map((v) => (
+              <div key={v.id} className="h-dvh snap-start flex items-center justify-center">
+                <video src={v.video_url} className="h-full w-full object-cover" controls loop playsInline />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

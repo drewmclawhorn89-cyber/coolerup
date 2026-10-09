@@ -253,9 +253,3 @@ function Action({
     </Button>
   );
 }
-<button onClick={async()=>{
-  const reason = prompt("Reason: spam, nudity, harassment, hate, violence, scam, minor, other");
-  if(!reason) return;
-  await supabase.from("reports").insert({reporter_username: myUsername, reported_username: video.username, reported_video_id: video.id, reason});
-  alert("Reported! Admin will review");
-}} className="ml-2 text- bg-zinc-800 px-2 py-1 rounded-full">Report</button>

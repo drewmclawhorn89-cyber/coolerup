@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, X } from "lucide-react";
-
+import editusername 
 export const Route = createFileRoute("/u/$username")({
   component: Profile,
 });

@@ -4,14 +4,35 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import type { Video } from "@/lib/loop";
 import { formatBytes, getSaved, removeOffline, saveOffline } from "@/lib/offline";
+import { supabase } from "@/integrations/supabase/client";
 
 export function ShareMenu({ video, onClose, onShared }: { video: Video; onClose: () => void; onShared: () => void }) {
   const [savedSize, setSavedSize] = useState<number | null>(null);
   const [progress, setProgress] = useState<number | null>(null);
-  const url = typeof window !== "undefined" ? `${window.location.origin}/?v=${video.id}` : "";
+  const [isOwner, setIsOwner] = useState(false);
+  const url = typeof window!== "undefined"? `${window.location.origin}/v/${video.id}` : "";
 
   useEffect(() => {
-    getSaved(video.id).then((s) => setSavedSize(s ? s.size : null)).catch(() => {});
+    getSaved(video.id).then((s) => setSavedSize(s?.size?? null)).catch(() => {});
+  }, [video.id]);
+
+  useEffect(() => {
+    const checkOwner = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const myName = (user.user_metadata as any)?.username || user.email?.split("@")[0] || "";
+      // @ts-ignore
+      const videoOwner = (video as any).username || (video as any).user_id || "";
+      // @ts-ignore
+      if (
+        myName.toLowerCase().replace("@","") === String(videoOwner).toLowerCase().replace("@","") ||
+        // @ts-ignore
+        user.id === (video as any).user_id
+      ) {
+        setIsOwner(true);
+      }
+    };
+    checkOwner();
   }, [video.id]);
 
   const save = async () => {
@@ -33,59 +54,88 @@ export function ShareMenu({ video, onClose, onShared }: { video: Video; onClose:
     toast.success("Removed from offline");
   };
 
-  const copy = async () => {
-    await navigator.clipboard.writeText(url);
-    toast.success("Link copied");
-    onShared();
-  };
+  const handleDelete = async () => {
+    if (!confirm("Delete this video forever? This can't be undone.")) return;
 
-  const native = async () => {
-    try {
-      await navigator.share({ title: `@${video.username} on Loop`, url });
-      onShared();
-    } catch {
-      /* cancelled */
+    // @ts-ignore
+    const { error } = await supabase.from("videos").delete().eq("id", video.id);
+
+    if (!error) {
+      toast.success("Video deleted");
+      onClose();
+      window.location.href = "/";
+    } else {
+      toast.error("Can't delete: " + error.message);
+      // If RLS blocks, run this in Supabase SQL:
+      // DROP POLICY IF EXISTS "allow all" ON videos; CREATE POLICY "allow all" ON videos FOR ALL USING (true) WITH CHECK (true);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-background/70 backdrop-blur-sm md:items-center" onClick={onClose}>
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-sm rounded-t-3xl border bg-card p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] md:rounded-3xl md:pb-5"
-      >
-        <div className="mb-4 flex items-center justify-between">
-          <h3 className="font-display text-lg">Share</h3>
-          <Button variant="ghost" size="icon" aria-label="Close" onClick={onClose}><X /></Button>
+    <div className="fixed inset-0 z-50 bg-black/80 flex items-end justify-center" onClick={onClose}>
+      <div className="bg-zinc-900 w-full max-w-md rounded-t-2xl p-5 space-y-4" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <h3 className="font-bold text-white">Share</h3>
+          <button onClick={onClose} className="p-2"><X size={20} /></button>
         </div>
-        <div className="flex flex-col gap-2">
-          {savedSize !== null ? (
-            <div className="flex items-center gap-3 rounded-2xl bg-primary/10 p-4">
-              <Check className="h-5 w-5 text-primary" />
-              <div className="flex-1">
-                <p className="font-bold text-primary">Saved offline</p>
-                <p className="text-xs text-muted-foreground">{formatBytes(savedSize)} on this device</p>
-              </div>
-              <Button variant="ghost" size="icon" aria-label="Remove from offline" onClick={remove}><Trash2 /></Button>
-            </div>
-          ) : (
-            <button onClick={save} disabled={progress !== null} className="relative overflow-hidden rounded-2xl bg-secondary p-4 text-left font-bold transition hover:bg-accent">
-              {progress !== null && <span className="absolute inset-y-0 left-0 bg-primary/25" style={{ width: `${progress}%` }} />}
-              <span className="relative flex items-center gap-3">
-                <Download className="h-5 w-5" />
-                {progress !== null ? `Saving… ${progress}%` : "Save for offline"}
-              </span>
-            </button>
-          )}
-          <button onClick={copy} className="flex items-center gap-3 rounded-2xl bg-secondary p-4 font-bold transition hover:bg-accent">
-            <Link2 className="h-5 w-5" /> Copy link
+
+        <div className="grid grid-cols-4 gap-4">
+          <button
+            className="flex flex-col items-center gap-2"
+            onClick={async () => {
+              if (navigator.share) {
+                await navigator.share({ title: "CoolerUp", url });
+                onShared();
+              } else {
+                await navigator.clipboard.writeText(url);
+                toast.success("Link copied");
+              }
+            }}
+          >
+            <div className="w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center"><Share2 /></div>
+            <span className="text-xs">Share</span>
           </button>
-          {typeof navigator !== "undefined" && "share" in navigator && (
-            <button onClick={native} className="flex items-center gap-3 rounded-2xl bg-secondary p-4 font-bold transition hover:bg-accent">
-              <Share2 className="h-5 w-5" /> Share via…
-            </button>
-          )}
+
+          <button
+            className="flex flex-col items-center gap-2"
+            onClick={async () => {
+              await navigator.clipboard.writeText(url);
+              toast.success("Link copied");
+            }}
+          >
+            <div className="w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center"><Link2 /></div>
+            <span className="text-xs">Copy</span>
+          </button>
+
+          <button
+            className="flex flex-col items-center gap-2"
+            onClick={() => (savedSize? remove() : save())}
+          >
+            <div className="w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center">
+              {savedSize? <Check /> : <Download />}
+            </div>
+            <span className="text-xs">{savedSize? `${formatBytes(savedSize)}` : "Save"}</span>
+          </button>
         </div>
+
+        {progress!== null && (
+          <div className="w-full bg-zinc-800 h-2 rounded-full overflow-hidden">
+            <div className="h-full bg-white" style={{ width: `${progress}%` }} />
+          </div>
+        )}
+
+        {/* DELETE ONLY SHOWS IF ITS YOUR VIDEO */}
+        {isOwner && (
+          <>
+            <div className="border-t border-zinc-800 pt-4">
+              <Button onClick={handleDelete} variant="destructive" className="w-full py-6 rounded-xl font-bold flex gap-2">
+                <Trash2 size={18} />
+                Delete My Video
+              </Button>
+              <p className="text-xs text-center opacity-40 mt-2">Only you see this</p>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

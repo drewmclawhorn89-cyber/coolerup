@@ -11,11 +11,7 @@ import { ShareMenu } from "./ShareMenu";
 import { Button } from "@/components/ui/button";
 
 export function VideoCard({
-  video, {video.type === "image" || video.image_url? (
-  <img src={video.image_url} className="w-full h- object-cover rounded-xl" />
-) : (
-  <video src={video.video_url} autoPlay muted loop playsInline className="w-full h- object-cover rounded-xl" />
-)}
+  video,
   liked,
   muted,
   onToggleMute,
@@ -257,9 +253,3 @@ function Action({
     </Button>
   );
 }
-<button onClick={async()=>{
-  const reason = prompt("Reason: spam, nudity, harassment, hate, violence, scam, minor, other");
-  if(!reason) return;
-  await supabase.from("reports").insert({reporter_username: myUsername, reported_username: video.username, reported_video_id: video.id, reason});
-  alert("Reported! Admin will review");
-}} className="ml-2 text- bg-zinc-800 px-2 py-1 rounded-full">Report</button>

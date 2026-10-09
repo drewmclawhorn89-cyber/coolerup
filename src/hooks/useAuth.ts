@@ -4,9 +4,24 @@ import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
 import { toast } from "sonner";
 
+export type Profile = {
+  id: string;
+  handle: string;
+  display_name: string | null;
+  bio: string | null;
+  avatar_url: string | null;
+};
+
+const PROFILE_EVENT = "loop-profile-changed";
+/** Tell every screen to reload the signed-in profile (after editing it). */
+export const refreshProfile = () => window.dispatchEvent(new Event(PROFILE_EVENT));
+
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
   const [ready, setReady] = useState(false);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [version, setVersion] = useState(0);
 
   useEffect(() => {
     const { data } = supabase.auth.onAuthStateChange((_e, session) => {
@@ -17,26 +32,53 @@ export function useAuth() {
       setUser(data.session?.user ?? null);
       setReady(true);
     });
-    return () => data.subscription.unsubscribe();
+    const bump = () => setVersion((v) => v + 1);
+    window.addEventListener(PROFILE_EVENT, bump);
+    return () => {
+      data.subscription.unsubscribe();
+      window.removeEventListener(PROFILE_EVENT, bump);
+    };
   }, []);
 
-  const name: string | null =
-    user?.user_metadata?.['full_name'] || user?.user_metadata?.['name'] || user?.email?.split("@")[0] || null;
-  const handle = name
-    ? name.toLowerCase().replace(/[^a-z0-9._]/g, "").slice(0, 40) || "user"
+  const googleName: string | null =
+    user?.user_metadata?.["full_name"] || user?.user_metadata?.["name"] || user?.email?.split("@")[0] || null;
+  const derivedHandle = googleName
+    ? googleName.toLowerCase().replace(/[^a-z0-9._]/g, "").slice(0, 40) || "user"
     : null;
-  const avatar: string | null = user?.user_metadata?.['avatar_url'] ?? null;
 
-  // Claim this account's handle so follows and messages can be tied to it.
+  // Load (or create on first sign-in) this account's profile. Edited values are never overwritten.
   useEffect(() => {
-    if (!user || !handle) return;
-    supabase
-      .from("profiles")
-      .upsert({ id: user.id, handle }, { onConflict: "id" })
-      .then(({ error }) => {
-        if (error?.code === "23505") toast.error(`@${handle} is already taken by another account`);
-      });
-  }, [user?.id, handle]);
+    if (!user) {
+      setProfile(null);
+      setIsAdmin(false);
+      return;
+    }
+    let alive = true;
+    (async () => {
+      const { data } = await supabase.from("profiles").select("id, handle, display_name, bio, avatar_url").eq("id", user.id).maybeSingle();
+      let row = data as Profile | null;
+      if (!row && derivedHandle) {
+        const res = await supabase
+          .from("profiles")
+          .insert({ id: user.id, handle: derivedHandle })
+          .select("id, handle, display_name, bio, avatar_url")
+          .single();
+        if (res.error?.code === "23505") toast.error(`@${derivedHandle} is taken — pick a username in Settings`);
+        row = (res.data as Profile | null) ?? null;
+      }
+      const { data: role } = await supabase.from("user_roles").select("role").eq("user_id", user.id).eq("role", "admin").maybeSingle();
+      if (!alive) return;
+      setProfile(row);
+      setIsAdmin(!!role);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [user?.id, derivedHandle, version]);
+
+  const handle = profile?.handle ?? null;
+  const name: string | null = profile?.display_name || googleName;
+  const avatar: string | null = profile?.avatar_url || user?.user_metadata?.["avatar_url"] || null;
 
   const signIn = async () => {
     const result = await lovable.auth.signInWithOAuth("google", {
@@ -46,5 +88,5 @@ export function useAuth() {
   };
   const signOut = () => supabase.auth.signOut();
 
-  return { user, ready, name, handle, avatar, signIn, signOut };
+  return { user, ready, name, handle, avatar, profile, isAdmin, signIn, signOut };
 }

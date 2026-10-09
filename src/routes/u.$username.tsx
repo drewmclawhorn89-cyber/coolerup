@@ -38,7 +38,7 @@ function Profile() {
       return;
     }
     const { data: exists } = await supabase.from("profiles").select("username").eq("username", newUsername).maybeSingle();
-    if (exists) return alert("Taken");
+    if (exists) return alert("That username is taken");
 
     const { error } = await supabase.from("profiles").upsert(
       { user_id: myId, username: newUsername, bio },

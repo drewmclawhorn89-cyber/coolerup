@@ -11,11 +11,7 @@ import { ShareMenu } from "./ShareMenu";
 import { Button } from "@/components/ui/button";
 
 export function VideoCard({
-  video, {video.type === "image" || video.image_url? (
-  <img src={video.image_url} className="w-full h- object-cover rounded-xl" />
-) : (
-  <video src={video.video_url} autoPlay muted loop playsInline className="w-full h- object-cover rounded-xl" />
-)}
+  video,
   liked,
   muted,
   onToggleMute,

@@ -14,6 +14,60 @@ export type Database = {
   }
   public: {
     Tables: {
+      banned_users: {
+        Row: {
+          banned_at: string
+          banned_by: string | null
+          expires_at: string | null
+          id: string
+          is_permanent: boolean
+          reason: string | null
+          username: string
+        }
+        Insert: {
+          banned_at?: string
+          banned_by?: string | null
+          expires_at?: string | null
+          id?: string
+          is_permanent?: boolean
+          reason?: string | null
+          username: string
+        }
+        Update: {
+          banned_at?: string
+          banned_by?: string | null
+          expires_at?: string | null
+          id?: string
+          is_permanent?: boolean
+          reason?: string | null
+          username?: string
+        }
+        Relationships: []
+      }
+      blocked_users: {
+        Row: {
+          blocked_username: string
+          blocker_id: string
+          blocker_username: string
+          created_at: string
+          id: string
+        }
+        Insert: {
+          blocked_username: string
+          blocker_id: string
+          blocker_username: string
+          created_at?: string
+          id?: string
+        }
+        Update: {
+          blocked_username?: string
+          blocker_id?: string
+          blocker_username?: string
+          created_at?: string
+          id?: string
+        }
+        Relationships: []
+      }
       comments: {
         Row: {
           body: string
@@ -150,21 +204,99 @@ export type Database = {
         }
         Relationships: []
       }
+      muted_words: {
+        Row: {
+          id: string
+          word: string
+        }
+        Insert: {
+          id?: string
+          word: string
+        }
+        Update: {
+          id?: string
+          word?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
+          avatar_url: string | null
+          bio: string | null
           created_at: string
+          display_name: string | null
           handle: string
           id: string
         }
         Insert: {
+          avatar_url?: string | null
+          bio?: string | null
           created_at?: string
+          display_name?: string | null
           handle: string
           id: string
         }
         Update: {
+          avatar_url?: string | null
+          bio?: string | null
           created_at?: string
+          display_name?: string | null
           handle?: string
           id?: string
+        }
+        Relationships: []
+      }
+      reports: {
+        Row: {
+          created_at: string
+          details: string | null
+          id: string
+          reason: string
+          reported_username: string
+          reported_video_id: string | null
+          reporter_id: string
+          reporter_username: string
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          details?: string | null
+          id?: string
+          reason: string
+          reported_username: string
+          reported_video_id?: string | null
+          reporter_id: string
+          reporter_username: string
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          details?: string | null
+          id?: string
+          reason?: string
+          reported_username?: string
+          reported_video_id?: string | null
+          reporter_id?: string
+          reporter_username?: string
+          status?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
         }
         Relationships: []
       }
@@ -206,10 +338,18 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
       increment_share: { Args: { _video_id: string }; Returns: undefined }
+      is_banned: { Args: { _username: string }; Returns: boolean }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "moderator" | "user"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -336,6 +476,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "moderator", "user"],
+    },
   },
 } as const

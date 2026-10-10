@@ -207,11 +207,7 @@ const [showEditProfile, setShowEditProfile] = useState(false);
         </header>
 {activeTab === "mine" ? (
 <div className="p-8 max-w-5xl mx-auto w-full overflow-y-auto">
-  <div className="mb-6">
-    <h1 className="text-3xl font-bold">@{me}</h1>
-    <p className="text-zinc-400 text-sm mt-1">{auth?.bio || ""}</p>
-    <p className="text-zinc-500 text-sm">{videos?.filter((v:any)=>v.handle===me).length} videos</p>
-  </div>
+
 
   <div className="flex gap-6 items-center mb-6">
     <img src={auth?.avatar_url || ""} className="w-24 h-24 rounded-full object-cover bg-zinc-800 cursor-pointer" onClick={() => setShowEditProfile(true)} alt="avatar" />

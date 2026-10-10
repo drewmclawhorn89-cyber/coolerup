@@ -176,7 +176,28 @@ function Index() {
           </button>
         )}
       </aside>
-
+// PROFILE PAGE - when tab is "mine"
+if (tab === "mine") {
+  const myVideos = videos?.filter(v => v.handle === me) ?? [];
+  return (
+    <div className="p-8 max-w-5xl mx-auto">
+      <div className="flex gap-6 items-center mb-8">
+        <img src={auth.avatar_url} className="w-24 h-24 rounded-full object-cover" />
+        <div>
+          <h1 className="text-3xl font-bold">@{me}</h1>
+          <p className="text-muted-foreground">{myVideos.length} videos • {auth.handle}</p>
+        </div>
+      </div>
+      <div className="grid grid-cols-3 gap-2 md:gap-4">
+        {myVideos.map(v => (
+          <div key={v.id} className="aspect-[9/16] bg-black rounded-xl overflow-hidden">
+            <video src={v.video_url} className="w-full h-full object-cover" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
       <main className="flex min-w-0 flex-1 flex-col">
         <div className="mobile-topbar grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b bg-sidebar px-4 md:hidden">
           <h1 className="min-w-0 font-display text-2xl">loop<span className="text-primary">.</span></h1>

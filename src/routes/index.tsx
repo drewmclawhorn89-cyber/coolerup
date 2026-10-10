@@ -205,31 +205,27 @@ const [showEditProfile, setShowEditProfile] = useState(false);
           <h2 className="break-words font-display text-base md:text-3xl">{title}</h2>
           <p className="hidden text-sm text-muted-foreground md:block">{sub}</p>
         </header>
-{activeTab === "mine" ? (
-<div className="p-8 max-w-5xl mx-auto w-full overflow-y-auto">
+(activeTab === "mine" ? (
+<div className="p-8 max-w-5xl mx-auto w-full overflow-y-auto h-full">
+<div className="flex gap-6 items-center mb-6">
+  <img src={auth?.avatar_url || ""} className="w-24 h-24 rounded-full object-cover bg-zinc-800 cursor-pointer" onClick={() => setShowEditProfile(true)} alt="avatar" />
+  <div className="flex-1">
+    <h1 className="text-3xl font-bold">@{me}</h1>
+    <p className="text-sm text-zinc-400 mt-1 whitespace-pre-wrap">{auth?.bio || "No bio yet"}</p>
+    <p className="text-zinc-500 text-sm mt-1">{videos ? videos.filter((v: any) => v.handle === me).length : 0} videos</p>
+    <button onClick={() => setShowEditProfile(true)} className="mt-3 px-5 py-1.5 bg-white text-black rounded-full text-sm font-bold">Edit profile</button>
+  </div>
+</div>
 
-
-  <div className="flex gap-6 items-center mb-6">
-    <img src={auth?.avatar_url || ""} className="w-24 h-24 rounded-full object-cover bg-zinc-800 cursor-pointer" onClick={() => setShowEditProfile(true)} alt="avatar" />
-    <div className="flex-1">
-      <h1 className="text-3xl font-bold">@{me}</h1>
-      <p className="text-sm text-zinc-400 mt-1 whitespace-pre-wrap">{auth?.bio || "No bio yet"}</p>
-      <p className="text-zinc-500 text-sm mt-1">{videos? videos.filter((v: any) => v.handle === me).length : 0} videos</p>
-      <button onClick={() => setShowEditProfile(true)} className="mt-3 px-5 py-1.5 bg-white text-black rounded-full text-sm font-bold">Edit profile</button>
+<div className="grid grid-cols-3 gap-2 md:gap-3 pb-32">
+  {videos && videos.filter((v: any) => v.handle === me).map((v: any) => (
+    <div key={v.id} className="aspect-[9/16] bg-black rounded-xl overflow-hidden">
+      <video src={v.video_url} className="w-full h-full object-cover" muted loop playsInline />
     </div>
-  </div>
-
-  <div className="grid grid-cols-3 gap-2 md:gap-3 pb-32">
-    {videos && videos.filter((v: any) => v.handle === me).map((v: any) => (
-      <div key={v.id} className="aspect-[9/16] bg-black rounded-xl overflow-hidden">
-        <video src={v.video_url} className="w-full h-full object-cover" muted loop playsInline />
-      </div>
-    ))}
-  </div>
-
-  {showEditProfile && (
-    <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4" onClick={() => setShowEditProfile(false)}>
-      <div className="bg-zinc-900 rounded-2xl p-6 w-full max-w-sm" onClick={e => e.stopPropagation()}>
+  ))}
+</div>
+</div>
+) : (
         <h2 className="text-xl font-bold mb-2">Edit profile</h2>
         <p className="text-sm text-zinc-400 mb-4">To change your username, bio, and picture - tap your profile picture on any of your videos. That editor already works for you!</p>
         <button onClick={() => setShowEditProfile(false)} className="w-full py-3 rounded-full bg-white text-black font-bold">Got it</button>

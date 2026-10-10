@@ -205,23 +205,76 @@ function Index() {
           <h2 className="break-words font-display text-base md:text-3xl">{title}</h2>
           <p className="hidden text-sm text-muted-foreground md:block">{sub}</p>
         </header>
-      {activeTab === "mine" ? (
-  <div className="p-8 max-w-5xl mx-auto w-full">
-    <div className="flex gap-6 items-center mb-8">
-      <img src={auth?.avatar_url || ""} className="w-24 h-24 rounded-full object-cover bg-secondary" />
-      <div>
+     {activeTab === "mine" ? (
+  <div className="p-8 max-w-5xl mx-auto w-full overflow-y-auto">
+    <div className="flex gap-6 items-center mb-6">
+      <img 
+        src={auth?.avatar_url || ""} 
+        className="w-24 h-24 rounded-full object-cover bg-secondary cursor-pointer hover:opacity-80" 
+        onClick={() => document.getElementById('profile-avatar-input')?.click()}
+      />
+      <div className="flex-1">
         <h1 className="text-3xl font-bold">@{auth?.handle}</h1>
-        <p className="text-muted-foreground">{shown?.length ?? 0} videos</p>
+        <p className="text-sm text-muted-foreground mt-1">{auth?.bio || auth?.display_name || "No bio yet"}</p>
+        <p className="text-muted-foreground text-sm mt-1">{shown?.length ?? 0} videos</p>
+        <button 
+          onClick={() => setShowEditProfile(true)}
+          className="mt-3 px-4 py-1.5 bg-white text-black rounded-full text-sm font-semibold hover:bg-zinc-200"
+        >
+          Edit profile
+        </button>
       </div>
     </div>
-    <div className="grid grid-cols-3 gap-2 md:gap-4">
+
+    {/* All videos grid - scrollable */}
+    <div className="grid grid-cols-3 gap-2 md:gap-4 pb-20">
       {shown?.map((v) => (
-        <div key={v.id} className="aspect-[9/16] bg-black rounded-xl overflow-hidden">
+        <div key={v.id} className="aspect-[9/16] bg-black rounded-xl overflow-hidden cursor-pointer hover:opacity-90">
           <video src={v.video_url} className="w-full h-full object-cover" muted loop playsInline />
         </div>
       ))}
     </div>
+
+    {/* Re-use your existing profile editor - if you have it */}
+    {showEditProfile && (
+      <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onClick={() => setShowEditProfile(false)}>
+        <div className="bg-zinc-900 rounded-2xl p-6 w-full max-w-sm" onClick={e => e.stopPropagation()}>
+          <h2 className="text-xl font-bold mb-4">Edit profile</h2>
+          <input 
+            className="w-full bg-zinc-800 rounded-lg p-3 mb-3 text-white" 
+            placeholder="Username" 
+            defaultValue={auth?.handle}
+            id="edit-handle"
+          />
+          <textarea 
+            className="w-full bg-zinc-800 rounded-lg p-3 mb-3 text-white" 
+            placeholder="Bio" 
+            defaultValue={auth?.bio || ""}
+            id="edit-bio"
+            rows={3}
+          />
+          <input type="file" id="profile-avatar-input" className="hidden" accept="image/*" />
+          <div className="flex gap-2">
+            <button onClick={() => setShowEditProfile(false)} className="flex-1 py-2 rounded-full bg-zinc-800">Cancel</button>
+            <button 
+              onClick={async () => {
+                const newHandle = (document.getElementById('edit-handle') as HTMLInputElement).value;
+                const newBio = (document.getElementById('edit-bio') as HTMLTextAreaElement).value;
+                // This calls the same update you already have when tapping avatar on video
+                await supabase.from('profiles').update({ handle: newHandle, bio: newBio }).eq('id', auth.id);
+                setShowEditProfile(false);
+                window.location.reload();
+              }}
+              className="flex-1 py-2 rounded-full bg-white text-black font-semibold"
+            >
+              Save
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
   </div>
+) : (
 ) : (
   <div className="no-scrollbar min-h-0 flex-1 snap-y snap-mandatory overflow-y-scroll overscroll-y-contain">
     {error && !offlineMode && <Empty text="Couldn't load videos. Refresh to try again." />}

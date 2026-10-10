@@ -225,15 +225,14 @@ const [showEditProfile, setShowEditProfile] = useState(false);
   ))}
 </div>
 </div>
-) : (
-        <h2 className="text-xl font-bold mb-2">Edit profile</h2>
-        <p className="text-sm text-zinc-400 mb-4">To change your username, bio, and picture - tap your profile picture on any of your videos. That editor already works for you!</p>
-        <button onClick={() => setShowEditProfile(false)} className="w-full py-3 rounded-full bg-white text-black font-bold">Got it</button>
-      </div>
-    </div>
-  )}
 </div>
 ) : (
+<div className="no-scrollbar min-h-0 flex-1 snap-y snap-mandatory overflow-y-scroll overscroll-y-contain">
+  {shown.map((v: any) => (
+    <VideoCard key={`${activeTab}-${v.id}`} video={v} liked={liked.has(v.id)} muted={muted} onToggleMute={() => setMuted((m: any) =>!m)} onLikeChange={(on: boolean) => setLiked((s: any) => { const n = new Set(s); if (on) n.add(v.id); else n.delete(v.id); return n; })} />
+  ))}
+</div>
+)}
 <div className="no-scrollbar min-h-0 flex-1 snap-y snap-mandatory overflow-y-scroll overscroll-y-contain">
   {shown.map((v: any) => (
     <VideoCard key={`${activeTab}-${v.id}`} video={v} liked={liked.has(v.id)} muted={muted} onToggleMute={() => setMuted((m: any) =>!m)} onLikeChange={(on: boolean) => setLiked((s: any) => { const n = new Set(s); if (on) n.add(v.id); else n.delete(v.id); return n; })} />

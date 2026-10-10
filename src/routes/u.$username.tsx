@@ -31,7 +31,7 @@ function Profile() {
       setProfile(row);
       resolveAvatarUrl(row?.avatar_url).then(setAvatar);
     });
-  }, [username, auth.version]);
+  }, [username, auth.profile?.avatar_url, auth.profile?.display_name, auth.profile?.bio]);
 
   const totalLikes = (videos || []).reduce((a, v) => a + (v.likes_count || 0), 0);
   const displayName = profile?.display_name || username;
@@ -87,6 +87,8 @@ function Profile() {
           </div>
         </div>
       )}
+
+      {isOwn && <EditProfileDialog open={editing} onOpenChange={setEditing} />}
     </div>
   );
 }

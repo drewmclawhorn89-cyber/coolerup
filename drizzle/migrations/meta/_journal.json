@@ -36,6 +36,20 @@
       "when": 1791592552955,
       "tag": "0004_lock_down_sensitive_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1791592759041,
+      "tag": "0005_avatars_bucket_policies",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791592768471,
+      "tag": "0006_avatars_public_read",
+      "breakpoints": true
     }
   ]
 }

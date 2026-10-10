@@ -2,7 +2,10 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, X } from "lucide-react";
+import { ArrowLeft, Pencil, X } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { EditProfileDialog, resolveAvatarUrl } from "@/components/EditProfileDialog";
+import type { Profile as ProfileRow } from "@/hooks/useAuth";
 
 export const Route = createFileRoute("/u/$username")({
   component: Profile,
@@ -10,16 +13,28 @@ export const Route = createFileRoute("/u/$username")({
 
 function Profile() {
   const { username } = Route.useParams();
+  const auth = useAuth();
   const [videos, setVideos] = useState<any[] | null>(null);
   const [open, setOpen] = useState<number | null>(null);
+  const [profile, setProfile] = useState<ProfileRow | null>(null);
+  const [avatar, setAvatar] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+
+  const isOwn = !!auth.handle && auth.handle === username;
 
   useEffect(() => {
     supabase.from("videos").select("*").eq("username", username).order("created_at", { ascending: false }).then(({ data }) => {
       setVideos(data || []);
     });
-  }, [username]);
+    supabase.from("profiles").select("id, handle, display_name, bio, avatar_url").eq("handle", username).maybeSingle().then(({ data }) => {
+      const row = (data as ProfileRow | null) ?? null;
+      setProfile(row);
+      resolveAvatarUrl(row?.avatar_url).then(setAvatar);
+    });
+  }, [username, auth.profile?.avatar_url, auth.profile?.display_name, auth.profile?.bio]);
 
   const totalLikes = (videos || []).reduce((a, v) => a + (v.likes_count || 0), 0);
+  const displayName = profile?.display_name || username;
 
   return (
     <div className="min-h-dvh bg-background">
@@ -29,10 +44,19 @@ function Profile() {
         </Link>
 
         <div className="flex flex-col items-center gap-3 py-8 text-center">
-          <div className="flex h-24 w-24 items-center justify-center rounded-full bg-primary text-4xl uppercase text-primary-foreground">
-            {username?.[0]}
+          <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-full bg-primary text-4xl uppercase text-primary-foreground">
+            {avatar ? <img src={avatar} alt={displayName} className="h-full w-full object-cover" /> : username?.[0]}
           </div>
-          <h1 className="text-2xl">@{username}</h1>
+          <div>
+            <h1 className="text-2xl">{displayName}</h1>
+            <p className="text-sm text-muted-foreground">@{username}</p>
+          </div>
+          {profile?.bio && <p className="max-w-md text-sm text-muted-foreground">{profile.bio}</p>}
+          {isOwn && (
+            <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
+              <Pencil className="mr-2 h-3.5 w-3.5" /> Edit profile
+            </Button>
+          )}
           <div className="flex gap-8 text-sm">
             <span><b>{videos?.length?? "-"}</b> videos</span>
             <span><b>{totalLikes}</b> likes</span>
@@ -63,6 +87,8 @@ function Profile() {
           </div>
         </div>
       )}
+
+      {isOwn && <EditProfileDialog open={editing} onOpenChange={setEditing} />}
     </div>
   );
 }

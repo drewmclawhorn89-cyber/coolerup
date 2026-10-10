@@ -57,10 +57,11 @@ function Index() {
   const [error, setError] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
 
-  const load = () =>
+  const load = () => 
     fetchVideos()
       .then((v) => {
-        setVideos(v);
+        const shuffled = [...v].sort(() => Math.random() - 0.5);
+        setVideos(shuffled);
         setError(false);
       })
       .catch(() => setError(true));

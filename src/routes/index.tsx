@@ -205,66 +205,69 @@ const [showEditProfile, setShowEditProfile] = useState(false);
           <h2 className="break-words font-display text-base md:text-3xl">{title}</h2>
           <p className="hidden text-sm text-muted-foreground md:block">{sub}</p>
         </header>
-   {activeTab === "mine" ? (
+{activeTab === "mine" ? (
 <div className="p-8 max-w-5xl mx-auto w-full overflow-y-auto">
   <div className="flex gap-6 items-center mb-6">
-    <img
-      src={auth?.avatar_url || ""}
-      className="w-24 h-24 rounded-full object-cover bg-secondary cursor-pointer"
-      onClick={() => setShowEditProfile(true)}
-    />
+    <img src={auth?.avatar_url || ""} className="w-24 h-24 rounded-full object-cover bg-secondary cursor-pointer" onClick={() => setShowEditProfile(true)} />
     <div className="flex-1">
       <h1 className="text-3xl font-bold">@{me}</h1>
-      <p className="text-sm text-zinc-400 mt-1">{auth?.bio || "No bio yet"}</p>
-      <p className="text-zinc-500 text-sm">{videos?.filter(v => v.handle === me).length ?? 0} videos</p>
-      <button onClick={() => setShowEditProfile(true)} className="mt-3 px-5 py-1.5 bg-white text-black rounded-full text-sm font-bold">
-        Edit profile
-      </button>
+      <p className="text-sm text-zinc-400 mt-1 whitespace-pre-wrap">{auth?.bio || "No bio yet - tap Edit profile"}</p>
+      <p className="text-zinc-500 text-sm mt-1">{videos?.filter(v => v.handle === me).length ?? 0} videos</p>
+      <button onClick={() => setShowEditProfile(true)} className="mt-3 px-5 py-1.5 bg-white text-black rounded-full text-sm font-bold">Edit profile</button>
     </div>
   </div>
 
-  <div className="grid grid-cols-3 gap-2">
-    {videos?.filter(v => v.handle === me).map(v => (
+  <div className="grid grid-cols-3 gap-2 md:gap-3 pb-20">
+    {videos?.filter(v => v.handle === me).map((v) => (
       <div key={v.id} className="aspect-[9/16] bg-black rounded-xl overflow-hidden">
-        <video src={v.video_url} className="w-full h-full object-cover" muted />
+        <video src={v.video_url} className="w-full h-full object-cover" muted loop playsInline />
       </div>
     ))}
   </div>
-  {/* edit modal code from last message */}
-</div>
-) : (
-            </button>
-          </div>
+
+  {showEditProfile && (
+    <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={() => setShowEditProfile(false)}>
+      <div className="bg-zinc-900 rounded-2xl p-6 w-full max-w-sm" onClick={e => e.stopPropagation()}>
+        <h2 className="text-xl font-bold mb-4">Edit profile</h2>
+        <input id="edit-handle" defaultValue={me} className="w-full bg-zinc-800 rounded-lg p-3 mb-3 text-white" placeholder="Username" />
+        <textarea id="edit-bio" defaultValue={auth?.bio || ""} rows={3} className="w-full bg-zinc-800 rounded-lg p-3 mb-4 text-white" placeholder="Bio" />
+        <div className="flex gap-2">
+          <button onClick={() => setShowEditProfile(false)} className="flex-1 py-2.5 rounded-full bg-zinc-800 font-semibold">Cancel</button>
+          <button onClick={async () => {
+            const h = (document.getElementById('edit-handle') as HTMLInputElement).value;
+            const b = (document.getElementById('edit-bio') as HTMLTextAreaElement).value;
+            const { supabase } = await import('@/lib/supabase');
+            await supabase.from('profiles').update({ handle: h, bio: b }).eq('id', auth.id);
+            setShowEditProfile(false);
+            location.reload();
+          }} className="flex-1 py-2.5 rounded-full bg-white text-black font-bold">Save</button>
         </div>
       </div>
-    )}
-  </div>
+    </div>
+  )}
+</div>
 ) : (
-) : (
-  <div className="no-scrollbar min-h-0 flex-1 snap-y snap-mandatory overflow-y-scroll overscroll-y-contain">
-    {error && !offlineMode && <Empty text="Couldn't load videos. Refresh to try again." />}
-    {error && videos === null && activeTab !== "saved" && <Empty text="Loading your feed..." />}
-    {(videos || activeTab === "saved") && shown.length === 0 && (
-      <Empty text={activeTab === "saved" ? "No saved videos yet. Tap Share -> Save for offline on any video." : "Nothing here yet."} />
-    )}
-    {shown.map((v) => (
-      <VideoCard
-        key={`${activeTab}-${v.id}`}
-        video={v}
-        liked={liked.has(v.id)}
-        muted={muted}
-        onToggleMute={() => setMuted((m) => !m)}
-        onLikeChange={(on) =>
-          setLiked((s) => {
-            const n = new Set(s);
-            if (on) n.add(v.id);
-            else n.delete(v.id);
-            return n;
-          })
-        }
-      />
-    ))}
-  </div>
+<div className="no-scrollbar min-h-0 flex-1 snap-y snap-mandatory overflow-y-scroll overscroll-y-contain">
+  {error && !offlineMode && <div className="p-8 text-center">Couldn't load videos. Refresh to try again.</div>}
+  {shown.length === 0 && <div className="p-8 text-center">{activeTab === "saved" ? "No saved videos yet." : "Nothing here yet."}</div>}
+  {shown.map((v) => (
+    <VideoCard
+      key={`${activeTab}-${v.id}`}
+      video={v}
+      liked={liked.has(v.id)}
+      muted={muted}
+      onToggleMute={() => setMuted((m) => !m)}
+      onLikeChange={(on) =>
+        setLiked((s) => {
+          const n = new Set(s);
+          if (on) n.add(v.id);
+          else n.delete(v.id);
+          return n;
+        })
+      }
+    />
+  ))}
+</div>
 )}
         <nav aria-label="Phone navigation" className="mobile-bottom-nav grid shrink-0 grid-cols-8 border-t bg-sidebar px-1 md:hidden">
           {NAV.slice(0, 3).map(({ id, label, icon: Icon }) => (

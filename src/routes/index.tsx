@@ -166,14 +166,33 @@ function Index() {
               <LogOut className="h-4 w-4" />
             </button>
           </div>
-        ) : (
-          <button
-            onClick={auth.signIn}
-            className="mt-auto flex items-center justify-center gap-2 rounded-xl border bg-secondary p-3 font-bold transition hover:bg-accent"
-          >
-            Sign in with Google
-          </button>
-        )}
+      ) : (
+  <div className="mt-auto flex flex-col gap-2">
+    <button
+      onClick={auth.signIn}
+      className="flex items-center justify-center gap-2 rounded-xl border bg-white text-black p-3 font-bold"
+    >
+      Sign in with Google
+    </button>
+
+    <button
+      onClick={async () => {
+        const phone = prompt("Enter phone: +1...");
+        if(!phone) return;
+        const { error } = await supabase.auth.signInWithOtp({ phone });
+        if(error) { alert(error.message); return; }
+        const code = prompt("6-digit code sent to " + phone);
+        if(!code) return;
+        const { error: e2 } = await supabase.auth.verifyOtp({ phone, token: code, type: 'sms' });
+        if(e2) alert(e2.message);
+        else location.reload();
+      }}
+      className="flex items-center justify-center gap-2 rounded-xl border bg-secondary p-3 font-bold"
+    >
+      Sign in with Phone
+    </button>
+  </div>
+))
       </aside>
 
       <main className="flex min-w-0 flex-1 flex-col">

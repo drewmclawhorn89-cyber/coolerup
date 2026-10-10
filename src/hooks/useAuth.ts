@@ -20,6 +20,7 @@ export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
   const [ready, setReady] = useState(false);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [resolvedAvatar, setResolvedAvatar] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [version, setVersion] = useState(0);
 
@@ -67,8 +68,18 @@ export function useAuth() {
         row = (res.data as Profile | null) ?? null;
       }
       const { data: role } = await supabase.from("user_roles").select("role").eq("user_id", user.id).eq("role", "admin").maybeSingle();
+      let avatarUrl: string | null = null;
+      if (row?.avatar_url?.startsWith("avatars:")) {
+        const { data: signed } = await supabase.storage
+          .from("avatars")
+          .createSignedUrl(row.avatar_url.slice("avatars:".length), 60 * 60 * 6);
+        avatarUrl = signed?.signedUrl ?? null;
+      } else {
+        avatarUrl = row?.avatar_url ?? null;
+      }
       if (!alive) return;
       setProfile(row);
+      setResolvedAvatar(avatarUrl);
       setIsAdmin(!!role);
     })();
     return () => {
@@ -78,7 +89,7 @@ export function useAuth() {
 
   const handle = profile?.handle ?? null;
   const name: string | null = profile?.display_name || googleName;
-  const avatar: string | null = profile?.avatar_url || user?.user_metadata?.["avatar_url"] || null;
+  const avatar: string | null = resolvedAvatar || user?.user_metadata?.["avatar_url"] || null;
 
   const signIn = async () => {
     const result = await lovable.auth.signInWithOAuth("google", {

@@ -63,11 +63,17 @@ export function useBlocked() {
   }, [auth.user?.id, version]);
 
   const block = async (username: string) => {
-    if (!auth.user || !auth.handle) return auth.signIn();
+    if (!auth.user || !auth.handle) {
+      void auth.signIn();
+      return;
+    }
     const { error } = await supabase
       .from("blocked_users")
       .insert({ blocker_id: auth.user.id, blocker_username: auth.handle, blocked_username: username });
-    if (error && error.code !== "23505") return toast.error("Couldn't block");
+    if (error && error.code !== "23505") {
+      toast.error("Couldn't block");
+      return;
+    }
     toast.success(`Blocked @${username}`);
     window.dispatchEvent(new Event(BLOCK_EVENT));
   };
@@ -75,7 +81,10 @@ export function useBlocked() {
   const unblock = async (username: string) => {
     if (!auth.user) return;
     const { error } = await supabase.from("blocked_users").delete().eq("blocker_id", auth.user.id).eq("blocked_username", username);
-    if (error) return toast.error("Couldn't unblock");
+    if (error) {
+      toast.error("Couldn't unblock");
+      return;
+    }
     toast.success(`Unblocked @${username}`);
     window.dispatchEvent(new Event(BLOCK_EVENT));
   };

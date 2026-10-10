@@ -176,28 +176,7 @@ function Index() {
           </button>
         )}
       </aside>
-// PROFILE PAGE - when tab is "mine"
-if (tab === "mine") {
-  const myVideos = videos?.filter(v => v.handle === me) ?? [];
-  return (
-    <div className="p-8 max-w-5xl mx-auto">
-      <div className="flex gap-6 items-center mb-8">
-        <img src={auth.avatar_url} className="w-24 h-24 rounded-full object-cover" />
-        <div>
-          <h1 className="text-3xl font-bold">@{me}</h1>
-          <p className="text-muted-foreground">{myVideos.length} videos • {auth.handle}</p>
-        </div>
-      </div>
-      <div className="grid grid-cols-3 gap-2 md:gap-4">
-        {myVideos.map(v => (
-          <div key={v.id} className="aspect-[9/16] bg-black rounded-xl overflow-hidden">
-            <video src={v.video_url} className="w-full h-full object-cover" />
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
+
       <main className="flex min-w-0 flex-1 flex-col">
         <div className="mobile-topbar grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b bg-sidebar px-4 md:hidden">
           <h1 className="min-w-0 font-display text-2xl">loop<span className="text-primary">.</span></h1>
@@ -226,30 +205,49 @@ if (tab === "mine") {
           <h2 className="break-words font-display text-base md:text-3xl">{title}</h2>
           <p className="hidden text-sm text-muted-foreground md:block">{sub}</p>
         </header>
-        <div className="no-scrollbar min-h-0 flex-1 snap-y snap-mandatory overflow-y-scroll overscroll-y-contain">
-          {error && !offlineMode && <Empty text="Couldn't load videos. Refresh to try again." />}
-          {!error && videos === null && activeTab !== "saved" && <Empty text="Loading your feed…" />}
-          {(videos || activeTab === "saved") && shown.length === 0 && (
-            <Empty text={activeTab === "saved" ? "No saved videos yet. Tap Share → Save for offline on any video." : "Nothing here yet."} />
-          )}
-          {shown.map((v) => (
-            <VideoCard
-              key={`${activeTab}-${v.id}`}
-              video={v}
-              liked={liked.has(v.id)}
-              muted={muted}
-              onToggleMute={() => setMuted((m) => !m)}
-              onLikeChange={(on) =>
-                setLiked((s) => {
-                  const n = new Set(s);
-                  if (on) n.add(v.id);
-                  else n.delete(v.id);
-                  return n;
-                })
-              }
-            />
-          ))}
+      {activeTab === "mine" ? (
+  <div className="p-8 max-w-5xl mx-auto w-full">
+    <div className="flex gap-6 items-center mb-8">
+      <img src={auth?.avatar_url || ""} className="w-24 h-24 rounded-full object-cover bg-secondary" />
+      <div>
+        <h1 className="text-3xl font-bold">@{auth?.handle}</h1>
+        <p className="text-muted-foreground">{shown?.length ?? 0} videos</p>
+      </div>
+    </div>
+    <div className="grid grid-cols-3 gap-2 md:gap-4">
+      {shown?.map((v) => (
+        <div key={v.id} className="aspect-[9/16] bg-black rounded-xl overflow-hidden">
+          <video src={v.video_url} className="w-full h-full object-cover" muted loop playsInline />
         </div>
+      ))}
+    </div>
+  </div>
+) : (
+  <div className="no-scrollbar min-h-0 flex-1 snap-y snap-mandatory overflow-y-scroll overscroll-y-contain">
+    {error && !offlineMode && <Empty text="Couldn't load videos. Refresh to try again." />}
+    {error && videos === null && activeTab !== "saved" && <Empty text="Loading your feed..." />}
+    {(videos || activeTab === "saved") && shown.length === 0 && (
+      <Empty text={activeTab === "saved" ? "No saved videos yet. Tap Share -> Save for offline on any video." : "Nothing here yet."} />
+    )}
+    {shown.map((v) => (
+      <VideoCard
+        key={`${activeTab}-${v.id}`}
+        video={v}
+        liked={liked.has(v.id)}
+        muted={muted}
+        onToggleMute={() => setMuted((m) => !m)}
+        onLikeChange={(on) =>
+          setLiked((s) => {
+            const n = new Set(s);
+            if (on) n.add(v.id);
+            else n.delete(v.id);
+            return n;
+          })
+        }
+      />
+    ))}
+  </div>
+)}
         <nav aria-label="Phone navigation" className="mobile-bottom-nav grid shrink-0 grid-cols-8 border-t bg-sidebar px-1 md:hidden">
           {NAV.slice(0, 3).map(({ id, label, icon: Icon }) => (
             <Button key={id} variant="ghost" onClick={() => setTab(id)} aria-current={activeTab === id ? "page" : undefined} className={`h-14 min-w-0 flex-col gap-1 rounded-none px-0 text-[9px] [&_svg]:size-5 ${activeTab === id ? "text-primary" : "text-muted-foreground"}`}><Icon />{label}</Button>

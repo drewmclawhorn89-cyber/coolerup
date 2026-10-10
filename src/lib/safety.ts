@@ -5,20 +5,18 @@ import { useAuth } from "@/hooks/useAuth";
 
 export const BANNED_TEXT = "User banned for violating community guidelines";
 
-let bansPromise: Promise<Set<string>> | null = null;
-export function loadBans(force = false) {
-  if (!bansPromise || force) {
-    bansPromise = Promise.resolve(
-      supabase.from("banned_users").select("username, is_permanent, expires_at"),
-    ).then(({ data }) =>
-      new Set(
-        (data ?? [])
-          .filter((b) => b.is_permanent || !b.expires_at || new Date(b.expires_at) > new Date())
-          .map((b) => b.username),
-      ),
-    ).catch(() => new Set<string>());
+const banCache = new Map<string, Promise<boolean>>();
+
+/** True when the username currently has an active ban (checked through the is_banned database function). */
+export function checkBanned(username: string): Promise<boolean> {
+  let result = banCache.get(username);
+  if (!result) {
+    result = Promise.resolve(supabase.rpc("is_banned", { _username: username }))
+      .then(({ data }) => data === true)
+      .catch(() => false);
+    banCache.set(username, result);
   }
-  return bansPromise;
+  return result;
 }
 
 export function useIsBanned(username?: string | null) {
@@ -29,7 +27,7 @@ export function useIsBanned(username?: string | null) {
       return;
     }
     let alive = true;
-    loadBans().then((s) => alive && setBanned(s.has(username)));
+    checkBanned(username).then((v) => alive && setBanned(v));
     return () => {
       alive = false;
     };
@@ -63,11 +61,17 @@ export function useBlocked() {
   }, [auth.user?.id, version]);
 
   const block = async (username: string) => {
-    if (!auth.user || !auth.handle) return auth.signIn();
+    if (!auth.user || !auth.handle) {
+      void auth.signIn();
+      return;
+    }
     const { error } = await supabase
       .from("blocked_users")
       .insert({ blocker_id: auth.user.id, blocker_username: auth.handle, blocked_username: username });
-    if (error && error.code !== "23505") return toast.error("Couldn't block");
+    if (error && error.code !== "23505") {
+      toast.error("Couldn't block");
+      return;
+    }
     toast.success(`Blocked @${username}`);
     window.dispatchEvent(new Event(BLOCK_EVENT));
   };
@@ -75,7 +79,10 @@ export function useBlocked() {
   const unblock = async (username: string) => {
     if (!auth.user) return;
     const { error } = await supabase.from("blocked_users").delete().eq("blocker_id", auth.user.id).eq("blocked_username", username);
-    if (error) return toast.error("Couldn't unblock");
+    if (error) {
+      toast.error("Couldn't unblock");
+      return;
+    }
     toast.success(`Unblocked @${username}`);
     window.dispatchEvent(new Event(BLOCK_EVENT));
   };

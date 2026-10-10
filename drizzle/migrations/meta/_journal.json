@@ -29,6 +29,13 @@
       "when": 1791515669460,
       "tag": "0003_profiles_edit_and_safety",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791592552955,
+      "tag": "0004_lock_down_sensitive_tables",
+      "breakpoints": true
     }
   ]
 }

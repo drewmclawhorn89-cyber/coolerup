@@ -14,6 +14,27 @@ export type Database = {
   }
   public: {
     Tables: {
+      app_settings: {
+        Row: {
+          id: number
+          is_maintenance: boolean | null
+          maintenance_message: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: number
+          is_maintenance?: boolean | null
+          maintenance_message?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: number
+          is_maintenance?: boolean | null
+          maintenance_message?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       banned_users: {
         Row: {
           banned_at: string

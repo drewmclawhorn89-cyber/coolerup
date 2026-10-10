@@ -30,7 +30,7 @@ const NAV: { id: Tab; label: string; icon: typeof Home }[] = [
   { id: "following", label: "Following", icon: Users },
   { id: "liked", label: "Liked", icon: Heart },
   { id: "saved", label: "Saved", icon: Download },
-  { id: "mine", label: "Your videos", icon: User },
+  { id: "mine", label: "Profile", icon: User },
 ];
 
 
@@ -40,7 +40,7 @@ const HEADERS: Record<Tab, [string, string]> = {
   following: ["Following", "Creators you keep coming back to"],
   liked: ["Liked", "Everything you've hearted"],
   saved: ["Saved", "Watch anytime, even without a connection"],
-  mine: ["Your videos", "Your point of view, on loop"],
+  mine: ["Profile", "Your loop"],
 };
 
 function Index() {

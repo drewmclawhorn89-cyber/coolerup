@@ -89,13 +89,9 @@ function Index() {
 
   const offlineMode = !online || (error && saved.length > 0);
   const activeTab: Tab = offlineMode ? "saved" : tab;
-if (activeTab === "messages") {
-  return (
-    <div className="flex h-dvh bg-background p-6 text-foreground">
-      <h1 className="text-2xl font-bold">Messages - Coming Soon</h1>
-    </div>
-  );
-}
+
+
+
 
 
 const shown = useMemo(() => {

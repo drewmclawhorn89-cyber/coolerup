@@ -41,7 +41,6 @@ const HEADERS: Record<Tab, [string, string]> = {
   Liked: ["Liked", "Everything you've hearted"],
   saved: ["Saved", "Watch anytime, even without a connection"],
   mine: ["Profile", "Your loop"], 
-  messages: ["inbox", "your messages"],
 };
 
 function Index() {

@@ -93,29 +93,6 @@ function Index() {
   const activeTab: Tab = offlineMode ? "saved" : tab;
 
 
-// If it's LIVE or INBOX, don't try to show videos - show their own pages
-if (activeTab === "live") {
-  return (
-    <div className="flex h-dvh overflow-hidden bg-black flex flex-col items-center justify-center text-white">
-      <div className="w-20 h-20 bg-red-600 rounded-full flex items-center justify-center animate-pulse mb-4">
-        <Radio className="w-10 h-10" />
-      </div>
-      <h2 className="text-2xl font-bold">LIVE</h2>
-      <p className="text-gray-400 mt-2">No one is live right now</p>
-    </div>
-  );
-}
-
-if (activeTab === "messages" || activeTab === "inbox") {
-  return (
-    <div className="flex h-dvh overflow-hidden bg-background p-4">
-      <div>
-        <h2 className="text-xl font-bold">Inbox</h2>
-        <p className="text-muted-foreground">Your messages will show here</p>
-      </div>
-    </div>
-  );
-}
 
 const shown = useMemo(() => {
   let list = activeTab === "saved" ? saved : (videos ?? []);

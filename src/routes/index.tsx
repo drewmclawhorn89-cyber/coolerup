@@ -32,7 +32,6 @@ const NAV: { id: Tab; label: string; icon: typeof Home }[] = [
     { id: "messages", label: "Messages", icon: MessageCircle },
   { id: "saved", label: "offline", icon: Download },
   { id: "mine", label: "Profile", icon: User },
-  { id: "live", label: "LIVE", icon: Radio }, 
 ];
 
 
@@ -43,7 +42,7 @@ const HEADERS: Record<Tab, [string, string]> = {
   Liked: ["Liked", "Everything you've hearted"],
   saved: ["Saved", "Watch anytime, even without a connection"],
   mine: ["Profile", "Your loop"],
-  messages: ["messages", "Your messages"],
+  messages: ["Inbox", "Your messages"],
 };
 
 function Index() {

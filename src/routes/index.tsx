@@ -22,7 +22,7 @@ export const Route = createFileRoute("/")({
   component: Index,
 });
 
-type Tab = "foryou" | "explore" | "following" | "cool" | "offline" | "mine";
+type Tab = "foryou" | "explore" | "following" | "cool" | "offline" | "profile";
 
 const NAV: { id: Tab; label: string; icon: typeof Home }[] = [
   { id: "foryou", label: "For You", icon: Home },
@@ -30,7 +30,7 @@ const NAV: { id: Tab; label: string; icon: typeof Home }[] = [
   { id: "following", label: "Following", icon: Users },
   
   { id: "offline", label: "offline", icon: Download },
-  { id: "mine", label: "Profile", icon: User },
+  { id: "profile", label: "Profile", icon: User },
 ];
 
 

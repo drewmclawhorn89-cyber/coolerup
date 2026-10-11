@@ -4,7 +4,7 @@ import { Compass, Download, Heart, Home, LogOut, MessageCircle, Plus, Search, Us
 import { Button } from "@/components/ui/button";
 import { VideoCard } from "@/components/VideoCard";
 import { UploadDialog } from "@/components/UploadDialog";
-import { fetchMyLikes, fetchVideos, type Video } from "@/lib/loop";
+import { fetchMyLikes, fetchVideos, type Video } from "@/lib/coolerup";
 import { listSaved, onOfflineChange } from "@/lib/offline";
 import { useAuth } from "@/hooks/useAuth";
 

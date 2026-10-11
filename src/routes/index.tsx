@@ -24,7 +24,6 @@ export const Route = createFileRoute("/")({
 
 
 type Tab = "foryou" | "explore" | "following" | "liked" | "offline" | "profile" | "messages" | "live";
-
 const NAV: { id: Tab; label: string; icon: typeof Home }[] = [
   { id: "foryou", label: "For You", icon: Home },
   { id: "explore", label: "Explore", icon: Compass },

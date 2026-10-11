@@ -24,6 +24,10 @@ export const Route = createFileRoute("/")({
 
 
 type Tab = "foryou" | "explore" | "following" | "liked" | "offline" | "profile" | "messages";
+const MAINTENANCE = true; // set to false when you're done adding stuff
+
+export const Route = createFileRoute("/")({
+  head: () => ({
 const NAV: { id: Tab; label: string; icon: typeof Home }[] = [
   { id: "foryou", label: "For You", icon: Home },
   { id: "explore", label: "Explore", icon: Compass },

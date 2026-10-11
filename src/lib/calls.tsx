@@ -102,7 +102,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
           audio.autoplay = true;
           remoteAudioRef.current = audio;
         }
-        remoteAudioRef.current.srcObject = e.streams[0];
+        remoteAudioRef.current.srcObject = e.streams[0] ?? null;
       };
       pc.onconnectionstatechange = () => {
         if (pc.connectionState === "connected") {

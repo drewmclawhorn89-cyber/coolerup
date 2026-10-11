@@ -20,14 +20,6 @@ export const Route = createFileRoute("/")({
     ],
   }),
   component: Index,
-    if (MAINTENANCE) {
-    return (
-      <div style={{height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', background: 'black', color: 'white'}}>
-        <h1 style={{fontSize: '32px'}}>CoolerUp is updating 🔧</h1>
-        <p>We're adding new stuff, check back in a few minutes</p>
-      </div>
-    )
-  }
 });
 
 

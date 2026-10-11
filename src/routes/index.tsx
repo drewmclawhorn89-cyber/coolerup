@@ -28,6 +28,7 @@ const MAINTENANCE = true; // set to false when you're done adding stuff
 const NAV: { id: Tab; label: string; icon: typeof Home }[] = [
   { id: "foryou", label: "For You", icon: Home },
   { id: "explore", label: "Explore", icon: Compass },
+  
   { id: "following", label: "Following", icon: Users },
     { id: "messages", label: "Messages", icon: MessageCircle },
   { id: "saved", label: "offline", icon: Download },

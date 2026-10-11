@@ -92,10 +92,6 @@ function Index() {
   const offlineMode = !online || (error && saved.length > 0);
   const activeTab: Tab = offlineMode ? "saved" : tab;
 
-
-
-
-
   const [title, sub] = query ? [`Results for "${query}"`, `${shown.length} videos`] : HEADERS[activeTab];
 
   return (

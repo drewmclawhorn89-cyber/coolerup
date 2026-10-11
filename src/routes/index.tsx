@@ -44,7 +44,6 @@ const HEADERS: Record<Tab, [string, string]> = {
   saved: ["Saved", "Watch anytime, even without a connection"],
   mine: ["Profile", "Your loop"],
   messages: ["messages", "Your messages"],
- live: ["LIVE", "Live now"], 
 };
 
 function Index() {

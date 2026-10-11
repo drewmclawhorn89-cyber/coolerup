@@ -38,7 +38,7 @@ const HEADERS: Record<Tab, [string, string]> = {
   foryou: ["For You", "A fresh perspective with every scroll"],
   explore: ["Explore", "Most loved right now"],
   following: ["Following", "Creators you keep coming back to"],
-  : ["Liked", "Everything you've hearted"],
+  Liked: ["Liked", "Everything you've hearted"],
   saved: ["Saved", "Watch anytime, even without a connection"],
   mine: ["Profile", "Your loop"],
 };

@@ -28,7 +28,7 @@ type Tab = "foryou" | "explore" | "following" | "liked" | "offline" | "profile" 
 const NAV: { id: Tab; label: string; icon: typeof Home }[] = [
   { id: "foryou", label: "For You", icon: Home },
   { id: "explore", label: "Explore", icon: Compass },
-  
+  { id: "live", label: "Live", icon: radio }, 
   { id: "following", label: "Following", icon: Users },
     { id: "messages", label: "Messages", icon: MessageCircle },
   { id: "saved", label: "offline", icon: Download },

@@ -11,7 +11,7 @@ import { useAuth } from "@/hooks/useAuth";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Loop — For You" },
+      { title: "coolerup — For You" },
       { name: "description", content: "A fresh perspective with every scroll. Less perfect, more real." },
       { property: "og:title", content: "Loop — A little more you" },
       { property: "og:description", content: "A fresh perspective with every scroll. Less perfect, more real." },

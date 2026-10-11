@@ -13,7 +13,7 @@ export const Route = createFileRoute("/")({
     meta: [
       { title: "coolerup — For You" },
       { name: "description", content: "A fresh perspective with every scroll. Less perfect, more real." },
-      { property: "og:title", content: "coolerup — A little more you" },
+      { property: "og:title", content: "Loop — A little more you" },
       { property: "og:description", content: "A fresh perspective with every scroll. Less perfect, more real." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },

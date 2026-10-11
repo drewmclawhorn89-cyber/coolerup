@@ -40,7 +40,8 @@ const HEADERS: Record<Tab, [string, string]> = {
   following: ["Following", "Creators you keep coming back to"],
   Liked: ["Liked", "Everything you've hearted"],
   saved: ["Saved", "Watch anytime, even without a connection"],
-  mine: ["Profile", "Your loop"],  
+  mine: ["Profile", "Your loop"], 
+  messages: ["inbox",
 };
 
 function Index() {

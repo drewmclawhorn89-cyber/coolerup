@@ -94,26 +94,7 @@ function Index() {
 
 
 
-const shown = useMemo(() => {
-  let list = activeTab === "saved" ? saved : (videos ?? []);
-  const q = query.trim().toLowerCase();
-  if (q) list = list.filter((v) => v.caption.toLowerCase().includes(q) || v.username.toLowerCase().includes(q))
-  if (activeTab === "explore") list = [...list].sort((a, b) => b.likes_count - a.likes_count);
-  if (activeTab === "following") list = list.filter((v) => v.username !== me);
-  if (activeTab === "liked") list = list.filter((v) => liked.has(v.id));
-  if (activeTab === "mine") list = me ? list.filter((v) => v.username === me) : [];
-  return list;
-}, [videos, saved, query, activeTab, liked, me]);
-  const shown = useMemo(() => {
-    let list = activeTab === "saved" ? saved : (videos ?? []);
-    const q = query.trim().toLowerCase();
-    if (q) list = list.filter((v) => v.caption.toLowerCase().includes(q) || v.username.toLowerCase().includes(q));
-    if (activeTab === "explore") list = [...list].sort((a, b) => b.likes_count - a.likes_count);
-    if (activeTab === "following") list = list.filter((v) => v.username !== me);
-    if (activeTab === "liked") list = list.filter((v) => liked.has(v.id));
-    if (activeTab === "mine") list = me ? list.filter((v) => v.username === me) : [];
-    return list;
-  }, [videos, saved, query, activeTab, liked, me]);
+
 
   const [title, sub] = query ? [`Results for "${query}"`, `${shown.length} videos`] : HEADERS[activeTab];
 

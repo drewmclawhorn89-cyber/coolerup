@@ -57,18 +57,7 @@ function Index() {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
-{activeTab === "live" && (
-  <div className="w-full h-[calc(100vh-80px)] bg-black flex flex-col items-center justify-center text-white">
-    <div className="w-20 h-20 bg-red-600 rounded-full flex items-center justify-center animate-pulse mb-4">
-      <Radio className="w-10 h-10" />
-    </div>
-    <h2 className="text-2xl font-bold">LIVE</h2>
-    <p className="text-gray-400 mt-2">No one is live right now</p>
-    <button className="mt-6 px-6 py-2 bg-red-600 rounded-full font-bold">
-      Go Live
-    </button>
-  </div>
-)}
+
   const load = () => 
     fetchVideos()
       .then((v) => {

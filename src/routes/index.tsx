@@ -22,14 +22,14 @@ export const Route = createFileRoute("/")({
   component: Index,
 });
 
-type Tab = "foryou" | "explore" | "following" | "Liked" | "saved" | "mine";
+type Tab = "foryou" | "explore" | "following" | "Liked" | "offline" | "mine";
 
 const NAV: { id: Tab; label: string; icon: typeof Home }[] = [
   { id: "foryou", label: "For You", icon: Home },
   { id: "explore", label: "Explore", icon: Compass },
   { id: "following", label: "Following", icon: Users },
   { id: "Liked", label: "Liked", icon: Heart },
-  { id: "saved", label: "Saved", icon: Download },
+  { id: "offline", label: "offline", icon: Download },
   { id: "mine", label: "Profile", icon: User },
 ];
 

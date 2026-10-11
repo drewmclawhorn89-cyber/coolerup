@@ -27,11 +27,16 @@ export function UploadDialog({
 
   const pick = (f?: File) => {
     if (!f) return;
-    if (!f.type.startsWith("video/")) {
-      toast.error("Please choose a video file");
+    const isImage = f.type.startsWith("image/");
+    if (!isImage && !f.type.startsWith("video/")) {
+      toast.error("Please choose a video or photo");
       return;
     }
-    if (f.size > 50 * 1024 * 1024) {
+    if (isImage && f.size > 10 * 1024 * 1024) {
+      toast.error("Photos must be under 10 MB");
+      return;
+    }
+    if (!isImage && f.size > 50 * 1024 * 1024) {
       toast.error("Videos must be under 50 MB");
       return;
     }
@@ -69,19 +74,23 @@ export function UploadDialog({
           className="flex h-40 w-full shrink-0 cursor-pointer flex-col items-center justify-center gap-2 overflow-hidden rounded-xl border-2 border-dashed bg-secondary text-center text-sm text-muted-foreground sm:aspect-[9/16] sm:h-auto sm:w-48"
         >
           {preview ? (
-            <video src={preview} autoPlay muted loop playsInline className="h-full w-full object-cover" />
+            file?.type.startsWith("image/") ? (
+              <img src={preview} alt="Preview" className="h-full w-full object-cover" />
+            ) : (
+              <video src={preview} autoPlay muted loop playsInline className="h-full w-full object-cover" />
+            )
           ) : (
             <>
               <Upload className="h-8 w-8 text-primary" />
-              Drop a video or click to choose
-              <span className="text-xs">MP4 / WebM, up to 50 MB</span>
+              Drop a video or photo, or click to choose
+              <span className="text-xs">Video up to 50 MB · Photo up to 10 MB</span>
             </>
           )}
-          <input type="file" accept="video/*" className="hidden" onChange={(e) => pick(e.target.files?.[0])} />
+          <input type="file" accept="video/*,image/*" className="hidden" onChange={(e) => pick(e.target.files?.[0])} />
         </label>
         <div className="flex min-w-0 flex-1 flex-col gap-4 [&_input]:text-base [&_textarea]:text-base">
           <div className="flex items-center justify-between">
-            <h2 className="font-display text-2xl">Upload video</h2>
+            <h2 className="font-display text-2xl">Upload</h2>
             <button type="button" onClick={onClose} aria-label="Close">
               <X className="h-5 w-5" />
             </button>

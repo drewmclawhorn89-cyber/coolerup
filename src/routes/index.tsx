@@ -28,7 +28,7 @@ const NAV: { id: Tab; label: string; icon: typeof Home }[] = [
   { id: "foryou", label: "For You", icon: Home },
   { id: "explore", label: "Explore", icon: Compass },
   { id: "following", label: "Following", icon: Users },
-  
+  } id: "inbox", label: "Inbox", icon: Inbox },
   { id: "saved", label: "offline", icon: Download },
   { id: "mine", label: "Profile", icon: User },
 ];

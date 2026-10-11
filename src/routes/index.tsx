@@ -89,8 +89,6 @@ function Index() {
 
   const offlineMode = !online || (error && saved.length > 0);
   const activeTab: Tab = offlineMode ? "saved" : tab;
-const offlineMode = !online || (error && saved.length > 0);
-const activeTab: Tab = offlineMode ? "saved" : tab;
 
 // If it's LIVE or INBOX, don't try to show videos - show their own pages
 if (activeTab === "live") {

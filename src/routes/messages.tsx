@@ -1,9 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Phone } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useCall } from "@/lib/calls";
 import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/messages")({
@@ -24,6 +25,7 @@ type Msg = { id: string; from_username: string; to_username: string; message: st
 
 function Messages() {
   const auth = useAuth();
+  const { startCall } = useCall();
   const me = auth.handle;
   const [toUser, setToUser] = useState("");
   const [text, setText] = useState("");
@@ -123,6 +125,21 @@ function Messages() {
           <div className="flex items-center gap-2 border-b p-3">
             <button onClick={() => setToUser("")} className="text-sm font-bold text-primary">← Inbox</button>
             <span className="font-bold">@{toUser}</span>
+            <button
+              onClick={async () => {
+                const handle = toUser.trim().replace(/^@/, "").toLowerCase();
+                const { data: target } = await supabase.from("profiles").select("id").eq("handle", handle).maybeSingle();
+                if (!target) {
+                  toast.error(`@${handle} hasn't joined Loop yet`);
+                  return;
+                }
+                void startCall(handle, target.id);
+              }}
+              className="ml-auto rounded-full p-2 text-muted-foreground hover:bg-secondary hover:text-foreground"
+              aria-label={`Voice call @${toUser}`}
+            >
+              <Phone className="h-5 w-5" />
+            </button>
           </div>
           <div className="flex-1 space-y-2 overflow-y-auto p-3">
             {convo.map((m) => (

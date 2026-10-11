@@ -92,19 +92,6 @@ function Index() {
 
 
 
-if (activeTab === "messages" || activeTab === "inbox") {
-  return (
-    <div className="flex h-dvh overflow-hidden bg-background p-4">
-      <div>
-        <h2 className="text-xl font-bold">Inbox</h2>
-        <p className="text-muted-foreground">Your messages will show here</p>
-      </div>
-    </div>
-  );
-}
-
-
-
 const shown = useMemo(() => {
   let list = activeTab === "saved" ? saved : (videos ?? []);
   const q = query.trim().toLowerCase();

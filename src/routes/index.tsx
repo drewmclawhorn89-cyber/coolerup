@@ -88,7 +88,43 @@ function Index() {
 
   const offlineMode = !online || (error && saved.length > 0);
   const activeTab: Tab = offlineMode ? "saved" : tab;
+const offlineMode = !online || (error && saved.length > 0);
+const activeTab: Tab = offlineMode ? "saved" : tab;
 
+// If it's LIVE or INBOX, don't try to show videos - show their own pages
+if (activeTab === "live") {
+  return (
+    <div className="flex h-dvh overflow-hidden bg-black flex flex-col items-center justify-center text-white">
+      <div className="w-20 h-20 bg-red-600 rounded-full flex items-center justify-center animate-pulse mb-4">
+        <Radio className="w-10 h-10" />
+      </div>
+      <h2 className="text-2xl font-bold">LIVE</h2>
+      <p className="text-gray-400 mt-2">No one is live right now</p>
+    </div>
+  );
+}
+
+if (activeTab === "messages" || activeTab === "inbox") {
+  return (
+    <div className="flex h-dvh overflow-hidden bg-background p-4">
+      <div>
+        <h2 className="text-xl font-bold">Inbox</h2>
+        <p className="text-muted-foreground">Your messages will show here</p>
+      </div>
+    </div>
+  );
+}
+
+const shown = useMemo(() => {
+  let list = activeTab === "saved" ? saved : (videos ?? []);
+  const q = query.trim().toLowerCase();
+  if (q) list = list.filter((v) => v.caption.toLowerCase().includes(q) || v.username.toLowerCase().includes(q))
+  if (activeTab === "explore") list = [...list].sort((a, b) => b.likes_count - a.likes_count);
+  if (activeTab === "following") list = list.filter((v) => v.username !== me);
+  if (activeTab === "liked") list = list.filter((v) => liked.has(v.id));
+  if (activeTab === "mine") list = me ? list.filter((v) => v.username === me) : [];
+  return list;
+}, [videos, saved, query, activeTab, liked, me]);
   const [title, sub] = query ? [`Results for "${query}"`, `${shown.length} videos`] : HEADERS[activeTab];
 
   return (

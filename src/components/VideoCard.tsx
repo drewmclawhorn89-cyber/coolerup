@@ -3,7 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { Heart, MessageCircle, Share2, Play, Volume2, VolumeX } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { formatCount, getDeviceId, resolveVideoUrl, type Video } from "@/lib/loop";
+import { formatCount, getDeviceId, isImageUrl, resolveVideoUrl, type Video } from "@/lib/loop";
 import { getSaved } from "@/lib/offline";
 import { useAuth } from "@/hooks/useAuth";
 import { Comments } from "./Comments";
@@ -36,6 +36,7 @@ export function VideoCard({
   const [isFollowing, setIsFollowing] = useState(false);
   const auth = useAuth();
   const myUsername = auth.handle;
+  const isImage = isImageUrl(video.video_url);
 
   useEffect(() => {
     if (!auth.user || !myUsername || video.username === myUsername) return;
@@ -83,7 +84,7 @@ export function VideoCard({
 
   useEffect(() => {
     const el = ref.current;
-    if (!el) return;
+    if (!el || isImage) return;
     const obs = new IntersectionObserver(
       ([e]) => {
         if (e && e.isIntersecting && e.intersectionRatio > 0.6) el.play().catch(() => {});
@@ -138,7 +139,15 @@ export function VideoCard({
       <div className="relative flex h-full w-full items-end md:h-auto md:w-auto md:gap-4">
         <div className="flex h-full min-w-0 flex-1 flex-col md:h-auto md:flex-none md:gap-3">
           <div className="relative h-full w-full overflow-hidden bg-card md:aspect-[9/16] md:h-[calc(100dvh-11rem)] md:max-h-[760px] md:w-auto md:rounded-2xl">
-            {src && (
+            {src && isImage && (
+              <img
+                src={src}
+                alt={video.caption || `Photo by @${video.username}`}
+                onDoubleClick={() => !liked && toggleLike()}
+                className="h-full w-full cursor-pointer object-cover"
+              />
+            )}
+            {src && !isImage && (
               <video
                 ref={ref}
                 src={src}
@@ -157,7 +166,7 @@ export function VideoCard({
                 className="h-full w-full cursor-pointer object-cover"
               />
             )}
-            {!playing && src && (
+            {!playing && src && !isImage && (
               <Button variant="ghost" size="icon"
                 onClick={togglePlay}
                 aria-label="Play"
@@ -169,6 +178,7 @@ export function VideoCard({
             {burst && (
               <Heart className="pointer-events-none absolute inset-0 m-auto h-24 w-24 animate-ping fill-primary text-primary" />
             )}
+            {!isImage && (
             <Button variant="ghost" size="icon"
               onClick={onToggleMute}
               aria-label={muted ? "Unmute" : "Mute"}
@@ -176,15 +186,18 @@ export function VideoCard({
             >
               {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
             </Button>
+            )}
             <div className="video-caption absolute inset-x-0 bottom-2 pb-5 pl-4 pr-20 pt-16 md:hidden">
               <Link to="/u/$username" params={{ username: video.username }} className="break-words text-sm font-bold">@{video.username}</Link>
               <p className="mt-1 line-clamp-3 break-words text-sm">{video.caption}</p>
             </div>
+            {!isImage && (
             <div onClick={seek} className="absolute inset-x-0 bottom-0 h-3 cursor-pointer">
               <div className="absolute inset-x-0 bottom-0 h-1 bg-foreground/20">
                 <div className="h-full bg-primary" style={{ width: `${progress}%` }} />
               </div>
             </div>
+            )}
           </div>
           <div className="hidden max-w-[calc((100dvh-11rem)*9/16)] md:block">
             <Link to="/u/$username" params={{ username: video.username }} className="font-bold hover:text-primary">@{video.username}</Link>

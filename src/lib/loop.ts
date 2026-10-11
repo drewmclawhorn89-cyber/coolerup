@@ -22,6 +22,10 @@ export function getDeviceId() {
   return id;
 }
 
+export function isImageUrl(url: string) {
+  return /\.(jpe?g|png|webp|gif|avif)(\?|#|$)/i.test(url);
+}
+
 export async function resolveVideoUrl(url: string) {
   if (!url.startsWith(STORAGE_PREFIX)) return url;
   const { data } = await supabase.storage

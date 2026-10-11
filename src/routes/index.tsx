@@ -4,16 +4,16 @@ import { Compass, Download, Heart, Home, LogOut, MessageCircle, Plus, Search, Us
 import { Button } from "@/components/ui/button";
 import { VideoCard } from "@/components/VideoCard";
 import { UploadDialog } from "@/components/UploadDialog";
-import { fetchMyLikes, fetchVideos, type Video } from "@/lib/coolerup";
+import { fetchMyLikes, fetchVideos, type Video } from "@/lib/loop";
 import { listSaved, onOfflineChange } from "@/lib/offline";
 import { useAuth } from "@/hooks/useAuth";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Coolerup — For You" },
+      { title: "Loop — For You" },
       { name: "description", content: "A fresh perspective with every scroll. Less perfect, more real." },
-      { property: "og:title", content: "Coolerup — A little more you" },
+      { property: "og:title", content: "Loop — A little more you" },
       { property: "og:description", content: "A fresh perspective with every scroll. Less perfect, more real." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },

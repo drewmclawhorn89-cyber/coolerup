@@ -203,11 +203,7 @@ const shown = useMemo(() => {
           </div>
         )}
 
-<div className="p-6">
-  <h2 className="text-2xl font-bold">Inbox</h2>
-  <p className="text-sm text-muted-foreground">All your notifications in one place</p>
-</div>
-) : (
+
     <header className="shrink-0 px-4 py-2 md:px-10 md:pb-2 md:pt-6">
       <h2 className="break-words font-display text-base md:text-3xl">{title}</h2>
       <p className="hidden text-sm text-muted-foreground md:block">{sub}</p>

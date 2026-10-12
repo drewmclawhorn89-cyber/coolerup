@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 export const Route = createFileRoute("/messages")({
   head: () => ({
     meta: [
-      { title: "Inbox — Loop" },
+      { title: "Messages — Loop" },
       { name: "description", content: "Chat with creators on Loop." },
       { property: "og:title", content: "Messages — Loop" },
       { property: "og:description", content: "Chat with creators on Loop." },

@@ -259,7 +259,7 @@ const shown = useMemo(() => {
                 })
               }
             />
-          )))
+          ))}
         </div>
       </>
 )}

@@ -202,41 +202,45 @@ const shown = useMemo(() => {
             <WifiOff className="h-4 w-4" /> You're offline — watching saved videos
           </div>
         )}
-
-
-    <header className="shrink-0 px-4 py-2 md:px-10 md:pb-2 md:pt-6">
-      <h2 className="break-words font-display text-base md:text-3xl">{title}</h2>
-      <p className="hidden text-sm text-muted-foreground md:block">{sub}</p>
-    </header>  
-          
-          
-        
-        <div className="no-scrollbar min-h-0 flex-1 snap-y snap-mandatory overflow-y-scroll overscroll-y-contain">
-          {error && !offlineMode && <Empty text="Couldn't load videos. Refresh to try again." />}
-          {!error && videos === null && activeTab !== "saved" && <Empty text="Loading your feed…" />}
-          {(videos || activeTab === "saved") && shown.length === 0 && (
-            <Empty text={activeTab === "saved" ? "No saved videos yet. Tap Share → Save for offline on any video." : "Nothing here yet."} />
-          )}
-          {shown.map((v) => (
-            <VideoCard
-              key={`${activeTab}-${v.id}`}
-              video={v}
-              liked={liked.has(v.id)}
-              muted={muted}
-              onToggleMute={() => setMuted((m) => !m)}
-              onLikeChange={(on) =>
-                setLiked((s) => {
-                  const n = new Set(s);
-                  if (on) n.add(v.id);
-                  else n.delete(v.id);
-                  return n;
-                })
-              }
-            />
-          ))}
+      {activeTab === "inbox" ? (
+        <div className="p-6">
+          <h2 className="text-2xl font-bold">Inbox</h2>
+          <p className="text-sm text-muted-foreground">All your notifications in one place</p>
         </div>
-      </>
-)}
+      ) : (
+        <>
+          <header className="shrink-0 px-4 py-2 md:px-10 md:pb-2 md:pt-6">
+            <h2 className="break-words font-display text-base md:text-3xl">{title}</h2>
+            <p className="hidden text-sm text-muted-foreground md:block">{sub}</p>
+          </header>
+
+          <div className="no-scrollbar min-h-0 flex-1 snap-y snap-mandatory overflow-y-scroll overscroll-y-contain">
+            {error && !offlineMode && <Empty text="Couldn't load videos. Refresh to try again." />}
+            {!error && videos === null && activeTab !== "saved" && <Empty text="Loading your feed..." />}
+            {(videos || activeTab === "saved") && shown.length === 0 && (
+              <Empty text={activeTab === "saved" ? "No saved videos yet. Tap Share → Save for offline on any video." : "Nothing here yet."} />
+            )}
+            {shown.map((v) => (
+              <VideoCard
+                key={`${activeTab}-${v.id}`}
+                video={v}
+                liked={liked.has(v.id)}
+                muted={muted}
+                onToggleMute={() => setMuted((m) => !m)}
+                onLikeChange={(on) => {
+                  setLiked((s) => {
+                    const n = new Set(s);
+                    if (on) n.add(v.id); else n.delete(v.id);
+                    return n;
+                  });
+                }}
+              />
+            ))}
+          </div>
+        </>
+      )}
+
+  
         <nav aria-label="Phone navigation" className="mobile-bottom-nav grid shrink-0 grid-cols-8 border-t bg-sidebar px-1 md:hidden">
           {NAV.slice(0, 3).map(({ id, label, icon: Icon }) => (
             <Button key={id} variant="ghost" onClick={() => setTab(id)} aria-current={activeTab === id ? "page" : undefined} className={`h-14 min-w-0 flex-col gap-1 rounded-none px-0 text-[9px] [&_svg]:size-5 ${activeTab === id ? "text-primary" : "text-muted-foreground"}`}><Icon />{label}</Button>

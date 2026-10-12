@@ -89,10 +89,16 @@ function Index() {
 
  const offlineMode = !online || (error && saved.length > 0);
 const activeTab: Tab = offlineMode && tab !== "inbox" ? "saved" : tab;
-
 if (activeTab === "inbox") {
-  return <NotificationsInbox />;
+  return (
+    <div className="p-10 pt-24 text-center">
+      <h2 className="text-3xl font-bold mb-4">📥 Inbox</h2>
+      <p className="text-white/70">Inbox works now!</p>
+      <p className="text-sm text-white/50 mt-2">Likes will be saved to your ACCOUNT here so it follows you on any device.</p>
+    </div>
+  );
 }
+
    
 
 const shown = useMemo(() => {

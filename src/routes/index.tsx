@@ -7,7 +7,6 @@ import { UploadDialog } from "@/components/UploadDialog";
 import { fetchMyLikes, fetchVideos, type Video } from "@/lib/loop";
 import { listSaved, onOfflineChange } from "@/lib/offline";
 import { useAuth } from "@/hooks/useAuth";
-import { NotificationsInbox } from "@/components/NotificationsInbox";
 // ...
 
 export const Route = createFileRoute("/")({

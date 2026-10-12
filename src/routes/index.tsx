@@ -88,7 +88,7 @@ function Index() {
   }, []);
 
 const offlineMode = !online || (error && saved.length > 0);
-const activeTab = offlineMode && tab !== "inbox" ? "saved" : tab;
+const activeTab = offlineMode ? "saved" : tab;
 
 const shown = useMemo(() => {
   let list = activeTab === "saved" ? saved : (videos ?? []);

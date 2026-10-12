@@ -1,9 +1,0 @@
-export function NotificationsInbox() {
-  return (
-    <div className="p-10 pt-24 text-center">
-      <h2 className="text-2xl font-bold mb-4">📥 Inbox</h2>
-      <p>Test - inbox loads!</p>
-      <p className="text-sm text-white/60 mt-2">Saved to ACCOUNT (not device)</p>
-    </div>
-  );
-}

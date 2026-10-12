@@ -89,12 +89,7 @@ function Index() {
   }, []);
 
   const offlineMode = !online || (error && saved.length > 0);
-  const activeTab: Tab = offlineMode && tab !== "inbox" ? "saved" : tab;
-
-if (activeTab === "inbox") {
-  return <NotificationsInbox />;
-}
-   
+  const activeTab: Tab = offlineMode ? "saved" : tab;
 
 
 const shown = useMemo(() => {

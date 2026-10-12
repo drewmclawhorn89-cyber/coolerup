@@ -90,8 +90,10 @@ function Index() {
 
   const offlineMode = !online || (error && saved.length > 0);
   const activeTab: Tab = offlineMode && tab !== "inbox" ? "saved" : tab;
+
 if (activeTab === "inbox") {
-  return (
+  return <NotificationsInbox />;
+}
     <div className="flex h-dvh overflow-hidden bg-background">
       <aside className="hidden w-72 shrink-0 flex-col gap-6 border-r bg-sidebar p-6 md:flex">
         <div>

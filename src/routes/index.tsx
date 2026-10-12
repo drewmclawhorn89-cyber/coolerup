@@ -203,29 +203,22 @@ const shown = useMemo(() => {
             <WifiOff className="h-4 w-4" /> You're offline — watching saved videos
           </div>
         )}
-      {activeTab === "inbox" ? (
-  <div className="p-6">
-    <h2 className="text-2xl font-display font-bold">Inbox</h2>
-    <p className="text-sm text-muted-foreground mt-1 mb-6">All your notifications in one place</p>
-    <div className="space-y-3 max-w-2xl">
-      <div className="flex items-center gap-3 p-4 rounded-xl border bg-card">
-        <div className="w-10 h-10 rounded-full bg-pink-500/20 flex items-center justify-center">❤️</div>
-        <div className="flex-1"><p className="text-sm"><b>@alexfit</b> liked your fit</p><p className="text-xs text-muted-foreground">2m ago</p></div>
-        <div className="w-2 h-2 bg-primary rounded-full"></div>
+activeTab === "inbox" ? (
+<div className="p-6">
+  <h2 className="text-2xl font-display font-bold">Inbox</h2>
+  <p className="text-sm text-muted-foreground mt-1 mb-6">All your notifications in one place</p>
+  <div className="space-y-3 max-w-2xl">
+    <div className="flex items-center gap-3 p-4 rounded-xl border bg-card">
+      <div className="w-10 h-10 rounded-full bg-pink-500/20 flex items-center justify-center">✓</div>
+      <div className="flex-1">
+        <p className="text-sm"><b>System</b> Inbox ready - saved to ACCOUNT</p>
+        <p className="text-xs text-muted-foreground">This follows you on any device</p>
       </div>
-      <div className="flex items-center gap-3 p-4 rounded-xl border bg-card">
-        <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center">👤</div>
-        <div className="flex-1"><p className="text-sm"><b>@jordan</b> followed you</p><p className="text-xs text-muted-foreground">1h ago</p></div>
-        <div className="w-2 h-2 bg-primary rounded-full"></div>
-      </div>
-      <div className="flex items-center gap-3 p-4 rounded-xl border bg-card">
-        <div className="w-10 h-10 rounded-full bg-zinc-500/20 flex items-center justify-center">💬</div>
-        <div className="flex-1"><p className="text-sm"><b>@sam</b> commented: "fire fit 🔥"</p><p className="text-xs text-muted-foreground">3h ago</p></div>
-      </div>
+      <div className="w-2 h-2 bg-primary rounded-full"></div>
     </div>
   </div>
+</div>
 ) : (
-  <>
     <header className="shrink-0 px-4 py-2 md:px-10 md:pb-2 md:pt-6">
       <h2 className="break-words font-display text-base md:text-3xl">{title}</h2>
       <p className="hidden text-sm text-muted-foreground md:block">{sub}</p>

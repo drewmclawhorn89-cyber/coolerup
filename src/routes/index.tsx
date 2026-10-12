@@ -203,7 +203,7 @@ const shown = useMemo(() => {
             <WifiOff className="h-4 w-4" /> You're offline — watching saved videos
           </div>
         )}
-activeTab === "inbox" ? {
+activeTab === "inbox" ? (
 <div className="p-6">
   <h2 className="text-2xl font-display font-bold">Inbox</h2>
   <p className="text-sm text-muted-foreground mt-1 mb-6">All your notifications in one place</p>

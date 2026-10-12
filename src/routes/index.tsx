@@ -41,7 +41,6 @@ const HEADERS: Record<Tab, [string, string]> = {
   liked: ["Liked", "Everything you've hearted"],
   saved: ["Offline", "Watch anytime, even without a connection"],
   mine: ["Profile", "Your loop"],
-  <link rel="manifest" href="/manifest.json" />
 };
 
 function Index() {

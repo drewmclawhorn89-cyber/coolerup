@@ -9,7 +9,6 @@ import { listSaved, onOfflineChange } from "@/lib/offline";
 import { useAuth } from "@/hooks/useAuth";
 import { NotificationsInbox } from "@/components/NotificationsInbox";
 // ...
-<Route path="/inbox" element={<NotificationsInbox />} />
 
 
 export const Route = createFileRoute("/")({

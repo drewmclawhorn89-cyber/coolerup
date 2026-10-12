@@ -3,7 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { Heart, MessageCircle, Share2, Play, Volume2, VolumeX } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { formatCount, getDeviceId, isImageUrl, resolveVideoUrl, type Video } from "@/lib/loop";
+import { formatCount, isImageUrl, resolveVideoUrl, type Video } from "@/lib/loop";
 import { getSaved } from "@/lib/offline";
 import { useAuth } from "@/hooks/useAuth";
 import { Comments } from "./Comments";

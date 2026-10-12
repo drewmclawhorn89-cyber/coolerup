@@ -7,6 +7,8 @@ import { UploadDialog } from "@/components/UploadDialog";
 import { fetchMyLikes, fetchVideos, type Video } from "@/lib/loop";
 import { listSaved, onOfflineChange } from "@/lib/offline";
 import { useAuth } from "@/hooks/useAuth";
+import { NotificationsInbox } from "@/components/NotificationsInbox";
+// ...
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -90,8 +92,22 @@ function Index() {
 
   const offlineMode = !online || (error && saved.length > 0);
   const activeTab: Tab = offlineMode ? "saved" : tab;
-
-
+if (activeTab === "inbox") {
+  return (
+    <div className="flex h-dvh overflow-hidden bg-background">
+      <aside className="hidden w-72 shrink-0 flex-col gap-6 border-r bg-sidebar p-6 md:flex">
+        <div>
+          <h1 className="font-display text-4xl tracking-tight">
+            loop<span className="text-primary">.</span>
+          </h1>
+        </div>
+      </aside>
+      <main className="flex-1 overflow-auto pt-16 md:pt-0">
+        <NotificationsInbox />
+      </main>
+    </div>
+  );
+}
 
 
 

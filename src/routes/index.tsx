@@ -54,7 +54,7 @@ function Index() {
   const [query, setQuery] = useState("");
   const [muted, setMuted] = useState(true);
   const [uploading, setUploading] = useState(false);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState(True);
   const [searchOpen, setSearchOpen] = useState(false);
 
   const load = () => 

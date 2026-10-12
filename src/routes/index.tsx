@@ -23,12 +23,12 @@ export const Route = createFileRoute("/")({
 });
 
 
-type Tab = "foryou" | "explore" | "following" | "" | "saved" | "mine";
+type Tab = "foryou" | "explore" | "following" | "liked" | "saved" | "mine";
 const NAV: { id: Tab; label: string; icon: typeof Home }[] = [
   { id: "foryou", label: "For You", icon: Home },
   { id: "explore", label: "Explore", icon: Compass },
   { id: "following", label: "Following", icon: Users },
-  {
+  { id: "liked", label: "Liked", icon: Heart },
   { id: "saved", label: "Offline", icon: Download },
   { id: "mine", label: "Profile", icon: User },
 ];
@@ -54,7 +54,7 @@ function Index() {
   const [query, setQuery] = useState("");
   const [muted, setMuted] = useState(true);
   const [uploading, setUploading] = useState(false);
-  const [error, setError] = useState(True);
+  const [error, setError] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
 
   const load = () => 

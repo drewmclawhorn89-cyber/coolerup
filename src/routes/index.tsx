@@ -205,18 +205,8 @@ const shown = useMemo(() => {
         )}
 activeTab === "inbox" ? (
 <div className="p-6">
-  <h2 className="text-2xl font-display font-bold">Inbox</h2>
-  <p className="text-sm text-muted-foreground mt-1 mb-6">All your notifications in one place</p>
-  <div className="space-y-3 max-w-2xl">
-    <div className="flex items-center gap-3 p-4 rounded-xl border bg-card">
-  <div className="w-10 h-10 rounded-full bg-pink-500/20 flex items-center justify-center">✓</div>  
-      <div className="flex-1">
-        <p className="text-sm"><b>System</b> Inbox ready - saved to ACCOUNT</p>
-        <p className="text-xs text-muted-foreground">This follows you on any device</p>
-      </div>
-      <div className="w-2 h-2 bg-primary rounded-full"></div>
-    </div>
-  </div>
+  <h2 className="text-2xl font-bold">Inbox</h2>
+  <p className="text-sm text-muted-foreground">All your notifications in one place</p>
 </div>
 ) : (
     <header className="shrink-0 px-4 py-2 md:px-10 md:pb-2 md:pt-6">

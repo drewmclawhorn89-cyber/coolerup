@@ -1,0 +1,20 @@
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabase";
+
+export function NotificationsInbox() {
+  const [notifs, setNotifs] = useState<any[]>([]);
+  useEffect(() => {
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data } = await supabase
+        .from("notifications")
+        .select("*")
+        .eq("target_user_id", user.id)
+        .order("created_at", { ascending: false });
+      if (data) setNotifs(data);
+    })();
+  }, []);
+  if (!notifs.length) return <div className="p-10 text-center text-white/60">No notifications yet - likes will show here (saved to your account)</div>;
+  return <div className="p-4">{notifs.map(n => <div key={n.id} className="p-3 border-b">{n.text}</div>)}</div>;
+}

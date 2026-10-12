@@ -23,12 +23,13 @@ export const Route = createFileRoute("/")({
 });
 
 
-type Tab = "foryou" | "explore" | "following" | "liked" | "offline" | "profile" | "messages";
+type Tab = "foryou" | "explore" | "following" | "liked" | "saved" | "mine";
 const NAV: { id: Tab; label: string; icon: typeof Home }[] = [
   { id: "foryou", label: "For You", icon: Home },
   { id: "explore", label: "Explore", icon: Compass },
   { id: "following", label: "Following", icon: Users },
-  { id: "saved", label: "offline", icon: Download },
+  { id: "liked", label: "Liked", icon: Heart },
+  { id: "saved", label: "Saved", icon: Download },
   { id: "mine", label: "Profile", icon: User },
 ];
 
@@ -37,7 +38,7 @@ const HEADERS: Record<Tab, [string, string]> = {
   foryou: ["For You", "A fresh perspective with every scroll"],
   explore: ["Explore", "Most loved right now"],
   following: ["Following", "Creators you keep coming back to"],
-  Liked: ["Liked", "Everything you've hearted"],
+  liked: ["Liked", "Everything you've hearted"],
   saved: ["Saved", "Watch anytime, even without a connection"],
   mine: ["Profile", "Your loop"],
 };

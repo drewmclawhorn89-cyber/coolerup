@@ -209,7 +209,7 @@ activeTab === "inbox" ? (
   <p className="text-sm text-muted-foreground mt-1 mb-6">All your notifications in one place</p>
   <div className="space-y-3 max-w-2xl">
     <div className="flex items-center gap-3 p-4 rounded-xl border bg-card">
-      <div className="w-10 h-10 rounded-full bg-pink-500/20 flex items-center justify-center">✓</div>
+  <div className="w-10 h-10 rounded-full bg-pink-500/20 flex items-center justify-center">✓</div>  
       <div className="flex-1">
         <p className="text-sm"><b>System</b> Inbox ready - saved to ACCOUNT</p>
         <p className="text-xs text-muted-foreground">This follows you on any device</p>

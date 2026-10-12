@@ -45,7 +45,9 @@ export async function fetchVideos() {
 }
 
 export async function fetchMyLikes() {
-  const { data } = await supabase.from("likes").select("video_id").eq("device_id", getDeviceId());
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return new Set<string>();
+  const { data } = await supabase.from("likes").select("video_id").eq("user_id", user.id);
   return new Set((data ?? []).map((l) => l.video_id));
 }
 

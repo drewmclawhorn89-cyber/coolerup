@@ -234,8 +234,8 @@ const shown = useMemo(() => {
 
                   <div className="no-scrollbar min-h-0 flex-1 snap-y snap-mandatory overflow-y-scroll overscroll-y-contain">
           {error && !offlineMode && <Empty text="Couldn't load videos. Refresh to try again." />}
-          {!error && videos === null && activeTab !== "saved" && <Empty text="Loading your feed..." />}
-          {(videos || activeTab === "saved") && shown.length === 0 && (
+          {!error && videos === null && activeTab !== "saved" && activeTab !== "shop" && activeTab !== "inbox" && <Empty text="Loading your feed..." />}
+          {(videos || activeTab === "saved") && shown.length === 0 && activeTab !== "shop" && activeTab !== "inbox" && (
             <Empty text={activeTab === "saved" ? "No saved videos yet. Tap Share → Save for offline on any video" : "No videos found"} />
           )}
           {shown.map((v) => (
@@ -248,14 +248,10 @@ const shown = useMemo(() => {
               onLikeChange={(on) => {
                 setLiked((s) => {
                   const n = new Set(s);
-                  if (on) n.add(v.id);
-                  else n.delete(v.id);
+                  if (on) n.add(v.id); else n.delete(v.id);
                   return n;
                 });
               }}
-            />
-          ))}
-        </div>
           
         <nav aria-label="Phone navigation" className="mobile-bottom-nav grid shrink-0 grid-cols-8 border-t bg-sidebar px-1 md:hidden">
           {NAV.slice(0, 3).map(({ id, label, icon: Icon }) => (

@@ -8,7 +8,6 @@ import { fetchMyLikes, fetchVideos, type Video } from "@/lib/loop";
 import { listSaved, onOfflineChange } from "@/lib/offline";
 import { createFileRoute } from "@tanstack/react-router"
 import { useAuth } from "@/hooks/useAuth";
-
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [

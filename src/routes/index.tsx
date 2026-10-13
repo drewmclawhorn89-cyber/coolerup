@@ -231,54 +231,25 @@ const shown = useMemo(() => {
             <h2 className="break-words font-display text-base md:text-3xl">{title}</h2>
             <p className="hidden text-sm text-muted-foreground md:block">{sub}</p>
           </header>
-<div className="no-scrollbar min-h-0 flex-1 snap-y snap-mandatory overflow-y-scroll overscroll-y-contain">
+<div className="no-scrollbar min-h-0 flex-1 snap-y snap-mandatory overflow-y-scroll overscroll-y-con...
   {error && !offlineMode && <Empty text="Couldn't load videos. Refresh to try again." />}
   {!error && videos === null && activeTab !== "saved" && <Empty text="Loading your feed..." />}
-
-  {activeTab === "shop" ? (
-    <div className="p-4">
-      <header className="shrink-0 px-4 py-2">
-        <h2 className="break-words font-display text-base md:text-3xl">{title}</h2>
-        <p className="text-sm text-muted-foreground">{sub}</p>
-      </header>
-      <div className="grid grid-cols-2 gap-3 mt-4">
-        <div className="rounded-xl bg-zinc-900 border border-zinc-800 overflow-hidden">
-          <img src="https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?w=500" className="h-52 w-full object-cover" />
-          <div className="p-3"><p className="text-sm font-bold">Cargo - $45</p><button className="w-full mt-2 bg-white text-black rounded-full py-2 text-xs font-bold">Buy</button></div>
-        </div>
-        <div className="rounded-xl bg-zinc-900 border border-zinc-800 overflow-hidden">
-          <img src="https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=500" className="h-52 w-full object-cover" />
-          <div className="p-3"><p className="text-sm font-bold">Hoodie - $60</p><button className="w-full mt-2 bg-white text-black rounded-full py-2 text-xs font-bold">Buy</button></div>
-        </div>
-        <div className="rounded-xl bg-zinc-900 border border-zinc-800 overflow-hidden">
-          <img src="https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=500" className="h-52 w-full object-cover" />
-          <div className="p-3"><p className="text-sm font-bold">Jordan 4 - $210</p><button className="w-full mt-2 bg-white text-black rounded-full py-2 text-xs font-bold">Buy</button></div>
-        </div>
-      </div>
-    </div>
-  ) : activeTab === "inbox" ? (
-    <div className="p-4">
-      <h2 className="text-xl font-bold">{title}</h2>
-      <p className="text-sm text-zinc-400">{sub}</p>
-      <div className="mt-4 text-sm">Your inbox is empty</div>
-    </div>
-  ) : (
-    <>
-      {(videos || activeTab === "saved") && shown.length === 0 && (
-        <Empty text={activeTab === "saved" ? "No saved videos yet. Tap Share → Save for offline on any video" : "No videos found"} />
-      )}
-      {shown.map((v) => (
-        <VideoCard
-          key={`${activeTab}-${v.id}`}
-          video={v}
-          liked={liked.has(v.id)}
-          muted={muted}
-          onToggleMute={() => setMuted((m) => !m)}
-          onLikeChange={(on) => {
-            setLiked((s) => {
-              const n = new Set(s);
-              if (on) n.add(v.id); else n.delete(v.id);
-              return n;
+  {(videos || activeTab === "saved") && shown.length === 0 && (
+    <Empty text={activeTab === "saved" ? "No saved videos yet. Tap Share → Save for offline on any v...
+  ))}
+  {shown.map((v) => (
+    <VideoCard
+      key={`${activeTab}-${v.id}`}
+      video={v}
+      liked={liked.has(v.id)}
+      muted={muted}
+      onToggleMute={() => setMuted((m) => !m)}
+      onLikeChange={(on) => {
+        setLiked((s) => {
+          const n = new Set(s);
+          if (on) n.add(v.id); else n.delete(v.id);
+          return n;
+        })};
           
         <nav aria-label="Phone navigation" className="mobile-bottom-nav grid shrink-0 grid-cols-8 border-t bg-sidebar px-1 md:hidden">
           {NAV.slice(0, 3).map(({ id, label, icon: Icon }) => (

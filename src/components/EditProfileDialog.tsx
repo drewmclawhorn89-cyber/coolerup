@@ -28,7 +28,8 @@ export function EditProfileDialog({ open, onOpenChange }: { open: boolean; onOpe
   const [preview, setPreview] = useState<string | null>(null);
   const [photo, setPhoto] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
-
+const [username, setUsername] = useState(profile.username)
+const [fullName, setFullName] = useState(profile.full_name)
   useEffect(() => {
     if (!open) return;
     setDisplayName(auth.profile?.display_name || auth.name || "");

@@ -178,17 +178,20 @@ export type Database = {
       likes: {
         Row: {
           created_at: string
-          device_id: string
+          device_id: string | null
+          user_id: string | null
           video_id: string
         }
         Insert: {
           created_at?: string
-          device_id: string
+          device_id?: string | null
+          user_id?: string | null
           video_id: string
         }
         Update: {
           created_at?: string
-          device_id?: string
+          device_id?: string | null
+          user_id?: string | null
           video_id?: string
         }
         Relationships: [
@@ -239,6 +242,47 @@ export type Database = {
           word?: string
         }
         Relationships: []
+      }
+      notifications: {
+        Row: {
+          actor_user_id: string | null
+          created_at: string | null
+          id: string
+          read: boolean | null
+          target_user_id: string | null
+          text: string | null
+          type: string | null
+          video_id: string | null
+        }
+        Insert: {
+          actor_user_id?: string | null
+          created_at?: string | null
+          id?: string
+          read?: boolean | null
+          target_user_id?: string | null
+          text?: string | null
+          type?: string | null
+          video_id?: string | null
+        }
+        Update: {
+          actor_user_id?: string | null
+          created_at?: string | null
+          id?: string
+          read?: boolean | null
+          target_user_id?: string | null
+          text?: string | null
+          type?: string | null
+          video_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "videos"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {

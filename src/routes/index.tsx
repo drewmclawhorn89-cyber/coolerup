@@ -7,6 +7,7 @@ import { UploadDialog } from "@/components/UploadDialog";
 import { fetchMyLikes, fetchVideos, type Video } from "@/lib/loop";
 import { listSaved, onOfflineChange } from "@/lib/offline";
 import { useAuth } from "@/hooks/useAuth";
+import { TopTabs } from "@/components/TopTabs"
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [

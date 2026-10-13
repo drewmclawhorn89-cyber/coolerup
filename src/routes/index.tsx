@@ -105,6 +105,25 @@ const shown = useMemo(() => {
   const [title, sub] = query ? [`Results for "${query}"`, `${shown.length} videos`] : HEADERS[activeTab];
 
   return (
+ export function Shoptap() {
+    return (
+    <div className="pt- p-4 bg-black min-h-screen text-white">
+      <h1 className="text-2xl font-bold mb-4">Shop</h1>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="bg-zinc-900 p-3 rounded-xl">
+          <div className="h-32 bg-zinc-800 rounded-lg mb-2" />
+          <p className="text-sm">CoolerUp Hoodie</p>
+          <p className="text-pink-500 font-bold">$29.99</p>
+        </div>
+        <div className="bg-zinc-900 p-3 rounded-xl">
+          <div className="h-32 bg-zinc-800 rounded-lg mb-2" />
+          <p className="text-sm">Loop Tee</p>
+          <p className="text-pink-500 font-bold">$19.99</p>
+        </div>
+      </div>
+    </div>
+  )
+}   
     <div className="flex h-dvh overflow-hidden bg-background">
       <aside className="hidden w-72 shrink-0 flex-col gap-6 border-r bg-sidebar p-6 md:flex">
         <div>

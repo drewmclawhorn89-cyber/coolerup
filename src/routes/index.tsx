@@ -61,7 +61,7 @@ function Index() {
   const load = () => 
     fetchVideos()
       .then((v) => {
-        const shuffled = [...v].sort(() => Math.random() - 0.6);
+        const shuffled = [...v].sort(() => Math.random() - 0.5);
         setVideos(shuffled);
         setError(false);
       })

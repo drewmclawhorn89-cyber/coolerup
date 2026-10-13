@@ -105,14 +105,6 @@ const shown = useMemo(() => {
   const [title, sub] = query ? [`Results for "${query}"`, `${shown.length} videos`] : HEADERS[activeTab];
 
   return (
-  <>
-    <TopTabs />
-    <div className="pt-[52px]">
-      {/* ALL YOUR OLD CODE STAYS HERE - DON'T DELETE */}
-
-    </div>
-  </>
-);
     <div className="flex h-dvh overflow-hidden bg-background">
       <aside className="hidden w-72 shrink-0 flex-col gap-6 border-r bg-sidebar p-6 md:flex">
         <div>

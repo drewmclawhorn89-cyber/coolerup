@@ -34,19 +34,21 @@ export async function resolveVideoUrl(url: string) {
   return data?.signedUrl ?? "";
 }
 
-export async function fetchVideos(page = 0) {
-  const PAGE_SIZE = 5;
-  const from = page * PAGE_SIZE;
-  const to = from + PAGE_SIZE - 1;
-
+export async function fetchVideos() {
   const { data, error } = await supabase
     .from("videos")
     .select("*")
     .order("created_at", { ascending: false })
-    .range(from, to);
-
+    .limit(100);
   if (error) throw error;
   return data as Video[];
+}
+
+export async function fetchMyLikes() {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return new Set<string>();
+  const { data } = await supabase.from("likes").select("video_id").eq("user_id", user.id);
+  return new Set((data ?? []).map((l) => l.video_id));
 }
 
 export async function uploadVideo(file: File, username: string, caption: string) {

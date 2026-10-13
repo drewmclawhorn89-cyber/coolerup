@@ -83,7 +83,7 @@ export function UploadDialog({
             <>
               <Upload className="h-8 w-8 text-primary" />
               Drop a video or photo, or click to choose
-              <span className="text-xs">Video up to  ·   </span>
+              <span className="text-xs">     </span>
             </>
           )}
           <input type="file" accept="video/*,image/*" className="hidden" onChange={(e) => pick(e.target.files?.[0])} />

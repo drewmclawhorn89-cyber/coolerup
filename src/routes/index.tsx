@@ -56,6 +56,8 @@ function Index() {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+const [page, setPage] = useState(0);
+const [hasMore, setHasMore] = useState(true);
 
   const load = () => 
     fetchVideos()

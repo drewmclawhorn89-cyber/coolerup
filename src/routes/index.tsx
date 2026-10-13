@@ -112,7 +112,6 @@ const shown = useMemo(() => {
 
   return (
  export function Shoptap() {
-    return (
     <div className="pt- p-4 bg-black min-h-screen text-white">
       <h1 className="text-2xl font-bold mb-4">Shop</h1>
       <div className="grid grid-cols-2 gap-4">

@@ -33,11 +33,11 @@ export function UploadDialog({
       return;
     }
     if (isImage && f.size > 10 * 1024 * 1024) {
-      toast.error("Photos must be under 10 GB");
+      toast.error("Photos must be under 100 GB");
       return;
     }
     if (!isImage && f.size > 50 * 1024 * 1024) {
-      toast.error("Videos must be under 50 GB");
+      toast.error("Videos must be under 100 GB");
       return;
     }
     setFile(f);

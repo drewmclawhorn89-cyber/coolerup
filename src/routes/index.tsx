@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Fragment, useEffect, useMemo, useState } from "react";
-import { Heart, Bell, Compass, Download, Home, LogOut, MessageCircle, Plus, Search, User, Users, WifiOff, X } from "lucide-react";
+import { Heart, Bell, Users, Download, Home, LogOut, MessageCircle, Plus, Search, User, Users, WifiOff, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { VideoCard } from "@/components/VideoCard";
 import { UploadDialog } from "@/components/UploadDialog";
@@ -25,7 +25,7 @@ export const Route = createFileRoute("/")({
 type Tab = "foryou" | "explore" | "following" | "liked" | "saved" | "mine" | "inbox";
 const NAV: { id: Tab; label: string; icon: typeof Home }[] = [
   { id: "foryou", label: "For You", icon: Home },
-  { id: "explore", label: "Friends", icon: Compass },
+  { id: "explore", label: "Friends", icon: Users },
   { id: "following", label: "Following", icon: Users },
   { id: "liked", label: "Liked", icon: Heart },
   { id: "saved", label: "Offline", icon: Download },

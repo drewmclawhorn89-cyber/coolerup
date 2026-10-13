@@ -1,7 +1,4 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"; import { MessageCircle } from "lucide-react"
-
-import React from "react";
-import { supabase } from "../integrations/supabase/client";  
 import {
   Outlet,
   Link,
@@ -18,47 +15,6 @@ import { reportLovableError } from "../lib/lovable-error-reporting";
 import { CallProvider } from "../lib/calls";
 import { CallOverlay } from "../components/CallOverlay";
 import { Toaster } from "sonner";
-function RootComponent() {
-  const [isMaintenance, setIsMaintenance] = React.useState(false)
-  const [message, setMessage] = React.useState("")
-
-  React.useEffect(() => {
-    async function check() {
-      const { data } = await supabase
-        .from('app_settings')
-        .select('is_maintenance, maintenance_message')
-        .eq('id', 2)
-        .single()
-      
-      if (data?.is_maintenance) {
-        setIsMaintenance(true)
-        setMessage(data.maintenance_message)
-      }
-    }
-    check()
-  }, [])
-
-  if (isMaintenance) {
-    return <MaintenanceComponent message={message} />
-  }
-
-  return (
-    <>
-      <Outlet />
-      {/* whatever else you have in your root component - CallProvider, Toaster, etc - keep it */}
-    </>
-  )
-}
-function MaintenanceComponent({ message }: { message?: string }) {
-  return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-background p-8 text-center">
-      <h1 className="text-4xl font-bold">Under Maintenance</h1>
-      <p className="mt-4 text-muted-foreground max-w-md">
-        {message || "CoolerUp is being updated - be back soon!"}
-      </p>
-    </div>
-  )
-}
 function NotFoundComponent() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">

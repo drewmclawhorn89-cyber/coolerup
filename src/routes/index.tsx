@@ -99,6 +99,7 @@ const shown = useMemo(() => {
   if (activeTab === "following") list = list.filter((v) => v.username !== me);
   if (activeTab === "liked") list = list.filter((v) => liked.has(v.id));
   if (activeTab === "mine") list = me ? list.filter((v) => v.username === me) : [];
+   if (activeTab === "shop" || activeTab === "inbox") return [];
   return list;
 }, [videos, saved, query, activeTab, liked, me]);
   

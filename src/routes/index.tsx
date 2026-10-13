@@ -6,6 +6,12 @@ import { VideoCard } from "@/components/VideoCard";
 import { UploadDialog } from "@/components/UploadDialog";
 import { fetchMyLikes, fetchVideos, type Video } from "@/lib/loop";
 import { listSaved, onOfflineChange } from "@/lib/offline";
+import { createFileRoute } from "@tanstack/react-router"
+import { Shoptap } from "@/components/Shoptap"
+
+export const Route = createFileRoute("/shop")({
+  component: Shoptap,
+})
 import { useAuth } from "@/hooks/useAuth";
 export const Route = createFileRoute("/")({
   head: () => ({

@@ -117,6 +117,7 @@ function RootShell({ children }: { children: ReactNode }) {
         <HeadContent />
       </head>
       <body>
+        <TopTaps />
         {children}
         <Scripts />
       </body>

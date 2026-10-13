@@ -109,7 +109,7 @@ const [recordedChunks, setRecordedChunks] = useState<Blob[]>([]);
             ) : (
               <video src={preview} autoPlay muted loop playsInline className="h-full w-full object-cover" />
             )
-       } : (
+       ( : (
   <>
     <Upload className="h-8 w-8 text-primary" />
     Drop a video or photo, or click to choose

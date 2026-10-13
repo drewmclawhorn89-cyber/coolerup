@@ -1,7 +1,8 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"; import { MessageCircle } from "lucide-react"
-import {
+
 import React from "react";
 import { supabase } from "../integrations/supabase/client";  
+import {
   Outlet,
   Link,
   createRootRouteWithContext,

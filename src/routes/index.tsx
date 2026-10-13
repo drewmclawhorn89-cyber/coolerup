@@ -22,7 +22,7 @@ export const Route = createFileRoute("/")({
 });
 
 
-type Tab = "foryou" | "saved" | "following" | "liked" | "explore" | "mine" | "inbox";
+type Tab = "foryou" | "friends" | "following" | "liked" | "saved" | "mine" | "inbox";
 const NAV: { id: Tab; label: string; icon: typeof Home }[] = [
   { id: "foryou", label: "For You", icon: Home },
   { id: "explore", label: "Friends", icon: Users },

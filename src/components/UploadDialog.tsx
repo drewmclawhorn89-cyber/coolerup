@@ -32,11 +32,11 @@ export function UploadDialog({
       toast.error("Please choose a video or photo");
       return;
     }
-    if (isImage && f.size > 80 * 1024 * 1024) {
+    if (isImage && f.size > 60 * 1024 * 1024) {
       toast.error("Photos must be under ");
       return;
     }
-    if (!isImage && f.size > 80 * 1024 * 1024) {
+    if (!isImage && f.size > 60 * 1024 * 1024) {
       toast.error("Videos must be under  ");
       return;
     }

@@ -17,7 +17,9 @@ export function UploadDialog({
   const [username, setUsername] = useState(defaultUsername);
   const [caption, setCaption] = useState("");
   const [busy, setBusy] = useState(false);
-
+const [isRecording, setIsRecording] = useState(false);
+const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
+const [recordedChunks, setRecordedChunks] = useState<Blob[]>([]);
   useEffect(() => {
     if (!file) return;
     const url = URL.createObjectURL(file);
@@ -42,7 +44,32 @@ export function UploadDialog({
     }
     setFile(f);
   };
+  const [livePreview, setLivePreview] = useState<string | null>(null);
 
+  const startRecord = async () => {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    setLivePreview("live"); // you will show <video> with stream
+    (window as any)._recordStream = stream;
+
+    const chunks: Blob[] = [];
+    const recorder = new MediaRecorder(stream);
+    recorder.ondataavailable = e => { if(e.data.size>0) chunks.push(e.data); };
+    recorder.onstop = () => {
+      const blob = new Blob(chunks, { type: 'video/webm' });
+      const f = new File([blob], `rec-${Date.now()}.webm`, { type: 'video/webm' });
+      setFile(f);
+      stream.getTracks().forEach(t=>t.stop());
+      setLivePreview(null);
+    };
+    recorder.start();
+    setMediaRecorder(recorder);
+    setIsRecording(true);
+  };
+
+  const stopRecord = () => {
+    mediaRecorder?.stop();
+    setIsRecording(false);
+  };
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!file || !username.trim()) return;
@@ -73,19 +100,35 @@ export function UploadDialog({
           }}
           className="flex h-40 w-full shrink-0 cursor-pointer flex-col items-center justify-center gap-2 overflow-hidden rounded-xl border-2 border-dashed bg-secondary text-center text-sm text-muted-foreground sm:aspect-[9/16] sm:h-auto sm:w-48"
         >
+         {livePreview ? (
+  <video autoPlay muted playsInline ref={el => { if(el && (window as any)._recordStream) el.srcObject = (window as any)._recordStream }} className="h-full w-full object-cover" />
+) : preview ? ( 
           {preview ? (
             file?.type.startsWith("image/") ? (
               <img src={preview} alt="Preview" className="h-full w-full object-cover" />
             ) : (
               <video src={preview} autoPlay muted loop playsInline className="h-full w-full object-cover" />
             )
-          ) : (
-            <>
-              <Upload className="h-8 w-8 text-primary" />
-              Drop a video or photo, or click to choose
-              <span className="text-xs">Video up to 50 MB · Photo up to 10 MB</span>
-            </>
-          )}
+       } : (
+  <>
+    <Upload className="h-8 w-8 text-primary" />
+    Drop a video or photo, or click to choose
+    <span className="text-xs">Video up to 50 MB • Photo up to 10 MB</span>
+
+    {/* RECORD BUTTON INSIDE PLUS TAB */}
+    <div className="flex gap-2 mt-2" onClick={e=>e.preventDefault()}>
+      {!isRecording ? (
+        <button type="button" onClick={startRecord} className="px-4 py-2 rounded-full bg-black text-white text-sm font-bold">
+          ● Record
+        </button>
+      ) : (
+        <button type="button" onClick={stopRecord} className="px-4 py-2 rounded-full bg-red-600 text-white text-sm font-bold animate-pulse">
+          ■ Stop
+        </button>
+      )}
+    </div>
+  </>
+))
           <input type="file" accept="video/*,image/*" className="hidden" onChange={(e) => pick(e.target.files?.[0])} />
         </label>
         <div className="flex min-w-0 flex-1 flex-col gap-4 [&_input]:text-base [&_textarea]:text-base">

@@ -53,8 +53,6 @@ export async function fetchMyLikes() {
 
 export async function uploadVideo(file: File, username: string, caption: string) {
   const ext = file.name.split(".").pop() || "mp4";
-  export async function uploadVideo(file: File, username: string, caption: string){
-  const ext = file.name.split(".").pop() || "mp4";
   const id = crypto.randomUUID();
   
   // Upload original as 1080p

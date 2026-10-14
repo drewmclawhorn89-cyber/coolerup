@@ -1,3 +1,70 @@
+drewmclawhorn89-cyber
+coolerup
+Repository navigation
+Code
+Issues
+Pull requests
+Agents
+Actions
+Projects
+Security and quality
+Insights
+Settings
+Files
+Go to file
+t
+T
+.lovable
+drizzle
+public
+src
+components
+hooks
+integrations
+lib
+routes
+README.md
+__root.tsx
+index.tsx
+messages.tsx
+u.$username.tsx
+test
+routeTree.gen.ts
+router.tsx
+server.ts
+start.ts
+styles.css
+supabase
+.env
+.gitignore
+.prettierignore
+.prettierrc
+AGENTS.md
+README.md
+app
+bun.lock
+bunfig.toml
+components.json
+drizzle.config.ts
+eslint.config.js
+package.json
+roadmap.md
+tsconfig.json
+vite.config.ts
+vitest.config.ts
+coolerup/src/routes
+/index.tsx
+drewmclawhorn89-cyber
+drewmclawhorn89-cyber
+Remove unused state variables
+993c3b6
+ · 
+yesterday
+
+Code
+
+Blame
+316 lines (297 loc) · 15.4 KB
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { Heart, Bell, Compass, Download, Home, LogOut, MessageCircle, Plus, Search, User, Users, WifiOff, X } from "lucide-react";
@@ -57,53 +124,17 @@ function Index() {
   const [error, setError] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
 
- const [page, setPage] = useState(0);
-const [hasMore, setHasMore] = useState(true);
-const [loadingMore, setLoadingMore] = useState(false);
+  const load = () => 
+    fetchVideos()
+      .then((v) => {
+        const shuffled = [...v].sort(() => Math.random() - 0.5);
+        setVideos(shuffled);
+        setError(false);
+      })
+      .catch(() => setError(true));
 
-const load = (pageNum = 0, append = false) => {
-  if (loadingMore) return;
-  setLoadingMore(true);
-  fetchVideos(pageNum)
-   .then((v) => {
-      if (v.length === 0) {
-        setHasMore(false);
-      } else {
-        if (append) {
-          setVideos((prev) => [...(prev || []),...v]);
-        } else {
-          const shuffled = [...v].sort(() => Math.random() - 0.5);
-          setVideos(shuffled);
-        }
-        setPage(pageNum + 1);
-      }
-      setError(false);
-    })
-   .catch(() => setError(true))
-   .finally(() => setLoadingMore(false));
-};
-
-const loadMore = () => {
-  if (!hasMore || loadingMore) return;
-  load(page, true);
-};
-
-  useEffect(() => {  // OBSERVER - triggers infinite scroll
-  
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          loadMore();
-        }
-      },
-      { threshold: 0.1 }
-    );
-    const el = document.getElementById('scroll-sentinel');
-    if (el) observer.observe(el);
-    return () => observer.disconnect();
-  }, [page, hasMore, loadingMore]);
+  useEffect(() => {
     load();
-    
     fetchMyLikes().then(setLiked).catch(() => {});
     const refresh = () => listSaved().then((s) => setSaved(s.map((x) => x.video))).catch(() => {});
     refresh();
@@ -287,14 +318,6 @@ const shown = useMemo(() => {
                 }}
               />
             ))}
-          {/* INFINITE SCROLL - LOADS MORE WHEN YOU REACH BOTTOM */}
-<div id="scroll-sentinel" className="h-24 w-full flex items-center justify-center snap-start py-10">
-  {loadingMore? (
-    <span className="text-sm text-white/60">Loading more...</span>
-  ) :!hasMore && videos && videos.length > 0? (
-    <span className="text-sm text-white/30">You're all caught up ✨</span>
-  ) : null}
-</div>  
           </div>
         </>
       )}
@@ -358,3 +381,4 @@ const shown = useMemo(() => {
 function Empty({ text }: { text: string }) {
   return <div className="flex h-full items-center justify-center text-muted-foreground">{text}</div>;
 }
+ 

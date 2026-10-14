@@ -57,14 +57,36 @@ function Index() {
   const [error, setError] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
 
-  const load = () => 
-    fetchVideos()
-      .then((v) => {
-        const shuffled = [...v].sort(() => Math.random() - 0.5);
-        setVideos(shuffled);
-        setError(false);
-      })
-      .catch(() => setError(true));
+ const [page, setPage] = useState(0);
+const [hasMore, setHasMore] = useState(true);
+const [loadingMore, setLoadingMore] = useState(false);
+
+const load = (pageNum = 0, append = false) => {
+  if (loadingMore) return;
+  setLoadingMore(true);
+  fetchVideos(pageNum)
+   .then((v) => {
+      if (v.length === 0) {
+        setHasMore(false);
+      } else {
+        if (append) {
+          setVideos((prev) => [...(prev || []),...v]);
+        } else {
+          const shuffled = [...v].sort(() => Math.random() - 0.5);
+          setVideos(shuffled);
+        }
+        setPage(pageNum + 1);
+      }
+      setError(false);
+    })
+   .catch(() => setError(true))
+   .finally(() => setLoadingMore(false));
+};
+
+const loadMore = () => {
+  if (!hasMore || loadingMore) return;
+  load(page, true);
+};
 
   useEffect(() => {
     load();

@@ -1,5 +1,4 @@
 import { supabase } from "@/integrations/supabase/client";
-
 export type Video = {
   id: string;
   username: string;

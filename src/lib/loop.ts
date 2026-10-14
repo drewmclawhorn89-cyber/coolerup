@@ -40,6 +40,9 @@ export async function fetchVideos() {
     .select("*")
     .order("created_at", { ascending: false })
     .range(0, 19) // first 20 videos
+  .range(20, 39) // videos 21-40
+.range(40, 59) // videos 41-60
+.range(60, 79) // and so on...
   if (error) throw error;
   return data as Video[];
 }

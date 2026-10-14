@@ -34,12 +34,17 @@ export async function resolveVideoUrl(url: string) {
   return data?.signedUrl ?? "";
 }
 
-export async function fetchVideos() {
+export async function fetchVideos(page = 0) {
+  const PAGE_SIZE = 5;
+  const from = page * PAGE_SIZE;
+  const to = from + PAGE_SIZE - 1;
+
   const { data, error } = await supabase
     .from("videos")
     .select("*")
     .order("created_at", { ascending: false })
-    .limit(300);
+    .range(from, to);
+
   if (error) throw error;
   return data as Video[];
 }

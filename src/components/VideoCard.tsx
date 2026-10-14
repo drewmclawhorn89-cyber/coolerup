@@ -37,7 +37,6 @@ export function VideoCard({
   const auth = useAuth();
   const myUsername = auth.handle;
   const isImage = isImageUrl(video.video_url);
-const [quality, setQuality] = useState<'1080p' | '720p' | '480p'>('720p');
 
   useEffect(() => {
     if (!auth.user || !myUsername || video.username === myUsername) return;

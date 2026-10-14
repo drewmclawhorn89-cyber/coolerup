@@ -37,7 +37,19 @@ export function VideoCard({
   const auth = useAuth();
   const myUsername = auth.handle;
   const isImage = isImageUrl(video.video_url);
+const [quality, setQuality] = useState<'1080p' | '720p' | '480p'>('720p');
 
+// Auto pick based on signal
+useEffect(() => {
+  const conn = (navigator as any).connection;
+  if (conn?.effectiveType === '2g' || conn?.effectiveType === 'slow-2g') {
+    setQuality('480p');
+  } else if (conn?.effectiveType === '3g') {
+    setQuality('720p');
+  } else {
+    setQuality('1080p');
+  }
+}, []);
   useEffect(() => {
     if (!auth.user || !myUsername || video.username === myUsername) return;
     supabase

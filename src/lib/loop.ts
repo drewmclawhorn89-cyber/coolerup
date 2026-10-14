@@ -30,7 +30,7 @@ export async function resolveVideoUrl(url: string) {
   if (!url.startsWith(STORAGE_PREFIX)) return url;
   const { data } = await supabase.storage
     .from("videos")
-    .createSignedUrl(url.slice(STORAGE_PREFIX.length), 60 * 60 * 6);
+    .createSignedUrl(url.slice(STORAGE_PREFIX.length), 60 * 60 * 24 * 7);
   return data?.signedUrl ?? "";
 }
 

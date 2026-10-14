@@ -39,7 +39,7 @@ export async function fetchVideos() {
     .from("videos")
     .select("*")
     .order("created_at", { ascending: false })
-    .limit(300);
+    .limit(100000000000000);
   if (error) throw error;
   return data as Video[];
 }

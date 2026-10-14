@@ -53,42 +53,7 @@ export async function fetchMyLikes() {
 
 export async function uploadVideo(file: File, username: string, caption: string) {
   const ext = file.name.split(".").pop() || "mp4";
-  const id = crypto.randomUUID();
-  
-  // Upload original as 1080p
-  const path1080 = `${id}_1080.${ext}`;
-  const { error: upErr } = await supabase.storage
-    .from("videos")
-    .upload(path1080, file, { contentType: file.type });
-  if (upErr) throw upErr;
-
-  // For now, use same file for 720p and 480p (same URL, but later you can compress)
-  // This makes the quality switcher work TODAY without needing a transcoding server
-  const path720 = `${id}_720.${ext}`;
-  const path480 = `${id}_480.${ext}`;
-
-  // Copy same file as placeholder - replace later with real transcoding
-  await supabase.storage.from("videos").copy(path1080, path720);
-  await supabase.storage.from("videos").copy(path1080, path480);
-
-  const { error } = await supabase
-    .from("videos")
-    .insert({ 
-      username, 
-      caption, 
-      video_url: STORAGE_PREFIX + path1080,
-      video_url_720: STORAGE_PREFIX + path720,
-      video_url_480: STORAGE_PREFIX + path480
-    });
-  if (error) throw error;
-}
-
-// Add this helper to get right URL based on signal/choice
-export function getQualityUrl(video: any, quality: '1080p' | '720p' | '480p') {
-  if (quality === '720p') return video.video_url_720 || video.video_url;
-  if (quality === '480p') return video.video_url_480 || video.video_url;
-  return video.video_url; // 1080p
-}
+  const id = crypto.randomUUID(); 
   const path = `${crypto.randomUUID()}.${ext}`;
   const { error: upErr } = await supabase.storage
     .from("videos")

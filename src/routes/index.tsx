@@ -88,8 +88,22 @@ const loadMore = () => {
   load(page, true);
 };
 
+  useEffect(() => {  // OBSERVER - triggers infinite scroll
   useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          loadMore();
+        }
+      },
+      { threshold: 0.1 }
+    );
+    const el = document.getElementById('scroll-sentinel');
+    if (el) observer.observe(el);
+    return () => observer.disconnect();
+  }, [page, hasMore, loadingMore]);
     load();
+    
     fetchMyLikes().then(setLiked).catch(() => {});
     const refresh = () => listSaved().then((s) => setSaved(s.map((x) => x.video))).catch(() => {});
     refresh();
@@ -273,6 +287,14 @@ const shown = useMemo(() => {
                 }}
               />
             ))}
+          {/* INFINITE SCROLL - LOADS MORE WHEN YOU REACH BOTTOM */}
+<div id="scroll-sentinel" className="h-24 w-full flex items-center justify-center snap-start py-10">
+  {loadingMore? (
+    <span className="text-sm text-white/60">Loading more...</span>
+  ) :!hasMore && videos && videos.length > 0? (
+    <span className="text-sm text-white/30">You're all caught up ✨</span>
+  ) : null}
+</div>  
           </div>
         </>
       )}

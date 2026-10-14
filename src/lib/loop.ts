@@ -30,21 +30,16 @@ export async function resolveVideoUrl(url: string) {
   if (!url.startsWith(STORAGE_PREFIX)) return url;
   const { data } = await supabase.storage
     .from("videos")
-    .createSignedUrl(url.slice(STORAGE_PREFIX.length), 60 * 60 * 24 * 7);
+    .createSignedUrl(url.slice(STORAGE_PREFIX.length), 60 * 60 * 6);
   return data?.signedUrl ?? "";
 }
 
-export async function fetchVideos(page = 0) {
-  const PAGE_SIZE = 5;
-  const from = page * PAGE_SIZE;
-  const to = from + PAGE_SIZE - 1;
-
+export async function fetchVideos() {
   const { data, error } = await supabase
     .from("videos")
     .select("*")
     .order("created_at", { ascending: false })
-    .range(from, to);
-
+    .limit(300);
   if (error) throw error;
   return data as Video[];
 }
@@ -58,7 +53,6 @@ export async function fetchMyLikes() {
 
 export async function uploadVideo(file: File, username: string, caption: string) {
   const ext = file.name.split(".").pop() || "mp4";
-  const id = crypto.randomUUID(); 
   const path = `${crypto.randomUUID()}.${ext}`;
   const { error: upErr } = await supabase.storage
     .from("videos")

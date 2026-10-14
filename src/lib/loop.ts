@@ -42,7 +42,7 @@ export async function fetchVideos() {
     .range(0, 19) // first 20 videos
   .range(20, 39) // videos 21-40
 .range(40, 59) // videos 41-60
-.range(60, 79) // and so on...
+.range(60, 79) // videos 61-80
 .range(100, 120) // and so on...  
   if (error) throw error;
   return data as Video[];

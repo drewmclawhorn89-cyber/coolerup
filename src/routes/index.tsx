@@ -89,7 +89,7 @@ const loadMore = () => {
 };
 
   useEffect(() => {  // OBSERVER - triggers infinite scroll
-  useEffect(() => {
+  
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {

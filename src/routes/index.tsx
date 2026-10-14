@@ -1,70 +1,3 @@
-drewmclawhorn89-cyber
-coolerup
-Repository navigation
-Code
-Issues
-Pull requests
-Agents
-Actions
-Projects
-Security and quality
-Insights
-Settings
-Files
-Go to file
-t
-T
-.lovable
-drizzle
-public
-src
-components
-hooks
-integrations
-lib
-routes
-README.md
-__root.tsx
-index.tsx
-messages.tsx
-u.$username.tsx
-test
-routeTree.gen.ts
-router.tsx
-server.ts
-start.ts
-styles.css
-supabase
-.env
-.gitignore
-.prettierignore
-.prettierrc
-AGENTS.md
-README.md
-app
-bun.lock
-bunfig.toml
-components.json
-drizzle.config.ts
-eslint.config.js
-package.json
-roadmap.md
-tsconfig.json
-vite.config.ts
-vitest.config.ts
-coolerup/src/routes
-/index.tsx
-drewmclawhorn89-cyber
-drewmclawhorn89-cyber
-Remove unused state variables
-993c3b6
- · 
-yesterday
-
-Code
-
-Blame
-316 lines (297 loc) · 15.4 KB
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { Heart, Bell, Compass, Download, Home, LogOut, MessageCircle, Plus, Search, User, Users, WifiOff, X } from "lucide-react";
@@ -381,4 +314,3 @@ const shown = useMemo(() => {
 function Empty({ text }: { text: string }) {
   return <div className="flex h-full items-center justify-center text-muted-foreground">{text}</div>;
 }
- 

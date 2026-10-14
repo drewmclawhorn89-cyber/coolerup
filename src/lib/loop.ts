@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+
 export type Video = {
   id: string;
   username: string;
@@ -53,31 +54,6 @@ export async function fetchMyLikes() {
 export async function uploadVideo(file: File, username: string, caption: string) {
   const ext = file.name.split(".").pop() || "mp4";
   const path = `${crypto.randomUUID()}.${ext}`;
-  export async function uploadVideo(file) {
-  const ext = file.name.split(".").pop()
-  const path = `${crypto.randomUUID()}.${ext}`
-  
-  // 1. you already have this part - upload to storage
-  const { data, error } = await supabase.storage.from("videos").upload(path, file)
-  if (error) throw error
-
-  // 2. you already have this part - get the url
-  const { data: urlData } = supabase.storage.from("videos").getPublicUrl(path)
-  const publicUrl = urlData.publicUrl
-
-  // 3. ADD THIS NEW PART HERE - right here, before you save to the table
-  const videoData = {
-    url: publicUrl,
-    url_1080: publicUrl, // same file for now, we will make it low quality later
-    url_360: publicUrl,  // same file for now
-    // url: publicUrl, // keep your old field so your current VideoCard still works
-  }
-
-  // 4. then you save to database - you already have something like this:
-  const { data: videoRow } = await supabase.from("videos").insert(videoData).select().single()
-
-  return videoRow
-}
   const { error: upErr } = await supabase.storage
     .from("videos")
     .upload(path, file, { contentType: file.type });

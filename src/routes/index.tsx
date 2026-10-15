@@ -297,8 +297,8 @@ const shown = useMemo(() => {
                 }}
               />
             ))}
-                  <div id="scroll-sentinel" className="h-32 w-full flex items-center justify-center snap-start">
-        {loadingMore && <span className="text-white/50 text-sm animate-pulse">Loading more...</span>}
+                  
+        <div id="scroll-sentinel" className="h-10 w-full" />
       </div>
           </div>
         </>

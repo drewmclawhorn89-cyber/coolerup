@@ -47,6 +47,9 @@ function Index() {
   const auth = useAuth();
   const me = auth.handle;
   const [videos, setVideos] = useState<Video[] | null>(null);
+  const [page, setPage] = useState(0);
+const [hasMore, setHasMore] = useState(true);
+const [loadingMore, setLoadingMore] = useState(false);
   const [saved, setSaved] = useState<Video[]>([]);
   const [online, setOnline] = useState(true);
   const [liked, setLiked] = useState<Set<string>>(new Set());
@@ -69,25 +72,49 @@ useEffect(() => {
     setQuality('1080p');
   }
 }, []);
-  const load = () => 
-    fetchVideos()
-      .then((v) => {
-        const shuffled = [...v].sort(() => Math.random() - 0.5);
-        setVideos(shuffled);
-        setError(false);
-      })
-      .catch(() => setError(true));
+const load = (pageNum = 0, append = false) => {
+  if (loadingMore) return;
+  setLoadingMore(true);
+  fetchVideos(pageNum)
+  .then((v: any) => {
+      if (!v || v.length === 0) setHasMore(false);
+      else {
+        if (append) setVideos((prev: any) => [...(prev || []),...v]);
+        else setVideos(v);
+        setPage(pageNum + 1);
+      }
+      setError(false);
+    })
+  .catch(() => setError(true))
+  .finally(() => setLoadingMore(false));
+};
 
-  useEffect(() => {
-    load();
-    fetchMyLikes().then(setLiked).catch(() => {});
-    const refresh = () => listSaved().then((s) => setSaved(s.map((x) => x.video))).catch(() => {});
-    refresh();
-    const off = onOfflineChange(refresh);
-    const update = () => {
-      setOnline(navigator.onLine);
-      if (navigator.onLine) load();
-    };
+const loadMore = () => {
+  if (!hasMore || loadingMore) return;
+  load(page, true);
+};  
+useEffect(() => {
+  const observer = new IntersectionObserver(
+    ([entry]) => {
+      if (entry.isIntersecting) loadMore();
+    },
+    { threshold: 0.1 }
+  );
+  const el = document.getElementById('scroll-sentinel');
+  if (el) observer.observe(el);
+  return () => observer.disconnect();
+}, [page, hasMore, loadingMore]);
+
+useEffect(() => {
+  load(0, false);
+  fetchMyLikes().then(setLiked).catch(() => {});
+  const refresh = () => listSaved().then((s) => setSaved(s.map((x) => x.video))).catch(() => {});
+  refresh();
+  const off = onOfflineChange(refresh);
+  const update = () => {
+    setOnline(navigator.onLine);
+    if (navigator.onLine) load(0, false);
+  };  
     setOnline(navigator.onLine);
     window.addEventListener("online", update);
     window.addEventListener("offline", update);
@@ -263,6 +290,9 @@ const shown = useMemo(() => {
                 }}
               />
             ))}
+                  <div id="scroll-sentinel" className="h-32 w-full flex items-center justify-center snap-start">
+        {loadingMore && <span className="text-white/50 text-sm animate-pulse">Loading more...</span>}
+      </div>
           </div>
         </>
       )}

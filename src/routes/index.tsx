@@ -106,7 +106,13 @@ useEffect(() => {
 }, [page, hasMore, loadingMore]);
 
 useEffect(() => {
-  load(0, false);
+  load(0, false).then(() => {
+    setTimeout(() => {
+      const el = document.querySelector('.no-scrollbar') as HTMLElement;
+      if (el) el.scrollTop = 0;
+    }, 100);
+  });  
+
   fetchMyLikes().then(setLiked).catch(() => {});
   const refresh = () => listSaved().then((s) => setSaved(s.map((x) => x.video))).catch(() => {});
   refresh();

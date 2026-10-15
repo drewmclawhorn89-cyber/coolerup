@@ -40,13 +40,12 @@ export async function fetchVideos(page = 0) {
   const to = from + PAGE_SIZE - 1;
 
   const { data, error } = await supabase
-   .from("videos")
-   .select("*")
-   .order("created_at", { ascending: false })
-   .range(from, to);
+    .from("videos")
+    .select("*")
+    .range(from, to);
 
   if (error) throw error;
-  return data as Video[];
+  return (data as Video[]).sort(() => Math.random() - 0.5);
 }
 
 export async function fetchMyLikes() {

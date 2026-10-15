@@ -274,7 +274,7 @@ const shown = useMemo(() => {
             <p className="hidden text-sm text-muted-foreground md:block">{sub}</p>
           </header>
 
-          <div className="no-scrollbar min-h-0 flex-1 snap-y snap-mandatory overflow-y-scroll overscroll-y-contain">
+          <div className="no-scrollbar min-h-0 flex-1 snap-y snap-mandatory overflow-y-scroll overscroll-contain">
             {error && !offlineMode && <Empty text="Couldn't load videos. Refresh to try again." />}
             {!error && videos === null && activeTab !== "saved" && <Empty text="Loading your feed..." />}
             {(videos || activeTab === "saved") && shown.length === 0 && (

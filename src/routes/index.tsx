@@ -300,7 +300,7 @@ const shown = useMemo(() => {
                   
         <div id="scroll-sentinel" className="h-10 w-full" />
       </div>
-          </div>
+          
         </>
       )}
 

@@ -45,7 +45,8 @@ function Profile() {
         <ArrowLeft className="h-4 w-4" /> Home
       </Link>
       {isOwn && <SettingsMenu />}
-      
+      <div
+        
         <div className="flex flex-col items-center gap-3 py-8 text-center">
           <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-full bg-primary text-4xl uppercase text-primary-foreground">
             {avatar ? <img src={avatar} alt={displayName} className="h-full w-full object-cover" /> : username?.[0]}

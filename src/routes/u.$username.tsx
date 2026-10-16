@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, Pencil, X } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { EditProfileDialog, resolveAvatarUrl } from "@/components/EditProfileDialog";
-import { SettingsMenu } from "@/components/SettingsMenu";
+// import { SettingsMenu } from "@/components/SettingsMenu";
 import { isImageUrl } from "@/lib/loop";
 import type { Profile as ProfileRow } from "@/hooks/useAuth";
 

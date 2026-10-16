@@ -46,6 +46,20 @@ const HEADERS: Record<Tab, [string, string]> = {
 function Index() {
   const auth = useAuth();
   const me = auth.handle;
+  // BAN CHECK - kicks banned users out
+useEffect(() => {
+  if (!me) return;
+  supabase.from("banned_users").select("*").eq("username", me).maybeSingle().then(async ({ data }) => {
+    if (data) {
+      const isStillBanned = data.is_permanent || (data.expires_at && new Date(data.expires_at) > new Date());
+      if (isStillBanned) {
+        alert(`You are banned: ${data.reason}`);
+        await supabase.auth.signOut();
+        window.location.href = "/";
+      }
+    }
+  });
+}, [me]);
   const [videos, setVideos] = useState<Video[] | null>(null);
   const [page, setPage] = useState(0);
 const [hasMore, setHasMore] = useState(true);

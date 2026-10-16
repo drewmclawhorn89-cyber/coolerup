@@ -1,61 +1,48 @@
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
-import { Menu, User, Shield, Bell, Moon, Trash2, LogOut, HelpCircle, Database } from "lucide-react"
+import { Menu, User, Shield, Bell, Moon, LogOut } from "lucide-react"
+import { supabase } from "@/integrations/supabase/client"
 
 export function SettingsMenu() {
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
+    window.location.href = "/"
+  }
+
+  const toggleDark = () => {
+    document.documentElement.classList.toggle("dark")
+  }
+
   return (
     <Sheet>
       <SheetTrigger asChild>
         <button className="p-2">
-          <Menu className="w-7 h-7" />
+          <Menu className="h-7 w-7" />
         </button>
       </SheetTrigger>
-      <SheetContent side="bottom" className="h- rounded-t- bg-white dark:bg-zinc-900 overflow-y-auto">
-        <div className="w-12 h-1.5 bg-zinc-300 rounded-full mx-auto mb-6" />
-        <h2 className="text-xl font-bold mb-6">Settings and privacy</h2>
 
-        <div className="space-y-6">
-          <div>
-            <p className="text-xs text-zinc-500 uppercase font-semibold mb-2">Account</p>
-            <div className="divide-y">
-              <button className="w-full flex items-center justify-between py-4">
-                <span className="flex items-center gap-3"><User size={20}/> Manage account</span><span className="text-zinc-400">›</span>
-              </button>
-              <button className="w-full flex items-center justify-between py-4">
-                <span className="flex items-center gap-3"><Shield size={20}/> Privacy</span><span className="text-zinc-400">›</span>
-              </button>
-              <button className="w-full flex items-center justify-between py-4">
-                <span className="flex items-center gap-3"><Database size={20}/> Data Saver</span><span className="text-zinc-400">›</span>
-              </button>
-            </div>
-          </div>
+      <SheetContent side="bottom" className="bg-white text-black rounded-t- h-">
+        <div className="w-12 h-1.5 bg-gray-300 rounded-full mx-auto mb-6" />
+        <h2 className="text-center font-bold text-lg mb-6">Settings and privacy</h2>
 
-          <div>
-            <p className="text-xs text-zinc-500 uppercase font-semibold mb-2">Content & Display</p>
-            <div className="divide-y">
-              <button className="w-full flex items-center justify-between py-4">
-                <span className="flex items-center gap-3"><Bell size={20}/> Push notifications</span><span className="text-zinc-400">›</span>
-              </button>
-              <button className="w-full flex items-center justify-between py-4">
-                <span className="flex items-center gap-3"><Moon size={20}/> Dark mode</span><span className="text-zinc-400">›</span>
-              </button>
-            </div>
-          </div>
+        <button onClick={() => window.location.href = "/edit-profile"} className="w-full flex items-center gap-3 p-4 text-left active:bg-gray-100">
+          <User className="h-5 w-5" /> Manage account
+        </button>
 
-          <div>
-            <p className="text-xs text-zinc-500 uppercase font-semibold mb-2">Support</p>
-            <div className="divide-y">
-              <button className="w-full flex items-center justify-between py-4">
-                <span className="flex items-center gap-3"><HelpCircle size={20}/> Report a problem</span><span className="text-zinc-400">›</span>
-              </button>
-            </div>
-          </div>
+        <button onClick={() => alert("Privacy coming soon")} className="w-full flex items-center gap-3 p-4 text-left active:bg-gray-100">
+          <Shield className="h-5 w-5" /> Privacy
+        </button>
 
-          <div className="pt-4">
-            <button className="w-full flex items-center gap-3 py-4 text-red-500 font-semibold">
-              <LogOut size={20}/> Log out
-            </button>
-          </div>
-        </div>
+        <button onClick={toggleDark} className="w-full flex items-center gap-3 p-4 text-left active:bg-gray-100">
+          <Moon className="h-5 w-5" /> Dark mode
+        </button>
+
+        <button onClick={() => alert("Notifications - enable in browser")} className="w-full flex items-center gap-3 p-4 text-left active:bg-gray-100">
+          <Bell className="h-5 w-5" /> Push notifications
+        </button>
+
+        <button onClick={handleLogout} className="w-full flex items-center gap-3 p-4 text-red-500 font-bold mt-8">
+          <LogOut className="h-5 w-5" /> Log out
+        </button>
       </SheetContent>
     </Sheet>
   )

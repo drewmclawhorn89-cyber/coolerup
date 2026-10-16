@@ -35,7 +35,7 @@ export async function resolveVideoUrl(url: string) {
 }
 
 export async function fetchVideos(page = 0) {
-  const PAGE_SIZE = 10;
+  const PAGE_SIZE = 20;
   const from = page * PAGE_SIZE;
   const to = from + PAGE_SIZE - 1;
 

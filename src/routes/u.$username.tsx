@@ -44,8 +44,8 @@ function Profile() {
            <Link to="/" className="inline-flex items-center gap-2 text-sm text-muted-foreground">
         <ArrowLeft className="h-4 w-4" /> Home
       </Link>
-      {isOwn && <SettingsMenu />}
-      <div
+      {isOwn && <SettingsMenu />
+       </div>
         
         <div className="flex flex-col items-center gap-3 py-8 text-center">
           <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-full bg-primary text-4xl uppercase text-primary-foreground">

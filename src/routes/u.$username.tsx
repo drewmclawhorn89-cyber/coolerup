@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, Pencil, X } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { EditProfileDialog, resolveAvatarUrl } from "@/components/EditProfileDialog";
-// import { SettingsMenu } from "@/components/SettingsMenu";
+import { SettingsMenu } from "@/components/SettingsMenu";
 import { isImageUrl } from "@/lib/loop";
 import type { Profile as ProfileRow } from "@/hooks/useAuth";
 
@@ -44,9 +44,8 @@ function Profile() {
            <Link to="/" className="inline-flex items-center gap-2 text-sm text-muted-foreground">
         <ArrowLeft className="h-4 w-4" /> Home
       </Link>
-      <SettingsMenu />
+         {isOwn && <SettingsMenu />}
        </div>
-        
         <div className="flex flex-col items-center gap-3 py-8 text-center">
           <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-full bg-primary text-4xl uppercase text-primary-foreground">
             {avatar ? <img src={avatar} alt={displayName} className="h-full w-full object-cover" /> : username?.[0]}

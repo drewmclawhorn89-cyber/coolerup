@@ -7,6 +7,8 @@ import { UploadDialog } from "@/components/UploadDialog";
 import { fetchMyLikes, fetchVideos, type Video } from "@/lib/loop";
 import { listSaved, onOfflineChange } from "@/lib/offline";
 import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
+import { useEffect, useState } from "react";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [

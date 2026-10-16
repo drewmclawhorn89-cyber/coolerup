@@ -40,12 +40,11 @@ function Profile() {
 
   return (
     <div className="min-h-dvh bg-background">
-     <div className="mx-auto max-w-4xl px-4 pt-4 flex justify-between items-center">
-  <Link to="/" className="inline-flex items-center gap-2 text-sm text-muted-foreground">
-    Home
-  </Link>
-  <SettingsMenu />
-</div> 
+       <div className="mx-auto max-w-4xl px-4 pt-4 flex justify-between items-center">
+           <Link to="/" className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+        <ArrowLeft className="h-4 w-4" /> Home
+      </Link>
+         {isOwn && <SettingsMenu />}
        
         <div className="flex flex-col items-center gap-3 py-8 text-center">
           <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-full bg-primary text-4xl uppercase text-primary-foreground">

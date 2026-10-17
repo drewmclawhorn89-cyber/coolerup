@@ -33,22 +33,28 @@ export function ShareMenu({ video, onClose, onShared }: { video: Video; onClose:
     toast.success("Removed from offline");
   };
 
-  const handleSave = async () => {
+  const download = async () => {
     try {
-      const videoUrl = video.video_url;
-      if (!videoUrl) throw new Error("No video URL");
-      const r = await fetch(videoUrl);
-      const b = await r.blob();
-      const u = URL.createObjectURL(b);
+      // Try a direct fetch of the video URL and trigger a client-side download.
+      const resp = await fetch(video.video_url);
+      if (!resp.ok) throw new Error("Network response was not ok");
+      const blob = await resp.blob();
+      const extMatch = (video.video_url || "").match(/\.([a-z0-9]+)(?:[?#]|$)/i);
+      const ext = extMatch ? extMatch[1] : "mp4";
+      const filename = `${video.id}.${ext}`;
+      const href = URL.createObjectURL(blob);
       const a = document.createElement("a");
-      a.href = u;
-      a.download = `coolerup-${Date.now()}.mp4`;
+      a.href = href;
+      a.download = filename;
+      document.body.appendChild(a);
       a.click();
-      URL.revokeObjectURL(u);
+      a.remove();
+      URL.revokeObjectURL(href);
       toast.success("Download started");
-    } catch (e) {
-      console.error(e);
-      toast.error("Couldn't download video");
+      onShared();
+    } catch (err) {
+      console.error(err);
+      toast.error("Couldn't download the file. The host may block cross-origin requests.");
     }
   };
 
@@ -63,16 +69,6 @@ export function ShareMenu({ video, onClose, onShared }: { video: Video; onClose:
         </div>
 
         <div className="grid grid-cols-4 gap-4 pt-2">
-          <button
-            className="flex flex-col items-center gap-2"
-            onClick={handleSave}
-          >
-            <div className="w-14 h-14 rounded-full bg-zinc-800 flex items-center justify-center">
-              <Download size={22} />
-            </div>
-            <span className="text-xs text-zinc-300">Save</span>
-          </button>
-
           <button
             className="flex flex-col items-center gap-2"
             onClick={async () => {
@@ -108,14 +104,31 @@ export function ShareMenu({ video, onClose, onShared }: { video: Video; onClose:
 
           <button
             className="flex flex-col items-center gap-2"
-            onClick={() => (savedSize? remove() : save())}
+            onClick={() => (savedSize ? remove() : download())}
           >
             <div className="w-14 h-14 rounded-full bg-zinc-800 flex items-center justify-center">
-              {savedSize? <Check size={22} /> : <Download size={22} />}
+              {savedSize ? <Check size={22} /> : <Download size={22} />}
             </div>
             <span className="text-xs text-zinc-300">
-              {savedSize? formatBytes(savedSize) : "Save"}
+              {savedSize ? formatBytes(savedSize) : "Download"}
             </span>
+          </button>
+
+          <button
+            className="flex flex-col items-center gap-2"
+            onClick={async () => {
+              // Keep the explicit save action separate (fourth slot) in case users want offline saving.
+              if (savedSize) {
+                await remove();
+              } else {
+                await save();
+              }
+            }}
+          >
+            <div className="w-14 h-14 rounded-full bg-zinc-800 flex items-center justify-center">
+              {savedSize ? <Trash2 size={22} /> : <Check size={22} />}
+            </div>
+            <span className="text-xs text-zinc-300">{savedSize ? "Remove" : "Save"}</span>
           </button>
         </div>
 

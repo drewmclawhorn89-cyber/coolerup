@@ -101,7 +101,7 @@ export function EditProfileDialog({ open, onOpenChange }: { open: boolean; onOpe
           <DialogTitle>Edit profile</DialogTitle>
         </DialogHeader>
 
-        <div className="flex flex-col items-center gap-4">
+        <div className="flex flex-col items-center gap-1">
           <button
             type="button"
             onClick={() => fileRef.current?.click()}

@@ -491,7 +491,7 @@ function Index() {
               variant="ghost"
               onClick={() => setTab(id)}
               aria-current={activeTab === id ? "page" : undefined}
-              className={`h-14 min-w-0 flex-col gap-1 rounded-none px-0 text-[9px] ${
+              className={`h-14 w-full min-w-0 flex-col gap-1 rounded-none px-0 text-[9px] ${
                 activeTab === id ? "text-primary" : "text-muted-foreground"
               }`}
             >
@@ -512,7 +512,7 @@ function Index() {
                 variant="ghost"
                 onClick={() => setTab(id)}
                 aria-current={activeTab === id ? "page" : undefined}
-                className={`h-14 w-full min-w-0 flex-col gap-1 rounded-none px-0 text-[9px] ${
+                className={`h-14 min-w-0 flex-col gap-1 rounded-none px-0 text-[9px] ${
                   activeTab === id ? "text-primary" : "text-muted-foreground"
                 }`}
               >
@@ -526,7 +526,7 @@ function Index() {
               to="/u/$username"
               params={{ username: auth.handle }}
               aria-label="Profile"
-              className="flex h-14 w-full min-w-0 flex-col items-center justify-center gap-1 rounded-none px-0 text-[9px] text-muted-foreground [&_svg]:size-5"
+              className="flex h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-none px-0 text-[9px] text-muted-foreground [&_svg]:size-5"
             >
               <User />
               Profile
@@ -536,7 +536,7 @@ function Index() {
               variant="ghost"
               aria-label="Profile"
               onClick={() => auth.signIn()}
-              className="h-14 w-full min-w-0 flex-col gap-1 rounded-none px-0 text-[9px] text-muted-foreground [&_svg]:size-5"
+              className="h-14  min-w-0 flex-col gap-1 rounded-none px-0 text-[9px] text-muted-foreground [&_svg]:size-5"
             >
               <User />
               Profile

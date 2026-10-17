@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import {
   Bell,
+  Download,
   Heart,
   Home,
   LogOut,
@@ -35,7 +36,7 @@ export const Route = createFileRoute("/")({
   component: Index,
 });
 
-type Tab = "foryou" | "explore" | "following" | "liked" | "saved" | "mine" | "inbox";
+type Tab = "foryou" | "explore" | "following" | "liked" | "mine" | "inbox";
 type NotificationFilter = "all" | "unread";
 
 type NotificationRow = {
@@ -62,7 +63,6 @@ const HEADERS: Record<Tab, [string, string]> = {
   explore: ["Explore", "Most loved right now"],
   following: ["Following", "Creators you keep coming back to"],
   liked: ["Liked", "Everything you've hearted"],
-  saved: ["Offline", "Watch anytime, even without a connection"],
   mine: ["Profile", "Your loop"],
   inbox: ["Inbox", "All your notifications"],
 };
@@ -242,10 +242,10 @@ function Index() {
     notificationFilter === "unread" ? notifications.filter((n) => !n.read) : notifications;
 
   const offlineMode = !online || (error && saved.length > 0);
-  const activeTab = offlineMode ? "saved" : tab;
+  const activeTab = offlineMode ? "foryou" : tab;
 
   const shown = useMemo(() => {
-    let list = activeTab === "saved" ? saved : videos ?? [];
+    let list = offlineMode ? saved : videos ?? [];
     const q = query.trim().toLowerCase();
     if (q) list = list.filter((v) => v.caption.toLowerCase().includes(q) || v.username.toLowerCase().includes(q));
     if (activeTab === "explore") list = [...list].sort((a, b) => b.likes_count - a.likes_count);
@@ -253,9 +253,9 @@ function Index() {
     if (activeTab === "liked") list = list.filter((v) => liked.has(v.id));
     if (activeTab === "mine") list = me ? list.filter((v) => v.username === me) : [];
     return list;
-  }, [videos, saved, query, activeTab, liked, me]);
+  }, [videos, saved, query, activeTab, liked, me, offlineMode]);
 
-  const [title, sub] = query ? [`Results for "${query}"`, `${shown.length} videos`] : HEADERS[activeTab];
+  const [title, sub] = query ? [`Results for "${query}"`, `${shown.length} videos`] : offlineMode ? ["Offline", "Watch anytime, even without a connection"] : HEADERS[activeTab];
 
   return (
     <div className="flex h-dvh overflow-hidden bg-background">
@@ -453,11 +453,11 @@ function Index() {
 
             <div className="no-scrollbar min-h-0 flex-1 snap-y snap-mandatory overflow-y-scroll overscroll-contain">
               {error && !offlineMode && <Empty text="Couldn't load videos. Refresh to try again." />}
-              {!error && videos === null && activeTab !== "saved" && <Empty text="Loading your feed..." />}
-              {(videos || activeTab === "saved") && shown.length === 0 && (
+              {!error && videos === null && !offlineMode && <Empty text="Loading your feed..." />}
+              {shown.length === 0 && (
                 <Empty
                   text={
-                    activeTab === "saved"
+                    offlineMode
                       ? "No saved videos yet. Tap Share → Save for offline on any video."
                       : "Nothing here yet."
                   }
@@ -537,7 +537,7 @@ function Index() {
               variant="ghost"
               aria-label="Profile"
               onClick={() => auth.signIn()}
-              className="h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-none px-0 text-[9px] text-muted-foreground [&_svg]:size-5"
+              className="h-14 min-w-0 flex-col gap-1 rounded-none px-0 text-[9px] text-muted-foreground [&_svg]:size-5"
             >
               <User />
               Profile

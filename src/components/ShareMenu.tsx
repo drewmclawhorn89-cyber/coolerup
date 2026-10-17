@@ -104,32 +104,15 @@ export function ShareMenu({ video, onClose, onShared }: { video: Video; onClose:
 
           <button
             className="flex flex-col items-center gap-2"
-            onClick={() => (savedSize ? remove() : download())}
+            onClick={download}
           >
             <div className="w-14 h-14 rounded-full bg-zinc-800 flex items-center justify-center">
-              {savedSize ? <Check size={22} /> : <Download size={22} />}
+              <Download size={22} />
             </div>
-            <span className="text-xs text-zinc-300">
-              {savedSize ? formatBytes(savedSize) : "Download"}
-            </span>
+            <span className="text-xs text-zinc-300">Download</span>
           </button>
 
-          <button
-            className="flex flex-col items-center gap-2"
-            onClick={async () => {
-              // Keep the explicit save action separate (fourth slot) in case users want offline saving.
-              if (savedSize) {
-                await remove();
-              } else {
-                await save();
-              }
-            }}
-          >
-            <div className="w-14 h-14 rounded-full bg-zinc-800 flex items-center justify-center">
-              {savedSize ? <Trash2 size={22} /> : <Check size={22} />}
-            </div>
-            <span className="text-xs text-zinc-300">{savedSize ? "Remove" : "Save"}</span>
-          </button>
+          {/* Offline save/removed moved to Settings — leave empty or add a placeholder action if desired */}
         </div>
 
         {progress!== null && (

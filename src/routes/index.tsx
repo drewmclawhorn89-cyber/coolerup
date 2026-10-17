@@ -53,6 +53,8 @@ type NotificationRow = {
 const NAV: { id: Tab; label: string; icon: typeof Home }[] = [
   { id: "foryou", label: "home", icon: Home },
   { id: "mine", label: "you", icon: Users },
+  { id: "following", label: "Following", icon: Users },
+  { id: "saved", label: "Offline", icon: Download },
   { id: "inbox", label: "Inbox", icon: Bell },
 ];
 
@@ -484,14 +486,14 @@ function Index() {
           </>
         )}
 
-        <nav aria-label="Phone navigation" className="mobile-bottom-nav grid shrink-0 grid-cols-5 place-items-center gap-0 border-t bg-black w-full px-0 md:hidden"
+        <nav aria-label="Phone navigation" className="mobile-bottom-nav grid shrink-0 grid-cols-8 border-t bg-sidebar px-1 md:hidden">
           {NAV.slice(0, 2).map(({ id, label, icon: Icon }) => (
             <Button
               key={id}
               variant="ghost"
               onClick={() => setTab(id)}
               aria-current={activeTab === id ? "page" : undefined}
-              className={`h-14 w-full min-w-0 flex-col gap-1 rounded-none px-0 text-[9px] ${
+              className={`h-14 min-w-0 flex-col gap-1 rounded-none px-0 text-[9px] ${
                 activeTab === id ? "text-primary" : "text-muted-foreground"
               }`}
             >
@@ -536,7 +538,7 @@ function Index() {
               variant="ghost"
               aria-label="Profile"
               onClick={() => auth.signIn()}
-              className="h-14  min-w-0 flex-col gap-1 rounded-none px-0 text-[9px] text-muted-foreground [&_svg]:size-5"
+              className="h-14 min-w-0 flex-col gap-1 rounded-none px-0 text-[9px] text-muted-foreground [&_svg]:size-5"
             >
               <User />
               Profile

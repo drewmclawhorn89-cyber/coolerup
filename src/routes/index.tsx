@@ -487,13 +487,13 @@ function Index() {
         )}
 
         <nav aria-label="Phone navigation" className="mobile-bottom-nav grid shrink-0 grid-cols-8 border-t bg-sidebar px-1 md:hidden">
-          {NAV.slice(0, 2).map(({ id, label, icon: Icon }) => (
+          {NAV.slice(0, 3).map(({ id, label, icon: Icon }) => (
             <Button
               key={id}
               variant="ghost"
               onClick={() => setTab(id)}
               aria-current={activeTab === id ? "page" : undefined}
-              className={`h-14 w-full min-w-0 flex-col gap-1 rounded-none px-0 text-[9px] ${
+              className={`h-14 min-w-0 flex-col gap-1 rounded-none px-0 text-[9px] ${
                 activeTab === id ? "text-primary" : "text-muted-foreground"
               }`}
             >
@@ -504,11 +504,11 @@ function Index() {
           <Button
             aria-label="Upload video"
             onClick={() => (auth.user ? setUploading(true) : auth.signIn())}
-          className="place-self-center h-9 w-10 rounded-lg px-0 [&_svg]:size-6"
+            className="m-auto h-9 w-10 rounded-lg px-0 [&_svg]:size-6"
           >
             <Plus />
           </Button>
-          {NAV.slice(2).map(({ id, label, icon: Icon }) => (
+          {NAV.slice(3).map(({ id, label, icon: Icon }) => (
             <Fragment key={id}>
               <Button
                 variant="ghost"

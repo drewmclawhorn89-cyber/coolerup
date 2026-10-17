@@ -53,7 +53,7 @@ type NotificationRow = {
 const NAV: { id: Tab; label: string; icon: typeof Home }[] = [
   { id: "foryou", label: "home", icon: Home },
   { id: "mine", label: "you", icon: Users },
-  { id: "following", label: "Following", icon: Users },
+  
   { id: "saved", label: "Offline", icon: Download },
   { id: "inbox", label: "Inbox", icon: Bell },
 ];

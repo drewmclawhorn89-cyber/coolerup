@@ -54,9 +54,14 @@ function Profile() {
           </div>
           {profile?.bio && <p className="max-w-md text-sm text-muted-foreground">{profile.bio}</p>}
           {isOwn && (
-            <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
-              <Pencil className="mr-2 h-3.5 w-3.5" /> Edit profile
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
+                <Pencil className="mr-2 h-3.5 w-3.5" /> Edit profile
+              </Button>
+              <Link to="/settings" className="inline-flex items-center rounded-md border px-3 py-1 text-sm">
+                Settings
+              </Link>
+            </div>
           )}
           <div className="flex gap-8 text-sm">
             <span><b>{videos?.length?? "-"}</b> videos</span>

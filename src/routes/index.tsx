@@ -2,7 +2,6 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import {
   Bell,
-  Download,
   Heart,
   Home,
   LogOut,
@@ -55,7 +54,6 @@ const NAV: { id: Tab; label: string; icon: typeof Home }[] = [
   { id: "mine", label: "you", icon: Users },
   { id: "following", label: "Following", icon: Users },
   { id: "liked", label: "Liked", icon: Heart },
-  { id: "saved", label: "Offline", icon: Download },
   { id: "inbox", label: "Inbox", icon: Bell },
 ];
 
@@ -304,7 +302,7 @@ function Index() {
 
         <button
           onClick={() => (auth.user ? setUploading(true) : auth.signIn())}
-          className="flex items-center justify-center gap-2 rounded-full bg-primary py-3.5 font-bold text-primary-foreground shadow-[0_10px_30px_-10px_var(--primary)] transition hover:brightness-95"
+          className="flex items-center justify-center gap-2 rounded-full bg-primary py-3.5 font-bold text-primary-foreground shadow-[0_10px_30px_-10px_var(--primary)] transition hover:brightness-110"
         >
           <Plus className="h-5 w-5" /> Upload video
         </button>
@@ -539,7 +537,7 @@ function Index() {
               variant="ghost"
               aria-label="Profile"
               onClick={() => auth.signIn()}
-              className="h-14 min-w-0 flex-col gap-1 rounded-none px-0 text-[9px] text-muted-foreground [&_svg]:size-5"
+              className="h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-none px-0 text-[9px] text-muted-foreground [&_svg]:size-5"
             >
               <User />
               Profile

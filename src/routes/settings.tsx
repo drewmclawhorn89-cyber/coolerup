@@ -1,11 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeft, LogOut, Pencil, ShieldCheck, UserRound } from "lucide-react";
+import { ArrowLeft, Download, LogOut, Pencil, ShieldCheck, UserRound, Eye, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { EditProfileDialog } from "@/components/EditProfileDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { formatBytes, getSaved, listSaved, onOfflineChange, removeOffline } from "@/lib/offline";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({
@@ -51,13 +52,17 @@ function Settings() {
     }
   });
 
+  // Offline panel state
+  const [showOffline, setShowOffline] = useState(false);
+  const [offlineItems, setOfflineItems] = useState<{ id: string; video: any; size: number }[] | null>(null);
+  const [removingId, setRemovingId] = useState<string | null>(null);
+
   useEffect(() => {
     setNewHandle(auth.handle ?? "");
   }, [auth.handle]);
 
   useEffect(() => {
     if (!auth.user) return;
-    // load blocked users
     supabase
       .from("blocked_users")
       .select("blocked_username")
@@ -67,6 +72,28 @@ function Settings() {
         setBlocked((data ?? []).map((r: any) => r.blocked_username));
       });
   }, [auth.user?.id]);
+
+  useEffect(() => {
+    if (!showOffline) return;
+    let mounted = true;
+    const refresh = async () => {
+      try {
+        const saved = await listSaved();
+        if (!mounted) return;
+        setOfflineItems(saved.map((s) => ({ id: s.id, video: s.video, size: s.size })));
+      } catch (e) {
+        console.error(e);
+        if (!mounted) return;
+        setOfflineItems([]);
+      }
+    };
+    refresh();
+    const off = onOfflineChange(refresh);
+    return () => {
+      mounted = false;
+      off();
+    };
+  }, [showOffline]);
 
   const saveHandle = async () => {
     if (!auth.user) return;
@@ -149,6 +176,58 @@ function Settings() {
     else if (t === "light") document.documentElement.setAttribute("data-theme", "light");
     else document.documentElement.removeAttribute("data-theme");
     toast.success(`Theme: ${t}`);
+  };
+
+  // Offline handlers used inside settings panel
+  const handleView = async (id: string) => {
+    try {
+      const saved = await getSaved(id);
+      if (!saved?.blob) {
+        toast.error("Couldn't find saved video");
+        return;
+      }
+      const url = URL.createObjectURL(saved.blob);
+      window.open(url, "_blank", "noopener");
+    } catch (e) {
+      console.error(e);
+      toast.error("Couldn't open saved video");
+    }
+  };
+
+  const handleDownload = async (id: string) => {
+    try {
+      const saved = await getSaved(id);
+      if (!saved?.blob) {
+        toast.error("Couldn't find saved video");
+        return;
+      }
+      const url = URL.createObjectURL(saved.blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `coolerup-${id}.mp4`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      toast.success("Download started");
+    } catch (e) {
+      console.error(e);
+      toast.error("Couldn't download saved video");
+    }
+  };
+
+  const handleRemove = async (id: string) => {
+    setRemovingId(id);
+    try {
+      await removeOffline(id);
+      setOfflineItems((cur) => (cur ?? []).filter((item) => item.id !== id));
+      toast.success("Removed from offline");
+    } catch (e) {
+      console.error(e);
+      toast.error("Couldn't remove saved video");
+    } finally {
+      setRemovingId(null);
+    }
   };
 
   if (auth.ready && !auth.user) {
@@ -253,6 +332,79 @@ function Settings() {
             Disable
           </button>
         </div>
+      </div>
+
+      {/* Content & Display */}
+      <div className="rounded-2xl border bg-card p-4">
+        <h2 className="font-semibold">Content & Display</h2>
+        <p className="mt-1 text-sm text-muted-foreground">Manage content you store locally and how it displays.</p>
+
+        <div className="mt-3 flex items-center justify-between rounded-md border bg-background px-3 py-2 text-left">
+          <div className="flex items-center gap-3">
+            <div className="rounded-full bg-zinc-900 p-2">
+              <Download className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="text-sm font-medium">Offline videos</div>
+              <div className="text-xs text-muted-foreground">Manage videos saved for offline viewing</div>
+            </div>
+          </div>
+          <div>
+            <Button variant="ghost" onClick={() => setShowOffline(true)}>Open</Button>
+          </div>
+        </div>
+
+        {showOffline && (
+          <div className="mt-4 rounded-md border bg-background p-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Button variant="ghost" size="icon" onClick={() => setShowOffline(false)}>
+                  <ArrowLeft />
+                </Button>
+                <div className="text-sm font-medium">Offline videos</div>
+              </div>
+            </div>
+
+            <div className="mt-3">
+              {!offlineItems ? (
+                <div className="text-sm text-muted-foreground">Loading saved videos…</div>
+              ) : offlineItems.length === 0 ? (
+                <div className="text-sm text-muted-foreground">No saved videos</div>
+              ) : (
+                <div className="space-y-3">
+                  {offlineItems.map((item) => (
+                    <div key={item.id} className="flex items-center justify-between gap-3 rounded-md border bg-card px-3 py-2">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <div className="h-12 w-16 overflow-hidden rounded bg-zinc-800">
+                          {item.video?.poster_url ? <img src={item.video.poster_url} alt="" className="h-full w-full object-cover" /> : null}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-medium">{item.video?.caption || `@${item.video?.username}`}</div>
+                          <div className="text-xs text-muted-foreground">{formatBytes(item.size)}</div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <Button size="sm" variant="outline" onClick={() => handleView(item.id)}>
+                          <Eye className="mr-1 h-4 w-4" />
+                          View
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => handleDownload(item.id)}>
+                          <Download className="mr-1 h-4 w-4" />
+                          Download
+                        </Button>
+                        <Button size="sm" variant="destructive" onClick={() => handleRemove(item.id)} disabled={removingId === item.id}>
+                          <Trash2 className="mr-1 h-4 w-4" />
+                          {removingId === item.id ? "Removing..." : "Remove"}
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Appearance */}

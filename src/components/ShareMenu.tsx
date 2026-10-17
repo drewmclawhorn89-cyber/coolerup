@@ -33,6 +33,25 @@ export function ShareMenu({ video, onClose, onShared }: { video: Video; onClose:
     toast.success("Removed from offline");
   };
 
+  const handleSave = async () => {
+    try {
+      const videoUrl = video.video_url;
+      if (!videoUrl) throw new Error("No video URL");
+      const r = await fetch(videoUrl);
+      const b = await r.blob();
+      const u = URL.createObjectURL(b);
+      const a = document.createElement("a");
+      a.href = u;
+      a.download = `coolerup-${Date.now()}.mp4`;
+      a.click();
+      URL.revokeObjectURL(u);
+      toast.success("Download started");
+    } catch (e) {
+      console.error(e);
+      toast.error("Couldn't download video");
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end justify-center p-0" onClick={onClose}>
       <div className="bg-zinc-900 w-full max-w-md rounded-t- p-6 space-y-5" onClick={(e) => e.stopPropagation()}>
@@ -44,6 +63,16 @@ export function ShareMenu({ video, onClose, onShared }: { video: Video; onClose:
         </div>
 
         <div className="grid grid-cols-4 gap-4 pt-2">
+          <button
+            className="flex flex-col items-center gap-2"
+            onClick={handleSave}
+          >
+            <div className="w-14 h-14 rounded-full bg-zinc-800 flex items-center justify-center">
+              <Download size={22} />
+            </div>
+            <span className="text-xs text-zinc-300">Save</span>
+          </button>
+
           <button
             className="flex flex-col items-center gap-2"
             onClick={async () => {

@@ -33,6 +33,37 @@ export function ShareMenu({ video, onClose, onShared }: { video: Video; onClose:
     toast.success("Removed from offline");
   };
 
+  const download = async () => {
+    try {
+      const videoUrl = video.video_url;
+      if (!videoUrl) throw new Error("No video URL");
+      const resp = await fetch(videoUrl);
+      if (!resp.ok) throw new Error("Network response was not ok");
+      const blob = await resp.blob();
+      const extMatch = (videoUrl || "").match(/\.([a-z0-9]+)(?:[?#]|$)/i);
+      const ext = extMatch ? extMatch[1] : "mp4";
+      const filename = `coolerup-${video.id || Date.now()}.${ext}`;
+      const u = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = u;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(u);
+      toast.success("Download started");
+    } catch (err) {
+      console.error("Download failed:", err);
+      // Fallback: open source URL so user can save from the new tab (works around CORS limits)
+      try {
+        if (video.video_url) window.open(video.video_url, "_blank", "noopener");
+        toast("Opened source — save from new tab");
+      } catch {
+        toast.error("Couldn't download the file. The host may block cross-origin requests.");
+      }
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end justify-center p-0" onClick={onClose}>
       <div className="bg-zinc-900 w-full max-w-md rounded-t- p-6 space-y-5" onClick={(e) => e.stopPropagation()}>
@@ -44,6 +75,16 @@ export function ShareMenu({ video, onClose, onShared }: { video: Video; onClose:
         </div>
 
         <div className="grid grid-cols-4 gap-4 pt-2">
+          <button
+            className="flex flex-col items-center gap-2"
+            onClick={download}
+          >
+            <div className="w-14 h-14 rounded-full bg-zinc-800 flex items-center justify-center">
+              <Download size={22} />
+            </div>
+            <span className="text-xs text-zinc-300">Download</span>
+          </button>
+
           <button
             className="flex flex-col items-center gap-2"
             onClick={async () => {

@@ -33,31 +33,6 @@ export function ShareMenu({ video, onClose, onShared }: { video: Video; onClose:
     toast.success("Removed from offline");
   };
 
-  const download = async () => {
-    try {
-      // Try a direct fetch of the video URL and trigger a client-side download.
-      const resp = await fetch(video.video_url);
-      if (!resp.ok) throw new Error("Network response was not ok");
-      const blob = await resp.blob();
-      const extMatch = (video.video_url || "").match(/\.([a-z0-9]+)(?:[?#]|$)/i);
-      const ext = extMatch ? extMatch[1] : "mp4";
-      const filename = `${video.id}.${ext}`;
-      const href = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = href;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(href);
-      toast.success("Download started");
-      onShared();
-    } catch (err) {
-      console.error(err);
-      toast.error("Couldn't download the file. The host may block cross-origin requests.");
-    }
-  };
-
   return (
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end justify-center p-0" onClick={onClose}>
       <div className="bg-zinc-900 w-full max-w-md rounded-t- p-6 space-y-5" onClick={(e) => e.stopPropagation()}>
@@ -104,15 +79,15 @@ export function ShareMenu({ video, onClose, onShared }: { video: Video; onClose:
 
           <button
             className="flex flex-col items-center gap-2"
-            onClick={download}
+            onClick={() => (savedSize? remove() : save())}
           >
             <div className="w-14 h-14 rounded-full bg-zinc-800 flex items-center justify-center">
-              <Download size={22} />
+              {savedSize? <Check size={22} /> : <Download size={22} />}
             </div>
-            <span className="text-xs text-zinc-300">Download</span>
+            <span className="text-xs text-zinc-300">
+              {savedSize? formatBytes(savedSize) : "Save"}
+            </span>
           </button>
-
-          {/* Offline save/removed moved to Settings — leave empty or add a placeholder action if desired */}
         </div>
 
         {progress!== null && (

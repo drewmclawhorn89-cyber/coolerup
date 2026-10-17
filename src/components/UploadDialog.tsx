@@ -49,7 +49,7 @@ export function UploadDialog({
     setBusy(true);
     try {
       await uploadVideo(file, username.trim().replace(/^@/, "").slice(0, 40), caption.trim().slice(0, 500));
-      toast.success("Your video is live!");
+      toast.success("Your video is posted!");
       onDone();
     } catch {
       toast.error("Upload failed. Try again.");
@@ -59,7 +59,7 @@ export function UploadDialog({
   };
 
   return (
-    <div className="fixed inset-0 z-5 flex items-center justify-center overflow-y-auto bg-overlay p-3 sm:p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-overlay p-3 sm:p-4" onClick={onClose}>
       <form
         onSubmit={submit}
         onClick={(e) => e.stopPropagation()}
@@ -71,7 +71,7 @@ export function UploadDialog({
             e.preventDefault();
             pick(e.dataTransfer.files[0]);
           }}
-          className="flex h-40 w-full shrink-0 cursor-pointer flex-col items-center justify-center gap-2 overflow-hidden rounded-xl border-2 border-dashed bg-secondary text-center text-sm text-muted-foreground sm:aspect-[9/16] sm:h-auto sm:w-48"
+          className="flex h-40 w-full shrink-0 cursor-pointer flex-col items-center justify-center gap-20 overflow-hidden rounded-xl border-2 border-dashed bg-secondary text-center text-sm text-muted-foreground sm:aspect-[9/16] sm:h-auto sm:w-48"
         >
           {preview ? (
             file?.type.startsWith("image/") ? (

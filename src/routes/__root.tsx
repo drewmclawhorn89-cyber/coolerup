@@ -87,7 +87,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "theme-color", content: "#000000" },
       { name: "mobile-web-app-capable", content: "yes" },
       { name: "apple-mobile-web-app-capable", content: "yes" },
-      { name: "apple-mobile-web-app-status-bar-style", content: "black" },
+      { name: "apple-mobile-web-app-status-bar-style", content: "blue" },
       { name: "apple-mobile-web-app-title", content: "coolerup" },
     ],
     links: [
@@ -133,7 +133,7 @@ function RootComponent() {
         <Outlet />
         <CallOverlay />
       </CallProvider>
-      <Toaster theme="blue" position="top-center" />
+      <Toaster theme="dark" position="top-center" />
     </QueryClientProvider>
   );
 }

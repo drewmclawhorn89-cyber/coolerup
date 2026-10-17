@@ -124,7 +124,7 @@ export function EditProfileDialog({ open, onOpenChange }: { open: boolean; onOpe
             onChange={(e) => pickPhoto(e.target.files?.[0] ?? null)}
           />
 
-          <div className="w-full space-y-1">
+          <div className="w-full space-y-3">
             <div>
               <label className="mb-1 block text-xs text-muted-foreground">Display name</label>
               <Input

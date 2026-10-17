@@ -133,7 +133,7 @@ function RootComponent() {
         <Outlet />
         <CallOverlay />
       </CallProvider>
-      <Toaster theme="dark" position="top-center" />
+      <Toaster theme="blue" position="top-center" />
     </QueryClientProvider>
   );
 }

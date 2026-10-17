@@ -193,21 +193,12 @@ const shown = useMemo(() => {
                 <Icon className="h-5 w-5" />
                 {label}
               </button>
-              {id === "liked" && (
-                <Link
-                  to="/messages"
-                  className="flex items-center gap-3 rounded-xl px-4 py-3 font-bold transition hover:bg-secondary"
-                >
-                  <MessageCircle className="h-5 w-5" />
-                  Messages
-                </Link>
-              )}
             </Fragment>
           ))}
         </nav>
         <button
           onClick={() => (auth.user ? setUploading(true) : auth.signIn())}
-          className="flex items-center justify-center gap-2 rounded-full bg-primary py-3.5 font-bold text-primary-foreground shadow-[0_10px_30px_-10px_var(--primary)] transition hover:brightness-110"
+          className="flex items-center justify-center gap-2 rounded-full bg-primary py-3.5 font-bold text-primary-foreground shadow-[0_10px_30px_-10px_var(--primary)] transition hover:brightness-[0.98]"
         >
           <Plus className="h-5 w-5" /> Upload video
         </button>
@@ -253,84 +244,83 @@ const shown = useMemo(() => {
         {searchOpen && (
           <label className="flex shrink-0 items-center gap-3 border-b bg-sidebar px-4 py-3 md:hidden">
             <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
-            <input autoFocus aria-label="Search videos" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search videos" className="min-w-0 flex-1 bg-transparent text-base outline-none" />
+            <input autoFocus aria-label="Search videos" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search videos" className="min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground" />
             {query && <Button variant="ghost" size="icon" aria-label="Clear search" onClick={() => setQuery("")}><X /></Button>}
           </label>
         )}
-        {offlineMode && (
-          <div className="flex shrink-0 items-center gap-2 bg-primary/10 px-4 py-2 text-sm font-bold text-primary md:px-10">
-            <WifiOff className="h-4 w-4" /> You're offline — watching saved videos
-          </div>
-        )}
-       {activeTab === "inbox" ? (
-        <div className="p-6">
-          <h2 className="text-2xl font-display font-bold">Inbox</h2>
-          <p className="text-sm text-muted-foreground mt-1 mb-6">All your notifications in one place</p>
-          <div className="space-y-3 max-w-2xl">
-            <div className="flex items-center gap-3 p-4 rounded-xl border bg-card">
-              <div className="w-10 h-10 rounded-full bg-pink-500/20 flex items-center justify-center">❤️</div>
-              <div className="flex-1"><p className="text-sm"><b>@alexfit</b> liked your fit</p><p className="text-xs text-muted-foreground">2m ago</p></div>
-              <div className="w-2 h-2 bg-primary rounded-full"></div>
-            </div>
-            <div className="flex items-center gap-3 p-4 rounded-xl border bg-card">
-              <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center">👤</div>
-              <div className="flex-1"><p className="text-sm"><b>@jordan</b> followed you</p><p className="text-xs text-muted-foreground">1h ago</p></div>
-              <div className="w-2 h-2 bg-primary rounded-full"></div>
-            </div>
-            <div className="flex items-center gap-3 p-4 rounded-xl border bg-card">
-              <div className="w-10 h-10 rounded-full bg-zinc-500/20 flex items-center justify-center">💬</div>
-              <div className="flex-1"><p className="text-sm"><b>@sam</b> commented: "fire fit 🔥"</p><p className="text-xs text-muted-foreground">3h ago</p></div>
-            </div>
-          </div>
-        </div>
-      ) : (
-        <>
-          <header className="shrink-0 px-4 py-2 md:px-10 md:pb-2 md:pt-6">
-            <h2 className="break-words font-display text-base md:text-3xl">{title}</h2>
-            <p className="hidden text-sm text-muted-foreground md:block">{sub}</p>
-          </header>
+        {activeTab === "inbox" ? (
+         <div className="p-6">
+           <div className="flex items-center justify-between">
+             <div>
+               <h2 className="text-2xl font-display font-bold">Inbox</h2>
+               <p className="text-sm text-muted-foreground mt-1">All your notifications in one place</p>
+             </div>
+             <Link to="/messages" className="flex items-center gap-3 rounded-xl px-4 py-3 font-bold transition hover:bg-secondary">
+               <MessageCircle className="h-5 w-5" /> Messages
+             </Link>
+           </div>
+           <div className="space-y-3 max-w-2xl mt-6">
+             <div className="flex items-center gap-3 p-4 rounded-xl border bg-card">
+               <div className="w-10 h-10 rounded-full bg-pink-500/20 flex items-center justify-center">❤️</div>
+               <div className="flex-1"><p className="text-sm"><b>@alexfit</b> liked your fit</p><p className="text-xs text-muted-foreground">2m ago</p></div>
+               <div className="w-2 h-2 bg-primary rounded-full"></div>
+             </div>
+             <div className="flex items-center gap-3 p-4 rounded-xl border bg-card">
+               <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center">👤</div>
+               <div className="flex-1"><p className="text-sm"><b>@jordan</b> followed you</p><p className="text-xs text-muted-foreground">1h ago</p></div>
+               <div className="w-2 h-2 bg-primary rounded-full"></div>
+             </div>
+             <div className="flex items-center gap-3 p-4 rounded-xl border bg-card">
+               <div className="w-10 h-10 rounded-full bg-zinc-500/20 flex items-center justify-center">💬</div>
+               <div className="flex-1"><p className="text-sm"><b>@sam</b> commented: "fire fit 🔥"</p><p className="text-xs text-muted-foreground">3h ago</p></div>
+             </div>
+           </div>
+         </div>
+       ) : (
+         <>
+           <header className="shrink-0 px-4 py-2 md:px-10 md:pb-2 md:pt-6">
+             <h2 className="break-words font-display text-base md:text-3xl">{title}</h2>
+             <p className="hidden text-sm text-muted-foreground md:block">{sub}</p>
+           </header>
 
-          <div className="no-scrollbar min-h-0 flex-1 snap-y snap-mandatory overflow-y-scroll overscroll-contain">
-            {error && !offlineMode && <Empty text="Couldn't load videos. Refresh to try again." />}
-            {!error && videos === null && activeTab !== "saved" && <Empty text="Loading your feed..." />}
-            {(videos || activeTab === "saved") && shown.length === 0 && (
-              <Empty text={activeTab === "saved" ? "No saved videos yet. Tap Share → Save for offline on any video." : "Nothing here yet."} />
-            )}
-            {shown.map((v) => (
-              <VideoCard
-                key={`${activeTab}-${v.id}`}
-                video={v}
-                liked={liked.has(v.id)}
-                muted={muted}
-                onToggleMute={() => setMuted((m) => !m)}
-                onLikeChange={(on) => {
-                  setLiked((s) => {
-                    const n = new Set(s);
-                    if (on) n.add(v.id); else n.delete(v.id);
-                    return n;
-                  });
-                }}
-              />
-            ))}
-                  
-        <div id="scroll-sentinel" className="h-10 w-full" />
-      </div>
-          
-        </>
-      )}
+           <div className="no-scrollbar min-h-0 flex-1 snap-y snap-mandatory overflow-y-scroll overscroll-contain">
+             {error && !offlineMode && <Empty text="Couldn't load videos. Refresh to try again." />}
+             {!error && videos === null && activeTab !== "saved" && <Empty text="Loading your feed..." />}
+             {(videos || activeTab === "saved") && shown.length === 0 && (
+               <Empty text={activeTab === "saved" ? "No saved videos yet. Tap Share → Save for offline on any video." : "Nothing here yet."} />
+             )}
+             {shown.map((v) => (
+               <VideoCard
+                 key={`${activeTab}-${v.id}`}
+                 video={v}
+                 liked={liked.has(v.id)}
+                 muted={muted}
+                 onToggleMute={() => setMuted((m) => !m)}
+                 onLikeChange={(on) => {
+                   setLiked((s) => {
+                     const n = new Set(s);
+                     if (on) n.add(v.id); else n.delete(v.id);
+                     return n;
+                   });
+                 }}
+               />
+             ))}
+                   
+         <div id="scroll-sentinel" className="h-10 w-full" />
+       </div>
+           
+         </>
+       )}
 
   
         <nav aria-label="Phone navigation" className="mobile-bottom-nav grid shrink-0 grid-cols-8 border-t bg-sidebar px-1 md:hidden">
           {NAV.slice(0, 3).map(({ id, label, icon: Icon }) => (
-            <Button key={id} variant="ghost" onClick={() => setTab(id)} aria-current={activeTab === id ? "page" : undefined} className={`h-14 min-w-0 flex-col gap-1 rounded-none px-0 text-[9px] [&_svg]:size-5 ${activeTab === id ? "text-primary" : "text-muted-foreground"}`}><Icon />{label}</Button>
+            <Button key={id} variant="ghost" onClick={() => setTab(id)} aria-current={activeTab === id ? "page" : undefined} className={`h-14 min-w-0 flex-col gap-1 rounded-none px-0 text-[9px] [[...]
           ))}
           <Button aria-label="Upload video" onClick={() => (auth.user ? setUploading(true) : auth.signIn())} className="m-auto h-9 w-10 rounded-lg px-0 [&_svg]:size-6"><Plus /></Button>
           {NAV.slice(3).map(({ id, label, icon: Icon }) => (
             <Fragment key={id}>
               <Button variant="ghost" onClick={() => setTab(id)} aria-current={activeTab === id ? "page" : undefined} className={`h-14 min-w-0 flex-col gap-1 rounded-none px-0 text-[9px] [&_svg]:size-5 ${activeTab === id ? "text-primary" : "text-muted-foreground"}`}><Icon />{id === "mine" ? "You" : label}</Button>
-              {id === "liked" && (
-                <Link to="/messages" aria-label="Messages" className="flex h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-none px-0 text-[9px] text-muted-foreground [&_svg]:size-5"><MessageCircle />Messages</Link>
-              )}
             </Fragment>
           ))}
           {auth.user && auth.handle ? (

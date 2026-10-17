@@ -52,11 +52,10 @@ type NotificationRow = {
 
 const NAV: { id: Tab; label: string; icon: typeof Home }[] = [
   { id: "foryou", label: "home", icon: Home },
-  { id: "mine", label: "Following", icon: Users },
+  { id: "mine", label: "you", icon: Users },
   { id: "saved", label: "Offline", icon: Download },
   { id: "inbox", label: "Inbox", icon: Bell },
 ];
-
 const HEADERS: Record<Tab, [string, string]> = {
   foryou: ["For You", "A fresh perspective with every scroll"],
   explore: ["Explore", "Most loved right now"],

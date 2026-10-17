@@ -71,7 +71,7 @@ export function UploadDialog({
             e.preventDefault();
             pick(e.dataTransfer.files[0]);
           }}
-          className="flex h-40 w-full shrink-0 cursor-pointer flex-col items-center justify-center gap-20 overflow-hidden rounded-xl border-2 border-dashed bg-secondary text-center text-sm text-muted-foreground sm:aspect-[9/16] sm:h-auto sm:w-48"
+          className="flex h-40 w-full shrink-0 cursor-pointer flex-col items-center justify-center gap-2 overflow-hidden rounded-xl border-2 border-dashed bg-secondary text-center text-sm text-muted-foreground sm:aspect-[9/16] sm:h-auto sm:w-48"
         >
           {preview ? (
             file?.type.startsWith("image/") ? (

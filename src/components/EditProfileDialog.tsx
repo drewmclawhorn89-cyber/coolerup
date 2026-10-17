@@ -113,7 +113,7 @@ export function EditProfileDialog({ open, onOpenChange }: { open: boolean; onOpe
               <span className="flex h-full w-full items-center justify-center">{initial}</span>
             )}
             <span className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition group-hover:opacity-100">
-              <Camera className="h-4 w-4 text-white" />
+              <Camera className="h-6 w-6 text-white" />
             </span>
           </button>
           <input
@@ -124,7 +124,7 @@ export function EditProfileDialog({ open, onOpenChange }: { open: boolean; onOpe
             onChange={(e) => pickPhoto(e.target.files?.[0] ?? null)}
           />
 
-          <div className="w-full space-y-3">
+          <div className="w-full space-y-1">
             <div>
               <label className="mb-1 block text-xs text-muted-foreground">Display name</label>
               <Input

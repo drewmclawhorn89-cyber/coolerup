@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as MessagesRouteImport } from './routes/messages'
+import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as UUsernameRouteImport } from './routes/u.$username'
 
 const IndexRoute = IndexRouteImport.update({
@@ -23,6 +24,11 @@ const MessagesRoute = MessagesRouteImport.update({
   path: '/messages',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const UUsernameRoute = UUsernameRouteImport.update({
   id: '/u/$username',
   path: '/u/$username',
@@ -32,30 +38,34 @@ const UUsernameRoute = UUsernameRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/messages': typeof MessagesRoute
+  '/settings': typeof SettingsRoute
   '/u/$username': typeof UUsernameRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/messages': typeof MessagesRoute
+  '/settings': typeof SettingsRoute
   '/u/$username': typeof UUsernameRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/messages': typeof MessagesRoute
+  '/settings': typeof SettingsRoute
   '/u/$username': typeof UUsernameRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/messages' | '/u/$username'
+  fullPaths: '/' | '/messages' | '/settings' | '/u/$username'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/messages' | '/u/$username'
-  id: '__root__' | '/' | '/messages' | '/u/$username'
+  to: '/' | '/messages' | '/settings' | '/u/$username'
+  id: '__root__' | '/' | '/messages' | '/settings' | '/u/$username'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   MessagesRoute: typeof MessagesRoute
+  SettingsRoute: typeof SettingsRoute
   UUsernameRoute: typeof UUsernameRoute
 }
 
@@ -75,6 +85,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MessagesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/u/$username': {
       id: '/u/$username'
       path: '/u/$username'
@@ -88,6 +105,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   MessagesRoute: MessagesRoute,
+  SettingsRoute: SettingsRoute,
   UUsernameRoute: UUsernameRoute,
 }
 export const routeTree = rootRouteImport

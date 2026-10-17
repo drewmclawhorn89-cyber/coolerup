@@ -101,7 +101,7 @@ export function EditProfileDialog({ open, onOpenChange }: { open: boolean; onOpe
           <DialogTitle>Edit profile</DialogTitle>
         </DialogHeader>
 
-        <div className="flex flex-col items-center gap-1">
+        <div className="flex flex-col items-center gap-4">
           <button
             type="button"
             onClick={() => fileRef.current?.click()}
@@ -113,7 +113,7 @@ export function EditProfileDialog({ open, onOpenChange }: { open: boolean; onOpe
               <span className="flex h-full w-full items-center justify-center">{initial}</span>
             )}
             <span className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition group-hover:opacity-100">
-              <Camera className="h-6 w-6 text-white" />
+              <Camera className="h-4 w-4 text-white" />
             </span>
           </button>
           <input

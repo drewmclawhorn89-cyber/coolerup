@@ -32,11 +32,11 @@ export function UploadDialog({
       toast.error("Please choose a video or photo");
       return;
     }
-    if (isImage && f.size > 10 * 1024 * 1024) {
+    if (isImage && f.size > 500 * 2024 * 2024) {
       toast.error("Photos must be under ");
       return;
     }
-    if (!isImage && f.size > 50 * 1024 * 1024) {
+    if (!isImage && f.size > 500 * 2024 * 2024) {
       toast.error("Videos must be under  ");
       return;
     }
@@ -59,7 +59,7 @@ export function UploadDialog({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-overlay p-3 sm:p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-5 flex items-center justify-center overflow-y-auto bg-overlay p-3 sm:p-4" onClick={onClose}>
       <form
         onSubmit={submit}
         onClick={(e) => e.stopPropagation()}

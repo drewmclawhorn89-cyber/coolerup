@@ -2,8 +2,8 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import {
   Bell,
+  Compass,
   Download,
-  Save,
   Heart,
   Home,
   LogOut,
@@ -37,27 +37,15 @@ export const Route = createFileRoute("/")({
   component: Index,
 });
 
-type Tab = "foryou" | "explore" | "following" | "liked" | "mine" | "inbox";
-type NotificationFilter = "all" | "unread";
-
-type NotificationRow = {
-  id: string;
-  text: string | null;
-  type: string | null;
-  read: boolean | null;
-  created_at: string | null;
-  actor_user_id: string | null;
-  target_user_id: string | null;
-  video_id: string | null;
-};
+type Tab = "foryou" | "explore" | "following" | "liked" | "saved" | "mine" | "inbox";
 
 const NAV: { id: Tab; label: string; icon: typeof Home }[] = [
   { id: "foryou", label: "home", icon: Home },
   { id: "mine", label: "you", icon: Users },
   { id: "following", label: "Following", icon: Users },
   { id: "liked", label: "Liked", icon: Heart },
-  { id: "inbox", label: "Inbox", icon: Bell },
   { id: "saved", label: "Offline", icon: Download },
+  { id: "inbox", label: "Inbox", icon: Bell },
 ];
 
 const HEADERS: Record<Tab, [string, string]> = {
@@ -65,6 +53,7 @@ const HEADERS: Record<Tab, [string, string]> = {
   explore: ["Explore", "Most loved right now"],
   following: ["Following", "Creators you keep coming back to"],
   liked: ["Liked", "Everything you've hearted"],
+  saved: ["Offline", "Watch anytime, even without a connection"],
   mine: ["Profile", "Your loop"],
   inbox: ["Inbox", "All your notifications"],
 };
@@ -105,8 +94,6 @@ function Index() {
   const [error, setError] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [quality, setQuality] = useState<"1080p" | "720p" | "480p">("720p");
-  const [notifications, setNotifications] = useState<NotificationRow[]>([]);
-  const [notificationFilter, setNotificationFilter] = useState<NotificationFilter>("all");
 
   useEffect(() => {
     const conn = (navigator as any).connection;
@@ -179,75 +166,11 @@ function Index() {
     };
   }, []);
 
-  useEffect(() => {
-    if (!auth.user) return;
-    let mounted = true;
-
-    const loadNotifications = async () => {
-      const { data } = await supabase
-        .from("notifications")
-        .select("id, actor_user_id, target_user_id, text, type, video_id, created_at, read")
-        .eq("target_user_id", auth.user!.id)
-        .order("created_at", { ascending: false });
-      if (!mounted) return;
-      setNotifications((data ?? []) as NotificationRow[]);
-    };
-
-    void loadNotifications();
-
-    const channel = supabase
-      .channel(`notifications:user=${auth.user.id}`)
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "notifications", filter: `target_user_id=eq.${auth.user.id}` },
-        (payload) => {
-          setNotifications((cur) => [payload.new as NotificationRow, ...cur]);
-        }
-      )
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "notifications", filter: `target_user_id=eq.${auth.user.id}` },
-        (payload) => {
-          setNotifications((cur) => cur.map((n) => (n.id === payload.new.id ? (payload.new as NotificationRow) : n)));
-        }
-      )
-      .subscribe();
-
-    return () => {
-      mounted = false;
-      try {
-        supabase.removeChannel(channel);
-      } catch {}
-    };
-  }, [auth.user?.id]);
-
-  const unreadCount = notifications.filter((n) => !n.read).length;
-
-  const markRead = async (id: string) => {
-    const { error } = await supabase.from("notifications").update({ read: true }).eq("id", id);
-    if (error) return;
-    setNotifications((n) => n.map((x) => (x.id === id ? { ...x, read: true } : x)));
-  };
-
-  const markAllRead = async () => {
-    if (!auth.user) return;
-    const { error } = await supabase
-      .from("notifications")
-      .update({ read: true })
-      .eq("target_user_id", auth.user.id)
-      .eq("read", false);
-    if (error) return;
-    setNotifications((n) => n.map((x) => ({ ...x, read: true })));
-  };
-
-  const filteredNotifications =
-    notificationFilter === "unread" ? notifications.filter((n) => !n.read) : notifications;
-
   const offlineMode = !online || (error && saved.length > 0);
-  const activeTab = offlineMode ? "foryou" : tab;
+  const activeTab = offlineMode ? "saved" : tab;
 
   const shown = useMemo(() => {
-    let list = offlineMode ? saved : videos ?? [];
+    let list = activeTab === "saved" ? saved : videos ?? [];
     const q = query.trim().toLowerCase();
     if (q) list = list.filter((v) => v.caption.toLowerCase().includes(q) || v.username.toLowerCase().includes(q));
     if (activeTab === "explore") list = [...list].sort((a, b) => b.likes_count - a.likes_count);
@@ -255,9 +178,9 @@ function Index() {
     if (activeTab === "liked") list = list.filter((v) => liked.has(v.id));
     if (activeTab === "mine") list = me ? list.filter((v) => v.username === me) : [];
     return list;
-  }, [videos, saved, query, activeTab, liked, me, offlineMode]);
+  }, [videos, saved, query, activeTab, liked, me]);
 
-  const [title, sub] = query ? [`Results for "${query}"`, `${shown.length} videos`] : offlineMode ? ["Offline", "Watch anytime, even without a connection"] : HEADERS[activeTab];
+  const [title, sub] = query ? [`Results for "${query}"`, `${shown.length} videos`] : HEADERS[activeTab];
 
   return (
     <div className="flex h-dvh overflow-hidden bg-background">
@@ -289,14 +212,7 @@ function Index() {
                 }`}
               >
                 <Icon className="h-5 w-5" />
-                <span className="flex items-center gap-2">
-                  {label}
-                  {id === "inbox" && unreadCount > 0 && (
-                    <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] text-primary-foreground">
-                      {unreadCount}
-                    </span>
-                  )}
-                </span>
+                {label}
               </button>
             </Fragment>
           ))}
@@ -304,7 +220,7 @@ function Index() {
 
         <button
           onClick={() => (auth.user ? setUploading(true) : auth.signIn())}
-          className="flex items-center justify-center gap-2 rounded-full bg-primary py-3.5 font-bold text-primary-foreground shadow-[0_10px_30px_-10px_var(--primary)] transition hover:brightness-110"
+          className="flex items-center justify-center gap-2 rounded-full bg-primary py-3.5 font-bold text-primary-foreground shadow-[0_10px_30px_-10px_var(--primary)] transition hover:brightness-95"
         >
           <Plus className="h-5 w-5" /> Upload video
         </button>
@@ -399,51 +315,44 @@ function Index() {
                 <h2 className="text-2xl font-display font-bold">Inbox</h2>
                 <p className="mt-1 text-sm text-muted-foreground">All your notifications in one place</p>
               </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant={notificationFilter === "unread" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setNotificationFilter((f) => (f === "all" ? "unread" : "all"))}
-                >
-                  {notificationFilter === "all" ? "Unread only" : "Show all"}
-                </Button>
-                {unreadCount > 0 && (
-                  <Button variant="ghost" size="sm" onClick={markAllRead}>
-                    Mark all read
-                  </Button>
-                )}
-                <Link to="/messages" className="flex items-center gap-3 rounded-xl px-4 py-3 font-bold transition hover:bg-secondary">
-                  <MessageCircle className="h-5 w-5" />
-                  Messages
-                </Link>
-              </div>
+              <Link to="/messages" className="flex items-center gap-3 rounded-xl px-4 py-3 font-bold transition hover:bg-secondary">
+                <MessageCircle className="h-5 w-5" />
+                Messages
+              </Link>
             </div>
 
             <div className="mt-6 max-w-2xl space-y-3">
-              {filteredNotifications.length === 0 ? (
-                <div className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">
-                  {notificationFilter === "unread" ? "No unread notifications" : "No notifications"}
+              <div className="flex items-center gap-3 rounded-xl border bg-card p-4">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-pink-500/20">❤️</div>
+                <div className="flex-1">
+                  <p className="text-sm">
+                    <b>@alexfit</b> liked your fit
+                  </p>
+                  <p className="text-xs text-muted-foreground">2m ago</p>
                 </div>
-              ) : (
-                filteredNotifications.map((n) => (
-                  <div
-                    key={n.id}
-                    className={`flex items-center gap-3 rounded-xl border bg-card p-4 ${n.read ? "opacity-70" : ""}`}
-                    onClick={() => !n.read && markRead(n.id)}
-                  >
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-500/10 text-lg">
-                      {n.type === "like" ? "❤️" : n.type === "follow" ? "👤" : "💬"}
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-sm">{n.text}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {n.created_at ? new Date(n.created_at).toLocaleString() : ""}
-                      </p>
-                    </div>
-                    {!n.read && <div className="h-2 w-2 rounded-full bg-primary" />}
-                  </div>
-                ))
-              )}
+                <div className="h-2 w-2 rounded-full bg-primary" />
+              </div>
+
+              <div className="flex items-center gap-3 rounded-xl border bg-card p-4">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-500/20">👤</div>
+                <div className="flex-1">
+                  <p className="text-sm">
+                    <b>@jordan</b> followed you
+                  </p>
+                  <p className="text-xs text-muted-foreground">1h ago</p>
+                </div>
+                <div className="h-2 w-2 rounded-full bg-primary" />
+              </div>
+
+              <div className="flex items-center gap-3 rounded-xl border bg-card p-4">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-500/20">💬</div>
+                <div className="flex-1">
+                  <p className="text-sm">
+                    <b>@sam</b> commented: "fire fit 🔥"
+                  </p>
+                  <p className="text-xs text-muted-foreground">3h ago</p>
+                </div>
+              </div>
             </div>
           </div>
         ) : (
@@ -455,11 +364,11 @@ function Index() {
 
             <div className="no-scrollbar min-h-0 flex-1 snap-y snap-mandatory overflow-y-scroll overscroll-contain">
               {error && !offlineMode && <Empty text="Couldn't load videos. Refresh to try again." />}
-              {!error && videos === null && !offlineMode && <Empty text="Loading your feed..." />}
-              {shown.length === 0 && (
+              {!error && videos === null && activeTab !== "saved" && <Empty text="Loading your feed..." />}
+              {(videos || activeTab === "saved") && shown.length === 0 && (
                 <Empty
                   text={
-                    offlineMode
+                    activeTab === "saved"
                       ? "No saved videos yet. Tap Share → Save for offline on any video."
                       : "Nothing here yet."
                   }

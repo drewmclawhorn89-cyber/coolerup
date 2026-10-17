@@ -493,7 +493,7 @@ function Index() {
               variant="ghost"
               onClick={() => setTab(id)}
               aria-current={activeTab === id ? "page" : undefined}
-              className={`h-14 min-w-0 flex-col gap-1 rounded-none px-0 text-[9px] ${
+              className={`h-14 w-full min-w-0 flex-col gap-1 rounded-none px-0 text-[9px] ${
                 activeTab === id ? "text-primary" : "text-muted-foreground"
               }`}
             >

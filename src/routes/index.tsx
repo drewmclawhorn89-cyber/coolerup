@@ -18,6 +18,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { VideoCard } from "@/components/VideoCard";
 import { UploadDialog } from "@/components/UploadDialog";
+import { RecordDialog } from "@/components/RecordDialog"
 import { fetchMyLikes, fetchVideos, type Video } from "@/lib/loop";
 import { listSaved, onOfflineChange } from "@/lib/offline";
 import { useAuth } from "@/hooks/useAuth";

@@ -486,43 +486,43 @@ function Index() {
           </>
         )}
 
-        <nav aria-label="Phone navigation" className="mobile-bottom-nav grid shrink-0 grid-cols-7 place-items-center w-full gap-0 border-t bg-black px-0 md:hidden"
-          {NAV.slice(0, 3).map(({ id, label, icon: Icon }) => (
-            <Button
-              key={id}
-              variant="ghost"
-              onClick={() => setTab(id)}
-              aria-current={activeTab === id ? "page" : undefined}
-              className={`h-14 min-w-0 flex-col gap-1 rounded-none px-0 text-[9px] ${
-                activeTab === id ? "text-primary" : "text-muted-foreground"
-              }`}
-            >
-              <Icon className="h-5 w-5" />
-              {label}
-            </Button>
-          ))}
-          <Button
-            aria-label="Upload video"
-            onClick={() => (auth.user ? setUploading(true) : auth.signIn())}
-            className="m-auto h-9 w-10 rounded-lg px-0 [&_svg]:size-6"
-          >
-            <Plus />
-          </Button>
-          {NAV.slice(3).map(({ id, label, icon: Icon }) => (
-            <Fragment key={id}>
-              <Button
-                variant="ghost"
-                onClick={() => setTab(id)}
-                aria-current={activeTab === id ? "page" : undefined}
-                className={`h-14 min-w-0 flex-col gap-1 rounded-none px-0 text-[9px] ${
-                  activeTab === id ? "text-primary" : "text-muted-foreground"
-                }`}
-              >
-                <Icon className="h-5 w-5" />
-                {id === "mine" ? "You" : label}
-              </Button>
-            </Fragment>
-          ))}
+       <nav aria-label="Phone navigation" className="mobile-bottom-nav grid shrink-0 grid-cols-7 place-items-center w-full gap-0 border-t bg-black px-0 md:hidden">
+  {NAV.slice(0, 3).map(([id, label, icon: Icon]) => (
+    <Fragment key={id}>
+      <Button
+        variant="ghost"
+        onClick={() => setTab(id)}
+        aria-current={activeTab === id ? "page" : undefined}
+        className={`h-14 w-full min-w-0 flex-col gap-1 rounded-none px-0 text- flex items-center justify-center ${activeTab === id ? "text-white" : "text-white/60"}`}
+      >
+        <Icon className="h-5 w-5" />
+        {id === "mine" ? "You" : label}
+      </Button>
+    </Fragment>
+  ))}
+
+  <Button
+    aria-label="Upload video"
+    onClick={() => (auth.user ? setUploading(true) : auth.signIn())}
+    className="place-self-center h-9 w-10 rounded-lg bg-white text-black flex items-center justify-center px-0 [&_svg]:size-6"
+  >
+    <Plus />
+  </Button>
+
+  {NAV.slice(3).map(([id, label, icon: Icon]) => (
+    <Fragment key={id}>
+      <Button
+        variant="ghost"
+        onClick={() => setTab(id)}
+        aria-current={activeTab === id ? "page" : undefined}
+        className={`h-14 w-full min-w-0 flex-col gap-1 rounded-none px-0 text- flex items-center justify-center ${activeTab === id ? "text-white" : "text-white/60"}`}
+      >
+        <Icon className="h-5 w-5" />
+        {id === "mine" ? "You" : label}
+      </Button>
+    </Fragment>
+  ))}
+</nav>
           {auth.user && auth.handle ? (
             <Link
               to="/u/$username"

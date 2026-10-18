@@ -82,7 +82,7 @@ function Messages() {
       <div className="flex h-dvh flex-col items-center justify-center gap-4 bg-background p-6 text-center">
         <p className="font-display text-2xl">Your messages</p>
         <p className="text-muted-foreground">Sign in to send and read private messages.</p>
-        <Button onClick={auth.signIn}>Sign in with Google</Button>
+        <Button onClick={auth.signIn}>Sign in</Button>
         <Link to="/" className="text-sm text-muted-foreground">Back to Loop</Link>
       </div>
     );

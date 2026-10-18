@@ -48,7 +48,7 @@ export function ReportDialog({ username, videoId, onClose }: { username: string;
           <button onClick={onClose} aria-label="Close"><X className="h-5 w-5" /></button>
         </div>
         {!auth.user ? (
-          <Button onClick={auth.signIn} className="w-full rounded-full">Sign in with Google to report</Button>
+          <Button onClick={auth.signIn} className="w-full rounded-full">Sign in to report</Button>
         ) : (
           <>
             <div className="grid grid-cols-2 gap-2">

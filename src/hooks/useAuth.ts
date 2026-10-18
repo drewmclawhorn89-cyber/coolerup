@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable/index";
 import { toast } from "sonner";
 
 export type Profile = {
@@ -15,6 +14,10 @@ export type Profile = {
 const PROFILE_EVENT = "loop-profile-changed";
 /** Tell every screen to reload the signed-in profile (after editing it). */
 export const refreshProfile = () => window.dispatchEvent(new Event(PROFILE_EVENT));
+
+export const OPEN_AUTH_EVENT = "loop-open-auth";
+/** Open the sign-in dialog (Phone | Email | Google), mounted once in the root route. */
+export const openAuthDialog = () => window.dispatchEvent(new Event(OPEN_AUTH_EVENT));
 
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
@@ -45,7 +48,9 @@ export function useAuth() {
     user?.user_metadata?.["full_name"] || user?.user_metadata?.["name"] || user?.email?.split("@")[0] || null;
   const derivedHandle = googleName
     ? googleName.toLowerCase().replace(/[^a-z0-9._]/g, "").slice(0, 40) || "user"
-    : null;
+    : user?.phone
+      ? `user${user.phone.replace(/\D/g, "").slice(-4)}`
+      : null;
 
   // Load (or create on first sign-in) this account's profile. Edited values are never overwritten.
   useEffect(() => {
@@ -91,12 +96,7 @@ export function useAuth() {
   const name: string | null = profile?.display_name || googleName;
   const avatar: string | null = resolvedAvatar || user?.user_metadata?.["avatar_url"] || null;
 
-  const signIn = async () => {
-    const result = await lovable.auth.signInWithOAuth("google", {
-      redirect_uri: window.location.origin,
-    });
-    if (result.error) toast.error("Google sign-in failed");
-  };
+  const signIn = async () => openAuthDialog();
   const signOut = () => supabase.auth.signOut();
 
   return { user, ready, name, handle, avatar, profile, isAdmin, signIn, signOut };

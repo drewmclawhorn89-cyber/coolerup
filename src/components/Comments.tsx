@@ -84,7 +84,7 @@ export function Comments({
               onClick={signIn}
               className="w-full rounded-full bg-primary py-2.5 text-sm font-bold text-primary-foreground"
             >
-              Sign in with Google to comment
+              Sign in to comment
             </button>
           </div>
         ) : (

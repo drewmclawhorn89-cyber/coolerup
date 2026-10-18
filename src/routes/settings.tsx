@@ -156,7 +156,7 @@ function Settings() {
       <div className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-background p-6 text-center">
         <p className="font-display text-2xl">Settings</p>
         <p className="max-w-sm text-muted-foreground">Sign in to manage your profile, username, and account preferences.</p>
-        <Button onClick={auth.signIn}>Sign in with Google</Button>
+        <Button onClick={auth.signIn}>Sign in</Button>
         <Link to="/" className="text-sm text-muted-foreground">Back to home</Link>
       </div>
     );

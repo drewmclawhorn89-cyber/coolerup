@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as MessagesRouteImport } from './routes/messages'
+import { Route as OfflineRouteImport } from './routes/offline'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as UUsernameRouteImport } from './routes/u.$username'
 
@@ -22,6 +23,11 @@ const IndexRoute = IndexRouteImport.update({
 const MessagesRoute = MessagesRouteImport.update({
   id: '/messages',
   path: '/messages',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OfflineRoute = OfflineRouteImport.update({
+  id: '/offline',
+  path: '/offline',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SettingsRoute = SettingsRouteImport.update({
@@ -38,12 +44,14 @@ const UUsernameRoute = UUsernameRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/messages': typeof MessagesRoute
+  '/offline': typeof OfflineRoute
   '/settings': typeof SettingsRoute
   '/u/$username': typeof UUsernameRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/messages': typeof MessagesRoute
+  '/offline': typeof OfflineRoute
   '/settings': typeof SettingsRoute
   '/u/$username': typeof UUsernameRoute
 }
@@ -51,20 +59,22 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/messages': typeof MessagesRoute
+  '/offline': typeof OfflineRoute
   '/settings': typeof SettingsRoute
   '/u/$username': typeof UUsernameRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/messages' | '/settings' | '/u/$username'
+  fullPaths: '/' | '/messages' | '/offline' | '/settings' | '/u/$username'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/messages' | '/settings' | '/u/$username'
-  id: '__root__' | '/' | '/messages' | '/settings' | '/u/$username'
+  to: '/' | '/messages' | '/offline' | '/settings' | '/u/$username'
+  id: '__root__' | '/' | '/messages' | '/offline' | '/settings' | '/u/$username'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   MessagesRoute: typeof MessagesRoute
+  OfflineRoute: typeof OfflineRoute
   SettingsRoute: typeof SettingsRoute
   UUsernameRoute: typeof UUsernameRoute
 }
@@ -83,6 +93,13 @@ declare module '@tanstack/react-router' {
       path: '/messages'
       fullPath: '/messages'
       preLoaderRoute: typeof MessagesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/offline': {
+      id: '/offline'
+      path: '/offline'
+      fullPath: '/offline'
+      preLoaderRoute: typeof OfflineRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/settings': {
@@ -105,6 +122,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   MessagesRoute: MessagesRoute,
+  OfflineRoute: OfflineRoute,
   SettingsRoute: SettingsRoute,
   UUsernameRoute: UUsernameRoute,
 }

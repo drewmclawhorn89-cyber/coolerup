@@ -333,7 +333,7 @@ function Index() {
             onClick={auth.signIn}
             className="mt-auto flex items-center justify-center gap-2 rounded-xl border bg-secondary p-3 font-bold transition hover:bg-accent"
           >
-            Sign in with Google
+            Sign in
           </button>
         )}
       </aside>
@@ -355,7 +355,7 @@ function Index() {
             <Button
               variant="ghost"
               size="icon"
-              aria-label={auth.user ? "Sign out" : "Sign in with Google"}
+              aria-label={auth.user ? "Sign out" : "Sign in"}
               onClick={auth.user ? auth.signOut : auth.signIn}
             >
               {auth.avatar ? (

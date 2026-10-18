@@ -14,6 +14,7 @@ import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { CallProvider } from "../lib/calls";
 import { CallOverlay } from "../components/CallOverlay";
+import { PhoneAuthDialog } from "../components/PhoneAuthDialog";
 import { Toaster } from "sonner";
 function NotFoundComponent() {
   return (
@@ -133,6 +134,7 @@ function RootComponent() {
         <Outlet />
         <CallOverlay />
       </CallProvider>
+      <PhoneAuthDialog />
       <Toaster theme="dark" position="top-center" />
     </QueryClientProvider>
   );

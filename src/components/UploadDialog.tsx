@@ -125,7 +125,5 @@ export function UploadDialog({
         </div>
       </form>
     </div>
-    <RecordDialog open={recordingOpen} onOpenChange={setRecordingOpen} />
-  </div> 
   );
 }

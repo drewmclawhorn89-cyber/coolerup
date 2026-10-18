@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Fragment, useEffect, useMemo, useState } from "react";
+import { RecordDialog } from "@/components/RecordDialog"
 import {
   Bell,
   Download,
@@ -101,6 +102,7 @@ function Index() {
   const [query, setQuery] = useState("");
   const [muted, setMuted] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [recordingOpen, setRecordingOpen] = useState(false)
   const [error, setError] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [quality, setQuality] = useState<"1080p" | "720p" | "480p">("720p");

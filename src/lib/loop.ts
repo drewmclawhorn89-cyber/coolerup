@@ -68,6 +68,20 @@ export async function uploadVideo(file: File, username: string, caption: string)
   if (error) throw error;
 }
 
+export async function uploadRecording(blob: Blob, username: string, caption: string) {
+  const contentType = blob.type || "video/webm";
+  const ext = contentType.includes("mp4") ? "mp4" : "webm";
+  const path = `recorded-${Date.now()}.${ext}`;
+  const { error: upErr } = await supabase.storage
+    .from("videos")
+    .upload(path, blob, { contentType });
+  if (upErr) throw upErr;
+  const { error } = await supabase
+    .from("videos")
+    .insert({ username, caption, video_url: STORAGE_PREFIX + path });
+  if (error) throw error;
+}
+
 export function formatCount(n: number) {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
   if (n >= 1000) return (n / 1000).toFixed(1) + "K";

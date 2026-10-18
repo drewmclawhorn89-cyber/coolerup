@@ -17,7 +17,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { VideoCard } from "@/components/VideoCard";
 import { UploadDialog } from "@/components/UploadDialog";
-import { RecordDialog } from "@/components/RecordDialog"
+import { RecordDialog } from "@/components/RecordDialog";
 import { fetchMyLikes, fetchVideos, type Video } from "@/lib/loop";
 import { listSaved, onOfflineChange } from "@/lib/offline";
 import { useAuth } from "@/hooks/useAuth";
@@ -102,7 +102,7 @@ function Index() {
   const [query, setQuery] = useState("");
   const [muted, setMuted] = useState(true);
   const [uploading, setUploading] = useState(false);
-  const [recordingOpen, setRecordingOpen] = useState(false)
+  const [recordingOpen, setRecordingOpen] = useState(false);
   const [error, setError] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [quality, setQuality] = useState<"1080p" | "720p" | "480p">("720p");
@@ -145,7 +145,7 @@ function Index() {
   useEffect(() => {
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting) loadMore();
+        if (entry?.isIntersecting) loadMore();
       },
       { threshold: 0.1 }
     );
@@ -209,7 +209,8 @@ function Index() {
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "notifications", filter: `target_user_id=eq.${auth.user.id}` },
         (payload) => {
-          setNotifications((cur) => cur.map((n) => (n.id === payload.new.id ? (payload.new as NotificationRow) : n)));
+          const updated = payload.new as NotificationRow;
+          setNotifications((cur) => cur.map((n) => (n.id === updated.id ? updated : n)));
         }
       )
       .subscribe();
@@ -504,8 +505,8 @@ function Index() {
             </Button>
           ))}
           <Button
-            aria-label="Upload video"
-            onClick={() => (auth.user ? setUploading(true) : auth.signIn())}
+            aria-label="Record video"
+            onClick={() => (auth.user ? setRecordingOpen(true) : auth.signIn())}
             className="m-auto h-9 w-10 rounded-lg px-0 [&_svg]:size-6"
           >
             <Plus />
@@ -578,6 +579,17 @@ function Index() {
           }}
         />
       )}
+
+      <RecordDialog
+        open={recordingOpen}
+        onOpenChange={setRecordingOpen}
+        username={auth.handle}
+        onUploadInstead={() => setUploading(true)}
+        onPosted={() => {
+          setTab("mine");
+          load();
+        }}
+      />
     </div>
   );
 }

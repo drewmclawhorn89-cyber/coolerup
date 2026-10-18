@@ -559,7 +559,7 @@ function Index() {
           </p>
           <p className="mt-6 text-muted-foreground">The world wants your point of view</p>
           <button
-            onClick={() => (auth.user ? setUploading(true) : auth.signIn())}
+            onClick={() => (auth.user ? setRecordingOpen(true) : auth.signIn())}
             className="mt-8 w-full rounded-full border border-primary py-3 font-bold text-primary transition hover:bg-primary hover:text-primary-foreground"
           >
             Share yours

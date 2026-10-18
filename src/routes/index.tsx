@@ -486,7 +486,7 @@ function Index() {
           </>
         )}
 
-        <nav aria-label="Phone navigation" className="mobile-bottom-nav grid shrink-0 grid-cols-8 border-t bg-sidebar px-1 md:hidden">
+        <nav aria-label="Phone navigation" className="mobile-bottom-nav grid shrink-0 grid-cols-7 place-items-center w-full gap-0 border-t bg-black px-0 md:hidden"
           {NAV.slice(0, 3).map(({ id, label, icon: Icon }) => (
             <Button
               key={id}

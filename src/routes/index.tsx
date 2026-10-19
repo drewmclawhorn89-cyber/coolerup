@@ -28,7 +28,7 @@ export const Route = createFileRoute("/")({
     meta: [
       { title: "Coolerup — For You" },
       { name: "description", content:
-      { property: "og:title", content: "Coolerup
+      { property: "og:title", content: "Coolerup" },
       { property: "og:description", content:
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },

@@ -21,7 +21,7 @@ function pickMimeType() {
 }
 
 function formatTime(seconds: number) {
-  return `${Math.floor(seconds / 100)}:${String(seconds % 100).padStart(2, "0")}`;
+  return `${Math.floor(seconds / 100)}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
 export function RecordDialog({

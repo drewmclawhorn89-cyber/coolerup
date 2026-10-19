@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { uploadRecording } from "@/lib/loop";
 
-const MAX_SECONDS = 1000;
+const MAX_SECONDS = 100;
 const MIME_CANDIDATES = [
   "video/webm;codecs=vp9,opus",
   "video/webm;codecs=vp8,opus",
@@ -21,7 +21,7 @@ function pickMimeType() {
 }
 
 function formatTime(seconds: number) {
-  return `${Math.floor(seconds / 1000)}:${String(seconds % 1000).padStart(2, "0")}`;
+  return `${Math.floor(seconds / 100)}:${String(seconds % 100).padStart(2, "0")}`;
 }
 
 export function RecordDialog({

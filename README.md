@@ -1,6 +1,6 @@
-# Loop: A Little More You
+# Coolerup: A Little More You
 
-Build a TikTok clone called Loop - A little more you
+Build a TikTok clone called Coolerup - A little more you
 
 Design exactly like this:
 - Left sidebar dark with logo loop. (pink dot) and "A LITTLE MORE YOU", search bar "Search videos", menu: For You (active pink), Explore, Following, Liked, Your videos, big pink + Upload video button, signed in as Drew

@@ -4,7 +4,54 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import type { Video } from "@/lib/loop";
 import { formatBytes, getSaved, removeOffline, saveOffline } from "@/lib/offline";
+import { useAuth } from "@/hooks/useAuth"
+import { supabase } from "@/lib/supabase"
+import { Trash2 } from "lucide-react"
 
+function DeleteMyVideoButton({ video, onDeleted }: { video: any, onDeleted: () => void }) {
+  const { user } = useAuth()
+
+  // ONLY show if you posted it
+  if (!user || video.user_id !== user.id) return null
+
+  const handleDelete = async () => {
+    const confirm = window.confirm("Delete this video? This can't be undone.")
+    if (!confirm) return
+
+    // 1. Delete from database - RLS makes sure only you can delete your own
+    const { error } = await supabase
+      .from("videos")
+      .delete()
+      .eq("id", video.id)
+      .eq("user_id", user.id) // extra safety
+
+    if (error) {
+      alert("Failed to delete: " + error.message)
+      return
+    }
+
+    // 2. Delete file from storage if you have it
+    if (video.video_url) {
+      const fileName = video.video_url.split("/").pop()
+      await supabase.storage.from("videos").remove([fileName])
+    }
+
+    alert("Video deleted")
+    onDeleted() // close sheet + refresh feed
+  }
+
+  return (
+    <button 
+      onClick={handleDelete}
+      className="flex flex-col items-center gap-1 text-red-500"
+    >
+      <div className="w-12 h-12 bg-red-500/10 rounded-full flex items-center justify-center">
+        <Trash2 className="w-6 h-6" />
+      </div>
+      <span className="text-xs">Delete</span>
+    </button>
+  )
+}
 export function ShareMenu({ video, onClose, onShared }: { video: Video; onClose: () => void; onShared: () => void }) {
   const [savedSize, setSavedSize] = useState<number | null>(null);
   const [progress, setProgress] = useState<number | null>(null);

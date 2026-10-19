@@ -3,7 +3,7 @@
 Build a TikTok clone called Coolerup - A little more you
 
 Design exactly like this:
-- Left sidebar dark with logo loop. (pink dot) and "A LITTLE MORE YOU", search bar "Search videos", menu: For You (active pink), Explore, Following, Liked, Your videos, big pink + Upload video button, signed in as Drew
+- Left sidebar dark with logo coolerup. (pink dot) and "A LITTLE MORE YOU", search bar "Search videos", menu: For You (active pink), Explore, Following, Liked, Your videos, big pink + Upload video button, signed in as Drew
 - Center: "For You - A fresh perspective with every scroll" header, vertical video feed with scroll snap, each video is 9:16 with caption @username below
 - Right side of video: vertical buttons: avatar D, heart like count, up/down arrows, comments, share, spinning music disc
 - Right sidebar: "Find your vibe", tags All Lifestyle etc, hashtags slowmoments, wanderlust, creative, card "LESS PERFECT. MORE REAL. The world wants your point of view"

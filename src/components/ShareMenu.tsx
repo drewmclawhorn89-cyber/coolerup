@@ -178,7 +178,14 @@ export function ShareMenu({ video, onClose, onShared }: { video: Video; onClose:
             <span className="text-xs text-zinc-300">{savedSize ? "Remove" : "Save"}</span>
           </button>
         </div>
-
+<div className="grid grid-cols-4 gap-4 p-4">
+  {/* your other share buttons */}
+  <button>Copy Link</button>
+  <button>Report</button>
+  
+  {/* ADD THIS LINE */}
+  <DeleteMyVideoButton video={currentVideo} onDeleted={() => setShowShare(false)} />
+</div>
         {progress!== null && (
           <div className="w-full bg-zinc-800 h-2 rounded-full overflow-hidden">
             <div className="h-full bg-white transition-all" style={{ width: `${progress}%` }} />

@@ -286,7 +286,7 @@ const changeTheme = (t: string) => {
     <button onClick={() => changeTheme("light")} className={`rounded-md px-3 py-2 ${theme === "light" ? "bg-primary text-primary-foreground" : "border bg-background"}`}>Light</button>
     <button onClick={() => changeTheme("dark")} className={`rounded-md px-3 py-2 ${theme === "dark" ? "bg-primary text-primary-foreground" : "border bg-background"}`}>Dark</button>
     <button onClick={() => changeTheme("system")} className={`rounded-md px-3 py-2 ${theme === "system" ? "bg-primary text-primary-foreground" : "border bg-background"}`}>System</button>
-    <button onClick={() => changeTheme("blue")} className={`rounded-md px-3 py-2 ${theme === "blue" ? "bg-blue-600 text-white" : "border bg-background"}`}>Blue</button>
+    <button onClick={() => changeTheme("blue")} className={`rounded-md px-3 py-2 ${theme === "blue" ? "bg-blue-600 text-blue" : "border bg-background"}`}>Blue</button>
     <button onClick={() => changeTheme("purple")} className={`rounded-md px-3 py-2 ${theme === "purple" ? "bg-purple-600 text-white" : "border bg-background"}`}>Purple</button>
     <button onClick={() => changeTheme("pink")} className={`rounded-md px-3 py-2 ${theme === "pink" ? "bg-pink-500 text-white" : "border bg-background"}`}>Pink</button>
     <button onClick={() => changeTheme("green")} className={`rounded-md px-3 py-2 ${theme === "green" ? "bg-green-600 text-white" : "border bg-background"}`}>Green</button>

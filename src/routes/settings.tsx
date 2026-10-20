@@ -151,23 +151,23 @@ const changeTheme = (t: string) => {
     document.documentElement.setAttribute("data-theme", "dark");
   } else if (t === "light") {
     document.documentElement.setAttribute("data-theme", "light");
-  } else if (t === "blue") {
-    document.documentElement.setAttribute("data-theme", "light");
-    document.documentElement.style.setProperty("--primary", "221 83% 53%");
-    document.documentElement.style.setProperty("--ring", "221 83% 53%");
-  } else if (t === "purple") {
-    document.documentElement.setAttribute("data-theme", "light");
-    document.documentElement.style.setProperty("--primary", "271 81% 56%");
-    document.documentElement.style.setProperty("--ring", "271 81% 56%");
-  } else if (t === "pink") {
-    document.documentElement.setAttribute("data-theme", "light");
-    document.documentElement.style.setProperty("--primary", "330 81% 60%");
-    document.documentElement.style.setProperty("--ring", "330 81% 60%");
-  } else if (t === "green") {
-    document.documentElement.setAttribute("data-theme", "light");
-    document.documentElement.style.setProperty("--primary", "142 76% 36%");
-    document.documentElement.style.setProperty("--ring", "142 76% 36%");
-  } else {
+ } else if (t === "blue") {
+  document.documentElement.setAttribute("data-theme", "light");
+  document.documentElement.style.setProperty("--primary", "221 83% 53%");
+  document.documentElement.style.setProperty("--ring", "221 83% 53%");
+} else if (t === "purple") {
+  document.documentElement.setAttribute("data-theme", "light");
+  document.documentElement.style.setProperty("--primary", "271 81% 56%");
+  document.documentElement.style.setProperty("--ring", "271 81% 56%");
+} else if (t === "pink") {
+  document.documentElement.setAttribute("data-theme", "light");
+  document.documentElement.style.setProperty("--primary", "330 81% 60%");
+  document.documentElement.style.setProperty("--ring", "330 81% 60%");
+} else if (t === "green") {
+  document.documentElement.setAttribute("data-theme", "light");
+  document.documentElement.style.setProperty("--primary", "142 76% 36%");
+  document.documentElement.style.setProperty("--ring", "142 76% 36%");
+}
     document.documentElement.removeAttribute("data-theme");
   }
   

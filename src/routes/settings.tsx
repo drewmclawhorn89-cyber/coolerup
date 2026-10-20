@@ -6,7 +6,7 @@ import { EditProfileDialog } from "@/components/EditProfileDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-
+import ThemePicker from "@/components/ThemePicker"
 export const Route = createFileRoute("/settings")({
   head: () => ({
     meta: [
@@ -140,16 +140,39 @@ function Settings() {
     toast.success(v ? "Notifications enabled" : "Notifications disabled");
   };
 
-  const changeTheme = (t: string) => {
-    setTheme(t);
-    try {
-      localStorage.setItem("settings:theme", t);
-    } catch {}
-    if (t === "dark") document.documentElement.setAttribute("data-theme", "dark");
-    else if (t === "light") document.documentElement.setAttribute("data-theme", "light");
-    else document.documentElement.removeAttribute("data-theme");
-    toast.success(`Theme: ${t}`);
-  };
+const changeTheme = (t: string) => {
+  setTheme(t);
+  try {
+    localStorage.setItem("settings:theme", t);
+  } catch {}
+
+  // reset primary first
+  if (t === "dark") {
+    document.documentElement.setAttribute("data-theme", "dark");
+  } else if (t === "light") {
+    document.documentElement.setAttribute("data-theme", "light");
+  } else if (t === "blue") {
+    document.documentElement.setAttribute("data-theme", "light");
+    document.documentElement.style.setProperty("--primary", "221 83% 53%");
+    document.documentElement.style.setProperty("--ring", "221 83% 53%");
+  } else if (t === "purple") {
+    document.documentElement.setAttribute("data-theme", "light");
+    document.documentElement.style.setProperty("--primary", "271 81% 56%");
+    document.documentElement.style.setProperty("--ring", "271 81% 56%");
+  } else if (t === "pink") {
+    document.documentElement.setAttribute("data-theme", "light");
+    document.documentElement.style.setProperty("--primary", "330 81% 60%");
+    document.documentElement.style.setProperty("--ring", "330 81% 60%");
+  } else if (t === "green") {
+    document.documentElement.setAttribute("data-theme", "light");
+    document.documentElement.style.setProperty("--primary", "142 76% 36%");
+    document.documentElement.style.setProperty("--ring", "142 76% 36%");
+  } else {
+    document.documentElement.removeAttribute("data-theme");
+  }
+  
+  toast.success(`Theme: ${t}`);
+};
 
   if (auth.ready && !auth.user) {
     return (
@@ -255,16 +278,20 @@ function Settings() {
         </div>
       </div>
 
-      {/* Appearance */}
-      <div className="rounded-2xl border bg-card p-4">
-        <h2 className="font-semibold">Appearance</h2>
-        <p className="mt-1 text-sm text-muted-foreground">Choose an app theme.</p>
-        <div className="mt-3 flex gap-2">
-          <button onClick={() => changeTheme("light")} className={`rounded-md px-3 py-2 ${theme === "light" ? "bg-primary text-primary-foreground" : "border bg-background"}`}>Light</button>
-          <button onClick={() => changeTheme("dark")} className={`rounded-md px-3 py-2 ${theme === "dark" ? "bg-primary text-primary-foreground" : "border bg-background"}`}>Dark</button>
-          <button onClick={() => changeTheme("system")} className={`rounded-md px-3 py-2 ${theme === "system" ? "bg-primary text-primary-foreground" : "border bg-background"}`}>System</button>
-        </div>
-      </div>
+   {/* Appearance */}
+<div className="rounded-2xl border bg-card p-4">
+  <h2 className="font-semibold">Appearance</h2>
+  <p className="mt-1 text-sm text-muted-foreground">Choose an app theme.</p>
+  <div className="mt-3 flex flex-wrap gap-2">
+    <button onClick={() => changeTheme("light")} className={`rounded-md px-3 py-2 ${theme === "light" ? "bg-primary text-primary-foreground" : "border bg-background"}`}>Light</button>
+    <button onClick={() => changeTheme("dark")} className={`rounded-md px-3 py-2 ${theme === "dark" ? "bg-primary text-primary-foreground" : "border bg-background"}`}>Dark</button>
+    <button onClick={() => changeTheme("system")} className={`rounded-md px-3 py-2 ${theme === "system" ? "bg-primary text-primary-foreground" : "border bg-background"}`}>System</button>
+    <button onClick={() => changeTheme("blue")} className={`rounded-md px-3 py-2 ${theme === "blue" ? "bg-blue-600 text-white" : "border bg-background"}`}>Blue</button>
+    <button onClick={() => changeTheme("purple")} className={`rounded-md px-3 py-2 ${theme === "purple" ? "bg-purple-600 text-white" : "border bg-background"}`}>Purple</button>
+    <button onClick={() => changeTheme("pink")} className={`rounded-md px-3 py-2 ${theme === "pink" ? "bg-pink-500 text-white" : "border bg-background"}`}>Pink</button>
+    <button onClick={() => changeTheme("green")} className={`rounded-md px-3 py-2 ${theme === "green" ? "bg-green-600 text-white" : "border bg-background"}`}>Green</button>
+  </div>
+</div> 
 
       {auth.user && <EditProfileDialog open={editing} onOpenChange={setEditing} />}
     </div>

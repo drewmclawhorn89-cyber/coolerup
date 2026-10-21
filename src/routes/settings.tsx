@@ -282,15 +282,15 @@ const changeTheme = (t: string) => {
 <div className="rounded-2xl border bg-card p-4">
   <h2 className="font-semibold">Appearance</h2>
   <p className="mt-1 text-sm text-muted-foreground">Choose an app theme.</p>
-  <div className="mt-3 flex flex-wrap gap-2">
-    <button onClick={() => changeTheme("light")} className={`rounded-md px-3 py-2 ${theme === "light" ? "bg-primary text-primary-foreground" : "border bg-background"}`}>Light</button>
-    <button onClick={() => changeTheme("dark")} className={`rounded-md px-3 py-2 ${theme === "dark" ? "bg-primary text-primary-foreground" : "border bg-background"}`}>Dark</button>
-    <button onClick={() => changeTheme("system")} className={`rounded-md px-3 py-2 ${theme === "system" ? "bg-primary text-primary-foreground" : "border bg-background"}`}>System</button>
-    <button onClick={() => changeTheme("blue")} className={`rounded-md px-3 py-2 ${theme === "blue" ? "bg-blue-600 text-white" : "border bg-background"}`}>Blue</button>
-    <button onClick={() => changeTheme("purple")} className={`rounded-md px-3 py-2 ${theme === "purple" ? "bg-purple-600 text-white" : "border bg-background"}`}>Purple</button>
-    <button onClick={() => changeTheme("pink")} className={`rounded-md px-3 py-2 ${theme === "pink" ? "bg-pink-500 text-white" : "border bg-background"}`}>Pink</button>
-    <button onClick={() => changeTheme("green")} className={`rounded-md px-3 py-2 ${theme === "green" ? "bg-green-600 text-white" : "border bg-background"}`}>Green</button>
-  </div>
+<div className="mt-3 flex flex-wrap gap-2">
+  <button onClick={() => changeTheme("light")} className={`rounded-md px-3 py-2 ${theme === "light" ? "ring-2 ring-offset-2 ring-black" : "border"} bg-white text-black`}>Light</button>
+  <button onClick={() => changeTheme("dark")} className={`rounded-md px-3 py-2 ${theme === "dark" ? "ring-2 ring-offset-2 ring-black" : "border"} bg-black text-white`}>Dark</button>
+  <button onClick={() => changeTheme("system")} className={`rounded-md px-3 py-2 ${theme === "system" ? "ring-2 ring-offset-2 ring-black" : "border"} bg-zinc-200 text-black`}>System</button>
+  <button onClick={() => changeTheme("blue")} className={`rounded-md px-3 py-2 bg-blue-600 text-white ${theme === "blue" ? "ring-2 ring-offset-2 ring-blue-600" : ""}`}>Blue</button>
+  <button onClick={() => changeTheme("purple")} className={`rounded-md px-3 py-2 bg-purple-600 text-white ${theme === "purple" ? "ring-2 ring-offset-2 ring-purple-600" : ""}`}>Purple</button>
+  <button onClick={() => changeTheme("pink")} className={`rounded-md px-3 py-2 bg-pink-500 text-white ${theme === "pink" ? "ring-2 ring-offset-2 ring-pink-500" : ""}`}>Pink</button>
+  <button onClick={() => changeTheme("green")} className={`rounded-md px-3 py-2 bg-green-600 text-white ${theme === "green" ? "ring-2 ring-offset-2 ring-green-600" : ""}`}>Green</button>
+</div>
 </div> 
 
       {auth.user && <EditProfileDialog open={editing} onOpenChange={setEditing} />}

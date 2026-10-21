@@ -283,13 +283,13 @@ const changeTheme = (t: string) => {
   <h2 className="font-semibold">Appearance</h2>
   <p className="mt-1 text-sm text-muted-foreground">Choose an app theme.</p>
 <div className="mt-3 flex flex-wrap gap-2">
-  <button onClick={() => changeTheme("light")} className={`rounded-md px-3 py-2 bg-white text-black border ${theme === "light" ? "ring-2 ring-offset-2 ring-black" : ""}`}>Light</button>
-  <button onClick={() => changeTheme("dark")} className={`rounded-md px-3 py-2 bg-black text-white border ${theme === "dark" ? "ring-2 ring-offset-2 ring-white" : ""}`}>Dark</button>
-  <button onClick={() => changeTheme("system")} className={`rounded-md px-3 py-2 bg-zinc-200 text-black border ${theme === "system" ? "ring-2 ring-offset-2 ring-black" : ""}`}>System</button>
-  <button onClick={() => changeTheme("blue")} className={`rounded-md px-3 py-2 bg-blue-600 text-white ${theme === "blue" ? "ring-2 ring-offset-2 ring-blue-600" : ""}`}>Blue</button>
-  <button onClick={() => changeTheme("purple")} className={`rounded-md px-3 py-2 bg-purple-600 text-white ${theme === "purple" ? "ring-2 ring-offset-2 ring-purple-600" : ""}`}>Purple</button>
-  <button onClick={() => changeTheme("pink")} className={`rounded-md px-3 py-2 bg-pink-500 text-white ${theme === "pink" ? "ring-2 ring-offset-2 ring-pink-500" : ""}`}>Pink</button>
-  <button onClick={() => changeTheme("green")} className={`rounded-md px-3 py-2 bg-green-600 text-white ${theme === "green" ? "ring-2 ring-offset-2 ring-green-600" : ""}`}>Green</button>
+  <button onClick={() => changeTheme("light")} style={{backgroundColor: "white", color: "black"}} className="rounded-md px-3 py-2 border">Light</button>
+  <button onClick={() => changeTheme("dark")} style={{backgroundColor: "black", color: "white"}} className="rounded-md px-3 py-2 border">Dark</button>
+  <button onClick={() => changeTheme("system")} style={{backgroundColor: "#e4e4e7", color: "black"}} className="rounded-md px-3 py-2 border">System</button>
+  <button onClick={() => changeTheme("blue")} style={{backgroundColor: "#2563EB", color: "white"}} className="rounded-md px-3 py-2">Blue</button>
+  <button onClick={() => changeTheme("purple")} style={{backgroundColor: "#9333ea", color: "white"}} className="rounded-md px-3 py-2">Purple</button>
+  <button onClick={() => changeTheme("pink")} style={{backgroundColor: "#ec4899", color: "white"}} className="rounded-md px-3 py-2">Pink</button>
+  <button onClick={() => changeTheme("green")} style={{backgroundColor: "#16a34a", color: "white"}} className="rounded-md px-3 py-2">Green</button>
 </div>
 </div> 
 

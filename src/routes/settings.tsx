@@ -164,22 +164,22 @@ const changeTheme = (t: string) => {
     root.style.removeProperty("--ring");
   } else if (t === "blue") {
     root.setAttribute("data-theme", "light");
-    root.style.setProperty("--background", "214 100% 97%");
+    root.style.setProperty("--background", "214 100% 90%");
     root.style.setProperty("--primary", "221 83% 53%");
     root.style.setProperty("--ring", "221 83% 53%");
   } else if (t === "purple") {
     root.setAttribute("data-theme", "light");
-    root.style.setProperty("--background", "270 100% 98%");
+    root.style.setProperty("--background", "270 100% 92%");
     root.style.setProperty("--primary", "271 81% 56%");
     root.style.setProperty("--ring", "271 81% 56%");
   } else if (t === "pink") {
     root.setAttribute("data-theme", "light");
-    root.style.setProperty("--background", "327 100% 98%");
+    root.style.setProperty("--background", "327 100% 92%");
     root.style.setProperty("--primary", "330 81% 60%");
     root.style.setProperty("--ring", "330 81% 60%");
   } else if (t === "green") {
     root.setAttribute("data-theme", "light");
-    root.style.setProperty("--background", "142 76% 97%");
+    root.style.setProperty("--background", "142 76% 90%");
     root.style.setProperty("--primary", "142 71% 45%");
     root.style.setProperty("--ring", "142 71% 45%");
   }

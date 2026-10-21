@@ -178,10 +178,6 @@ const changeTheme = (t: string) => {
   }
 };
 
-  } else {
-    document.documentElement.removeAttribute("data-theme");
-  }
-  
   toast.success(`Theme: ${t}`);
 };
 

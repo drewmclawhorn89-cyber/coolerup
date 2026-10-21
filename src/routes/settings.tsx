@@ -150,7 +150,7 @@ const changeTheme = (t: string) => {
   if (t === "dark") {
     document.documentElement.setAttribute("data-theme", "dark");
   } else if (t === "light") {
-    document.documentElement.setAttribute("data-theme", "blue");
+    document.documentElement.setAttribute("data-theme", "light");
   } else if (t === "blue") {
     document.documentElement.setAttribute("data-theme", "light");
     document.documentElement.style.setProperty("--primary", "221 83% 53%");

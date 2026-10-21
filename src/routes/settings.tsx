@@ -143,30 +143,29 @@ const changeTheme = (t: string) => {
   setTheme(t);
   try { localStorage.setItem("settings:theme", t); } catch {}
   const root = document.documentElement;
-  
-  // reset
-  root.style.removeProperty("--background");
-  root.style.removeProperty("--primary");
 
-  if (t === "blue") {
-    root.style.setProperty("--background", "221 83% 53%");
-    root.style.setProperty("--primary", "0 0% 0%");
-  } else if (t === "purple") {
-    root.style.setProperty("--background", "271 81% 56%");
-    root.style.setProperty("--primary", "0 0% 0%");
-  } else if (t === "pink") {
-    root.style.setProperty("--background", "330 81% 60%");
-    root.style.setProperty("--primary", "0 0% 0%");
-  } else if (t === "green") {
-    root.style.setProperty("--background", "142 71% 45%");
-    root.style.setProperty("--primary", "0 0% 0%");
-  } else if (t === "light") {
-    root.style.setProperty("--background", "0 0% 100%");
-    root.style.setProperty("--primary", "0 0% 0%");
-  } else if (t === "dark") {
-    root.style.setProperty("--background", "0 0% 8%");
-    root.style.setProperty("--primary", "0 0% 0%");
-  }
+  let bg = "";
+  let fg = "";
+
+  if (t === "light") { bg = "white"; fg = "black"; }
+  else if (t === "dark") { bg = "#111"; fg = "white"; }
+  else if (t === "blue") { bg = "#2563EB"; fg = "white"; }
+  else if (t === "purple") { bg = "#9333ea"; fg = "white"; }
+  else if (t === "pink") { bg = "#ec4899"; fg = "white"; }
+  else if (t === "green") { bg = "#16a34a"; fg = "white"; }
+  else { bg = "white"; fg = "black"; }
+
+  // FORCE background - this works even if your pages use bg-white
+  root.style.setProperty("--background", bg);
+  document.body.style.backgroundColor = bg;
+  document.documentElement.style.backgroundColor = bg;
+  root.style.setProperty("--foreground", fg);
+
+  // FORCE black buttons for every color
+  root.style.setProperty("--primary", "0 0% 0%");
+  root.style.setProperty("--primary-foreground", "0 0% 100%");
+  root.style.setProperty("--ring", "0 0% 0%");
+
   toast.success(`Theme: ${t}`);
 };
   if (auth.ready && !auth.user) {

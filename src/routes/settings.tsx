@@ -171,12 +171,11 @@ const changeTheme = (t: string) => {
     root.setAttribute("data-theme", "light");
     root.style.setProperty("--primary", "330 81% 60%");
     root.style.setProperty("--ring", "330 81% 60%");
-  } else if (t === "green") {
+    } else if (t === "green") {
     root.setAttribute("data-theme", "light");
     root.style.setProperty("--primary", "142 71% 45%");
     root.style.setProperty("--ring", "142 71% 45%");
   }
-};
 
   toast.success(`Theme: ${t}`);
 };

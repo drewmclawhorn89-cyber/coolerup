@@ -139,94 +139,54 @@ function Settings() {
     } catch {}
     toast.success(v ? "Notifications enabled" : "Notifications disabled");
   };
-import { useEffect, useState } from "react";
-import { toast } from "sonner";
+const changeTheme = (t: string) => {
+  setTheme(t);
+  try { localStorage.setItem("settings:theme", t); } catch {}
+  const root = document.documentElement;
+  root.classList.remove("light", "dark", "blue", "purple", "pink", "green", "system");
+  root.classList.add(t);
 
-function Settings() {
-  const [theme, setTheme] = useState("light");
+  if (t === "light") {
+    root.setAttribute("data-theme", "light");
+    root.style.removeProperty("--background");
+    root.style.removeProperty("--primary");
+    root.style.removeProperty("--ring");
+  } else if (t === "dark") {
+    root.setAttribute("data-theme", "dark");
+    root.style.removeProperty("--background");
+    root.style.removeProperty("--primary");
+    root.style.removeProperty("--ring");
+  } else if (t === "system") {
+    const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    root.setAttribute("data-theme", isDark ? "dark" : "light");
+    root.style.removeProperty("--background");
+    root.style.removeProperty("--primary");
+    root.style.removeProperty("--ring");
+  } else if (t === "blue") {
+    root.setAttribute("data-theme", "light");
+    root.style.setProperty("--background", "214 100% 97%");
+    root.style.setProperty("--primary", "221 83% 53%");
+    root.style.setProperty("--ring", "221 83% 53%");
+  } else if (t === "purple") {
+    root.setAttribute("data-theme", "light");
+    root.style.setProperty("--background", "270 100% 98%");
+    root.style.setProperty("--primary", "271 81% 56%");
+    root.style.setProperty("--ring", "271 81% 56%");
+  } else if (t === "pink") {
+    root.setAttribute("data-theme", "light");
+    root.style.setProperty("--background", "327 100% 98%");
+    root.style.setProperty("--primary", "330 81% 60%");
+    root.style.setProperty("--ring", "330 81% 60%");
+  } else if (t === "green") {
+    root.setAttribute("data-theme", "light");
+    root.style.setProperty("--background", "142 76% 97%");
+    root.style.setProperty("--primary", "142 71% 45%");
+    root.style.setProperty("--ring", "142 71% 45%");
+  }
 
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem("settings:theme") || "light";
-      setTheme(saved);
-    } catch {}
-  }, []);
+  toast.success(`Theme: ${t}`);
+};
 
-  const changeTheme = (t: string) => {
-    setTheme(t);
-    try {
-      localStorage.setItem("settings:theme", t);
-    } catch {}
-    const root = document.documentElement;
-    root.classList.remove("light", "dark", "blue", "purple", "pink", "green", "system");
-    root.classList.add(t);
-
-    if (t === "light") {
-      root.setAttribute("data-theme", "light");
-      root.style.removeProperty("--background");
-      root.style.removeProperty("--primary");
-      root.style.removeProperty("--ring");
-    } else if (t === "dark") {
-      root.setAttribute("data-theme", "dark");
-      root.style.removeProperty("--background");
-      root.style.removeProperty("--primary");
-      root.style.removeProperty("--ring");
-    } else if (t === "system") {
-      const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-      root.setAttribute("data-theme", isDark ? "dark" : "light");
-      root.style.removeProperty("--background");
-      root.style.removeProperty("--primary");
-      root.style.removeProperty("--ring");
-    } else if (t === "blue") {
-      root.setAttribute("data-theme", "light");
-      root.style.setProperty("--background", "214 100% 90%");
-      root.style.setProperty("--primary", "221 83% 53%");
-      root.style.setProperty("--ring", "221 83% 53%");
-    } else if (t === "purple") {
-      root.setAttribute("data-theme", "light");
-      root.style.setProperty("--background", "270 100% 92%");
-      root.style.setProperty("--primary", "271 81% 56%");
-      root.style.setProperty("--ring", "271 81% 56%");
-    } else if (t === "pink") {
-      root.setAttribute("data-theme", "light");
-      root.style.setProperty("--background", "327 100% 92%");
-      root.style.setProperty("--primary", "330 81% 60%");
-      root.style.setProperty("--ring", "330 81% 60%");
-    } else if (t === "green") {
-      root.setAttribute("data-theme", "light");
-      root.style.setProperty("--background", "142 76% 90%");
-      root.style.setProperty("--primary", "142 71% 45%");
-      root.style.setProperty("--ring", "142 71% 45%");
-    }
-
-    toast.success(`Theme: ${t}`);
-  };
-
-  return (
-    <div className="min-h-screen bg-background p-6">
-      <div className="mx-auto max-w-2xl space-y-6">
-        <h1 className="text-2xl font-bold">Settings</h1>
-        
-        <div className="rounded-lg border bg-card p-6">
-          <h2 className="font-semibold">Appearance</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Choose an app theme.</p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <button onClick={() => changeTheme("light")} style={{backgroundColor: "white", color: "black", border: "1px solid #e5e7eb"}} className="rounded-md px-3 py-2">Light</button>
-            <button onClick={() => changeTheme("dark")} style={{backgroundColor: "black", color: "white"}} className="rounded-md px-3 py-2">Dark</button>
-            <button onClick={() => changeTheme("system")} style={{backgroundColor: "#e4e4e7", color: "black"}} className="rounded-md px-3 py-2">System</button>
-            <button onClick={() => changeTheme("blue")} style={{backgroundColor: "#2563EB", color: "white"}} className="rounded-md px-3 py-2">Blue</button>
-            <button onClick={() => changeTheme("purple")} style={{backgroundColor: "#9333ea", color: "white"}} className="rounded-md px-3 py-2">Purple</button>
-            <button onClick={() => changeTheme("pink")} style={{backgroundColor: "#ec4899", color: "white"}} className="rounded-md px-3 py-2">Pink</button>
-            <button onClick={() => changeTheme("green")} style={{backgroundColor: "#16a34a", color: "white"}} className="rounded-md px-3 py-2">Green</button>
-          </div>
-          <p className="mt-3 text-xs text-muted-foreground">Current: {theme}</p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-export default Settings;
   if (auth.ready && !auth.user) {
     return (
       <div className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-background p-6 text-center">

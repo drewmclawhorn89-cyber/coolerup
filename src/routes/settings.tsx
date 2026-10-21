@@ -139,34 +139,45 @@ function Settings() {
     } catch {}
     toast.success(v ? "Notifications enabled" : "Notifications disabled");
   };
-
 const changeTheme = (t: string) => {
   setTheme(t);
-  try {
-    localStorage.setItem("settings:theme", t);
-  } catch {}
+  try { localStorage.setItem("settings:theme", t); } catch {}
+  const root = document.documentElement;
+  root.classList.remove("light", "dark", "blue", "purple", "pink", "green", "system");
+  root.classList.add(t);
 
-  // reset primary first
-  if (t === "dark") {
-    document.documentElement.setAttribute("data-theme", "dark");
-  } else if (t === "light") {
-    document.documentElement.setAttribute("data-theme", "light");
+  if (t === "light") {
+    root.setAttribute("data-theme", "light");
+    root.style.removeProperty("--primary");
+    root.style.removeProperty("--ring");
+  } else if (t === "dark") {
+    root.setAttribute("data-theme", "dark");
+    root.style.removeProperty("--primary");
+    root.style.removeProperty("--ring");
+  } else if (t === "system") {
+    const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    root.setAttribute("data-theme", isDark ? "dark" : "light");
+    root.style.removeProperty("--primary");
+    root.style.removeProperty("--ring");
   } else if (t === "blue") {
-    document.documentElement.setAttribute("data-theme", "light");
-    document.documentElement.style.setProperty("--primary", "221 83% 53%");
-    document.documentElement.style.setProperty("--ring", "221 83% 53%");
+    root.setAttribute("data-theme", "light");
+    root.style.setProperty("--primary", "221 83% 53%");
+    root.style.setProperty("--ring", "221 83% 53%");
   } else if (t === "purple") {
-    document.documentElement.setAttribute("data-theme", "light");
-    document.documentElement.style.setProperty("--primary", "271 81% 56%");
-    document.documentElement.style.setProperty("--ring", "271 81% 56%");
+    root.setAttribute("data-theme", "light");
+    root.style.setProperty("--primary", "271 81% 56%");
+    root.style.setProperty("--ring", "271 81% 56%");
   } else if (t === "pink") {
-    document.documentElement.setAttribute("data-theme", "light");
-    document.documentElement.style.setProperty("--primary", "330 81% 60%");
-    document.documentElement.style.setProperty("--ring", "330 81% 60%");
+    root.setAttribute("data-theme", "light");
+    root.style.setProperty("--primary", "330 81% 60%");
+    root.style.setProperty("--ring", "330 81% 60%");
   } else if (t === "green") {
-    document.documentElement.setAttribute("data-theme", "light");
-    document.documentElement.style.setProperty("--primary", "142 76% 36%");
-    document.documentElement.style.setProperty("--ring", "142 76% 36%");
+    root.setAttribute("data-theme", "light");
+    root.style.setProperty("--primary", "142 71% 45%");
+    root.style.setProperty("--ring", "142 71% 45%");
+  }
+};
+
   } else {
     document.documentElement.removeAttribute("data-theme");
   }

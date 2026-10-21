@@ -1,28 +1,42 @@
-export function ThemePicker({ theme, changeTheme }: any) {
-  const themes = [
-    { id: "light", label: "Light", color: "#ffffff", text: "#000000" },
-    { id: "dark", label: "Dark", color: "#000000", text: "#ffffff" },
-    { id: "system", label: "System", color: "#e5e7eb", text: "#000000" },
-    { id: "blue", label: "Blue", color: "#2563EB", text: "#ffffff" },
-    { id: "purple", label: "Purple", color: "#9333EA", text: "#ffffff" },
-    { id: "pink", label: "Pink", color: "#EC4899", text: "#ffffff" },
-    { id: "green", label: "Green", color: "#16A34A", text: "#ffffff" },
-  ];
+import { useState, useEffect } from "react"
+
+const THEMES = [
+  { name: "Blue", color: "#2563EB", hsl: "221 83% 53%" },
+  { name: "Purple", color: "#9333EA", hsl: "271 81% 56%" },
+  { name: "Pink", color: "#EC4899", hsl: "330 81% 60%" },
+  { name: "Green", color: "#16A34A", hsl: "142 76% 36%" },
+  { name: "Orange", color: "#F97316", hsl: "24 94% 53%" },
+  { name: "Red", color: "#DC2626", hsl: "0 72% 51%" },
+  { name: "Black", color: "#000000", hsl: "0 0% 0%" },
+]
+
+export default function ThemePicker() {
+  const [selected, setSelected] = useState(localStorage.getItem("coolerup-theme") || THEMES[0].hsl)
+
+  useEffect(() => {
+    // apply saved theme on load
+    document.documentElement.style.setProperty("--primary", selected)
+    localStorage.setItem("coolerup-theme", selected)
+  }, [selected])
 
   return (
-    <div className="flex flex-wrap gap-2">
-      {themes.map((t) => (
-        <button
-          key={t.id}
-          onClick={() => changeTheme(t.id)}
-          style={{ backgroundColor: t.color, color: t.text }}
-          className={`rounded-md px-4 py-2 border text-sm font-medium ${
-            theme === t.id ? "ring-2 ring-offset-2 ring-black" : ""
-          }`}
-        >
-          {t.label}
-        </button>
-      ))}
+    <div className="p-4">
+      <h3 className="font-bold mb-3">Pick Theme</h3>
+      <div className="grid grid-cols-4 gap-3">
+        {THEMES.map((t) => (
+          <button
+            key={t.name}
+            onClick={() => setSelected(t.hsl)}
+            className={`flex flex-col items-center gap-1 p-2 rounded-xl border-2 ${selected === t.hsl ? 'border-black dark:border-white' : 'border-transparent'}`}
+          >
+            <div 
+              className="w-12 h-12 rounded-full" 
+              style={{ backgroundColor: t.color }}
+            />
+            <span className="text-xs">{t.name}</span>
+          </button>
+        ))}
+      </div>
     </div>
-  );
+  )
 }

@@ -143,68 +143,30 @@ const changeTheme = (t: string) => {
   setTheme(t);
   try { localStorage.setItem("settings:theme", t); } catch {}
   const root = document.documentElement;
-  root.classList.remove("light", "dark", "blue", "purple", "pink", "green", "system");
-  root.classList.add(t);
+  
+  // reset
+  root.style.removeProperty("--background");
+  root.style.removeProperty("--primary");
 
-  if (t === "light") {
-    root.setAttribute("data-theme", "light");
-    root.style.setProperty("--background", "0 0% 100%");
-    root.style.setProperty("--foreground", "0 0% 0%");
-    root.style.setProperty("--card", "0 0% 100%");
-    root.style.setProperty("--primary", "0 0% 0%");
-    root.style.setProperty("--primary-foreground", "0 0% 100%");
-    root.style.setProperty("--ring", "0 0% 0%");
-  } else if (t === "dark") {
-    root.setAttribute("data-theme", "dark");
-    root.style.setProperty("--background", "0 0% 8%");
-    root.style.setProperty("--foreground", "0 0% 100%");
-    root.style.setProperty("--card", "0 0% 8%");
-    root.style.setProperty("--primary", "0 0% 0%");
-    root.style.setProperty("--primary-foreground", "0 0% 100%");
-    root.style.setProperty("--ring", "0 0% 100%");
-  } else if (t === "system") {
-    const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    root.setAttribute("data-theme", isDark ? "dark" : "light");
-    root.style.setProperty("--background", isDark ? "0 0% 8%" : "0 0% 100%");
-    root.style.setProperty("--foreground", isDark ? "0 0% 100%" : "0 0% 0%");
-    root.style.setProperty("--card", isDark ? "0 0% 8%" : "0 0% 100%");
-    root.style.setProperty("--primary", "0 0% 0%");
-    root.style.setProperty("--primary-foreground", "0 0% 100%");
-    root.style.setProperty("--ring", isDark ? "0 0% 100%" : "0 0% 0%");
-  } else if (t === "blue") {
-    root.setAttribute("data-theme", "light");
+  if (t === "blue") {
     root.style.setProperty("--background", "221 83% 53%");
-    root.style.setProperty("--foreground", "0 0% 100%");
-    root.style.setProperty("--card", "221 83% 58%");
     root.style.setProperty("--primary", "0 0% 0%");
-    root.style.setProperty("--primary-foreground", "0 0% 100%");
-    root.style.setProperty("--ring", "0 0% 0%");
   } else if (t === "purple") {
-    root.setAttribute("data-theme", "light");
     root.style.setProperty("--background", "271 81% 56%");
-    root.style.setProperty("--foreground", "0 0% 100%");
-    root.style.setProperty("--card", "271 81% 61%");
     root.style.setProperty("--primary", "0 0% 0%");
-    root.style.setProperty("--primary-foreground", "0 0% 100%");
-    root.style.setProperty("--ring", "0 0% 0%");
   } else if (t === "pink") {
-    root.setAttribute("data-theme", "light");
     root.style.setProperty("--background", "330 81% 60%");
-    root.style.setProperty("--foreground", "0 0% 100%");
-    root.style.setProperty("--card", "330 81% 65%");
     root.style.setProperty("--primary", "0 0% 0%");
-    root.style.setProperty("--primary-foreground", "0 0% 100%");
-    root.style.setProperty("--ring", "0 0% 0%");
   } else if (t === "green") {
-    root.setAttribute("data-theme", "light");
     root.style.setProperty("--background", "142 71% 45%");
-    root.style.setProperty("--foreground", "0 0% 100%");
-    root.style.setProperty("--card", "142 71% 50%");
     root.style.setProperty("--primary", "0 0% 0%");
-    root.style.setProperty("--primary-foreground", "0 0% 100%");
-    root.style.setProperty("--ring", "0 0% 0%");
+  } else if (t === "light") {
+    root.style.setProperty("--background", "0 0% 100%");
+    root.style.setProperty("--primary", "0 0% 0%");
+  } else if (t === "dark") {
+    root.style.setProperty("--background", "0 0% 8%");
+    root.style.setProperty("--primary", "0 0% 0%");
   }
-
   toast.success(`Theme: ${t}`);
 };
   if (auth.ready && !auth.user) {

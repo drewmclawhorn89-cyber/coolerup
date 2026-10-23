@@ -44,9 +44,7 @@ export async function fetchVideos(page = 0) {
     .select("*")
     .range(from, to);
 
-  if (error) throw error;
-  return (data as Video[]).sort(() => Math.random() - 0.9);
-}
+ 
 // in your feed function
 const videoCount = 1332;
 let randomRate = 0.15; // default for active users

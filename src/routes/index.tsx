@@ -26,12 +26,7 @@ import { supabase } from "@/integrations/supabase/client";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Coolerup — For You" },
-      { name: "description", content: "A fresh perspective with every scroll. Less perfect, more real." },
-      { property: "og:title", content: "Coolerup — A little more you" },
-      { property: "og:description", content: "A fresh perspective with every scroll. Less perfect, more real." },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary_large_image" },
+    
     ],
   }),
   component: Index,

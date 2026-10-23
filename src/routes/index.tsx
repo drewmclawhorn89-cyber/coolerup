@@ -59,6 +59,15 @@ const NAV: { id: Tab; label: string; icon: typeof Home }[] = [
   { id: "mine", label: "You", icon: Users },
 ];
 
+const HEADERS: Record<Tab, [string, string]> = {
+  foryou: ["For You", "A fresh perspective with every scroll"],
+  explore: ["Explore", "Most loved right now"],
+  following: ["Following", "Creators you keep coming back to"],
+  liked: ["Liked", "Everything you've hearted"],
+  saved: ["Offline", "Watch anytime, even without a connection"],
+  mine: ["Profile", "Your loop"],
+  inbox: ["Inbox", "All your notifications"],
+};
 
 function Index() {
   const auth = useAuth();

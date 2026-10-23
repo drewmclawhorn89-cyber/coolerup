@@ -68,6 +68,7 @@ const HEADERS: Record<Tab, [string, string]> = {
   saved: ["Offline", "Watch anytime, even without a connection"],
   mine: ["Profile", "Your loop"],
   inbox: ["Inbox", "All your notifications"],
+  shop: ["Shop"],
 };
 
 function Index() {

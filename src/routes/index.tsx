@@ -57,6 +57,7 @@ const NAV: { id: Tab; label: string; icon: typeof Home }[] = [
   { id: "following", label: "Following", icon: Users },
   { id: "saved", label: "Offline", icon: Download },
   { id: "inbox", label: "Inbox", icon: Bell },
+  { id: "shop", label: "Shop", icon: Cart },
 ];
 
 const HEADERS: Record<Tab, [string, string]> = {

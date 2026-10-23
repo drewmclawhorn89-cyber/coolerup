@@ -35,7 +35,7 @@ export async function resolveVideoUrl(url: string) {
 }
 
 export async function fetchVideos(page = 0) {
-  const PAGE_SIZE = 20;
+  const PAGE_SIZE = 15;
   const from = page * PAGE_SIZE;
   const to = from + PAGE_SIZE - 1;
 
@@ -44,7 +44,9 @@ export async function fetchVideos(page = 0) {
     .select("*")
     .range(from, to);
 
- 
+  if (error) throw error;
+  return (data as Video[]).sort(() => Math.random() - 0.9);
+}
 
 export async function fetchMyLikes() {
   const { data: { user } } = await supabase.auth.getUser();

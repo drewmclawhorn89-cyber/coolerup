@@ -38,7 +38,7 @@ export const Route = createFileRoute("/")({
   component: Index,
 });
 
-type Tab = "foryou" | "explore" | "following" | "liked" | "saved" | "mine" | "inbox" | "shop";
+type Tab = "foryou" | "explore" | "following" | "liked" | "saved" | "mine" | "inbox" | "shop",
 type NotificationFilter = "all" | "unread";
 
 type NotificationRow = {

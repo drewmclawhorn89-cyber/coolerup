@@ -47,7 +47,17 @@ export async function fetchVideos(page = 0) {
   if (error) throw error;
   return (data as Video[]).sort(() => Math.random() - 0.9);
 }
+// in your feed function
+const videoCount = 1332;
+let randomRate = 0.15; // default for active users
 
+if (user.isNew || user.watchTime < 30) {
+  randomRate = 0.3; // new users need more random
+}
+
+if (videoCount > 2000) {
+  randomRate = 0.1; // when you hit 2000+, go even more personalized
+}
 export async function fetchMyLikes() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return new Set<string>();

@@ -45,7 +45,7 @@ export async function fetchVideos(page = 0) {
     .range(from, to);
 
   if (error) throw error;
-  return (data as Video[]).sort(() => Math.random() - 0.4);
+  return (data as Video[]).sort(() => Math.random() - 0.3);
 }
 
 export async function fetchMyLikes() {

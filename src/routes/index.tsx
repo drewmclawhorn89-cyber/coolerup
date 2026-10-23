@@ -38,7 +38,7 @@ export const Route = createFileRoute("/")({
   component: Index,
 });
 
-type Tab = "foryou" | "explore" | "following" | "liked" | "saved" | "mine" | "inbox";
+type Tab = "foryou" | "explore" | "following" | "liked" | "saved" | "mine" | "inbox" | "shop";
 type NotificationFilter = "all" | "unread";
 
 type NotificationRow = {
@@ -58,7 +58,7 @@ const NAV: { id: Tab; label: string; icon: typeof Home }[] = [
   { id: "following", label: "Following", icon: Users },
   { id: "saved", label: "Offline", icon: Download },
   { id: "inbox", label: "Inbox", icon: Bell },
-  { id: "shop", label: "Shop", icon: Bell },
+  { id: "shop", label: "Shop", icon: Cart },
 ];
 
 const HEADERS: Record<Tab, [string, string]> = {

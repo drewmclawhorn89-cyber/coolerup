@@ -24,13 +24,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/")({
-  head: () => ({
-    meta: [
-    
-    ],
-  }),
-  component: Index,
-});
+ 
 
 type Tab = "foryou" | "explore" | "following" | "liked" | "saved" | "mine" | "inbox";
 type NotificationFilter = "all" | "unread";

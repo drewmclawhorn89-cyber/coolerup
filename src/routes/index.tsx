@@ -1,7 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import {
-  Cart,
   Bell,
   Download,
   Heart,
@@ -38,7 +37,7 @@ export const Route = createFileRoute("/")({
   component: Index,
 });
 
-type Tab = "foryou" | "explore" | "following" | "liked" | "saved" | "mine" | "inbox" | "shop";
+type Tab = "foryou" | "explore" | "following" | "liked" | "saved" | "mine" | "inbox";
 type NotificationFilter = "all" | "unread";
 
 type NotificationRow = {
@@ -58,7 +57,6 @@ const NAV: { id: Tab; label: string; icon: typeof Home }[] = [
   { id: "following", label: "Following", icon: Users },
   { id: "saved", label: "Offline", icon: Download },
   { id: "inbox", label: "Inbox", icon: Bell },
-  { id: "shop", label: "Shop", icon:  },
 ];
 
 const HEADERS: Record<Tab, [string, string]> = {
@@ -69,7 +67,6 @@ const HEADERS: Record<Tab, [string, string]> = {
   saved: ["Offline", "Watch anytime, even without a connection"],
   mine: ["Profile", "Your loop"],
   inbox: ["Inbox", "All your notifications"],
-  shop: ["Shop"],
 };
 
 function Index() {

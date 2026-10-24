@@ -7,19 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { EditProfileDialog, resolveAvatarUrl } from "@/components/EditProfileDialog";
 import { isImageUrl } from "@/lib/loop";
 import type { Profile as ProfileRow } from "@/hooks/useAuth";
-  const [tiktokLink, setTiktokLink] = useState("");
-  const [instagramLink, setInstagramLink] = useState("");
-  const [youtubeLink, setYoutubeLink] = useState("");
-  const [phone, setPhone] = useState("");
 
-  useEffect(() => {
-    try {
-      setTiktokLink(localStorage.getItem("settings:tiktok") || "");
-      setInstagramLink(localStorage.getItem("settings:instagram") || "");
-      setYoutubeLink(localStorage.getItem("settings:youtube") || "");
-      setPhone(localStorage.getItem("settings:phone") || "");
-    } catch {}
-  }, []);
 export const Route = createFileRoute("/u/$username")({
   component: Profile,
 });
@@ -55,44 +43,7 @@ function Profile() {
         <Link to="/" className="inline-flex items-center gap-2 text-sm text-muted-foreground">
           <ArrowLeft className="h-4 w-4" /> Home
         </Link>
-        {/* SOCIAL LINKS FROM SETTINGS - shows TikTok on profile */}
-        {(tiktokLink || instagramLink || youtubeLink) && (
-          <div className="mt-4 flex flex-wrap gap-2">
-            {tiktokLink && (
-              <a 
-                href={tiktokLink} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                style={{backgroundColor: "black", color: "white"}} 
-                className="rounded-full px-4 py-1.5 text-sm font-medium"
-              >
-                TikTok
-              </a>
-            )}
-            {instagramLink && (
-              <a 
-                href={instagramLink} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                style={{backgroundColor: "black", color: "white"}} 
-                className="rounded-full px-4 py-1.5 text-sm font-medium"
-              >
-                Instagram
-              </a>
-            )}
-            {youtubeLink && (
-              <a 
-                href={youtubeLink} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                style={{backgroundColor: "black", color: "white"}} 
-                className="rounded-full px-4 py-1.5 text-sm font-medium"
-              >
-                YouTube
-              </a>
-            )}
-          </div>
-        )}
+
         <div className="flex flex-col items-center gap-3 py-8 text-center">
           <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-full bg-primary text-4xl uppercase text-primary-foreground">
             {avatar ? <img src={avatar} alt={displayName} className="h-full w-full object-cover" /> : username?.[0]}

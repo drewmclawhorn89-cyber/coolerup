@@ -31,6 +31,14 @@ function Settings() {
     } catch {}
     toast.success(`Phone saved: ${phone}`);
   };
+    const saveLinks = () => {
+    try {
+      localStorage.setItem("settings:tiktok", tiktokLink);
+      localStorage.setItem("settings:instagram", instagramLink);
+      localStorage.setItem("settings:youtube", youtubeLink);
+    } catch {}
+    toast.success("Links saved to profile");
+  };
   // Username edit
   const [newHandle, setNewHandle] = useState("");
   const [updatingHandle, setUpdatingHandle] = useState(false);

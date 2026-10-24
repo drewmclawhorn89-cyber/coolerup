@@ -32,6 +32,8 @@ function Settings() {
   const [blocked, setBlocked] = useState<string[]>([]);
   const [blockTarget, setBlockTarget] = useState("");
   const [blocking, setBlocking] = useState(false);
+  const [privateAccount, setPrivateAccount] = useState(false);
+    const [phone, setPhone] = useState("");
 const [offlineMode, setOfflineMode] = useState(false);
   // Notifications (simple toggle stored in localStorage as prototype)
   const [notificationsEnabled, setNotificationsEnabled] = useState<boolean>(() => {

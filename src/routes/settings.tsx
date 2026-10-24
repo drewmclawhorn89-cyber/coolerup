@@ -315,6 +315,48 @@ const changeTheme = (t: string) => {
           </button>
         </div>
       </div>
+             <div className="rounded-lg border bg-card p-6">
+          <h2 className="font-semibold">Social Links - Add to Your Profile</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Add your TikTok so people can find you from Loop. Does not delete account.</p>
+          <div className="mt-3 space-y-3">
+            <div className="flex gap-2">
+              <span className="flex items-center rounded-md border bg-muted px-3 text-sm">TikTok</span>
+              <input 
+                value={tiktokLink} 
+                onChange={(e) => setTiktokLink(e.target.value)} 
+                placeholder="https://tiktok.com/@yourname" 
+                className="flex-1 rounded-md border bg-background p-2" 
+              />
+            </div>
+            <div className="flex gap-2">
+              <span className="flex items-center rounded-md border bg-muted px-3 text-sm">IG</span>
+              <input 
+                value={instagramLink} 
+                onChange={(e) => setInstagramLink(e.target.value)} 
+                placeholder="https://instagram.com/yourname" 
+                className="flex-1 rounded-md border bg-background p-2" 
+              />
+            </div>
+            <div className="flex gap-2">
+              <span className="flex items-center rounded-md border bg-muted px-3 text-sm">YouTube</span>
+              <input 
+                value={youtubeLink} 
+                onChange={(e) => setYoutubeLink(e.target.value)} 
+                placeholder="https://youtube.com/@yourname" 
+                className="flex-1 rounded-md border bg-background p-2" 
+              />
+            </div>
+            <button onClick={saveLinks} style={{backgroundColor: "black", color: "white"}} className="rounded-md px-4 py-2 font-medium">
+              Save Links to Profile
+            </button>
+            {tiktokLink && (
+              <div className="mt-2 flex gap-2">
+                <a href={tiktokLink} target="_blank" style={{backgroundColor: "black", color: "white"}} className="rounded-md px-3 py-1 text-xs">View TikTok</a>
+                <span className="text-xs text-muted-foreground truncate">{tiktokLink}</span>
+              </div>
+            )}
+          </div>
+        </div> 
               <div className="rounded-lg border bg-card p-6">
           <h2 className="font-semibold">Phone Number</h2>
           <p className="mt-1 text-sm text-muted-foreground">Add your phone number to your account. Safe - does not delete account.</p>

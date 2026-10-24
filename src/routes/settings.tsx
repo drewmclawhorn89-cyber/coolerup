@@ -68,6 +68,9 @@ useEffect(() => {
     setOfflineMode(savedOffline);
           setPrivateAccount(localStorage.getItem("settings:private") === "true");
           setPhone(localStorage.getItem("settings:phone") || "");
+         setTiktokLink(localStorage.getItem("settings:tiktok") || "");
+      setInstagramLink(localStorage.getItem("settings:instagram") || "");
+      setYoutubeLink(localStorage.getItem("settings:youtube") || ""); 
   } catch {}
 }, []);
 

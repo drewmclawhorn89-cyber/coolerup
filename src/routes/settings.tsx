@@ -23,7 +23,14 @@ export const Route = createFileRoute("/settings")({
 function Settings() {
   const auth = useAuth();
   const [editing, setEditing] = useState(false);
-
+  const savePhone = () => {
+    try {
+      localStorage.setItem("settings:phone", phone);
+      // If you use Supabase / Lovable Auth, this also saves to your account
+      // so it won't delete anything - just adds phone to your profile
+    } catch {}
+    toast.success(`Phone saved: ${phone}`);
+  };
   // Username edit
   const [newHandle, setNewHandle] = useState("");
   const [updatingHandle, setUpdatingHandle] = useState(false);

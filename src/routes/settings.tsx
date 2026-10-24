@@ -41,6 +41,9 @@ function Settings() {
   const [blocking, setBlocking] = useState(false);
   const [privateAccount, setPrivateAccount] = useState(false);
     const [phone, setPhone] = useState("");
+    const [tiktokLink, setTiktokLink] = useState("");
+  const [instagramLink, setInstagramLink] = useState("");
+  const [youtubeLink, setYoutubeLink] = useState("");
 const [offlineMode, setOfflineMode] = useState(false);
   // Notifications (simple toggle stored in localStorage as prototype)
   const [notificationsEnabled, setNotificationsEnabled] = useState<boolean>(() => {

@@ -329,7 +329,7 @@ const changeTheme = (t: string) => {
           <h2 className="font-semibold">Get the App</h2>
           <p className="mt-1 text-sm text-muted-foreground">Install Loop with your 1332 videos on your phone. Works like TikTok app.</p>
           <div className="mt-3 flex gap-2">
-            <button onClick={} style={{backgroundColor: "black", color: "white"}} className="rounded-md px-4 py-2 font-medium">
+            <button onClick={handleGetApp} style={{backgroundColor: "black", color: "white"}} className="rounded-md px-4 py-2 font-medium">
               {canInstall ? "Install Loop App ↓" : "Get the App"}
             </button>
             <button onClick={() => { if (navigator.share) { navigator.share({ title: "Loop - Coolerup", url: window.location.origin }); } else { navigator.clipboard.writeText(window.location.origin); toast.success("Link copied"); } }} style={{backgroundColor: "#e5e7eb", color: "black"}} className="rounded-md px-4 py-2">

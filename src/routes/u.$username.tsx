@@ -7,7 +7,19 @@ import { useAuth } from "@/hooks/useAuth";
 import { EditProfileDialog, resolveAvatarUrl } from "@/components/EditProfileDialog";
 import { isImageUrl } from "@/lib/loop";
 import type { Profile as ProfileRow } from "@/hooks/useAuth";
+  const [tiktokLink, setTiktokLink] = useState("");
+  const [instagramLink, setInstagramLink] = useState("");
+  const [youtubeLink, setYoutubeLink] = useState("");
+  const [phone, setPhone] = useState("");
 
+  useEffect(() => {
+    try {
+      setTiktokLink(localStorage.getItem("settings:tiktok") || "");
+      setInstagramLink(localStorage.getItem("settings:instagram") || "");
+      setYoutubeLink(localStorage.getItem("settings:youtube") || "");
+      setPhone(localStorage.getItem("settings:phone") || "");
+    } catch {}
+  }, []);
 export const Route = createFileRoute("/u/$username")({
   component: Profile,
 });

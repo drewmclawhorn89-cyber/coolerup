@@ -4,24 +4,22 @@ import { toast } from "sonner";
 export default function Settings() {
   const [theme, setTheme] = useState("light");
   const [offlineMode, setOfflineMode] = useState(false);
+  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
+  const [bio, setBio] = useState("");
+  const [notifications, setNotifications] = useState(true);
+  const [privateAccount, setPrivateAccount] = useState(false);
 
   useEffect(() => {
     try {
       const savedTheme = localStorage.getItem("settings:theme") || "light";
       setTheme(savedTheme);
-      const savedOffline = localStorage.getItem("settings:offline") === "true";
-      setOfflineMode(savedOffline);
-      // apply saved theme on load
-      const root = document.documentElement;
-      if (savedTheme === "blue") {
-        root.style.setProperty("--background", "221 83% 53%");
-        root.style.setProperty("--foreground", "0 0% 100%");
-        root.style.setProperty("--card", "221 83% 58%");
-        root.style.setProperty("--primary", "0 0% 0%");
-        root.style.setProperty("--primary-foreground", "0 0% 100%");
-        root.style.setProperty("--ring", "0 0% 0%");
-        document.body.style.backgroundColor = "#2563EB";
-      }
+      setOfflineMode(localStorage.getItem("settings:offline") === "true");
+      setUsername(localStorage.getItem("settings:username") || "");
+      setEmail(localStorage.getItem("settings:email") || "");
+      setBio(localStorage.getItem("settings:bio") || "");
+      setNotifications(localStorage.getItem("settings:notifications") !== "false");
+      setPrivateAccount(localStorage.getItem("settings:private") === "true");
     } catch {}
   }, []);
 
@@ -29,80 +27,53 @@ export default function Settings() {
     setTheme(t);
     try { localStorage.setItem("settings:theme", t); } catch {}
     const root = document.documentElement;
-    root.classList.remove("light", "dark", "blue", "purple", "pink", "green", "system");
+    const body = document.body;
+    root.classList.remove("light","dark","blue","purple","pink","green","system");
     root.classList.add(t);
-
-    // reset body bg
-    document.body.style.backgroundColor = "";
+    body.style.backgroundColor = "";
     document.documentElement.style.backgroundColor = "";
 
-    if (t === "light") {
-      root.setAttribute("data-theme", "light");
-      root.style.setProperty("--background", "0 0% 100%");
-      root.style.setProperty("--foreground", "0 0% 0%");
-      root.style.setProperty("--card", "0 0% 100%");
-      root.style.setProperty("--primary", "0 0% 0%");
-      root.style.setProperty("--primary-foreground", "0 0% 100%");
-      root.style.setProperty("--ring", "0 0% 0%");
-    } else if (t === "dark") {
-      root.setAttribute("data-theme", "dark");
-      root.style.setProperty("--background", "0 0% 8%");
-      root.style.setProperty("--foreground", "0 0% 100%");
-      root.style.setProperty("--card", "0 0% 8%");
-      root.style.setProperty("--primary", "0 0% 0%");
-      root.style.setProperty("--primary-foreground", "0 0% 100%");
-      root.style.setProperty("--ring", "0 0% 100%");
-    } else if (t === "system") {
-      const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-      root.setAttribute("data-theme", isDark ? "dark" : "light");
-      root.style.setProperty("--background", isDark ? "0 0% 8%" : "0 0% 100%");
-      root.style.setProperty("--foreground", isDark ? "0 0% 100%" : "0 0% 0%");
-      root.style.setProperty("--card", isDark ? "0 0% 8%" : "0 0% 100%");
-      root.style.setProperty("--primary", "0 0% 0%");
-      root.style.setProperty("--primary-foreground", "0 0% 100%");
-      root.style.setProperty("--ring", isDark ? "0 0% 100%" : "0 0% 0%");
-    } else if (t === "blue") {
-      root.setAttribute("data-theme", "light");
+    if (t === "blue") {
       root.style.setProperty("--background", "221 83% 53%");
       root.style.setProperty("--foreground", "0 0% 100%");
       root.style.setProperty("--card", "221 83% 58%");
       root.style.setProperty("--primary", "0 0% 0%");
       root.style.setProperty("--primary-foreground", "0 0% 100%");
       root.style.setProperty("--ring", "0 0% 0%");
-      document.body.style.backgroundColor = "#2563EB";
+      body.style.backgroundColor = "#2563EB";
       document.documentElement.style.backgroundColor = "#2563EB";
     } else if (t === "purple") {
-      root.setAttribute("data-theme", "light");
       root.style.setProperty("--background", "271 81% 56%");
-      root.style.setProperty("--foreground", "0 0% 100%");
       root.style.setProperty("--card", "271 81% 61%");
       root.style.setProperty("--primary", "0 0% 0%");
       root.style.setProperty("--primary-foreground", "0 0% 100%");
       root.style.setProperty("--ring", "0 0% 0%");
-      document.body.style.backgroundColor = "#9333ea";
+      body.style.backgroundColor = "#9333ea";
       document.documentElement.style.backgroundColor = "#9333ea";
     } else if (t === "pink") {
-      root.setAttribute("data-theme", "light");
       root.style.setProperty("--background", "330 81% 60%");
-      root.style.setProperty("--foreground", "0 0% 100%");
       root.style.setProperty("--card", "330 81% 65%");
       root.style.setProperty("--primary", "0 0% 0%");
       root.style.setProperty("--primary-foreground", "0 0% 100%");
       root.style.setProperty("--ring", "0 0% 0%");
-      document.body.style.backgroundColor = "#ec4899";
+      body.style.backgroundColor = "#ec4899";
       document.documentElement.style.backgroundColor = "#ec4899";
     } else if (t === "green") {
-      root.setAttribute("data-theme", "light");
       root.style.setProperty("--background", "142 71% 45%");
-      root.style.setProperty("--foreground", "0 0% 100%");
       root.style.setProperty("--card", "142 71% 50%");
       root.style.setProperty("--primary", "0 0% 0%");
       root.style.setProperty("--primary-foreground", "0 0% 100%");
       root.style.setProperty("--ring", "0 0% 0%");
-      document.body.style.backgroundColor = "#16a34a";
+      body.style.backgroundColor = "#16a34a";
       document.documentElement.style.backgroundColor = "#16a34a";
+    } else {
+      root.style.setProperty("--background", t === "dark" ? "0 0% 8%" : "0 0% 100%");
+      root.style.setProperty("--foreground", t === "dark" ? "0 0% 100%" : "0 0% 0%");
+      root.style.setProperty("--card", t === "dark" ? "0 0% 8%" : "0 0% 100%");
+      root.style.setProperty("--primary", "0 0% 0%");
+      root.style.setProperty("--primary-foreground", "0 0% 100%");
+      root.style.setProperty("--ring", t === "dark" ? "0 0% 100%" : "0 0% 0%");
     }
-
     toast.success(`Theme: ${t}`);
   };
 
@@ -110,37 +81,48 @@ export default function Settings() {
     const newVal = !offlineMode;
     setOfflineMode(newVal);
     try { localStorage.setItem("settings:offline", String(newVal)); } catch {}
-    if (newVal && 'serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js').catch(() => {});
-    }
     toast.success(`Offline mode: ${newVal ? "ON" : "OFF"}`);
+  };
+
+  const saveProfile = () => {
+    try {
+      localStorage.setItem("settings:username", username);
+      localStorage.setItem("settings:email", email);
+      localStorage.setItem("settings:bio", bio);
+    } catch {}
+    toast.success("Profile saved");
   };
 
   return (
     <div className="min-h-screen bg-background p-6">
       <div className="mx-auto max-w-2xl space-y-6">
+        <a href="/" className="text-sm underline">← Back to For You</a>
         <h1 className="text-2xl font-bold">Settings</h1>
 
         <div className="rounded-lg border bg-card p-6">
+          <h2 className="font-semibold">Profile</h2>
+          <div className="mt-3 space-y-3">
+            <input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Username" className="w-full rounded-md border bg-background p-2" />
+            <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" className="w-full rounded-md border bg-background p-2" />
+            <textarea value={bio} onChange={(e) => setBio(e.target.value)} placeholder="Bio" className="w-full rounded-md border bg-background p-2" />
+            <button onClick={saveProfile} style={{backgroundColor: "black", color: "white"}} className="rounded-md px-4 py-2">Save Profile</button>
+          </div>
+        </div>
+
+        <div className="rounded-lg border bg-card p-6">
           <h2 className="font-semibold">Offline Mode</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Watch your 1332 videos offline. Does not delete accounts.
-          </p>
+          <p className="mt-1 text-sm text-muted-foreground">Watch your 1332 videos offline. Does not delete accounts. Safe for Lovable Auth.</p>
           <div className="mt-3 flex items-center gap-3">
-            <button
-              onClick={toggleOffline}
-              style={{backgroundColor: offlineMode ? "#16a34a" : "black", color: "white"}}
-              className="rounded-md px-4 py-2 font-medium"
-            >
+            <button onClick={toggleOffline} style={{backgroundColor: offlineMode ? "#16a34a" : "black", color: "white"}} className="rounded-md px-4 py-2 font-medium">
               {offlineMode ? "ON" : "OFF"}
             </button>
-            <span className="text-sm">{offlineMode ? "ON - caching for offline" : "OFF - online only"}</span>
+            <span className="text-sm">{offlineMode ? "ON - caching 1332 videos" : "OFF - online only"}</span>
           </div>
         </div>
 
         <div className="rounded-lg border bg-card p-6">
           <h2 className="font-semibold">Appearance</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Everyone can switch background colors. Buttons are black for all colors.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Everyone can switch background colors. Buttons are black for all backgrounds.</p>
           <div className="mt-3 flex flex-wrap gap-2">
             <button onClick={() => changeTheme("light")} style={{backgroundColor: "white", color: "black", border: "1px solid #e5e7eb"}} className="rounded-md px-3 py-2">Light</button>
             <button onClick={() => changeTheme("dark")} style={{backgroundColor: "black", color: "white"}} className="rounded-md px-3 py-2">Dark</button>
@@ -150,7 +132,33 @@ export default function Settings() {
             <button onClick={() => changeTheme("pink")} style={{backgroundColor: "#ec4899", color: "white"}} className="rounded-md px-3 py-2">Pink</button>
             <button onClick={() => changeTheme("green")} style={{backgroundColor: "#16a34a", color: "white"}} className="rounded-md px-3 py-2">Green</button>
           </div>
-          <p className="mt-3 text-xs text-muted-foreground">Current: {theme} | Videos: 1332 | Random: 0.15</p>
+          <p className="mt-3 text-xs text-muted-foreground">Current: {theme} | Random: 0.15</p>
+        </div>
+
+        <div className="rounded-lg border bg-card p-6">
+          <h2 className="font-semibold">Notifications</h2>
+          <div className="mt-3 flex items-center gap-3">
+            <button onClick={() => { const v = !notifications; setNotifications(v); localStorage.setItem("settings:notifications", String(v)); }} style={{backgroundColor: notifications ? "black" : "#e5e7eb", color: notifications ? "white" : "black"}} className="rounded-md px-4 py-2">
+              {notifications ? "ON" : "OFF"}
+            </button>
+            <span className="text-sm">Push notifications</span>
+          </div>
+        </div>
+
+        <div className="rounded-lg border bg-card p-6">
+          <h2 className="font-semibold">Privacy</h2>
+          <div className="mt-3 flex items-center gap-3">
+            <button onClick={() => { const v = !privateAccount; setPrivateAccount(v); localStorage.setItem("settings:private", String(v)); }} style={{backgroundColor: privateAccount ? "black" : "#e5e7eb", color: privateAccount ? "white" : "black"}} className="rounded-md px-4 py-2">
+              {privateAccount ? "Private" : "Public"}
+            </button>
+            <span className="text-sm">Account visibility</span>
+          </div>
+        </div>
+
+        <div className="rounded-lg border bg-card p-6">
+          <h2 className="font-semibold">Account</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Manage your Loop account. This does not delete videos unless you click delete.</p>
+          <button onClick={() => toast.success("Logged out")} style={{backgroundColor: "black", color: "white"}} className="mt-3 rounded-md px-4 py-2">Log Out</button>
         </div>
       </div>
     </div>

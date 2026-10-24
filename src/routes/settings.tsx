@@ -52,8 +52,6 @@ function Settings() {
     const [tiktokLink, setTiktokLink] = useState("");
   const [instagramLink, setInstagramLink] = useState("");
   const [youtubeLink, setYoutubeLink] = useState("");
-    const [canInstall, setCanInstall] = useState(false);
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
 const [offlineMode, setOfflineMode] = useState(false);
   // Notifications (simple toggle stored in localStorage as prototype)
   const [notificationsEnabled, setNotificationsEnabled] = useState<boolean>(() => {
@@ -81,14 +79,6 @@ useEffect(() => {
          setTiktokLink(localStorage.getItem("settings:tiktok") || "");
       setInstagramLink(localStorage.getItem("settings:instagram") || "");
       setYoutubeLink(localStorage.getItem("settings:youtube") || ""); 
-          // Listen for install prompt - for Get the App button
-      const handler = (e: any) => {
-        e.preventDefault();
-        setDeferredPrompt(e);
-        setCanInstall(true);
-      };
-      window.addEventListener("beforeinstallprompt", handler);
-      return () => window.removeEventListener("beforeinstallprompt", handler);
   } catch {}
 }, []);
 
@@ -325,22 +315,6 @@ const changeTheme = (t: string) => {
           </button>
         </div>
       </div>
-              <div className="rounded-lg border bg-card p-6">
-          <h2 className="font-semibold">Get the App</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Install Loop with your 1332 videos on your phone. Works like TikTok app.</p>
-          <div className="mt-3 flex gap-2">
-            <button onClick={handleGetApp} style={{backgroundColor: "black", color: "white"}} className="rounded-md px-4 py-2 font-medium">
-              {canInstall ? "Install Loop App ↓" : "Get the App"}
-            </button>
-            <button onClick={() => { if (navigator.share) { navigator.share({ title: "Loop - Coolerup", url: window.location.origin }); } else { navigator.clipboard.writeText(window.location.origin); toast.success("Link copied"); } }} style={{backgroundColor: "#e5e7eb", color: "black"}} className="rounded-md px-4 py-2">
-              Share
-            </button>
-          </div>
-          <p className="mt-2 text-xs text-muted-foreground">
-            iPhone: Tap Share button → Add to Home Screen<br/>
-            Android: Tap Install Loop App button
-          </p>
-        </div>
              <div className="rounded-lg border bg-card p-6">
           <h2 className="font-semibold">Social Links - Add to Your Profile</h2>
           <p className="mt-1 text-sm text-muted-foreground">Add your TikTok so people can find you from Loop. Does not delete account.</p>

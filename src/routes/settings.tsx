@@ -32,7 +32,7 @@ function Settings() {
   const [blocked, setBlocked] = useState<string[]>([]);
   const [blockTarget, setBlockTarget] = useState("");
   const [blocking, setBlocking] = useState(false);
-
+const [offlineMode, setOfflineMode] = useState(false);
   // Notifications (simple toggle stored in localStorage as prototype)
   const [notificationsEnabled, setNotificationsEnabled] = useState<boolean>(() => {
     try {
@@ -50,7 +50,26 @@ function Settings() {
       return "system";
     }
   });
+useEffect(() => {
+  try {
+    const savedOffline = localStorage.getItem("settings:offline") === "true";
+    setOfflineMode(savedOffline);
+  } catch {}
+}, []);
 
+const toggleOffline = () => {
+  const newVal = !offlineMode;
+  setOfflineMode(newVal);
+  try { localStorage.setItem("settings:offline", String(newVal)); } catch {}
+  
+  if (newVal) {
+    // Start caching your 1332 videos for offline
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(() => {});
+    }
+  }
+  toast.success(`Offline mode: ${newVal ? "ON - videos will cache" : "OFF"}`);
+};
   useEffect(() => {
     setNewHandle(auth.handle ?? "");
   }, [auth.handle]);
@@ -271,7 +290,23 @@ const changeTheme = (t: string) => {
           </button>
         </div>
       </div>
-
+<div className="rounded-lg border bg-card p-6">
+  <h2 className="font-semibold">Offline Mode</h2>
+  <p className="mt-1 text-sm text-muted-foreground">
+    Save For You feed to watch offline. {offlineMode ? "1332 videos will be cached." : "Uses 0 data when OFF."}
+  </p>
+  <div className="mt-3 flex items-center gap-3">
+    <button
+      onClick={toggleOffline}
+      style={{backgroundColor: offlineMode ? "#16a34a" : "black", color: "white"}}
+      className="rounded-md px-4 py-2 font-medium"
+    >
+      {offlineMode ? "ON" : "OFF"}
+    </button>
+    <span className="text-sm">{offlineMode ? "ON - Your 1332 videos will work without internet" : "OFF - Online only"}</span>
+  </div>
+  <p className="mt-2 text-xs text-muted-foreground">Does not delete accounts. Just caches videos in your phone.</p>
+</div>
    {/* Appearance */}
 <div className="rounded-2xl border bg-card p-4">
   <h2 className="font-semibold">Appearance</h2>

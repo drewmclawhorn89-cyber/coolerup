@@ -41,7 +41,7 @@ function Settings() {
       return true;
     }
   });
-
+const [offlineMode, setOfflineMode] = useState(false);
   // Theme
   const [theme, setTheme] = useState<string>(() => {
     try {

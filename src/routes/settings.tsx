@@ -50,7 +50,26 @@ function Settings() {
       return "system";
     }
   });
+useEffect(() => {
+  try {
+    const savedOffline = localStorage.getItem("settings:offline") === "true";
+    setOfflineMode(savedOffline);
+  } catch {}
+}, []);
 
+const toggleOffline = () => {
+  const newVal = !offlineMode;
+  setOfflineMode(newVal);
+  try { localStorage.setItem("settings:offline", String(newVal)); } catch {}
+  
+  if (newVal) {
+    // Start caching your 1332 videos for offline
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(() => {});
+    }
+  }
+  toast.success(`Offline mode: ${newVal ? "ON - videos will cache" : "OFF"}`);
+};
   useEffect(() => {
     setNewHandle(auth.handle ?? "");
   }, [auth.handle]);

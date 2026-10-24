@@ -292,20 +292,16 @@ const changeTheme = (t: string) => {
       </div>
 <div className="rounded-lg border bg-card p-6">
   <h2 className="font-semibold">Offline Mode</h2>
-  <p className="mt-1 text-sm text-muted-foreground">
-    Save For You feed to watch offline. {offlineMode ? "1332 videos will be cached." : "Uses 0 data when OFF."}
-  </p>
+  <p className="mt-1 text-sm text-muted-foreground">Watch your 1332 videos offline. Does not delete accounts.</p>
   <div className="mt-3 flex items-center gap-3">
-    <button
-      onClick={toggleOffline}
-      style={{backgroundColor: offlineMode ? "#16a34a" : "black", color: "white"}}
-      className="rounded-md px-4 py-2 font-medium"
-    >
+    <button onClick={toggleOffline} style={{backgroundColor: offlineMode ? "#16a34a" : "black", color: "white"}} className="rounded-md px-4 py-2 font-medium">
       {offlineMode ? "ON" : "OFF"}
     </button>
-    <span className="text-sm">{offlineMode ? "ON - Your 1332 videos will work without internet" : "OFF - Online only"}</span>
+    <button onClick={() => window.location.href = "/offline"} style={{backgroundColor: "black", color: "white"}} className="rounded-md px-4 py-2 font-medium">
+      View Offline Videos →
+    </button>
   </div>
-  <p className="mt-2 text-xs text-muted-foreground">Does not delete accounts. Just caches videos in your phone.</p>
+  <p className="mt-2 text-xs text-muted-foreground">{offlineMode ? "Tap View to see your cached 1332 videos" : "Turn ON first, then view"}</p>
 </div>
    {/* Appearance */}
 <div className="rounded-2xl border bg-card p-4">

@@ -52,6 +52,8 @@ function Settings() {
     const [tiktokLink, setTiktokLink] = useState("");
   const [instagramLink, setInstagramLink] = useState("");
   const [youtubeLink, setYoutubeLink] = useState("");
+    const [canInstall, setCanInstall] = useState(false);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
 const [offlineMode, setOfflineMode] = useState(false);
   // Notifications (simple toggle stored in localStorage as prototype)
   const [notificationsEnabled, setNotificationsEnabled] = useState<boolean>(() => {
@@ -79,6 +81,14 @@ useEffect(() => {
          setTiktokLink(localStorage.getItem("settings:tiktok") || "");
       setInstagramLink(localStorage.getItem("settings:instagram") || "");
       setYoutubeLink(localStorage.getItem("settings:youtube") || ""); 
+          // Listen for install prompt - for Get the App button
+      const handler = (e: any) => {
+        e.preventDefault();
+        setDeferredPrompt(e);
+        setCanInstall(true);
+      };
+      window.addEventListener("beforeinstallprompt", handler);
+      return () => window.removeEventListener("beforeinstallprompt", handler);
   } catch {}
 }, []);
 

@@ -294,6 +294,23 @@ const changeTheme = (t: string) => {
           </button>
         </div>
       </div>
+              <div className="rounded-lg border bg-card p-6">
+          <h2 className="font-semibold">Phone Number</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Add your phone number to your account. Safe - does not delete account.</p>
+          <div className="mt-3 flex gap-2">
+            <input 
+              value={phone} 
+              onChange={(e) => setPhone(e.target.value)} 
+              placeholder="+1 (555) 000-0000" 
+              type="tel"
+              className="flex-1 rounded-md border bg-background p-2" 
+            />
+            <button onClick={savePhone} style={{backgroundColor: "black", color: "white"}} className="rounded-md px-4 py-2 font-medium">
+              Save
+            </button>
+          </div>
+          {phone && <p className="mt-2 text-xs text-muted-foreground">Saved: {phone}</p>}
+        </div>
 <div className="rounded-lg border bg-card p-6">
   <h2 className="font-semibold">Offline Mode</h2>
   <p className="mt-1 text-sm text-muted-foreground">Watch your 1332 videos offline. Does not delete accounts.</p>

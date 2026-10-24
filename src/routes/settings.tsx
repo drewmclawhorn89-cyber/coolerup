@@ -23,7 +23,7 @@ export const Route = createFileRoute("/settings")({
 function Settings() {
   const auth = useAuth();
   const [editing, setEditing] = useState(false);
-  const  = () => {
+  const savePhone = () => {
     try {
       localStorage.setItem("settings:phone", phone);
       // If you use Supabase / Lovable Auth, this also saves to your account

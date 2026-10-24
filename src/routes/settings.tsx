@@ -56,6 +56,8 @@ useEffect(() => {
   try {
     const savedOffline = localStorage.getItem("settings:offline") === "true";
     setOfflineMode(savedOffline);
+          setPrivateAccount(localStorage.getItem("settings:private") === "true");
+          setPhone(localStorage.getItem("settings:phone") || "");
   } catch {}
 }, []);
 

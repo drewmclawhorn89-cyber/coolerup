@@ -1,599 +1,215 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { Fragment, useEffect, useMemo, useState } from "react";
-import {
-  Bell,
-  Download,
-  Heart,
-  Home,
-  LogOut,
-  MessageCircle,
-  Plus,
-  Search,
-  User,
-  Users,
-  WifiOff,
-  X,
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { VideoCard } from "@/components/VideoCard";
-import { UploadDialog } from "@/components/UploadDialog";
-import { RecordDialog } from "@/components/RecordDialog";
-import { fetchMyLikes, fetchVideos, type Video } from "@/lib/loop";
-import { listSaved, onOfflineChange } from "@/lib/offline";
-import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
+import { useEffect, useRef, useState } from "react";
 
-export const Route = createFileRoute("/")({
-  head: () => ({
-    meta: [
-      { title: "Coolerup — For You" },
-      { name: "description", content: "A fresh perspective with every scroll. Less perfect, more real." },
-      { property: "og:title", content: "Coolerup — A little more you" },
-      { property: "og:description", content: "A fresh perspective with every scroll. Less perfect, more real." },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary_large_image" },
-    ],
-  }),
-  component: Index,
-});
+export default function ForYou() {
+  const [videos, setVideos] = useState<any[]>([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [isMuted, setIsMuted] = useState(true);
+  const [topTab, setTopTab] = useState("foryou");
+  const containerRef = useRef<HTMLDivElement>(null);
 
-type Tab = "foryou" | "explore" | "following" | "liked" | "saved" | "mine" | "inbox";
-type NotificationFilter = "all" | "unread";
-
-type NotificationRow = {
-  id: string;
-  text: string | null;
-  type: string | null;
-  read: boolean | null;
-  created_at: string | null;
-  actor_user_id: string | null;
-  target_user_id: string | null;
-  video_id: string | null;
-};
-
-const NAV: { id: Tab; label: string; icon: typeof Home }[] = [
-  { id: "foryou", label: "Home", icon: Home },
-  { id: "explore", label: "Explore", icon: Users },
-  { id: "following", label: "Following", icon: Users },
-  { id: "inbox", label: "Inbox", icon: Bell },
-  { id: "mine", label: "You", icon: Users },
-];
-
-const HEADERS: Record<Tab, [string, string]> = {
-  foryou: ["For You", "A fresh perspective with every scroll"],
-  explore: ["Explore", "Most loved right now"],
-  following: ["Following", "Creators you keep coming back to"],
-  liked: ["Liked", "Everything you've hearted"],
-  saved: ["Offline", "Watch anytime, even without a connection"],
-  mine: ["Profile", "Your loop"],
-  inbox: ["Inbox", "All your notifications"],
-};
-
-function Index() {
-  const auth = useAuth();
-  const me = auth.handle;
-
+  // Load 1332 videos + random injection 0.15
   useEffect(() => {
-    if (!me) return;
-    supabase
-      .from("banned_users")
-      .select("*")
-      .eq("username", me)
-      .maybeSingle()
-      .then(async ({ data }) => {
-        if (!data) return;
-        const isStillBanned = data.is_permanent || (data.expires_at && new Date(data.expires_at) > new Date());
-        if (isStillBanned) {
-          alert(`You are banned: ${data.reason}`);
-          await supabase.auth.signOut();
-          window.location.href = "/";
+    try {
+      const stored = localStorage.getItem("videos") || localStorage.getItem("allVideos") || "[]";
+      let all = JSON.parse(stored);
+      if (all.length === 0) {
+        // fallback if no videos yet
+        all = Array.from({ length: 20 }, (_, i) => ({
+          id: i,
+          url: "",
+          username: "drewmclawhorn3",
+          caption: "Loop video #" + i,
+          likes: Math.floor(Math.random()*100),
+          comments: 0,
+          shares: 0,
+        }));
+      }
+      // Random injection like TikTok For You
+      const shuffled = [...all];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        if (Math.random() < 0.15) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
         }
-      });
-  }, [me]);
-
-  const [videos, setVideos] = useState<Video[] | null>(null);
-  const [page, setPage] = useState(0);
-  const [hasMore, setHasMore] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [saved, setSaved] = useState<Video[]>([]);
-  const [online, setOnline] = useState(true);
-  const [liked, setLiked] = useState<Set<string>>(new Set());
-  const [tab, setTab] = useState<Tab>("foryou");
-  const [query, setQuery] = useState("");
-  const [muted, setMuted] = useState(true);
-  const [uploading, setUploading] = useState(false);
-  const [recordingOpen, setRecordingOpen] = useState(false);
-  const [error, setError] = useState(false);
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [quality, setQuality] = useState<"1080p" | "720p" | "480p">("720p");
-  const [notifications, setNotifications] = useState<NotificationRow[]>([]);
-  const [notificationFilter, setNotificationFilter] = useState<NotificationFilter>("all");
-
-  useEffect(() => {
-    const conn = (navigator as any).connection;
-    if (conn?.effectiveType === "2g" || conn?.effectiveType === "slow-2g") {
-      setQuality("480p");
-    } else if (conn?.effectiveType === "3g") {
-      setQuality("720p");
-    } else {
-      setQuality("1080p");
+      }
+      setVideos(shuffled);
+    } catch {
+      setVideos([]);
     }
   }, []);
 
-  const load = (pageNum = 0, append = false) => {
-    if (loadingMore) return;
-    setLoadingMore(true);
-    fetchVideos(pageNum)
-      .then((v: any) => {
-        if (!v || v.length === 0) setHasMore(false);
-        else {
-          if (append) setVideos((prev: any) => [...(prev || []), ...v]);
-          else setVideos(v);
-          setPage(pageNum + 1);
-        }
-        setError(false);
-      })
-      .catch(() => setError(true))
-      .finally(() => setLoadingMore(false));
-  };
-
-  const loadMore = () => {
-    if (!hasMore || loadingMore) return;
-    load(page, true);
-  };
-
+  // Save to history + offline every time you swipe
   useEffect(() => {
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry?.isIntersecting) loadMore();
-      },
-      { threshold: 0.1 }
-    );
-    const el = document.getElementById("scroll-sentinel");
-    if (el) observer.observe(el);
-    return () => observer.disconnect();
-  }, [page, hasMore, loadingMore]);
+    if (!videos[currentIndex]) return;
+    try {
+      const history = JSON.parse(localStorage.getItem("history:videos") || "[]");
+      history.unshift({ ...videos[currentIndex], watchedAt: new Date().toISOString() });
+      localStorage.setItem("history:videos", JSON.stringify(history.slice(0,200)));
+      
+      const cached = JSON.parse(localStorage.getItem("offline:cachedVideos") || "[]");
+      if (!cached.find((v:any) => v.id === videos[currentIndex].id)) {
+        cached.push(videos[currentIndex]);
+        localStorage.setItem("offline:cachedVideos", JSON.stringify(cached.slice(-100)));
+      }
+    } catch {}
+  }, [currentIndex, videos]);
 
+  // Swipe up/down to change video like TikTok
   useEffect(() => {
-    load(0, false);
-
-    setTimeout(() => {
-      const el = document.querySelector(".no-scrollbar") as HTMLElement | null;
-      if (el) el.scrollTop = 0;
-    }, 300);
-
-    fetchMyLikes().then(setLiked).catch(() => {});
-    const refresh = () => listSaved().then((s) => setSaved(s.map((x) => x.video))).catch(() => {});
-    refresh();
-    const off = onOfflineChange(refresh);
-    const update = () => {
-      setOnline(navigator.onLine);
-      if (navigator.onLine) load(0, false);
+    const el = containerRef.current;
+    if (!el) return;
+    let startY = 0;
+    const onStart = (e: TouchEvent) => { startY = e.touches[0].clientY; };
+    const onEnd = (e: TouchEvent) => {
+      const diff = e.changedTouches[0].clientY - startY;
+      if (Math.abs(diff) > 60) {
+        if (diff < 0 && currentIndex < videos.length - 1) setCurrentIndex(i => i + 1);
+        if (diff > 0 && currentIndex > 0) setCurrentIndex(i => i - 1);
+      }
     };
-    setOnline(navigator.onLine);
-    window.addEventListener("online", update);
-    window.addEventListener("offline", update);
+    const onWheel = (e: WheelEvent) => {
+      if (Math.abs(e.deltaY) > 30) {
+        if (e.deltaY > 0 && currentIndex < videos.length - 1) setCurrentIndex(i => i + 1);
+        if (e.deltaY < 0 && currentIndex > 0) setCurrentIndex(i => i - 1);
+      }
+    };
+    el.addEventListener("touchstart", onStart);
+    el.addEventListener("touchend", onEnd);
+    el.addEventListener("wheel", onWheel, { passive: true });
     return () => {
-      off();
-      window.removeEventListener("online", update);
-      window.removeEventListener("offline", update);
+      el.removeEventListener("touchstart", onStart);
+      el.removeEventListener("touchend", onEnd);
+      el.removeEventListener("wheel", onWheel);
     };
-  }, []);
+  }, [currentIndex, videos.length]);
 
-  useEffect(() => {
-    if (!auth.user) return;
-    let mounted = true;
-
-    const loadNotifications = async () => {
-      const { data } = await supabase
-        .from("notifications")
-        .select("id, actor_user_id, target_user_id, text, type, video_id, created_at, read")
-        .eq("target_user_id", auth.user!.id)
-        .order("created_at", { ascending: false });
-      if (!mounted) return;
-      setNotifications((data ?? []) as NotificationRow[]);
-    };
-
-    void loadNotifications();
-
-    const channel = supabase
-      .channel(`notifications:user=${auth.user.id}`)
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "notifications", filter: `target_user_id=eq.${auth.user.id}` },
-        (payload) => {
-          setNotifications((cur) => [payload.new as NotificationRow, ...cur]);
-        }
-      )
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "notifications", filter: `target_user_id=eq.${auth.user.id}` },
-        (payload) => {
-          const updated = payload.new as NotificationRow;
-          setNotifications((cur) => cur.map((n) => (n.id === updated.id ? updated : n)));
-        }
-      )
-      .subscribe();
-
-    return () => {
-      mounted = false;
-      try {
-        supabase.removeChannel(channel);
-      } catch {}
-    };
-  }, [auth.user?.id]);
-
-  const unreadCount = notifications.filter((n) => !n.read).length;
-
-  const markRead = async (id: string) => {
-    const { error } = await supabase.from("notifications").update({ read: true }).eq("id", id);
-    if (error) return;
-    setNotifications((n) => n.map((x) => (x.id === id ? { ...x, read: true } : x)));
-  };
-
-  const markAllRead = async () => {
-    if (!auth.user) return;
-    const { error } = await supabase
-      .from("notifications")
-      .update({ read: true })
-      .eq("target_user_id", auth.user.id)
-      .eq("read", false);
-    if (error) return;
-    setNotifications((n) => n.map((x) => ({ ...x, read: true })));
-  };
-
-  const filteredNotifications =
-    notificationFilter === "unread" ? notifications.filter((n) => !n.read) : notifications;
-
-  const offlineMode = !online || (error && saved.length > 0);
-  const activeTab = offlineMode ? "saved" : tab;
-
-  const shown = useMemo(() => {
-    let list = activeTab === "saved" ? saved : videos ?? [];
-    const q = query.trim().toLowerCase();
-    if (q) list = list.filter((v) => v.caption.toLowerCase().includes(q) || v.username.toLowerCase().includes(q));
-    if (activeTab === "explore") list = [...list].sort((a, b) => b.likes_count - a.likes_count);
-    if (activeTab === "following") list = list.filter((v) => v.username !== me);
-    if (activeTab === "liked") list = list.filter((v) => liked.has(v.id));
-    if (activeTab === "mine") list = me ? list.filter((v) => v.username === me) : [];
-    return list;
-  }, [videos, saved, query, activeTab, liked, me]);
-
-  const [title, sub] = query ? [`Results for "${query}"`, `${shown.length} videos`] : HEADERS[activeTab];
+  const currentVideo = videos[currentIndex];
 
   return (
-    <div className="flex h-dvh overflow-hidden bg-background">
-      <aside className="hidden w-72 shrink-0 flex-col gap-6 border-r bg-sidebar p-6 md:flex">
-        <div>
-          <h1 className="font-display text-4xl tracking-tight">
-            loop<span className="text-primary">.</span>
-          </h1>
-          <p className="mt-1 text-[11px] font-bold tracking-[0.3em] text-muted-foreground">A LITTLE MORE YOU</p>
-        </div>
+    <div className="relative h- w-screen overflow-hidden bg-black">
+      <style>{`
+        .tiktok-video {
+          position: absolute;
+          inset: 0;
+          width: 100vw;
+          height: 100dvh;
+          object-fit: cover;
+          background: black;
+        }
+        .feed-wrap {
+          height: 100dvh;
+          width: 100vw;
+        }
+      `}</style>
 
-        <label className="flex items-center gap-2 rounded-full bg-secondary px-4 py-2.5">
-          <Search className="h-4 w-4 text-muted-foreground" />
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search videos"
-            className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-          />
-        </label>
-
-        <nav className="flex flex-col gap-1">
-          {NAV.map(({ id, label, icon: Icon }) => (
-            <Fragment key={id}>
-              <button
-                onClick={() => setTab(id)}
-                className={`flex items-center gap-3 rounded-xl px-4 py-3 text-left font-bold transition ${
-                  activeTab === id ? "bg-primary/10 text-primary" : "text-foreground hover:bg-secondary"
-                }`}
-              >
-                <Icon className="h-5 w-5" />
-                <span className="flex items-center gap-2">
-                  {label}
-                  {id === "inbox" && unreadCount > 0 && (
-                    <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] text-primary-foreground">
-                      {unreadCount}
-                    </span>
-                  )}
-                </span>
-              </button>
-            </Fragment>
-          ))}
-        </nav>
-
-        <button
-          onClick={() => (auth.user ? setUploading(true) : auth.signIn())}
-          className="flex items-center justify-center gap-2 rounded-full bg-primary py-3.5 font-bold text-primary-foreground shadow-[0_10px_30px_-10px_var(--primary)] transition hover:brightness-95"
-        >
-          <Plus className="h-5 w-5" /> Upload video
-        </button>
-
-        {auth.ready && auth.user ? (
-          <div className="mt-auto flex items-center gap-3 rounded-xl bg-secondary p-3">
-            {auth.avatar ? (
-              <img src={auth.avatar} alt="" className="h-10 w-10 rounded-full object-cover" />
-            ) : (
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary font-display uppercase text-primary-foreground">
-                {auth.name?.[0]}
-              </div>
-            )}
-            <div className="min-w-0 flex-1 text-sm">
-              <p className="text-muted-foreground">Signed in as</p>
-              <p className="truncate font-bold">{auth.name}</p>
-            </div>
-            <button onClick={auth.signOut} aria-label="Sign out" className="text-muted-foreground hover:text-foreground">
-              <LogOut className="h-4 w-4" />
-            </button>
-          </div>
-        ) : (
-          <button
-            onClick={auth.signIn}
-            className="mt-auto flex items-center justify-center gap-2 rounded-xl border bg-secondary p-3 font-bold transition hover:bg-accent"
-          >
-            Sign in
+      {/* TOP TABS - exactly like your 2nd pic: LIVE STEM Community Following For You */}
+      <div className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-3 pt-12 pb-2 bg-gradient-to-b from-black/60 to-transparent">
+        <div className="flex items-center gap-4 text- font-bold overflow-x-auto whitespace-nowrap scrollbar-none">
+          <button onClick={() => window.location.href="/live"} className="flex items-center gap-1 text-white/70">
+            <span className="border border-white/70 rounded px-1 text-">LIVE</span>
           </button>
-        )}
-      </aside>
-
-      <main className="flex min-w-0 flex-1 flex-col">
-        <div className="mobile-topbar grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b bg-sidebar px-4 md:hidden">
-          <h1 className="min-w-0 font-display text-2xl">
-            loop<span className="text-primary">.</span>
-          </h1>
-          <div className="flex shrink-0 items-center gap-2">
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label={searchOpen ? "Close search" : "Search videos"}
-              onClick={() => setSearchOpen((open) => !open)}
-            >
-              {searchOpen ? <X /> : <Search />}
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label={auth.user ? "Sign out" : "Sign in"}
-              onClick={auth.user ? auth.signOut : auth.signIn}
-            >
-              {auth.avatar ? (
-                <img src={auth.avatar} alt="" className="h-8 w-8 rounded-full object-cover" />
-              ) : auth.user ? (
-                <LogOut />
-              ) : (
-                <User />
-              )}
-            </Button>
-          </div>
+          <button onClick={() => setTopTab("stem")} className={topTab==="stem" ? "text-white" : "text-white/60"}>STEM</button>
+          <button onClick={() => setTopTab("community")} className={topTab==="community" ? "text-white" : "text-white/60"}>Community</button>
+          <button onClick={() => setTopTab("following")} className={topTab==="following" ? "text-white" : "text-white/60"}>Following</button>
+          <button onClick={() => setTopTab("foryou")} className={topTab==="foryou" ? "text-white" : "text-white/60"}>
+            For You
+            {topTab==="foryou" && <div className="mx-auto mt-1 h- w-6 bg-white rounded-full" />}
+          </button>
         </div>
+        <button onClick={() => window.location.href="/search"} className="text-white ml-2"[STRIPPED 23 bytes]"24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-3.5-3.5"/></svg>
+        </button>
+      </div>
 
-        {searchOpen && (
-          <label className="flex shrink-0 items-center gap-3 border-b bg-sidebar px-4 py-3 md:hidden">
-            <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
-            <input
-              autoFocus
-              aria-label="Search videos"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search videos"
-              className="min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground"
-            />
-            {query && (
-              <Button variant="ghost" size="icon" aria-label="Clear search" onClick={() => setQuery("")}>
-                <X />
-              </Button>
-            )}
-          </label>
-        )}
-
-        {offlineMode && (
-          <div className="flex shrink-0 items-center gap-2 bg-primary/10 px-4 py-2 text-sm font-bold text-primary md:px-10">
-            <WifiOff className="h-4 w-4" /> You're offline — watching saved videos
-          </div>
-        )}
-
-        {activeTab === "inbox" ? (
-          <div className="p-6">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <h2 className="text-2xl font-display font-bold">Inbox</h2>
-                <p className="mt-1 text-sm text-muted-foreground">All your notifications in one place</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant={notificationFilter === "unread" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setNotificationFilter((f) => (f === "all" ? "unread" : "all"))}
-                >
-                  {notificationFilter === "all" ? "Unread only" : "Show all"}
-                </Button>
-                {unreadCount > 0 && (
-                  <Button variant="ghost" size="sm" onClick={markAllRead}>
-                    Mark all read
-                  </Button>
-                )}
-                <Link to="/messages" className="flex items-center gap-3 rounded-xl px-4 py-3 font-bold transition hover:bg-secondary">
-                  <MessageCircle className="h-5 w-5" />
-                  Messages
-                </Link>
-              </div>
-            </div>
-
-            <div className="mt-6 max-w-2xl space-y-3">
-              {filteredNotifications.length === 0 ? (
-                <div className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">
-                  {notificationFilter === "unread" ? "No unread notifications" : "No notifications"}
-                </div>
-              ) : (
-                filteredNotifications.map((n) => (
-                  <div
-                    key={n.id}
-                    className={`flex items-center gap-3 rounded-xl border bg-card p-4 ${n.read ? "opacity-70" : ""}`}
-                    onClick={() => !n.read && markRead(n.id)}
-                  >
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-500/10 text-lg">
-                      {n.type === "like" ? "❤️" : n.type === "follow" ? "👤" : "💬"}
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-sm">{n.text}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {n.created_at ? new Date(n.created_at).toLocaleString() : ""}
-                      </p>
-                    </div>
-                    {!n.read && <div className="h-2 w-2 rounded-full bg-primary" />}
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        ) : (
+      {/* FULL SCREEN VIDEO - FILLS LIKE TIKTOK */}
+      <div ref={containerRef} className="feed-wrap relative">
+        {currentVideo ? (
           <>
-            <header className="shrink-0 px-4 py-2 md:px-10 md:pb-2 md:pt-6">
-              <h2 className="break-words font-display text-base md:text-3xl">{title}</h2>
-              <p className="hidden text-sm text-muted-foreground md:block">{sub}</p>
-            </header>
+            {currentVideo.url ? (
+              <video
+                key={currentVideo.id || currentIndex}
+                src={currentVideo.url}
+                className="tiktok-video"
+                autoPlay
+                loop
+                muted={isMuted}
+                playsInline
+                controls={false}
+              />
+            ) : (
+              <div className="tiktok-video flex items-center justify-center bg-zinc-900 text-white">
+                <p>No video file — placeholder for {currentVideo.username}</p>
+              </div>
+            )}
 
-            <div className="no-scrollbar min-h-0 flex-1 snap-y snap-mandatory overflow-y-scroll overscroll-contain">
-              {error && !offlineMode && <Empty text="Couldn't load videos. Refresh to try again." />}
-              {!error && videos === null && activeTab !== "saved" && <Empty text="Loading your feed..." />}
-              {(videos || activeTab === "saved") && shown.length === 0 && (
-                <Empty
-                  text={
-                    activeTab === "saved"
-                      ? "No saved videos yet. Tap Share → Save for offline on any video."
-                      : "Nothing here yet."
-                  }
-                />
-              )}
-              {shown.map((v) => (
-                <VideoCard
-                  key={`${activeTab}-${v.id}`}
-                  video={v}
-                  liked={liked.has(v.id)}
-                  muted={muted}
-                  onToggleMute={() => setMuted((m) => !m)}
-                  onLikeChange={(on) => {
-                    setLiked((s) => {
-                      const n = new Set(s);
-                      if (on) n.add(v.id);
-                      else n.delete(v.id);
-                      return n;
-                    });
-                  }}
-                />
-              ))}
-              <div id="scroll-sentinel" className="h-10 w-full" />
+            {/* BOTTOM LEFT - @drewmclawhorn3 style */}
+            <div className="absolute bottom- left-0 right- z-20 px-3">
+              <p className="text-white font-bold text-">@{currentVideo.username || "drewmclawhorn3"}</p>
+              <p className="text-white text- mt-1 line-clamp-2">{currentVideo.caption || "TTK: ERASAGI 🔥"}</p>
+              <div className="flex items-center gap-2 mt-2">
+                <span className="text-white/80 text-xs">♫ Original sound - {currentVideo.username}</span>
+              </div>
+            </div>
+
+            {/* RIGHT BAR - D, heart 6, comment 0, share 0 like your 1st pic */}
+            <div className="absolute right-2 bottom- z-20 flex flex-col items-center gap-5">
+              <button onClick={() => setIsMuted(!isMuted)} className="h-9 w-9 rounded-full bg-white/20 backdrop-blur flex items-center justify-center text-white text-xs">
+                {isMuted ? "🔇" : "🔊"}
+              </button>
+
+              <button className="flex flex-col items-center">
+                <div className="h- w- rounded-full bg-[#ff2d55] flex items-center justify-center text-white font-bold">D</div>
+              </button>
+
+              <button className="flex flex-col items-center">
+                <div className="h- w- rounded-full bg-white/20 backdrop-blur flex items-center justify-center">
+                  <span className="text-white text-2xl">❤</span>
+                </div>
+                <span className="text-white text-xs font-bold mt-1">{currentVideo.likes || 6}</span>
+              </button>
+
+              <button className="flex flex-col items-center">
+                <div className="h- w- rounded-full bg-white/20 backdrop-blur flex items-center justify-center"[STRIPPED 31 bytes]"24" height="24" fill="white" viewBox="0 0 24 24"><path d="M21 11.5a8.5 8.5 0 0 1-12.5 7.5L2 22l3-6.5A8.5 8.5 0 0 1 21 11.5z" stroke="white" strokeWidth="1.5" fill="none"/></svg>
+                </div>
+                <span className="text-white text-xs font-bold mt-1">{currentVideo.comments || 0}</span>
+              </button>
+
+              <button className="flex flex-col items-center">
+                <div className="h- w- rounded-full bg-white/20 backdrop-blur flex items-center justify-center"[STRIPPED 31 bytes]"24" height="24" fill="white" viewBox="0 0 24 24"><path d="M18 13v-2a6 6 0 0 0-6-6H8M8 11H6a2 2 0 0 0-2 2v2a2 2 0 0 0 2 2h2M16 17h2a2 2 0 0 0 2-2v-2a2 2 0 0 0-2-2h-2M12 8l-4 4 4M16 12H8" stroke="white" strokeWidth="1.8" fill="none"/></svg>
+                </div>
+                <span className="text-white text-xs font-bold mt-1">{currentVideo.shares || 0}</span>
+              </button>
+
+              <button className="mt-2">
+                <div className="h- w- rounded-full bg-gradient-to-b from-zinc-700 to-zinc-900 border-2 border-white/20 overflow-hidden flex items-center justify-center">
+                  <span className="text-xs">♪</span>
+                </div>
+              </button>
+            </div>
+
+            {/* Progress bar pink like 1st pic */}
+            <div className="absolute bottom- left-0 right-0 h- bg-white/20 z-20">
+              <div className="h-full bg-white transition-all" style={{ width: `${((currentIndex+1)/Math.max(videos.length,1))*100}%` }} />
             </div>
           </>
+        ) : (
+          <div className="tiktok-video flex items-center justify-center text-white">Loading 1332 videos...</div>
         )}
+      </div>
 
-        <nav aria-label="Phone navigation" className="mobile-bottom-nav grid shrink-0 grid-cols-7 place-items-center w-full gap-0 border-0 bg-black px-0 rounded-none md:hidden">
-          {NAV.slice(0, 3).map(({ id, label, icon: Icon }) => (
-            <Button
-              key={id}
-              variant="ghost"
-              onClick={() => setTab(id)}
-              aria-current={activeTab === id ? "page" : undefined}
-              className={`h-14 min-w-0 flex-col gap-1 rounded-none px-0 text-[9px] ${
-                activeTab === id ? "text-primary" : "text-muted-foreground"
-              }`}
-            >
-              <Icon className="h-5 w-5" />
-              {label}
-            </Button>
-          ))}
-          <Button
-            aria-label="Record video"
-            onClick={() => (auth.user ? setRecordingOpen(true) : auth.signIn())}
-            className="m-auto h-9 w-10 rounded-lg px-0 [&_svg]:size-6"
-          >
-            <Plus />
-          </Button>
-          {NAV.slice(3).map(({ id, label, icon: Icon }) => (
-            <Fragment key={id}>
-              <Button
-                variant="ghost"
-                onClick={() => setTab(id)}
-                aria-current={activeTab === id ? "page" : undefined}
-                className={`h-14 min-w-0 flex-col gap-1 rounded-none px-0 text-[9px] ${
-                  activeTab === id ? "text-primary" : "text-muted-foreground"
-                }`}
-              >
-                <Icon className="h-5 w-5" />
-                {id === "mine" ? "You" : label}
-              </Button>
-            </Fragment>
-          ))}
-          {auth.user && auth.handle ? (
-            <Link
-              to="/u/$username"
-              params={{ username: auth.handle }}
-              aria-label="Profile"
-              className="flex h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-none px-0 text-[9px] text-muted-foreground [&_svg]:size-5"
-            >
-              <User />
-              Profile
-            </Link>
-          ) : (
-            <Button
-              variant="ghost"
-              aria-label="Profile"
-              onClick={() => auth.signIn()}
-              className="h-14 min-w-0 flex-col gap-1 rounded-none px-0 text-[9px] text-muted-foreground [&_svg]:size-5"
-            >
-              <User />
-              Profile
-            </Button>
-          )}
-        </nav>
-      </main>
-
-      <aside className="hidden w-80 shrink-0 flex-col justify-center p-8 xl:flex">
-        <div className="rounded-3xl border bg-card p-8">
-          <span className="mb-6 block h-3 w-3 rounded-full bg-primary" />
-          <p className="font-display text-4xl leading-[0.95]">
-            LESS PERFECT.
-            <br />
-            <span className="text-primary">MORE REAL.</span>
-          </p>
-          <p className="mt-6 text-muted-foreground">The world wants your point of view</p>
-          <button
-            onClick={() => (auth.user ? setRecordingOpen(true) : auth.signIn())}
-            className="mt-8 w-full rounded-full border border-primary py-3 font-bold text-primary transition hover:bg-primary hover:text-primary-foreground"
-          >
-            Share yours
-          </button>
-        </div>
-      </aside>
-
-      {uploading && auth.handle && (
-        <UploadDialog
-          defaultUsername={auth.handle}
-          onClose={() => setUploading(false)}
-          onDone={() => {
-            setUploading(false);
-            setTab("mine");
-            load();
-          }}
-        />
-      )}
-
-      <RecordDialog
-        open={recordingOpen}
-        onOpenChange={setRecordingOpen}
-        username={auth.handle}
-        onUploadInstead={() => setUploading(true)}
-        onPosted={() => {
-          setTab("mine");
-          load();
-        }}
-      />
+      {/* BOTTOM NAV - Home Friends + Inbox Profile like 2nd pic */}
+      <div className="fixed bottom-0 left-0 right-0 h- bg-black border-t border-white/10 flex justify-around items-center z-30 pb-1">
+        <button className="flex flex-col items-center text-white"><div className="text-xl">⌂</div><span className="text- mt-0.5">Home</span></button>
+        <button onClick={() => setTopTab("friends")} className="flex flex-col items-center text-white/60"><div className="text-xl">👥</div><span className="text- mt-0.5">Friends</span></button>
+        <button onClick={() => window.location.href="/live"} className="flex flex-col items-center">
+          <div className="h-9 w- rounded- bg-white flex items-center justify-center border-2 border-white relative">
+            <div className="absolute -left-1 top-0 bottom-0 w-2 bg-cyan-400 rounded-l- -z-10" />
+            <div className="absolute -right-1 top-0 bottom-0 w-2 bg-[#ff2d55] rounded-r- -z-10" />
+            <span className="text-black text-2xl font-bold">+</span>
+          </div>
+        </button>
+        <button onClick={() => window.location.href="/inbox"} className="flex flex-col items-center text-white/60"><div className="text-xl">💬</div><span className="text- mt-0.5">Inbox</span></button>
+        <button onClick={() => window.location.href="/profile"} className="flex flex-col items-center text-white/60"><div className="text-xl">👤</div><span className="text- mt-0.5">Profile</span></button>
+      </div>
     </div>
   );
-}
-
-function Empty({ text }: { text: string }) {
-  return <div className="flex h-full items-center justify-center text-muted-foreground">{text}</div>;
 }

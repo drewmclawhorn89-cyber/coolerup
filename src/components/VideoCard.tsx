@@ -196,13 +196,7 @@ export function VideoCard({
               <Heart className="pointer-events-none absolute inset-0 m-auto h-24 w-24 animate-ping fill-primary text-primary" />
             )}
             {!isImage && (
-            <Button variant="ghost" size="icon"
-              onClick={onToggleMute}
-              aria-label={muted ? "Unmute" : "Mute"}
-              className="absolute right-3 top-3 rounded-full bg-overlay p-2 text-foreground backdrop-blur"
-            >
-              {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
-            </Button>
+         
             )}
             <div className="video-caption absolute inset-x-0 bottom-2 pb-5 pl-4 pr-20 pt-16 md:hidden">
               <Link to="/u/$username" params={{ username: video.username }} className="break-words text-sm font-bold">@{video.username}</Link>

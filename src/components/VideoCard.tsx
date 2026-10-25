@@ -183,21 +183,7 @@ export function VideoCard({
                 className="h-full w-full cursor-pointer object-cover"
               />
             )}
-            {!playing && src && !isImage && (
-              <Button variant="ghost" size="icon"
-                onClick={togglePlay}
-                aria-label="Play"
-                className="absolute inset-0 m-auto flex h-16 w-16 items-center justify-center rounded-full bg-overlay text-foreground backdrop-blur"
-              >
-                <Play className="ml-1 h-7 w-7 fill-current" />
-              </Button>
-            )}
-            {burst && (
-              <Heart className="pointer-events-none absolute inset-0 m-auto h-24 w-24 animate-ping fill-primary text-primary" />
-            )}
-            {!isImage && (
-         
-            )}
+            
             <div className="video-caption absolute inset-x-0 bottom-2 pb-5 pl-4 pr-20 pt-16 md:hidden">
               <Link to="/u/$username" params={{ username: video.username }} className="break-words text-sm font-bold">@{video.username}</Link>
               <p className="mt-1 line-clamp-3 break-words text-sm">{video.caption}</p>

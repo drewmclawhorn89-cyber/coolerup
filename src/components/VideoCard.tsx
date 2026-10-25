@@ -169,7 +169,7 @@ export function VideoCard({
                 ref={ref}
                 src={src}
                 loop
-                muted={muted}
+                muted={false}
                 playsInline
                 preload="metadata"
                 onClick={togglePlay}

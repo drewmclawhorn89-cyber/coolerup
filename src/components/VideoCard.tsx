@@ -1,15 +1,24 @@
 import { useRef, useState, useEffect } from "react";
-import { Link } from "@tanstack/react-router";
 import { Heart, Share2, MessageCircle } from "lucide-react";
-import { formatCount, isImageUrl, resolveVideoUrl, type Video } from "@/lib/loop";
+import { isImageUrl, resolveVideoUrl, type Video } from "@/lib/loop";
 import { getSaved } from "@/lib/offline";
+
+function formatCount(n: number) {
+  if (!n) return "0";
+  if (n >= 1000000) return (n/1000000).toFixed(1)+"M";
+  if (n >= 1000) return (n/1000).toFixed(1)+"K";
+  return n.toString();
+}
 
 export function VideoCard({ video, liked, onLikeChange }: { video: Video; liked: boolean; muted: boolean; onToggleMute: () => void; onLikeChange: (liked: boolean) => void; }) {
   const ref = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [src, setSrc] = useState("");
   const [progress, setProgress] = useState(0);
+  const [localLiked, setLocalLiked] = useState(liked);
   const [likes, setLikes] = useState(video.likes_count);
+
+  useEffect(() => { setLocalLiked(liked); }, [liked]);
 
   useEffect(() => {
     let blobUrl = "";
@@ -26,68 +35,69 @@ export function VideoCard({ video, liked, onLikeChange }: { video: Video; liked:
     if (!v || !c || !src) return;
     const obs = new IntersectionObserver((entries) => {
       entries.forEach(e => {
-        if (e.isIntersecting && e.intersectionRatio >= 0.8) v.play().catch(()=>{});
+        if (e.isIntersecting && e.intersectionRatio >= 0.6) v.play().catch(()=>{});
         else v.pause();
       });
-    }, { threshold: 0.8 });
+    }, { threshold: 0.6 });
     obs.observe(c); return () => obs.disconnect();
   }, [src]);
 
   const isImage = isImageUrl(src);
 
+  const handleLike = () => {
+    const newLiked = !localLiked;
+    setLocalLiked(newLiked);
+    setLikes(s => s + (newLiked ? 1 : -1));
+    try { onLikeChange(newLiked); } catch(e) {}
+    // vibrate like TikTok
+    try { navigator.vibrate(10); } catch(e) {}
+  };
+
   return (
     <div ref={containerRef} className="relative w-full h-full bg-black flex justify-center">
       <div className="relative h-full aspect-[9/16] w-full max-w- bg-black overflow-hidden">
-        {isImage ? <img src={src} className="h-full w-full object-cover" /> :
-        <video ref={ref} src={src} className="h-full w-full object-cover" loop playsInline muted={false} onClick={()=>{const el=ref.current; if(!el)return; el.paused?el.play():el.pause()}} onTimeUpdate={(e)=>{const v=e.currentTarget; if(v.duration) setProgress((v.currentTime/v.duration)*100)}} />}
+        {isImage ? <img src={src} className="h-full w-full object-cover" alt="video" /> :
+        <video ref={ref} src={src} className="h-full w-full object-cover" loop playsInline muted={false} onTimeUpdate={(e)=>{const v=e.currentTarget; if(v.duration) setProgress((v.currentTime/v.duration)*100)}} />}
+
+        {/* TAP TO PLAY AREA - NOT OVER BUTTONS */}
+        <div className="absolute inset-0 left-0 right-16 top-0 bottom-20 z-10" onClick={()=>{const el=ref.current; if(!el)return; el.paused?el.play():el.pause()}} />
+
+        <div className="absolute bottom-0 left-0 right-0 h- bg-white/20 z-20"><div className="h-full bg-white" style={{width:`${progress}%`}} /></div>
         
-        <div className="absolute bottom-0 left-0 right-0 h- bg-white/20"><div className="h-full bg-white" style={{width:`${progress}%`}} /></div>
-        
-        <div className="absolute bottom-6 left-3 right-20 text-white z-20">
-          <div className="font-bold text- drop-shadow-[0_2px_4px_black]">@{video.username}</div>
-          <div className="text- mt-1 leading- line-clamp-2 drop-shadow-[0_2px_4px_black]">{video.caption}</div>
-          <div className="text- mt-2 opacity-90">♫ {video.username} - Original sound</div>
+        <div className="absolute bottom-6 left-3 right-20 text-white z-20 pointer-events-none">
+          <div className="font-bold text- drop-shadow-[0_2px_4px_black] pointer-events-auto">@{video.username}</div>
+          <div className="text- mt-1 line-clamp-2 drop-shadow-[0_2px_4px_black]">{video.caption}</div>
         </div>
 
-        <div className="absolute bottom-24 right-3 flex flex-col gap-7 items-center z-50">
-          <div className="relative">
-            <div className="h-12 w-12 rounded-full bg-white border-2 border-white flex items-center justify-center font-bold text-black text-xl">{video.username[0]?.toUpperCase()}</div>
-            <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 h-5 w-5 bg-[#fe2c55] rounded-full flex items-center justify-center text-white text-">+</div>
+        {/* BUTTONS CONTAINER - ON TOP WITH HIGH Z-INDEX */}
+        <div className="absolute bottom-24 right-2 flex flex-col gap-6 items-center z-[999] pointer-events-auto">
+          
+          <div className="h-12 w-12 rounded-full bg-white border-2 border-white flex items-center justify-center font-bold text-black text-xl">{video.username[0]?.toUpperCase()}</div>
+
+          <div
+            onClick={handleLike}
+            className="flex flex-col items-center cursor-pointer select-none"
+            style={{ pointerEvents: 'auto' }}
+          >
+            <Heart className={`h-9 w-9 ${localLiked ? "fill-[#fe2c55] text-[#fe2c55]" : "text-white"} `} fill={localLiked ? "#fe2c55" : "none"} />
+            <span className="text-white font-bold text-xs mt-1">{formatCount(likes)}</span>
           </div>
 
-          <button
-            type="button"
-            onPointerDown={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              const n = !liked;
-              onLikeChange(n);
-              setLikes(s=>s+(n?1:-1));
-            }}
-            className="flex flex-col items-center active:scale-90 z-50 pointer-events-auto"
-          >
-            <Heart className={`h-8 w-8 ${liked?"fill-[#fe2c55] text-[#fe2c55]":"text-white"}`} />
-            <span className="text-white font-bold text-xs mt-1">{formatCount(likes)}</span>
-          </button>
-
-          <button type="button" onPointerDown={(e)=>{e.preventDefault(); e.stopPropagation();}} className="flex flex-col items-center z-50 pointer-events-auto">
-            <MessageCircle className="h-8 w-8 text-white" />
+          <div className="flex flex-col items-center cursor-pointer" style={{ pointerEvents: 'auto' }} onClick={()=>alert("Comments coming soon!")}>
+            <MessageCircle className="h-9 w-9 text-white" />
             <span className="text-white font-bold text-xs mt-1">{formatCount(video.comments_count)}</span>
-          </button>
+          </div>
 
-          <button
-            type="button"
-            onPointerDown={(e)=>{
-              e.preventDefault();
-              e.stopPropagation();
-              if (navigator.share) navigator.share({title: video.caption, url: location.href});
-              else { navigator.clipboard.writeText(location.href); alert("Link copied"); }
-            }}
-            className="flex flex-col items-center z-50 pointer-events-auto"
-          >
-            <Share2 className="h-8 w-8 text-white" />
+          <div className="flex flex-col items-center cursor-pointer" style={{ pointerEvents: 'auto' }} onClick={async()=>{
+            try {
+              if (navigator.share) await navigator.share({title: video.caption, url: location.href});
+              else { await navigator.clipboard.writeText(location.href); alert("Link copied!"); }
+            } catch(e) { await navigator.clipboard.writeText(location.href); alert("Link copied!"); }
+          }}>
+            <Share2 className="h-9 w-9 text-white" />
             <span className="text-white font-bold text-xs mt-1">Share</span>
-          </button>
+          </div>
+
         </div>
       </div>
     </div>

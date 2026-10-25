@@ -202,7 +202,7 @@ export function VideoCard({
             <p className="text-sm text-muted-foreground">{video.caption}</p>
           </div>
         </div>
-        <div className="absolute top-16 right-2 flex flex-col items-center gap-4 md:static md:mb-16 md:gap-5">
+        <div className="absolute bottom-16 right-2 flex flex-col items-center gap-4 md:static md:mb-16 md:gap-5">
           <Link
             to="/u/$username"
             params={{ username: video.username }}

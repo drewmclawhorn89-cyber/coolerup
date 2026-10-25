@@ -1,117 +1,108 @@
-import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useState, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { ArrowLeft, Pencil, X } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { EditProfileDialog, resolveAvatarUrl } from "@/components/EditProfileDialog";
+import { isImageUrl } from "@/lib/loop";
+import type { Profile as ProfileRow } from "@/hooks/useAuth";
 
-export default function UsernameProfile() {
-  const { username: paramUsername } = useParams();
-  const [username, setUsername] = useState(paramUsername || "drewmclawhorn3");
-  const [videos, setVideos] = useState<any[]>([]);
-  const [selected, setSelected] = useState<any>(null);
-  const [selectedIndex, setSelectedIndex] = useState(0);
+export const Route = createFileRoute("/u/$username")({
+  component: Profile,
+});
+
+function Profile() {
+  const { username } = Route.useParams();
+  const auth = useAuth();
+  const [videos, setVideos] = useState<any[] | null>(null);
+  const [open, setOpen] = useState<number | null>(null);
+  const [profile, setProfile] = useState<ProfileRow | null>(null);
+  const [avatar, setAvatar] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+
+  const isOwn = !!auth.handle && auth.handle === username;
 
   useEffect(() => {
-    if (paramUsername) setUsername(paramUsername);
-    try {
-      const all = JSON.parse(localStorage.getItem("videos") || "[]");
-      const userVideos = all.filter((v:any) => v.username === paramUsername) || [];
-      if (userVideos.length > 0) setVideos(userVideos);
-      else setVideos(Array.from({ length: 12 }, (_, i) => ({ id: i, username, url: "", likes: Math.floor(Math.random()*500) })));
-    } catch {}
-  }, [paramUsername, username]);
+    supabase.from("videos").select("*").eq("username", username).order("created_at", { ascending: false }).then(({ data }) => {
+      setVideos(data || []);
+    });
+    supabase.from("profiles").select("id, handle, display_name, bio, avatar_url").eq("handle", username).maybeSingle().then(({ data }) => {
+      const row = (data as ProfileRow | null) ?? null;
+      setProfile(row);
+      resolveAvatarUrl(row?.avatar_url).then(setAvatar);
+    });
+  }, [username, auth.profile?.avatar_url, auth.profile?.display_name, auth.profile?.bio]);
 
-  const openVideo = (v:any, idx:number) => {
-    setSelected(v);
-    setSelectedIndex(idx);
-  };
+  const totalLikes = (videos || []).reduce((a, v) => a + (v.likes_count || 0), 0);
+  const displayName = profile?.display_name || username;
 
   return (
-    <div className="min-h-screen bg-white">
-      {/* PROFILE HEADER */}
-      <div className="p-4 flex gap-4">
-        <div className="w-20 h-20 rounded-full bg-black text-white flex items-center justify-center text-2xl font-bold">{username[0]?.toUpperCase()}</div>
-        <div className="flex-1">
-          <h1 className="font-bold">@{username}</h1>
-          <p className="text-xs text-gray-600 mt-1">{videos.length} videos</p>
-        </div>
-        <a href="/settings" style={{backgroundColor:"black", color:"white"}} className="rounded-full px-3 py-1 text-xs h-fit">Settings</a>
-      </div>
+    <div className="min-h-dvh bg-background">
+      <div className="mx-auto max-w-4xl px-4 pt-4">
+        <Link to="/" className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+          <ArrowLeft className="h-4 w-4" /> Home
+        </Link>
 
-      {/* GRID - FILLS FULL WIDTH - NO GRAY */}
-      <div className="grid grid-cols-3 gap- w-screen">
-        {videos.map((v, i) => (
-          <div 
-            key={i} 
-            onClick={() => openVideo(v, i)}
-            className="relative aspect-[3/4] w-full bg-black overflow-hidden cursor-pointer"
-          >
-            {/* FILL FULL - object-cover */}
-            <div className="absolute inset-0 w-full h-full bg-black">
-              {v.url ? (
-                <video src={v.url} className="w-full h-full object-cover" muted playsInline />
-              ) : (
-                <div className="w-full h-full bg-black flex items-center justify-center">
-                  <div className="w-full h-full bg-gradient-to-br from-zinc-800 to-black flex items-center justify-center">
-                    <span className="text-white text-2xl">▶</span>
-                  </div>
-                </div>
-              )}
-            </div>
-            <div className="absolute bottom-1 left-1 text-white text- font-bold">▶ {v.likes || Math.floor(Math.random()*500)}</div>
+        <div className="flex flex-col items-center gap-3 py-8 text-center">
+          <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-full bg-primary text-4xl uppercase text-primary-foreground">
+            {avatar ? <img src={avatar} alt={displayName} className="h-full w-full object-cover" /> : username?.[0]}
           </div>
-        ))}
+          <div>
+            <h1 className="text-2xl">{displayName}</h1>
+            <p className="text-sm text-muted-foreground">@{username}</p>
+          </div>
+          {profile?.bio && <p className="max-w-md text-sm text-muted-foreground">{profile.bio}</p>}
+          {isOwn && (
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
+                <Pencil className="mr-2 h-3.5 w-3.5" /> Edit profile
+              </Button>
+              <Link to="/settings" className="inline-flex items-center rounded-md border px-3 py-1 text-sm">
+                Settings
+              </Link>
+            </div>
+          )}
+          <div className="flex gap-8 text-sm">
+            <span><b>{videos?.length?? "-"}</b> videos</span>
+            <span><b>{totalLikes}</b> likes</span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-3 gap-1">
+          {videos?.map((v, i) => (
+            <button key={v.id} onClick={() => setOpen(i)} className="relative aspect-[9/16] overflow-hidden rounded-md bg-zinc-800">
+              {isImageUrl(v.video_url) ? (
+                <img src={v.video_url} alt={v.caption || ""} className="h-full w-full object-cover" />
+              ) : (
+                <video src={`${v.video_url}#t=0.5`} muted playsInline preload="metadata" className="h-full w-full object-cover" />
+              )}
+              <div className="absolute bottom-1 left-1 text- text-white bg-black/50 px-1 rounded">♥ {v.likes_count || 0}</div>
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* FULL SCREEN VIEWER - FILLS FULL LIKE TIKTOK WHEN YOU TAP */}
-      {selected && (
-        <div style={{ position:"fixed", inset:0, zIndex:50, background:"black", width:"100vw", height:"100dvh", display:"flex", flexDirection:"column" }}>
-          {/* Video fills full screen */}
-          <div style={{ flex:1, position:"relative", width:"100%", height:"100%" }}>
-            {selected.url ? (
-              <video
-                src={selected.url}
-                style={{ position:"absolute", inset:0, width:"100%", height:"100%", objectFit:"cover" }}
-                autoPlay
-                loop
-                playsInline
-                controls={false}
-              />
-            ) : (
-              <div style={{ position:"absolute", inset:0, width:"100%", height:"100%", background:"black", display:"flex", alignItems:"center", justifyContent:"center", color:"white" }}>
-                FULL SCREEN VIDEO {selected.id}
+      {open!== null && videos && (
+        <div className="fixed inset-0 z-40 bg-black">
+          <Button variant="ghost" size="icon" onClick={() => setOpen(null)} className="absolute left-3 top-3 z-50 text-white">
+            <X />
+          </Button>
+          <div className="h-dvh overflow-y-scroll snap-y snap-mandatory">
+            {videos.map((v) => (
+              <div key={v.id} className="h-dvh snap-start flex items-center justify-center">
+                {isImageUrl(v.video_url) ? (
+                  <img src={v.video_url} alt={v.caption || ""} className="h-full w-full object-cover" />
+                ) : (
+                  <video src={v.video_url} className="h-full w-full object-cover" controls loop playsInline />
+                )}
               </div>
-            )}
-
-            {/* Top bar */}
-            <div style={{ position:"absolute", top:0, left:0, right:0, padding:"16px", paddingTop:"50px", display:"flex", justifyContent:"space-between", background:"linear-gradient(to bottom, rgba(0,0,0,0.5), transparent)", zIndex:10 }}>
-              <button onClick={() => setSelected(null)} style={{ color:"white", fontSize:"20px" }}>←</button>
-              <span style={{ color:"white", fontWeight:"bold" }}>@{username}</span>
-              <span style={{ color:"white" }}>⋯</span>
-            </div>
-
-            {/* Bottom info - fills */}
-            <div style={{ position:"absolute", bottom:"20px", left:"12px", right:"70px", color:"white", zIndex:10 }}>
-              <div style={{ fontWeight:"bold", fontSize:"15px" }}>@{username}</div>
-              <div style={{ fontSize:"13px", marginTop:"4px" }}>Video {selectedIndex + 1} of {videos.length}</div>
-            </div>
-
-            {/* Right buttons */}
-            <div style={{ position:"absolute", right:"8px", bottom:"80px", display:"flex", flexDirection:"column", gap:"16px", zIndex:10 }}>
-              <div style={{ width:"48px", height:"48px", borderRadius:"999px", background:"rgba(255,255,255,0.2)", display:"flex", alignItems:"center", justifyContent:"center" }}>❤️</div>
-              <div style={{ width:"48px", height:"48px", borderRadius:"999px", background:"rgba(255,255,255,0.2)", display:"flex", alignItems:"center", justifyContent:"center" }}>💬</div>
-              <div style={{ width:"48px", height:"48px", borderRadius:"999px", background:"rgba(255,255,255,0.2)", display:"flex", alignItems:"center", justifyContent:"center" }}>↗️</div>
-            </div>
-
-            {/* Swipe next/prev */}
-            <button onClick={() => { const next = (selectedIndex + 1) % videos.length; setSelectedIndex(next); setSelected(videos[next]); }} style={{ position:"absolute", right:0, top:0, width:"50%", height:"100%", background:"transparent" }} />
-            <button onClick={() => { const prev = (selectedIndex - 1 + videos.length) % videos.length; setSelectedIndex(prev); setSelected(videos[prev]); }} style={{ position:"absolute", left:0, top:0, width:"50%", height:"100%", background:"transparent" }} />
+            ))}
           </div>
         </div>
       )}
 
-      {/* Bottom nav */}
-      <div className="fixed bottom-0 left-0 right-0 h- bg-white border-t flex justify-around items-center text-">
-        <a href="/">Home</a>
-        <a href="/profile">Profile</a>
-      </div>
+      {isOwn && <EditProfileDialog open={editing} onOpenChange={setEditing} />}
     </div>
   );
 }

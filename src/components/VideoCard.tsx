@@ -1,20 +1,13 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { Link } from "@tanstack/react-router";
-import { Heart, MessageCircle, Share2, Play, Volume2, VolumeX } from "lucide-react";
-import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { Play, Heart } from "lucide-react";
 import { formatCount, isImageUrl, resolveVideoUrl, type Video } from "@/lib/loop";
 import { getSaved } from "@/lib/offline";
-import { useAuth } from "@/hooks/useAuth";
-import { Comments } from "./Comments";
-import { ShareMenu } from "./ShareMenu";
 import { Button } from "@/components/ui/button";
 
 export function VideoCard({
   video,
   liked,
-  muted,
-  onToggleMute,
   onLikeChange,
 }: {
   video: Video;
@@ -28,238 +21,103 @@ export function VideoCard({
   const [playing, setPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [likes, setLikes] = useState(video.likes_count);
-  const [comments, setComments] = useState(video.comments_count);
-  const [shares, setShares] = useState(video.shares_count);
   const [showComments, setShowComments] = useState(false);
-  const [showShare, setShowShare] = useState(false);
-  const [burst, setBurst] = useState(false);
-  const [isFollowing, setIsFollowing] = useState(false);
-  const auth = useAuth();
-  const myUsername = auth.handle;
-  const isImage = isImageUrl(video.video_url);
 
   useEffect(() => {
-    if (!auth.user || !myUsername || video.username === myUsername) return;
-    supabase
-      .from("follows")
-      .select("id")
-      .eq("follower_id", auth.user.id)
-      .eq("following_username", video.username)
-      .maybeSingle()
-      .then(({ data }) => setIsFollowing(!!data));
-  }, [video.username, auth.user?.id, myUsername]);
-
-  const toggleFollow = async () => {
-    if (!auth.user || !myUsername) return auth.signIn();
-    const next = !isFollowing;
-    setIsFollowing(next);
-    const { error } = next
-      ? await supabase.from("follows").insert({ follower_id: auth.user.id, follower_username: myUsername, following_username: video.username })
-      : await supabase.from("follows").delete().eq("follower_id", auth.user.id).eq("following_username", video.username);
-    if (error) {
-      setIsFollowing(!next);
-      toast.error("Couldn't update follow");
-    }
-  };
-  useEffect(() => {
-    let blobUrl = "";
     let alive = true;
-    getSaved(video.id)
-      .catch(() => null)
-      .then(async (saved) => {
-        if (!alive) return;
-        if (saved) {
-          blobUrl = URL.createObjectURL(saved.blob);
-          setSrc(blobUrl);
-        } else {
-          const u = await resolveVideoUrl(video.video_url);
-          if (alive) setSrc(u);
-        }
-      });
+    let blobUrl1 = "";
+    (async () => {
+      const saved = await getSaved(video.id);
+      if (saved) {
+        blobUrl1 = URL.createObjectURL(saved.blob);
+        setSrc(blobUrl1);
+      } else {
+        const u = await resolveVideoUrl(video.video_url);
+        if (alive) setSrc(u);
+      }
+    })();
     return () => {
       alive = false;
-      if (blobUrl) URL.revokeObjectURL(blobUrl);
+      if (blobUrl1) URL.revokeObjectURL(blobUrl1);
     };
   }, [video.id, video.video_url]);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el || isImage) return;
-    const obs = new IntersectionObserver(
-      ([e]) => {
-        if (e && e.isIntersecting && e.intersectionRatio > 0.6) el.play().catch(() => {});
-        else el.pause();
-      },
-      { threshold: [0, 0.6, 1] },
-    );
-    obs.observe(el);
-    return () => obs.disconnect();
-  }, [src]);
 
   const togglePlay = () => {
     const el = ref.current;
     if (!el) return;
-    if (el.paused) el.play();
-    else el.pause();
+    if (el.paused) { el.play(); setPlaying(true); }
+    else { el.pause(); setPlaying(false); }
   };
 
- const toggleLike = async () => {
-  const next = !liked;
-  onLikeChange(next);
-  setLikes((n) => n + (next ? 1 : -1));
-  if (next) {
-    setBurst(true);
-    setTimeout(() => setBurst(false), 500);
-  }
-  const { data: { user: authUser } } = await supabase.auth.getUser();
-  if (!authUser) {
-    toast.error("Please log in to like");
-    onLikeChange(!next);
-    setLikes((n) => n + (next ? -1 : 1));
-    return;
-  }
-  const { error } = next
-    ? await supabase.from("likes").insert({ video_id: video.id, user_id: authUser.id })
-    : await supabase.from("likes").delete().eq("video_id", video.id).eq("user_id", authUser.id);
-  if (error) {
-    onLikeChange(!next);
-    setLikes((n) => n + (next ? -1 : 1));
-    toast.error("Couldn't save your like");
-  } else if (next) {
-    // save notification to account
-    const { data: owner } = await supabase.from("profiles").select("id").eq("username", video.username).single();
-    if (owner && owner.id !== authUser.id) {
-      await supabase.from("notifications").insert({
-        target_user_id: owner.id,
-        actor_user_id: authUser.id,
-        type: 'like',
-        video_id: video.id,
-        text: 'liked your fit'
-      });
-    }
-  }
-};
-  const onShared = async () => {
-    setShares((n) => n + 1);
-    if (navigator.onLine) await supabase.rpc("increment_share", { _video_id: video.id });
-  };
-
-  const seek = (e: React.MouseEvent<HTMLDivElement>) => {
-    const el = ref.current;
-    if (!el || !el.duration) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    el.currentTime = ((e.clientX - rect.left) / rect.width) * el.duration;
-  };
+  const isImage = isImageUrl(src);
 
   return (
-    <section className="flex h-full snap-start snap-always items-center justify-center md:py-4">
-      <div className="relative flex h-full w-full items-end md:h-auto md:w-auto md:gap-4">
-        <div className="flex h-full min-w-0 flex-1 flex-col md:h-auto md:flex-none md:gap-3">
-          <div className="relative h-full w-full overflow-hidden bg-card md:aspect-[9/16] md:h-[calc(100dvh-11rem)] md:max-h-[760px] md:w-auto md:rounded-2xl">
-            {src && isImage && (
-              <img
-                src={src}
-                alt={video.caption || `Photo by @${video.username}`}
-                onDoubleClick={() => !liked && toggleLike()}
-                className="h-full w-full cursor-pointer object-cover"
-              />
-            )}
-            {src && !isImage && (
-              <video
-                ref={ref}
-                src={src}
-                loop
-                muted={false}
-                playsInline
-                preload="metadata"
-                onClick={togglePlay}
-                onDoubleClick={() => !liked && toggleLike()}
-                onPlay={() => setPlaying(true)}
-                onPause={() => setPlaying(false)}
-                onTimeUpdate={(e) => {
-                  const v = e.currentTarget;
-                  if (v.duration) setProgress((v.currentTime / v.duration) * 100);
-                }}
-                className="h-full w-full cursor-pointer object-cover"
-              />
-            )}
-            
-            <div className="video-caption absolute inset-x-0 bottom-2 pb-5 pl-4 pr-20 pt-16 md:hidden">
-              <Link to="/u/$username" params={{ username: video.username }} className="break-words text-sm font-bold">@{video.username}</Link>
-              <p className="mt-1 line-clamp-3 break-words text-sm">{video.caption}</p>
-            </div>
-            {!isImage && (
-            <div onClick={seek} className="absolute inset-x-0 bottom-0 h-3 cursor-pointer">
-              <div className="absolute inset-x-0 bottom-0 h-1 bg-foreground/20">
-                <div className="h-full bg-primary" style={{ width: `${progress}%` }} />
-              </div>
-            </div>
-            )}
-          </div>
-          <div className="hidden max-w-[calc((100dvh-11rem)*9/16)] md:block">
-            <Link to="/u/$username" params={{ username: video.username }} className="font-bold hover:text-primary">@{video.username}</Link>
-            <p className="text-sm text-muted-foreground">{video.caption}</p>
-          </div>
-        </div>
-        <div className="absolute bottom-16 right-2 flex flex-col items-center gap-4 md:static md:mb-16 md:gap-5">
-          <Link
-            to="/u/$username"
-            params={{ username: video.username }}
-            aria-label={`View @${video.username}'s profile`}
-            className="flex h-10 w-10 items-center justify-center rounded-full bg-primary font-display text-lg uppercase text-primary-foreground md:h-12 md:w-12"
+    <div className="relative w-full h-[calc(100dvh-88px)] md:h-[calc(100dvh-64px)] bg-black overflow-hidden flex justify-center">
+      {/* VIDEO FILLS TIKTOK STYLE - CENTERED 9:16 */}
+      <div className="relative h-full aspect-[9/16] w-full max-w- bg-black overflow-hidden">
+        {isImage ? (
+          <img src={src} className="h-full w-full object-cover" alt="" />
+        ) : (
+          <video
+            ref={ref}
+            src={src}
+            className="h-full w-full object-cover cursor-pointer"
+            loop
+            playsInline
+            muted={false}
+            autoPlay
+            onClick={togglePlay}
+            onTimeUpdate={(e) => {
+              const v = e.currentTarget;
+              if (v.duration) setProgress((v.currentTime / v.duration) * 100);
+            }}
+          />
+        )}
+
+        {/* CENTER PLAY - ONLY WHEN PAUSED */}
+        {!playing && !isImage && src && (
+          <Button variant="ghost" size="icon"
+            onClick={togglePlay}
+            className="absolute inset-0 m-auto flex h-16 w-16 items-center justify-center rounded-full bg-black/40 text-white"
           >
-            {video.username[0]}
+            <Play className="ml-1 h-7 w-7 fill-white" />
+          </Button>
+        )}
+
+        {/* BOTTOM PROGRESS */}
+        <div className="absolute inset-x-0 bottom-0 h- bg-white/20">
+          <div className="h-full bg-white" style={{ width: `${progress}%` }} />
+        </div>
+
+        {/* BOTTOM CAPTION - TIKTOK LINED UP */}
+        <div className="absolute bottom-3 left-3 right-16 text-white">
+          <Link to="/u/$username" params={{ username: video.username }} className="break-words text- font-bold">
+            @{video.username}
           </Link>
-          {video.username !== myUsername && (
-            <button
-              onClick={toggleFollow}
-              className={`-mt-3 rounded-full px-3 py-1 text-xs font-bold transition ${isFollowing ? "bg-secondary text-foreground" : "bg-primary text-primary-foreground"}`}
-            >
-              {isFollowing ? "Following" : "Follow"}
+          <p className="mt-1 line-clamp-2 text-">{video.caption}</p>
+        </div>
+
+        {/* RIGHT SIDE - TIKTOK ALIGNED */}
+        <div className="absolute bottom-16 right-2 flex flex-col items-center gap-5">
+          <div className="h-12 w-12 rounded-full bg-[#ff2d55] flex items-center justify-center font-bold text-white text-xl">
+            {video.username[0]?.toUpperCase()}
+          </div>
+          <div className="flex flex-col items-center gap-1">
+            <button onClick={() => { const n=!liked; onLikeChange(n); setLikes(s=>s+(n?1:-1)); }} className="h-12 w-12 rounded-full bg-white/15 flex items-center justify-center backdrop-blur">
+              <Heart className={`h-7 w-7 ${liked ? "fill-[#ff2d55] text-[#ff2d55]" : "text-white"}`} />
             </button>
-          )}
-          <Action label={formatCount(likes)} onClick={toggleLike} active={liked}>
-            <Heart className={`h-6 w-6 ${liked ? "fill-primary text-primary" : ""}`} />
-          </Action>
-          <Action label={formatCount(comments)} onClick={() => setShowComments(true)}>
-            <MessageCircle className="h-6 w-6" />
-          </Action>
-          <Action label={formatCount(shares)} onClick={() => setShowShare(true)}>
-            <Share2 className="h-6 w-6" />
-          </Action>
+            <span className="text-xs font-bold text-white">{formatCount(likes)}</span>
+          </div>
+          <div className="flex flex-col items-center gap-1">
+            <button className="h-12 w-12 rounded-full bg-white/15 flex items-center justify-center backdrop-blur text-white">💬</button>
+            <span className="text-xs font-bold text-white">{formatCount(video.comments_count)}</span>
+          </div>
+          <div className="flex flex-col items-center gap-1">
+            <button className="h-12 w-12 rounded-full bg-white/15 flex items-center justify-center backdrop-blur text-white">↗️</button>
+            <span className="text-xs font-bold text-white">{formatCount(video.shares_count)}</span>
+          </div>
         </div>
       </div>
-      {showComments && (
-        <Comments
-          videoId={video.id}
-          onClose={() => setShowComments(false)}
-          onAdded={() => setComments((n) => n + 1)}
-        />
-      )}
-      {showShare && <ShareMenu video={video} onClose={() => setShowShare(false)} onShared={onShared} />}
-    </section>
-  );
-}
-
-function Action({
-  children,
-  label,
-  onClick,
-  active,
-}: {
-  children: React.ReactNode;
-  label: string;
-  onClick: () => void;
-  active?: boolean;
-}) {
-  return (
-    <Button variant="ghost" onClick={onClick} aria-label={typeof children === "object" && children ? undefined : label} className="h-auto flex-col gap-1 p-0 text-xs font-semibold hover:bg-transparent [&_svg]:size-6">
-      <span
-        className={`flex h-11 w-11 items-center justify-center rounded-full bg-overlay backdrop-blur-sm transition hover:bg-accent md:h-12 md:w-12 md:bg-secondary ${active ? "scale-110" : ""}`}
-      >
-        {children}
-      </span>
-      {label}
-    </Button>
+    </div>
   );
 }

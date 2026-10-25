@@ -100,7 +100,7 @@ function Index() {
   const [liked, setLiked] = useState<Set<string>>(new Set());
   const [tab, setTab] = useState<Tab>("foryou");
   const [query, setQuery] = useState("");
-  const [unmuted, setunMuted] = useState(true);
+  const [muted, setMuted] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [recordingOpen, setRecordingOpen] = useState(false);
   const [error, setError] = useState(false);

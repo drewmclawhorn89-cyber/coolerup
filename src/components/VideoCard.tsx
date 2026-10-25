@@ -16,8 +16,9 @@ export function VideoCard({
   onLikeChange: (liked: boolean) => void;
 }) {
   const ref = useRef<HTMLVideoElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [src, setSrc] = useState("");
-  const [playing, setPlaying] = useState(true);
+  const [playing, setPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [likes, setLikes] = useState(video.likes_count);
 
@@ -36,6 +37,31 @@ export function VideoCard({
     return () => { if (blobUrl) URL.revokeObjectURL(blobUrl); };
   }, [video.id, video.video_url]);
 
+  // ONLY 1 VIDEO PLAYS AT A TIME - TIKTOK STYLE
+  useEffect(() => {
+    const video = ref.current;
+    const container = containerRef.current;
+    if (!video || !container || !src) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting && entry.intersectionRatio >= 0.7) {
+            video.play().catch(() => {});
+            setPlaying(true);
+          } else {
+            video.pause();
+            setPlaying(false);
+          }
+        });
+      },
+      { threshold: 0.7 }
+    );
+
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [src]);
+
   const togglePlay = () => {
     const el = ref.current;
     if (!el) return;
@@ -47,18 +73,17 @@ export function VideoCard({
 
   return (
     <div className="relative w-full h-[calc(100dvh-88px)] bg-black flex justify-center overflow-hidden">
-      <div className="relative h-full aspect-[9/16] w-full max-w- bg-black">
+      <div ref={containerRef} className="relative h-full aspect-[9/16] w-full max-w- bg-black">
         {isImage ? (
           <img src={src} className="h-full w-full object-cover" alt="" />
         ) : (
           <video
             ref={ref}
             src={src}
-            className="h-full w-full object-cover"
+            className="h-full w-full object-cover cursor-pointer"
             loop
             playsInline
             muted={false}
-            autoPlay
             onClick={togglePlay}
             onTimeUpdate={(e) => {
               const v = e.currentTarget;
@@ -67,25 +92,25 @@ export function VideoCard({
           />
         )}
 
-        {/* Progress */}
+        {/* Progress bar */}
         <div className="absolute bottom-0 left-0 right-0 h- bg-white/20">
           <div className="h-full bg-white" style={{ width: `${progress}%` }} />
         </div>
 
-        {/* Caption */}
+        {/* Caption - lined up */}
         <div className="absolute bottom-3 left-3 right-20 text-white">
           <Link to="/u/$username" params={{ username: video.username }} className="font-bold text-">@{video.username}</Link>
           <p className="text- mt-1 line-clamp-2">{video.caption}</p>
         </div>
 
-        {/* RIGHT SIDE - NEW LIKE + SHARE LOOK */}
+        {/* RIGHT SIDE - NEW BUTTONS */}
         <div className="absolute bottom-14 right-2 flex flex-col gap-6 items-center">
-          {/* PROFILE */}
+          {/* Profile */}
           <div className="h-12 w-12 rounded-full bg-[#2563EB] flex items-center justify-center text-white font-bold text-xl border-2 border-white">
             {video.username[0]?.toUpperCase()}
           </div>
 
-          {/* NEW LIKE BUTTON - BLACK -> BLUE */}
+          {/* LIKE - BLACK -> BLUE */}
           <div className="flex flex-col items-center">
             <button
               onClick={() => {
@@ -109,7 +134,7 @@ export function VideoCard({
             <span className="text-white font-bold text-xs mt-1">{formatCount(video.comments_count)}</span>
           </div>
 
-          {/* NEW SHARE BUTTON - BLACK */}
+          {/* SHARE - BLACK */}
           <div className="flex flex-col items-center">
             <button style={{ backgroundColor: "black" }} className="h- w- rounded-full flex items-center justify-center border border-white/20 active:scale-90 transition">
               <Share2 className="h-7 w-7 text-white" />

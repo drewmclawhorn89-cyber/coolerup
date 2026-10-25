@@ -89,48 +89,49 @@ export function VideoCard({
           />
         )}
 
-        <div className="absolute bottom-0 left-0 right-0 h- bg-white/20">
+        <div className="absolute bottom-0 left-0 right-0 h- bg-white/30">
           <div className="h-full bg-white" style={{ width: `${progress}%` }} />
         </div>
 
-        <div className="absolute bottom-3 left-3 right-20 text-white">
-          <Link to="/u/$username" params={{ username: video.username }} className="font-bold text-">@{video.username}</Link>
-          <p className="text- mt-1 line-clamp-2">{video.caption}</p>
+        <div className="absolute bottom-4 left-3 right-20 text-white">
+          <Link to="/u/$username" params={{ username: video.username }} className="font-bold text- drop-shadow-lg">@{video.username}</Link>
+          <p className="text- mt-1 line-clamp-2 drop-shadow-lg">{video.caption}</p>
         </div>
 
-        {/* TIKTOK REAL BUTTONS - WHITE + PINK */}
-        <div className="absolute bottom-14 right-2 flex flex-col gap-5 items-center">
-          <div className="h-12 w-12 rounded-full bg-white flex items-center justify-center text-black font-bold text-xl border-2 border-white">
-            {video.username[0]?.toUpperCase()}
+        {/* TRUE TIKTOK BUTTONS - NO CIRCLES, JUST ICONS */}
+        <div className="absolute bottom-20 right-3 flex flex-col gap-7 items-center">
+          {/* Profile with + */}
+          <div className="relative">
+            <div className="h-12 w-12 rounded-full bg-gray-300 flex items-center justify-center text-black font-bold text-xl border-2 border-white">
+              {video.username[0]?.toUpperCase()}
+            </div>
+            <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 h-5 w-5 bg-[#fe2c55] rounded-full flex items-center justify-center text-white text-xs font-bold">+</div>
           </div>
 
-          <div className="flex flex-col items-center">
-            <button
-              onClick={() => {
-                const n = !liked;
-                onLikeChange(n);
-                setLikes(s => s + (n ? 1 : -1));
-              }}
-              className={`h- w- rounded-full flex items-center justify-center shadow-lg active:scale-90 transition ${liked ? "bg-[#fe2c55]" : "bg-white"}`}
-            >
-              <Heart className={`h-7 w-7 ${liked ? "fill-white text-white" : "fill-black text-black"}`} />
-            </button>
-            <span className="text-white font-bold text-xs mt-1 drop-shadow">{formatCount(likes)}</span>
-          </div>
+          {/* LIKE - REAL TIKTOK */}
+          <button
+            onClick={() => {
+              const n = !liked;
+              onLikeChange(n);
+              setLikes(s => s + (n ? 1 : -1));
+            }}
+            className="flex flex-col items-center active:scale-90 transition"
+          >
+            <Heart className={`h-9 w-9 drop-shadow-lg ${liked ? "fill-[#fe2c55] text-[#fe2c55]" : "text-white"}`} strokeWidth={liked ? 0 : 2} />
+            <span className="text-white font-bold text- mt-1 drop-shadow-lg">{formatCount(likes)}</span>
+          </button>
 
-          <div className="flex flex-col items-center">
-            <button className="h- w- rounded-full bg-white flex items-center justify-center shadow-lg">
-              <MessageCircle className="h-7 w-7 text-black fill-black" />
-            </button>
-            <span className="text-white font-bold text-xs mt-1 drop-shadow">{formatCount(video.comments_count)}</span>
-          </div>
+          {/* COMMENT - REAL TIKTOK */}
+          <button className="flex flex-col items-center">
+            <MessageCircle className="h-9 w-9 text-white drop-shadow-lg fill-white/0" strokeWidth={2} />
+            <span className="text-white font-bold text- mt-1 drop-shadow-lg">{formatCount(video.comments_count)}</span>
+          </button>
 
-          <div className="flex flex-col items-center">
-            <button className="h- w- rounded-full bg-white flex items-center justify-center shadow-lg active:scale-90 transition">
-              <Share2 className="h-7 w-7 text-black" />
-            </button>
-            <span className="text-white font-bold text-xs mt-1 drop-shadow">Share</span>
-          </div>
+          {/* SHARE - REAL TIKTOK */}
+          <button className="flex flex-col items-center active:scale-90 transition">
+            <Share2 className="h-9 w-9 text-white drop-shadow-lg" strokeWidth={2} />
+            <span className="text-white font-bold text- mt-1 drop-shadow-lg">Share</span>
+          </button>
         </div>
       </div>
     </div>

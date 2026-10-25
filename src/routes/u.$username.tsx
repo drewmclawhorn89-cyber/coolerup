@@ -35,6 +35,7 @@ function Profile() {
   }, [username, auth.profile?.avatar_url, auth.profile?.display_name, auth.profile?.bio]);
 
   const totalLikes = (videos || []).reduce((a, v) => a + (v.likes_count || 0), 0);
+  const followers
   const displayName = profile?.display_name || username;
 
   return (

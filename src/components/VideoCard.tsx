@@ -13,8 +13,6 @@ import { Button } from "@/components/ui/button";
 export function VideoCard({
   video,
   liked,
-  muted,
-  onToggleMute,
   onLikeChange,
 }: {
   video: Video;
@@ -37,7 +35,25 @@ export function VideoCard({
   const auth = useAuth();
   const myUsername = auth.handle;
   const isImage = isImageUrl(video.video_url);
-
+ <div className="flex flex-col items-center gap-1">
+            <button onClick={() => { const n=!liked; onLikeChange(n); setLikes(s=>s+(n?1:-1)); }} className="h-12 w-12 rounded-full bg-white/15 flex items-center justify-center backdrop-blur">
+              <Heart className={`h-7 w-7 ${liked ? "fill-[#ff2d55] text-[#ff2d55]" : "text-white"}`} />
+            </button>
+            <span className="text-xs font-bold text-white">{formatCount(likes)}</span>
+          </div>
+          <div className="flex flex-col items-center gap-1">
+            <button className="h-12 w-12 rounded-full bg-white/15 flex items-center justify-center backdrop-blur text-white">💬</button>
+            <span className="text-xs font-bold text-white">{formatCount(video.comments_count)}</span>
+          </div>
+          <div className="flex flex-col items-center gap-1">
+            <button className="h-12 w-12 rounded-full bg-white/15 flex items-center justify-center backdrop-blur text-white">↗️</button>
+            <span className="text-xs font-bold text-white">{formatCount(video.shares_count)}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
   useEffect(() => {
     if (!auth.user || !myUsername || video.username === myUsername) return;
     supabase

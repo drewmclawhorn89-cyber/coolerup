@@ -9,6 +9,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Comments } from "./Comments";
 import { ShareMenu } from "./ShareMenu";
 import { Button } from "@/components/ui/button";
+import { Repeat2 } from "lucide-react";
 
 export function VideoCard({
   video,

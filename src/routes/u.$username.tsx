@@ -1,115 +1,120 @@
 import { useEffect, useState } from "react";
+import { useParams } from "react-router-dom";
 
-export default function Profile() {
-  const [username, setUsername] = useState("Your Username");
+export default function UsernameProfile() {
+  const { username: paramUsername } = useParams();
+  const [username, setUsername] = useState(paramUsername || "drewmclawhorn3");
   const [videos, setVideos] = useState<any[]>([]);
   const [tiktokLink, setTiktokLink] = useState("");
 
   useEffect(() => {
+    if (paramUsername) setUsername(paramUsername);
     try {
-      setUsername(localStorage.getItem("settings:username") || "Your Username");
-      setTiktokLink(localStorage.getItem("settings:tiktok") || "");
+      // Load this user's videos - not gray
+      const allVideos = JSON.parse(localStorage.getItem("videos") || "[]");
+      // Filter by username for this profile
+      const userVideos = allVideos.filter((v: any) => v.username === (paramUsername || username)) || [];
       
-      // Load your 1332 videos - fix gray by using real URLs
-      const all = JSON.parse(localStorage.getItem("videos") || localStorage.getItem("offline:cachedVideos") || localStorage.getItem("history:videos") || "[]");
-      if (all.length > 0) {
-        setVideos(all);
+      if (userVideos.length > 0) {
+        setVideos(userVideos);
       } else {
-        // Demo videos that are NOT gray - black like TikTok
-        setVideos(Array.from({ length: 12 }, (_, i) => ({ 
-          id: i, 
-          url: "", 
-          thumbnail: "",
-          likes: Math.floor(Math.random()*100),
-          views: Math.floor(Math.random()*1000)
+        // Demo - black not gray like TikTok
+        setVideos(Array.from({ length: 9 }, (_, i) => ({
+          id: `${username}-${i}`,
+          username: username,
+          url: "",
+          likes: Math.floor(Math.random()*500),
+          views: Math.floor(Math.random()*2000),
         })));
       }
+
+      // Load this user's TikTok link if they set it
+      setTiktokLink(localStorage.getItem(`settings:tiktok:${username}`) || localStorage.getItem("settings:tiktok") || "");
     } catch {}
-  }, []);
+  }, [paramUsername, username]);
 
   return (
     <div className="min-h-screen bg-white text-black">
       {/* Header */}
-      <div className="flex justify-between items-center p-4 border-b">
-        <a href="/" className="font-bold">←</a>
-        <h1 className="font-bold">{username}</h1>
-        <a href="/settings" style={{backgroundColor: "black", color: "white"}} className="rounded-full px-3 py-1 text-xs">Settings</a>
+      <div className="flex items-center gap-3 p-4 border-b">
+        <a href="/" className="text-xl">←</a>
+        <h1 className="font-bold text-">{username}</h1>
       </div>
 
-      {/* Profile info */}
-      <div className="p-4 text-center">
-        <div className="w-20 h-20 rounded-full bg-black text-white flex items-center justify-center text-2xl font-bold mx-auto">
-          {username[0]?.toUpperCase()}
+      {/* Profile header */}
+      <div className="p-4">
+        <div className="flex gap-4">
+          <div className="w-20 h-20 rounded-full bg-black text-white flex items-center justify-center text-2xl font-bold">
+            {username[0]?.toUpperCase()}
+          </div>
+          <div className="flex-1 flex justify-around text-center text-sm">
+            <div><div className="font-bold text-">{videos.length}</div><div className="text-gray-500 text-">Following</div></div>
+            <div><div className="font-bold text-">{Math.floor(Math.random()*1000)}</div><div className="text-gray-500 text-">Followers</div></div>
+            <div><div className="font-bold text-">{videos.reduce((a,b) => a + (b.likes||0), 0)}</div><div className="text-gray-500 text-">Likes</div></div>
+          </div>
         </div>
-        <h2 className="mt-2 font-bold">@{username}</h2>
-        <div className="flex justify-center gap-6 mt-3 text-sm">
-          <span><b>{videos.length}</b> Videos</span>
-          <span><b>0</b> Followers</span>
-          <span><b>0</b> Following</span>
-        </div>
+
+        <h2 className="mt-3 font-bold text-">@{username}</h2>
+        <p className="text- text-gray-700 mt-1">Loop creator • 1332 videos • {username}</p>
+
+        {/* TikTok link shows on profile */}
         {tiktokLink && (
-          <a href={tiktokLink} target="_blank" style={{backgroundColor: "black", color: "white"}} className="mt-3 inline-block rounded-full px-4 py-1 text-xs">
-            TikTok
+          <a href={tiktokLink} target="_blank" style={{backgroundColor: "black", color: "white"}} className="mt-2 inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-bold">
+            🔗 TikTok
           </a>
         )}
-        <button style={{backgroundColor: "black", color: "white", border: "1px solid #e5e7eb"}} className="mt-3 ml-2 rounded px-4 py-1 text-sm">Edit profile</button>
+
+        <div className="flex gap-2 mt-3">
+          <button style={{backgroundColor: "#ff2d55", color: "white"}} className="flex-1 rounded py-1.5 text-sm font-bold">Follow</button>
+          <button style={{backgroundColor: "#f1f1f2", color: "black"}} className="flex-1 rounded py-1.5 text-sm font-bold">Message</button>
+          <button style={{backgroundColor: "#f1f1f2"}} className="rounded px-3 py-1.5">▼</button>
+        </div>
+
+        <p className="text- mt-3">🔗 {tiktokLink || "Add TikTok link in Settings"}</p>
       </div>
 
       {/* Tabs */}
-      <div className="flex border-t border-b text-sm font-bold">
-        <button className="flex-1 py-2 border-b-2 border-black">Videos</button>
-        <button className="flex-1 py-2 text-gray-400">Liked</button>
-        <button className="flex-1 py-2 text-gray-400">Private</button>
+      <div className="flex border-t border-b text- font-bold">
+        <button className="flex-1 py-3 border-b-2 border-black flex justify-center">⊞</button>
+        <button className="flex-1 py-3 text-gray-400 flex justify-center">♡</button>
+        <button className="flex-1 py-3 text-gray-400 flex justify-center">🔒</button>
       </div>
 
-      {/* VIDEO GRID - FIX GRAY */}
-      <div className="grid grid-cols-3 gap- bg-gray-200">
+      {/* VIDEOS GRID - NOT GRAY - BLACK LIKE TIKTOK */}
+      <div className="grid grid-cols-3 gap- bg-white">
         {videos.map((v, i) => (
           <div key={i} className="relative aspect-[3/4] bg-black overflow-hidden">
-            {/* THIS FIXES GRAY - shows video or thumbnail, not gray div */}
-            {v.url ? (
-              <video
-                src={v.url}
-                className="absolute inset-0 w-full h-full object-cover"
-                muted
-                playsInline
-                preload="metadata"
-              />
-            ) : (
-              <div className="absolute inset-0 w-full h-full bg-black flex items-center justify-center">
-                {/* TikTok style thumbnail - NOT GRAY */}
+            {/* FIX GRAY - use black background */}
+            <div className="absolute inset-0 w-full h-full bg-black">
+              {v.url ? (
+                <video
+                  src={v.url}
+                  className="w-full h-full object-cover"
+                  muted
+                  playsInline
+                  preload="metadata"
+                />
+              ) : (
                 <div className="w-full h-full bg-gradient-to-b from-zinc-800 to-black flex items-center justify-center">
-                  <span className="text-white text-2xl">▶</span>
+                  <span className="text-white/80 text-3xl">▶</span>
                 </div>
-              </div>
-            )}
-            {/* Views at bottom */}
-            <div className="absolute bottom-0 left-0 right-0 p-1 bg-gradient-to-t from-black/60 to-transparent">
-              <span className="text-white text- flex items-center gap-1">
-                <span>▶</span> {v.views || v.likes || Math.floor(Math.random()*500)}
-              </span>
+              )}
             </div>
-            {/* Pinned or private icon if needed */}
-            {v.isPinned && (
-              <div className="absolute top-1 left-1 bg-yellow-400 text-black text- px-1 rounded">Pinned</div>
-            )}
+            {/* Views count like TikTok */}
+            <div className="absolute bottom-1 left-1 flex items-center gap-1 text-white text- font-bold">
+              <span>▶</span> {v.views || v.likes || Math.floor(Math.random()*800)}
+            </div>
           </div>
         ))}
       </div>
 
-      {videos.length === 0 && (
-        <div className="p-12 text-center text-sm text-gray-500">
-          No videos yet - your 1332 videos will show here when you upload
-        </div>
-      )}
-
       {/* Bottom nav */}
-      <div className="fixed bottom-0 left-0 right-0 h- bg-white border-t flex justify-around items-center text-xs">
+      <div className="fixed bottom-0 left-0 right-0 h- bg-white border-t flex justify-around items-center text-">
         <a href="/" className="text-center">Home</a>
-        <a href="/friends" className="text-center text-gray-400">Friends</a>
-        <a href="/live" style={{backgroundColor: "black", color: "white"}} className="h-8 w-10 rounded flex items-center justify-center">+</a>
+        <a href="/explore" className="text-center text-gray-400">Explore</a>
+        <a href="/live" className="text-center"><div style={{backgroundColor:"#ff2d55", color:"white", width:"32px", height:"24px", borderRadius:"6px", display:"flex", alignItems:"center", justifyContent:"center"}}>+</div></a>
         <a href="/inbox" className="text-center text-gray-400">Inbox</a>
-        <a href="/profile" className="text-center font-bold">Profile</a>
+        <a href="/profile" className="text-center text-gray-400">Profile</a>
       </div>
     </div>
   );

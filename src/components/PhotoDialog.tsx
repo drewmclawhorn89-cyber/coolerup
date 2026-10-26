@@ -4,7 +4,8 @@ import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { FilterBar } from "@/components/FilterBar";
 import { AnimalOverlay } from "@/components/AnimalOverlay";
-import { getAnimal, drawAnimal } from "@/lib/animals";
+import { getAnimal, drawAnimal, mirrorFace } from "@/lib/animals";
+import { useFaceTracker } from "@/lib/face";
 import { CAMERA_FILTERS, canBakeFilters } from "@/lib/filters";
 import { uploadVideo } from "@/lib/loop";
 
@@ -31,6 +32,7 @@ export function PhotoDialog({
   const [animalId, setAnimalId] = useState("");
   const animal = getAnimal(animalId);
   const [photo, setPhoto] = useState<Blob | null>(null);
+  const faceRef = useFaceTracker(videoRef, !!animal && open && !photo);
   const [previewUrl, setPreviewUrl] = useState("");
   const [caption, setCaption] = useState("");
   const [posting, setPosting] = useState(false);
@@ -94,7 +96,7 @@ export function PhotoDialog({
       ctx.scale(-1, 1);
     }
     ctx.drawImage(v, 0, 0);
-    drawAnimal(ctx, canvas.width, canvas.height, animal);
+    if (faceRef.current) drawAnimal(ctx, animal, facingMode === "user" ? mirrorFace(faceRef.current, canvas.width) : faceRef.current);
     canvas.toBlob((b) => b && setPhoto(b), "image/jpeg", 0.92);
   }
 
@@ -153,7 +155,7 @@ export function PhotoDialog({
             previewUrl && <img src={previewUrl} alt="Your photo" className="h-full w-full object-cover" />
           )}
 
-          {!photo && <AnimalOverlay animal={animal} />}
+          {!photo && <AnimalOverlay animal={animal} videoRef={videoRef} faceRef={faceRef} mirror={facingMode === "user"} />}
 
           {!photo && !ready && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 px-8 text-center">

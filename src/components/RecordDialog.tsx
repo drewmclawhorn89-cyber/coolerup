@@ -6,6 +6,7 @@ import { uploadRecording } from "@/lib/loop";
 import { FilterBar } from "@/components/FilterBar";
 import { AnimalOverlay } from "@/components/AnimalOverlay";
 import { getAnimal, drawAnimal } from "@/lib/animals";
+import { useFaceTracker } from "@/lib/face";
 import { CAMERA_FILTERS, canBakeFilters } from "@/lib/filters";
 
 const MAX_SECONDS = 60;
@@ -58,6 +59,7 @@ export function RecordDialog({
   const [recording, setRecording] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
+  const faceRef = useFaceTracker(videoRef, !!animal && open && !recordedBlob);
   const [previewUrl, setPreviewUrl] = useState("");
   const [caption, setCaption] = useState("");
   const [posting, setPosting] = useState(false);
@@ -142,7 +144,7 @@ export function RecordDialog({
         ctx.filter = filter.css;
         const draw = () => {
           ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
-          drawAnimal(ctx, canvas.width, canvas.height, animal);
+          drawAnimal(ctx, animal, faceRef.current);
           drawRef.current = requestAnimationFrame(draw);
         };
         draw();
@@ -239,7 +241,7 @@ export function RecordDialog({
         </DialogDescription>
 
         <div className="relative h-full w-full bg-black">
-          {showCamera && <AnimalOverlay animal={animal} />}
+          {showCamera && <AnimalOverlay animal={animal} videoRef={videoRef} faceRef={faceRef} mirror={facingMode === "user"} />}
           {showCamera ? (
             <video
               ref={videoRef}

@@ -383,7 +383,7 @@ const changeTheme = (t: string) => {
   <p className="font-bold text- mb-2">Message requests</p>
   <div className="flex gap-2 mb-5">
     {["all","filtered","off"].map(id=>(
-      <button key={id} onClick={()=>{setMessageFilter(id); localStorage.setItem("messageFilter", id);}} className={`flex-1 py-2 rounded-full font-bold text- ${messageFilter===id?"bg-black text-white":"bg-gray-100"}`}>{id}</button>
+      <button key={id} onClick={()=>{setMessageFilter(id); localStorage.setItem("messageFilter", id);}} className={`flex-1 py-2 rounded-full font-bold text- ${messageFilter===id?"bg-gray text-black":"bg-gray-100"}`}>{id}</button>
     ))}
   </div>
 

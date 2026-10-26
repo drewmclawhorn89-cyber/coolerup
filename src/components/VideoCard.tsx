@@ -222,7 +222,7 @@ export function VideoCard({
           )}
 
           <Action label={formatCount(likes)} onClick={toggleLike} active={liked}>
-            <Heart className={`h-8 w-8 ${liked ? "fill-primary text-white" : ""}`} />
+            <Heart className={`h-8 w-8 ${liked ? "fill-white text-white" : ""}`} />
           </Action>
           <Action label={formatCount(comments)} onClick={() => setShowComments(true)}>
             <MessageCircle className="h-8 w-8" />

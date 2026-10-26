@@ -3,6 +3,8 @@ import { Camera, Loader2, RefreshCw, RotateCcw, Send, Upload, X } from "lucide-r
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { uploadRecording } from "@/lib/loop";
+import { FilterBar } from "@/components/FilterBar";
+import { CAMERA_FILTERS, canBakeFilters } from "@/lib/filters";
 
 const MAX_SECONDS = 60;
 const MIME_CANDIDATES = [
@@ -42,6 +44,9 @@ export function RecordDialog({
   const recorderRef = useRef<MediaRecorder | null>(null);
   const discardRef = useRef(false);
   const startedAtRef = useRef(0);
+  const drawRef = useRef(0);
+  const [filterId, setFilterId] = useState("none");
+  const filter = CAMERA_FILTERS.find((f) => f.id === filterId) ?? CAMERA_FILTERS[0]!;
 
   const [facingMode, setFacingMode] = useState<FacingMode>("user");
   const [cameraState, setCameraState] = useState<CameraState>("loading");
@@ -122,10 +127,28 @@ export function RecordDialog({
     if (!stream || cameraState !== "ready") return;
 
     const mimeType = pickMimeType();
+    let recordStream: MediaStream = stream;
+    const videoEl = videoRef.current;
+    const canvas = document.createElement("canvas");
+    if (filterId !== "none" && videoEl && videoEl.videoWidth && canBakeFilters() && typeof canvas.captureStream === "function") {
+      canvas.width = videoEl.videoWidth;
+      canvas.height = videoEl.videoHeight;
+      const ctx = canvas.getContext("2d");
+      if (ctx) {
+        ctx.filter = filter.css;
+        const draw = () => {
+          ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
+          drawRef.current = requestAnimationFrame(draw);
+        };
+        draw();
+        recordStream = new MediaStream([...canvas.captureStream(30).getVideoTracks(), ...stream.getAudioTracks()]);
+      }
+    }
     let recorder: MediaRecorder;
     try {
-      recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+      recorder = mimeType ? new MediaRecorder(recordStream, { mimeType }) : new MediaRecorder(recordStream);
     } catch {
+      cancelAnimationFrame(drawRef.current);
       toast.error("Recording isn't supported on this device");
       return;
     }
@@ -137,6 +160,7 @@ export function RecordDialog({
     };
     recorder.onstop = () => {
       recorderRef.current = null;
+      cancelAnimationFrame(drawRef.current);
       setRecording(false);
       if (discardRef.current || chunks.length === 0) return;
       setRecordedBlob(new Blob(chunks, { type: recorder.mimeType || mimeType || "video/webm" }));
@@ -162,6 +186,7 @@ export function RecordDialog({
     setElapsed(0);
     setCaption("");
     setPosting(false);
+    setFilterId("none");
   }
 
   function handleOpenChange(next: boolean) {
@@ -214,6 +239,7 @@ export function RecordDialog({
               autoPlay
               muted
               playsInline
+              style={{ filter: filter.css }}
               className={`h-full w-full object-cover ${facingMode === "user" ? "-scale-x-100" : ""} ${
                 cameraState === "ready" ? "opacity-100" : "opacity-0"
               }`}
@@ -284,6 +310,9 @@ export function RecordDialog({
 
           <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-12">
             {showCamera ? (
+              <>
+              {!canBakeFilters() && filterId !== "none" && <p className="pb-2 text-center text-xs text-white/70">Filters can't be saved on this browser, so the video will post unfiltered.</p>}
+              <FilterBar value={filterId} onChange={setFilterId} disabled={recording} />
               <div className="grid grid-cols-3 items-center">
                 <div className="flex justify-start">
                   {onUploadInstead && !recording && (
@@ -321,6 +350,7 @@ export function RecordDialog({
                 </div>
                 <div />
               </div>
+              </>
             ) : (
               <div className="flex flex-col gap-3">
                 <label className="sr-only" htmlFor="record-caption">

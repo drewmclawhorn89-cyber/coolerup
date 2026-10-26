@@ -15,6 +15,7 @@ type Props = {
   userId?: string;
   username?: string | null;
   onRecord: () => void;
+  onPhoto: () => void;
   onUpload: () => void;
 };
 
@@ -22,7 +23,7 @@ const MIN_FOLLOWERS_TO_GO_LIVE = 500;
 
 const viewerId = () => globalThis.crypto?.randomUUID?.() ?? `viewer-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
-export function LiveStreamDialog({ open, onOpenChange, userId, username, onRecord, onUpload }: Props) {
+export function LiveStreamDialog({ open, onOpenChange, userId, username, onRecord, onPhoto, onUpload }: Props) {
   const music = useMusicPlayer();
   const [mode, setMode] = useState<Mode>(null);
   const [liveNow, setLiveNow] = useState<LiveHost[]>([]);
@@ -273,6 +274,10 @@ export function LiveStreamDialog({ open, onOpenChange, userId, username, onRecor
             <button onClick={() => { closeMenu(); onRecord(); }} className="flex w-full items-center gap-4 rounded-2xl border border-white/10 p-4 text-left hover:bg-white/5">
               <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white/10"><Camera /></span>
               <span className="min-w-0"><span className="block font-bold">Record a video</span><span className="text-sm text-zinc-400">Capture a short moment</span></span>
+            </button>
+            <button onClick={() => { closeMenu(); onPhoto(); }} className="flex w-full items-center gap-4 rounded-2xl border border-white/10 p-4 text-left hover:bg-white/5">
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white/10"><Camera /></span>
+              <span className="min-w-0"><span className="block font-bold">Take a photo</span><span className="text-sm text-zinc-400">Snap a pic with filters</span></span>
             </button>
             <button onClick={() => { closeMenu(); onUpload(); }} className="flex w-full items-center gap-4 rounded-2xl border border-white/10 p-4 text-left hover:bg-white/5">
               <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white/10"><Video /></span>

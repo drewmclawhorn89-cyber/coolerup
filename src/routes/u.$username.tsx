@@ -41,6 +41,7 @@ function Profile() {
   const [saved, setSaved] = useState<any[]>([]);
   const viewer = useRef<HTMLDivElement>(null);
 const [totalFollowers, setTotalFollowers] = useState(0);
+  const [totalFollowing, setTotalFollowing] = useState(0);
   
    const isOwn = !!auth.handle && auth.handle === username;
 
@@ -48,39 +49,14 @@ const [totalFollowers, setTotalFollowers] = useState(0);
     if (!username) return;
     
     const loadStats = async () => {
-      // Get profile
-      const { data: profileData } = await supabase.from("profiles").select("id").eq("username", username).single();
-      const profileId = profileData?.id;
-      
-      // Get ALL follows - no filter - to see what exists
-      const { data: all, error } = await supabase.from("follows").select("*");
-      console.log("FOLLOWS ERROR:", error);
-      console.log("FOLLOWS ALL DATA:", all);
-      
-      if (!all || all.length === 0) {
-        setTotalFollowers(0);
-        return;
-      }
-      
-      // Count manually by checking every row for your id or username
-      let count = 0;
-      for (const row of all) {
-        const values = Object.values(row).map(v => String(v).toLowerCase());
-        if (values.includes(String(profileId).toLowerCase()) || values.includes(username.toLowerCase())) {
-          // Check if this row is where YOU are being followed (not where you follow others)
-          // Try to guess: if row has 'following' column = you, then it's your follower
-          if ((row as any).following === profileId || (row as any).following === username || 
-              (row as any).followed_id === profileId || (row as any).followed === profileId ||
-              (row as any).following_id === profileId || (row as any).following_username === username) {
-            count++;
-          }
-        }
-      }
-      
-      console.log("MANUAL COUNT:", count);
-      setTotalFollowers(count > 0 ? count : all.length); // fallback show total if can't parse
+      const [followers, following] = await Promise.all([
+        supabase.from("follows").select("id", { count: "exact", head: true }).eq("following_username", username),
+        supabase.from("follows").select("id", { count: "exact", head: true }).eq("follower_username", username),
+      ]);
+      setTotalFollowers(followers.count ?? 0);
+      setTotalFollowing(following.count ?? 0);
     };
-    
+
     loadStats();
   }, [username]);
  
@@ -140,7 +116,8 @@ const [totalFollowers, setTotalFollowers] = useState(0);
           <div className="flex gap-8 text-sm">
           <span><b>{videos?.length ?? "-"}</b> videos</span>
 <span><b>{totalLikes ?? 0}</b> likes</span>
-<span><b>{totalFollowers ?? 0}</b> followers</span> 
+<span><b>{totalFollowers}</b> followers</span>
+<span><b>{totalFollowing}</b> following</span>
           </div>
         </div>
 

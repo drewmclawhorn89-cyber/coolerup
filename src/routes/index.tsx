@@ -19,7 +19,7 @@ import { VideoCard } from "@/components/VideoCard";
 import { UploadDialog } from "@/components/UploadDialog";
 import { RecordDialog } from "@/components/RecordDialog";
 import { LiveStreamDialog } from "@/components/LiveStreamDialog";
-import { fetchMyLikes, fetchVideos, type Video } from "@/lib/loop";
+import { fetchMyLikes, fetchVideos, parseCaption, type Video } from "@/lib/loop";
 import { listSaved, onOfflineChange } from "@/lib/offline";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -253,7 +253,7 @@ function Index() {
   const shown = useMemo(() => {
     let list = activeTab === "saved" ? saved : videos ?? [];
     const q = query.trim().toLowerCase();
-    if (q) list = list.filter((v) => v.caption.toLowerCase().includes(q) || v.username.toLowerCase().includes(q));
+    if (q) list = list.filter((v) => parseCaption(v.caption).text.toLowerCase().includes(q) || v.username.toLowerCase().includes(q));
     if (activeTab === "explore") list = [...list].sort((a, b) => b.likes_count - a.likes_count);
     if (activeTab === "following") list = list.filter((v) => v.username !== me);
     if (activeTab === "liked") list = list.filter((v) => liked.has(v.id));

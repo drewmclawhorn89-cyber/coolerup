@@ -360,12 +360,12 @@ const changeTheme = (t: string) => {
             )}
           </div>
         </div> 
-      {/* DIFFERENT MESSAGE SETTINGS LIKE TIKTOK */}
-<div className="bg-black rounded-xl p-4 mb-4 shadow-sm">
-  <h2 className="font-bold text- mb-1">💬 Message Privacy</h2>
-  <p className="text-gray-500 text- mb-4"> messages settings </p>
+{/* DIFFERENT MESSAGE SETTINGS - BLACK + WHITE */}
+<div className="rounded-xl p-4 mb-4 shadow-sm" style={{backgroundColor:"black", color:"white"}}>
+  <h2 className="font-bold text- mb-1" style={{color:"white"}}>💬 Message Privacy</h2>
+  <p className="text- mb-4" style={{color:"#9ca3af"}}>Different settings like TikTok</p>
 
-  <p className="font-bold text- mb-2">Who can DM you</p>
+  <p className="font-bold text- mb-2" style={{color:"white"}}>Who can DM you</p>
   <div className="flex flex-col gap-2 mb-5">
     {[
       { id: "everyone", label: "Everyone" },
@@ -373,28 +373,30 @@ const changeTheme = (t: string) => {
       { id: "mutuals", label: "Friends of friends" },
       { id: "noone", label: "No one" },
     ].map(o=>(
-      <button key={o.id} onClick={()=>{setMessagePrivacy(o.id); localStorage.setItem("messagePrivacy", o.id);}} className={`flex justify-between p-3 rounded-xl border text-left ${messagePrivacy===o.id?"bg-black text-white border-black":"bg-gray-50"}`}>
+      <button key={o.id} onClick={()=>{setMessagePrivacy(o.id); localStorage.setItem("messagePrivacy", o.id);}} className="flex justify-between p-3 rounded-xl border text-left" style={{backgroundColor: messagePrivacy===o.id ? "white" : "#1f1f1f", color: messagePrivacy===o.id ? "black" : "white", borderColor: messagePrivacy===o.id ? "white" : "#333"}}>
         <span className="font-medium text-">{o.label}</span>
-        <div className={`h-5 w-5 rounded-full border-2 flex items-center justify-center ${messagePrivacy===o.id?"border-black":"border-gray-300"}`}>{messagePrivacy===o.id && <div className="h-2 w-2 bg-black rounded-full" />}</div>
+        <div className="h-5 w-5 rounded-full border-2 flex items-center justify-center" style={{borderColor: messagePrivacy===o.id ? "black" : "#666"}}>
+          {messagePrivacy===o.id && <div className="h-2 w-2 bg-black rounded-full" />}
+        </div>
       </button>
     ))}
   </div>
 
-  <p className="font-bold text- mb-2">Message requests</p>
+  <p className="font-bold text- mb-2" style={{color:"white"}}>Message requests</p>
   <div className="flex gap-2 mb-5">
     {["all","filtered","off"].map(id=>(
-      <button key={id} onClick={()=>{setMessageFilter(id); localStorage.setItem("messageFilter", id);}} className={`flex-1 py-2 rounded-full font-bold text- ${messageFilter===id?"bg-gray text-black":"bg-gray-100"}`}>{id}</button>
+      <button key={id} onClick={()=>{setMessageFilter(id); localStorage.setItem("messageFilter", id);}} className="flex-1 py-2 rounded-full font-bold text- border" style={{backgroundColor: messageFilter===id ? "white" : "#1f1f1f", color: messageFilter===id ? "black" : "white", borderColor: "#333"}}>{id}</button>
     ))}
   </div>
 
-  <div className="border-t">
+  <div className="border-t" style={{borderColor:"#333"}}>
     <div className="flex justify-between items-center py-3">
-      <div><div className="font-medium text-">Allow DMs</div><div className="text- text-gray-500">Let others message you</div></div>
-      <button onClick={()=>{const v=!allowDM; setAllowDM(v); localStorage.setItem("allowDM", String(v));}} className={`h-7 w-12 rounded-full p-1 ${allowDM?"bg-black":"bg-gray-300"}`}><div className={`h-5 w-5 bg-white rounded-full transition ${allowDM?"translate-x-5":""}`} /></button>
+      <div><div className="font-medium text-" style={{color:"white"}}>Allow DMs</div><div className="text-" style={{color:"#9ca3af"}}>Let others message you</div></div>
+      <button onClick={()=>{const v=!allowDM; setAllowDM(v); localStorage.setItem("allowDM", String(v));}} className="h-7 w-12 rounded-full p-1" style={{backgroundColor: allowDM ? "white" : "#333"}}><div className="h-5 w-5 rounded-full transition" style={{backgroundColor: allowDM ? "black" : "white", transform: allowDM ? "translateX(20px)" : "translateX(0)"}} /></button>
     </div>
-    <div className="flex justify-between items-center py-3 border-t">
-      <div><div className="font-medium text-">Read receipts</div><div className="text- text-gray-500">Show when read</div></div>
-      <button onClick={()=>{const v=!readReceipts; setReadReceipts(v); localStorage.setItem("readReceipts", String(v));}} className={`h-7 w-12 rounded-full p-1 ${readReceipts?"bg-black":"bg-gray-300"}`}><div className={`h-5 w-5 bg-white rounded-full transition ${readReceipts?"translate-x-5":""}`} /></button>
+    <div className="flex justify-between items-center py-3 border-t" style={{borderColor:"#333"}}>
+      <div><div className="font-medium text-" style={{color:"white"}}>Read receipts</div><div className="text-" style={{color:"#9ca3af"}}>Show when read</div></div>
+      <button onClick={()=>{const v=!readReceipts; setReadReceipts(v); localStorage.setItem("readReceipts", String(v));}} className="h-7 w-12 rounded-full p-1" style={{backgroundColor: readReceipts ? "white" : "#333"}}><div className="h-5 w-5 rounded-full transition" style={{backgroundColor: readReceipts ? "black" : "white", transform: readReceipts ? "translateX(20px)" : "translateX(0)"}} /></button>
     </div>
   </div>
 </div>

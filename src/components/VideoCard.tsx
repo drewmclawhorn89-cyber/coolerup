@@ -10,6 +10,7 @@ import { Comments } from "./Comments";
 import { ShareMenu } from "./ShareMenu";
 import { Button } from "@/components/ui/button";
 import { Repeat2 } from "lucide-react";
+import { Bookmark } from "lucide-react";
 
 export function VideoCard({
   video,
@@ -219,6 +220,11 @@ export function VideoCard({
               {isFollowing ? "Following" : "Follow"}
             </button>
           )}
+          <button onClick={() => toast.success("Saved!")} className="flex flex-col items-center">
+  <Bookmark className="h-8 w-8 text-white" />
+  <span className="text-white text-[11px] mt-1">Save</span>
+</button>
+
           <Action label={formatCount(likes)} onClick={toggleLike} active={liked}>
             <Heart className={`h-8 w-8 ${liked ? "fill-primary text-white" : ""}`} />
           </Action>

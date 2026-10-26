@@ -66,9 +66,9 @@ const [totalFollowers, setTotalFollowers] = useState(0);
             </div>
           )}
           <div className="flex gap-8 text-sm">
-            <span><b>{videos?.length?? "-"}</b> videos</span>
-            <span><b>{totalLikes}</b> likes</span>
-             <span><b>{totalFollowers}</b> followers</span>
+          <span><b>{videos?.length ?? "-"}</b> videos</span>
+<span><b>{totalLikes ?? 0}</b> likes</span>
+<span><b>{totalFollowers ?? 0}</b> followers</span> 
           </div>
         </div>
 

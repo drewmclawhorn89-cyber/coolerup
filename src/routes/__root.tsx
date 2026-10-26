@@ -16,6 +16,8 @@ import { CallProvider } from "../lib/calls";
 import { CallOverlay } from "../components/CallOverlay";
 import { PhoneAuthDialog } from "../components/PhoneAuthDialog";
 import { Toaster } from "sonner";
+import { WellbeingWatcher } from "../components/MoreSettings";
+import { applyPrefs } from "../lib/prefs";
 function NotFoundComponent() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -127,12 +129,20 @@ function RootShell({ children }: { children: ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
+  useEffect(() => {
+    applyPrefs();
+    const mq = window.matchMedia?.("(prefers-color-scheme: light)");
+    mq?.addEventListener?.("change", applyPrefs);
+    return () => mq?.removeEventListener?.("change", applyPrefs);
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <CallProvider>
         {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
         <Outlet />
         <CallOverlay />
+        <WellbeingWatcher />
       </CallProvider>
       <PhoneAuthDialog />
       <Toaster theme="dark" position="top-center" />

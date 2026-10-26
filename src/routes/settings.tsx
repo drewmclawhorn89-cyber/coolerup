@@ -3,9 +3,10 @@ import { ArrowLeft, LogOut, Pencil, ShieldCheck, UserRound } from "lucide-react"
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { EditProfileDialog } from "@/components/EditProfileDialog";
-import { useAuth } from "@/hooks/useAuth";
+import { refreshProfile, useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { writePref } from "@/lib/prefs";
 import { MoreSettings } from "@/components/MoreSettings";
 import { ThemePicker } from "@/components/ThemePicker"
 export const Route = createFileRoute("/settings")({
@@ -30,7 +31,7 @@ function Settings() {
       // If you use Supabase / Lovable Auth, this also saves to your account
       // so it won't delete anything - just adds phone to your profile
     } catch {}
-    toast.success(`Phone saved: ${phone}`);
+    toast.success("Phone number saved");
   };
     const saveLinks = () => {
     try {
@@ -69,7 +70,7 @@ const [readReceipts, setReadReceipts] = useState(localStorage.getItem("readRecei
   // Theme
   const [theme, setTheme] = useState<string>(() => {
     try {
-      return localStorage.getItem("settings:theme") || "system";
+      return localStorage.getItem("settings:theme") || "dark";
     } catch (e) {
       return "system";
     }
@@ -139,6 +140,7 @@ const toggleOffline = () => {
         return;
       }
       toast.success("Handle updated");
+      refreshProfile();
     } finally {
       setUpdatingHandle(false);
     }
@@ -180,7 +182,10 @@ const toggleOffline = () => {
     toast.success(`@${uname} unblocked`);
   };
 
-  const toggleNotifications = (v: boolean) => {
+  const toggleNotifications = async (v: boolean) => {
+    if (v && typeof Notification !== "undefined" && Notification.permission === "default") {
+      await Notification.requestPermission();
+    }
     setNotificationsEnabled(v);
     try {
       localStorage.setItem("settings:notifications", v ? "true" : "false");
@@ -189,31 +194,7 @@ const toggleOffline = () => {
   };
 const changeTheme = (t: string) => {
   setTheme(t);
-  try { localStorage.setItem("settings:theme", t); } catch {}
-  const root = document.documentElement;
-
-  let bg = "";
-  let fg = "";
-
-  if (t === "light") { bg = "white"; fg = "black"; }
-  else if (t === "dark") { bg = "#111"; fg = "white"; }
-  else if (t === "blue") { bg = "#2563EB"; fg = "white"; }
-  else if (t === "purple") { bg = "#9333ea"; fg = "white"; }
-  else if (t === "pink") { bg = "#ec4899"; fg = "white"; }
-  else if (t === "green") { bg = "#16a34a"; fg = "white"; }
-  else { bg = "white"; fg = "black"; }
-
-  // FORCE background - this works even if your pages use bg-white
-  root.style.setProperty("--background", bg);
-  document.body.style.backgroundColor = bg;
-  document.documentElement.style.backgroundColor = bg;
-  root.style.setProperty("--foreground", fg);
-
-  // FORCE black buttons for every color
-  root.style.setProperty("--primary", "0 0% 0%");
-  root.style.setProperty("--primary-foreground", "0 0% 100%");
-  root.style.setProperty("--ring", "0 0% 0%");
-
+  writePref("theme", t);
   toast.success(`Theme: ${t}`);
 };
   if (auth.ready && !auth.user) {
@@ -309,7 +290,7 @@ const changeTheme = (t: string) => {
           <ShieldCheck className="h-4 w-4 text-primary" />
           <h2 className="font-semibold">Notifications</h2>
         </div>
-        <p className="mt-1 text-sm text-muted-foreground">Control basic notification preferences (prototype).</p>
+        <p className="mt-1 text-sm text-muted-foreground">Turn all notifications on or off.</p>
         <div className="mt-3 flex gap-2">
           <button onClick={() => toggleNotifications(true)} className={`rounded-md px-3 py-2 ${notificationsEnabled ? "bg-primary text-primary-foreground" : "border bg-background"}`}>
             Enable
@@ -429,7 +410,7 @@ const changeTheme = (t: string) => {
       View Offline Videos →
     </button>
   </div>
-  <p className="mt-2 text-xs text-muted-foreground">{offlineMode ? "Tap View to see your cached 1332 videos" : "Turn ON first, then view"}</p>
+  <p className="mt-2 text-xs text-muted-foreground">{offlineMode ? "Tap View to see your saved videos" : "Turn ON first, then view"}</p>
 </div>
    {/* Appearance */}
 <div className="rounded-2xl border bg-card p-4">

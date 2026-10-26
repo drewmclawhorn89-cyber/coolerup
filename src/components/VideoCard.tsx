@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { formatCount, isImageUrl, parseCaption, resolveVideoUrl, songStreamUrl, type Video } from "@/lib/loop";
 import { getSaved } from "@/lib/offline";
 import { useAuth } from "@/hooks/useAuth";
+import { haptic, readBool } from "@/lib/prefs";
 import { Comments } from "./Comments";
 import { ShareMenu } from "./ShareMenu";
 import { Button } from "@/components/ui/button";
@@ -123,7 +124,7 @@ export function VideoCard({
     if (!el || isImage) return;
     const obs = new IntersectionObserver(
       ([e]) => {
-        if (e && e.isIntersecting && e.intersectionRatio > 0.6) el.play().catch(() => {});
+        if (e && e.isIntersecting && e.intersectionRatio > 0.6) { if (readBool("autoplay", true)) el.play().catch(() => {}); }
         else el.pause();
       },
       { threshold: [0, 0.6, 1] },
@@ -156,6 +157,7 @@ export function VideoCard({
 
  const toggleLike = async () => {
   const next = !liked;
+  haptic();
   onLikeChange(next);
   setLikes((n) => n + (next ? 1 : -1));
   if (next) {
@@ -230,7 +232,7 @@ export function VideoCard({
                 loop
                 muted={false}
                 playsInline
-                preload="metadata"
+                preload={readBool("data-saver") ? "none" : "metadata"}
                 disableRemotePlayback
                 onClick={togglePlay}
                 onDoubleClick={() => !liked && toggleLike()}
@@ -249,7 +251,7 @@ export function VideoCard({
                 <Heart className="heart-pop h-28 w-28 fill-primary text-primary drop-shadow-[0_0_24px_rgba(255,45,85,0.8)]" />
               </div>
             )}
-            <div className="video-caption absolute inset-x-0 bottom-0 z-20 pb-20 pl-2 pr-20 pt-16 md:hidden">
+            <div className={`video-caption absolute inset-x-0 bottom-0 z-20 pb-20 pl-2 pr-20 pt-16 ${readBool("captions") ? "" : "md:hidden"}`}>
               <Link to="/u/$username" params={{ username: video.username }} className="break-words text-sm font-bold">@{video.username}</Link>
               <p className="mt-1 line-clamp-3 break-words text-sm">{captionText}</p>
             </div>

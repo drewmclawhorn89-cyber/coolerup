@@ -6,7 +6,7 @@ import { EditProfileDialog } from "@/components/EditProfileDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import ThemePicker from "@/components/ThemePicker"
+import { ThemePicker } from "@/components/ThemePicker"
 export const Route = createFileRoute("/settings")({
   head: () => ({
     meta: [

@@ -178,7 +178,7 @@ export function VideoCard({
     toast.error("Couldn't save your like");
   } else if (next) {
     // save notification to account
-    const { data: owner } = await supabase.from("profiles").select("id").eq("username", video.username).single();
+    const { data: owner } = await supabase.from("profiles").select("id").eq("handle", video.username).maybeSingle();
     if (owner && owner.id !== authUser.id) {
       await supabase.from("notifications").insert({
         target_user_id: owner.id,
@@ -285,7 +285,7 @@ export function VideoCard({
           )}
 
           <Action label={formatCount(likes)} onClick={toggleLike} active={liked}>
-            <Heart className={`h-8 w-8 ${liked ? "fill-primary text-white" : ""}`} />
+            <Heart className={`h-8 w-8 ${liked ? "fill-primary text-white" : ""} ${liked && burst ? "heart-pop-btn" : ""}`} />
           </Action>
           <Action label={formatCount(comments)} onClick={() => setShowComments(true)}>
             <MessageCircle className="h-8 w-8" />
@@ -325,7 +325,7 @@ function Action({
   return (
     <Button variant="ghost" onClick={onClick} aria-label={typeof children === "object" && children ? undefined : label} className="h-auto flex-col gap-1 p-0 text-xs font-semibold hover:bg-transparent [&_svg]:size-6">
       <span
-        className={`flex h-11 w-11 items-center justify-center rounded-full bg-overlay backdrop-blur-sm transition hover:bg-accent md:h-12 md:w-12 md:bg-secondary ${active ? "scale-110" : ""} ${active && burst ? "heart-pop-btn" : ""}`}
+        className={`flex h-11 w-11 items-center justify-center rounded-full bg-overlay backdrop-blur-sm transition hover:bg-accent md:h-12 md:w-12 md:bg-secondary ${active ? "scale-110" : ""}`}
       >
         {children}
       </span>

@@ -17,6 +17,8 @@ type Props = {
   onUpload: () => void;
 };
 
+const MIN_FOLLOWERS_TO_GO_LIVE = 500;
+
 const viewerId = () => globalThis.crypto?.randomUUID?.() ?? `viewer-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
 export function LiveStreamDialog({ open, onOpenChange, userId, username, onRecord, onUpload }: Props) {
@@ -219,9 +221,21 @@ export function LiveStreamDialog({ open, onOpenChange, userId, username, onRecor
     });
   }
 
-  const startHost = () => {
-    if (!userId) {
+  const startHost = async () => {
+    if (!userId || !username) {
       toast.error("Sign in to start a live stream.");
+      return;
+    }
+    const { count, error } = await supabase
+      .from("follows")
+      .select("id", { count: "exact", head: true })
+      .eq("following_username", username);
+    if (error) {
+      toast.error("Couldn't verify your followers. Try again.");
+      return;
+    }
+    if ((count ?? 0) < MIN_FOLLOWERS_TO_GO_LIVE) {
+      toast.error(`You need ${MIN_FOLLOWERS_TO_GO_LIVE} followers to go live. You have ${count ?? 0}.`);
       return;
     }
     setMode("host");
@@ -236,7 +250,7 @@ export function LiveStreamDialog({ open, onOpenChange, userId, username, onRecor
           <DialogTitle className="px-6 pt-6 font-display text-2xl">Create something</DialogTitle>
           <DialogDescription className="px-6 text-sm text-zinc-400">Share a moment with the Coolerup community.</DialogDescription>
           <div className="space-y-3 px-6 pb-6 pt-2">
-            <button onClick={() => { closeMenu(); startHost(); }} disabled={!userId} className="flex w-full items-center gap-4 rounded-2xl border border-primary/40 bg-primary/10 p-4 text-left transition hover:bg-primary/20 disabled:opacity-50">
+            <button onClick={() => { closeMenu(); void startHost(); }} disabled={!userId} className="flex w-full items-center gap-4 rounded-2xl border border-primary/40 bg-primary/10 p-4 text-left transition hover:bg-primary/20 disabled:opacity-50">
               <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-white"><Radio /></span>
               <span><span className="block font-bold">Go live</span><span className="text-sm text-zinc-400">Broadcast from your camera</span></span>
               <Circle className="ml-auto h-3 w-3 fill-red-500 text-red-500" />

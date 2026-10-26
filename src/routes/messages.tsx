@@ -1,166 +1,106 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, Phone } from "lucide-react";
-import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
-import { useCall } from "@/lib/calls";
-import { Button } from "@/components/ui/button";
+import { useState, useEffect } from "react";
 
-export const Route = createFileRoute("/messages")({
-  head: () => ({
-    meta: [
-      { title: "Messages — Loop" },
-      { name: "description", content: "Chat with creators on Loop." },
-      { property: "og:title", content: "Messages — Loop" },
-      { property: "og:description", content: "Chat with creators on Loop." },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary" },
-    ],
-  }),
-  component: Messages,
-});
+type Message = { id: string; username: string; text: string; time: string; unread?: boolean };
 
-type Msg = { id: string; from_username: string; to_username: string; message: string; created_at: string };
-
-function Messages() {
-  const auth = useAuth();
-  const { startCall } = useCall();
-  const me = auth.handle;
-  const [toUser, setToUser] = useState("");
-  const [text, setText] = useState("");
-  const [msgs, setMsgs] = useState<Msg[]>([]);
-  const endRef = useRef<HTMLDivElement>(null);
+export default function Messages() {
+  const [tab, setTab] = useState<"all" | "requests" | "settings">("all");
+  const [privacy, setPrivacy] = useState(localStorage.getItem("messagePrivacy") || "everyone");
+  const [filter, setFilter] = useState(localStorage.getItem("messageFilter") || "all");
+  const [allowDM, setAllowDM] = useState(localStorage.getItem("allowDM") !== "false");
+  const [readReceipts, setReadReceipts] = useState(localStorage.getItem("readReceipts") !== "false");
+  const [messages, setMessages] = useState<Message[]>([]);
 
   useEffect(() => {
-    const u = new URLSearchParams(window.location.search).get("user");
-    if (u) setToUser(u);
+    const saved = localStorage.getItem("messages");
+    if (saved) setMessages(JSON.parse(saved));
+    else setMessages([
+      { id: "1", username: "loop_team", text: "Welcome to Loop! 💜", time: "now", unread: true },
+      { id: "2", username: "alex", text: "Yo check this video", time: "2m" },
+    ]);
   }, []);
 
-  const load = async () => {
-    const { data } = await supabase
-      .from("direct_messages")
-      .select("id, from_username, to_username, message, created_at")
-      .order("created_at", { ascending: true });
-    setMsgs((data ?? []) as Msg[]);
-  };
-
-  useEffect(() => {
-    if (auth.user) load();
-  }, [auth.user?.id]);
-
-  useEffect(() => {
-    endRef.current?.scrollIntoView();
-  }, [msgs.length, toUser]);
-
-  const send = async () => {
-    const body = text.trim();
-    const to = toUser.trim().replace(/^@/, "").toLowerCase();
-    if (!body || !to || !auth.user || !me) return;
-    const { data: target } = await supabase.from("profiles").select("id").eq("handle", to).maybeSingle();
-    if (!target) {
-      toast.error(`@${to} hasn't joined Loop yet`);
-      return;
-    }
-    const { error } = await supabase
-      .from("direct_messages")
-      .insert({ from_id: auth.user.id, to_id: target.id, from_username: me, to_username: to, message: body });
-    if (error) {
-      toast.error("Couldn't send message");
-      return;
-    }
-    setText("");
-    load();
-  };
-
-  const inbox = new Map<string, Msg>();
-  msgs.forEach((m) => inbox.set(m.from_username === me ? m.to_username : m.from_username, m));
-  const convo = msgs.filter((m) => m.from_username === toUser || m.to_username === toUser);
-
-  if (auth.ready && !auth.user) {
-    return (
-      <div className="flex h-dvh flex-col items-center justify-center gap-4 bg-background p-6 text-center">
-        <p className="font-display text-2xl">Your messages</p>
-        <p className="text-muted-foreground">Sign in to send and read private messages.</p>
-        <Button onClick={auth.signIn}>Sign in</Button>
-        <Link to="/" className="text-sm text-muted-foreground">Back to Loop</Link>
-      </div>
-    );
-  }
+  const savePrivacy = (v: string) => { setPrivacy(v); localStorage.setItem("messagePrivacy", v); };
+  const saveFilter = (v: string) => { setFilter(v); localStorage.setItem("messageFilter", v); };
 
   return (
-    <div className="mx-auto flex h-dvh max-w-md flex-col bg-background pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)]">
-      <div className="border-b p-4">
-        <div className="flex items-center gap-3">
-          <Link to="/" aria-label="Back to Loop" className="text-muted-foreground hover:text-foreground"><ArrowLeft className="h-5 w-5" /></Link>
-          <h1 className="font-display text-xl">Messages</h1>
-        </div>
-        <input
-          value={toUser}
-          onChange={(e) => setToUser(e.target.value)}
-          placeholder="Message @username"
-          className="mt-3 w-full rounded-full border bg-secondary px-4 py-2 text-sm outline-none"
-        />
+    <div className="min-h-screen bg-white max-w- mx-auto">
+      {/* TOP TABS LIKE TIKTOK */}
+      <div className="flex justify-around border-b py-3 font-bold text- sticky top-0 bg-white z-10">
+        <button onClick={()=>setTab("all")} className={`${tab==="all"?"text-black border-b-2 border-black":"text-gray-400"} pb-1`}>All</button>
+        <button onClick={()=>setTab("requests")} className={`${tab==="requests"?"text-black border-b-2 border-black":"text-gray-400"} pb-1`}>Requests</button>
+        <button onClick={()=>setTab("settings")} className={`${tab==="settings"?"text-black border-b-2 border-black":"text-gray-400"} pb-1`}>Settings</button>
       </div>
 
-      {toUser === "" ? (
-        <div className="flex-1 overflow-y-auto p-2">
-          <p className="px-3 py-2 text-xs font-bold tracking-widest text-muted-foreground">INBOX</p>
-          {inbox.size === 0 ? (
-            <p className="mt-20 text-center text-muted-foreground">No messages yet</p>
-          ) : (
-            [...inbox.entries()].reverse().map(([user, last]) => (
-              <button key={user} onClick={() => setToUser(user)} className="flex w-full items-center gap-3 rounded-xl p-3 text-left hover:bg-secondary">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary font-display uppercase text-primary-foreground">{user[0]}</div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-bold">@{user}</p>
-                  <p className="truncate text-xs text-muted-foreground">{last.message}</p>
-                </div>
-              </button>
-            ))
-          )}
-        </div>
-      ) : (
-        <>
-          <div className="flex items-center gap-2 border-b p-3">
-            <button onClick={() => setToUser("")} className="text-sm font-bold text-primary">← Inbox</button>
-            <span className="font-bold">@{toUser}</span>
-            <button
-              onClick={async () => {
-                const handle = toUser.trim().replace(/^@/, "").toLowerCase();
-                const { data: target } = await supabase.from("profiles").select("id").eq("handle", handle).maybeSingle();
-                if (!target) {
-                  toast.error(`@${handle} hasn't joined Loop yet`);
-                  return;
-                }
-                void startCall(handle, target.id);
-              }}
-              className="ml-auto rounded-full p-2 text-muted-foreground hover:bg-secondary hover:text-foreground"
-              aria-label={`Voice call @${toUser}`}
-            >
-              <Phone className="h-5 w-5" />
-            </button>
-          </div>
-          <div className="flex-1 space-y-2 overflow-y-auto p-3">
-            {convo.map((m) => (
-              <div key={m.id} className={`max-w-[75%] rounded-2xl px-3 py-2 text-sm ${m.from_username === me ? "ml-auto bg-primary text-primary-foreground" : "bg-secondary"}`}>
-                {m.message}
+      {/* ALL MESSAGES */}
+      {tab === "all" && (
+        <div className="divide-y">
+          {messages.map(m => (
+            <div key={m.id} className="flex items-center gap-3 p-4 hover:bg-gray-50">
+              <div className="h-12 w-12 rounded-full bg-black text-white flex items-center justify-center font-bold">{m.username[0].toUpperCase()}</div>
+              <div className="flex-1">
+                <div className="font-bold text- flex items-center gap-2">{m.username} {m.unread && <span className="h-2 w-2 bg-[#fe2c55] rounded-full" />}</div>
+                <div className="text-gray-500 text-">{m.text}</div>
               </div>
+              <div className="text-gray-400 text-">{m.time}</div>
+            </div>
+          ))}
+          {messages.length===0 && <div className="p-10 text-center text-gray-400">No messages yet</div>}
+        </div>
+      )}
+
+      {/* REQUESTS */}
+      {tab === "requests" && (
+        <div className="p-4">
+          <h2 className="font-bold mb-2">Message requests</h2>
+          <p className="text-gray-500 text- mb-4">People who can message you based on your settings will appear here</p>
+          <div className="flex gap-2 mb-4">
+            {["all","filtered"].map(f=>(
+              <button key={f} onClick={()=>saveFilter(f)} className={`px-4 py-2 rounded-full text- font-bold ${filter===f?"bg-black text-white":"bg-gray-100"}`}>{f}</button>
             ))}
-            <div ref={endRef} />
           </div>
-          <div className="flex gap-2 border-t p-3">
-            <input
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && send()}
-              placeholder="Message..."
-              maxLength={2000}
-              className="min-w-0 flex-1 rounded-full border bg-secondary px-4 py-2 outline-none"
-            />
-            <Button onClick={send} className="rounded-full">Send</Button>
+          <div className="text-center text-gray-400 mt-20">No requests</div>
+        </div>
+      )}
+
+      {/* SETTINGS - DIFFERENT MESSAGE SETTINGS LIKE TIKTOK */}
+      {tab === "settings" && (
+        <div className="p-4">
+          <h2 className="font-bold text- mb-1">Message settings</h2>
+          <p className="text-gray-500 text- mb-6">Manage how you receive messages</p>
+
+          <div className="mb-6">
+            <p className="font-bold text- mb-3">Who can send you direct messages</p>
+            {[
+              {id:"everyone", label:"Everyone", desc:"Anyone"},
+              {id:"friends", label:"Friends", desc:"People you follow back"},
+              {id:"mutuals", label:"Friends of friends", desc:"Friends + their friends"},
+              {id:"noone", label:"No one", desc:"No one can DM you"},
+            ].map(o=>(
+              <button key={o.id} onClick={()=>savePrivacy(o.id)} className={`w-full flex justify-between items-center p-3 rounded-xl border mb-2 text-left ${privacy===o.id?"bg-black text-white border-black":"bg-white"}`}>
+                <div>
+                  <div className="font-semibold text-">{o.label}</div>
+                  <div className={`text- ${privacy===o.id?"text-gray-300":"text-gray-500"}`}>{o.desc}</div>
+                </div>
+                <div className={`h-5 w-5 rounded-full border-2 flex items-center justify-center ${privacy===o.id?"border-white":"border-gray-300"}`}>{privacy===o.id && <div className="h-2 w-2 bg-white rounded-full" />}</div>
+              </button>
+            ))}
           </div>
-        </>
+
+          <div className="space-y-4 border-t pt-4">
+            <div className="flex justify-between items-center">
+              <div><div className="font-medium text-">Allow direct messages</div><div className="text-gray-500 text-">From people you allow</div></div>
+              <button onClick={()=>{const v=!allowDM; setAllowDM(v); localStorage.setItem("allowDM", String(v));}} className={`h-7 w-12 rounded-full p-1 ${allowDM?"bg-black":"bg-gray-300"}`}><div className={`h-5 w-5 bg-white rounded-full transition ${allowDM?"translate-x-5":""}`} /></button>
+            </div>
+            <div className="flex justify-between items-center">
+              <div><div className="font-medium text-">Read receipts</div><div className="text-gray-500 text-">Show when read</div></div>
+              <button onClick={()=>{const v=!readReceipts; setReadReceipts(v); localStorage.setItem("readReceipts", String(v));}} className={`h-7 w-12 rounded-full p-1 ${readReceipts?"bg-black":"bg-gray-300"}`}><div className={`h-5 w-5 bg-white rounded-full transition ${readReceipts?"translate-x-5":""}`} /></button>
+            </div>
+            <div className="flex justify-between items-center">
+              <div><div className="font-medium text-">Filter spam</div><div className="text-gray-500 text-">Auto-filter suspicious</div></div>
+              <button className="h-7 w-12 rounded-full p-1 bg-black"><div className="h-5 w-5 bg-white rounded-full translate-x-5" /></button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

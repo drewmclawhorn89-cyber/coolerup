@@ -84,7 +84,20 @@ export function VideoCard({
       toast.error("Couldn't update follow");
     }
   };
+  const [near, setNear] = useState(false);
   useEffect(() => {
+    const el = cardRef.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      ([e]) => setNear(!!e && e.isIntersecting),
+      { rootMargin: "150% 0px 150% 0px" },
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!near) { setSrc(""); setPlaying(false); return; }
     let blobUrl = "";
     let alive = true;
     getSaved(video.id)
@@ -103,7 +116,7 @@ export function VideoCard({
       alive = false;
       if (blobUrl) URL.revokeObjectURL(blobUrl);
     };
-  }, [video.id, video.video_url]);
+  }, [video.id, video.video_url, near]);
 
   useEffect(() => {
     const el = ref.current;
@@ -197,6 +210,8 @@ export function VideoCard({
             {src && isImage && (
               <img
                 src={src}
+                loading="lazy"
+                decoding="async"
                 alt={captionText || `Photo by @${video.username}`}
                 onDoubleClick={() => !liked && toggleLike()}
                 className="h-full w-full cursor-pointer object-cover"
@@ -216,6 +231,7 @@ export function VideoCard({
                 muted={false}
                 playsInline
                 preload="metadata"
+                disableRemotePlayback
                 onClick={togglePlay}
                 onDoubleClick={() => !liked && toggleLike()}
                 onPlay={() => setPlaying(true)}

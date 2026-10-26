@@ -191,3 +191,19 @@
 .mobile-bottom-nav, .mobile-comments {
   padding-bottom: env(safe-area-inset-bottom);
 }
+
+@keyframes heart-pop {
+  0% { transform: scale(0.3) rotate(-12deg); opacity: 0; }
+  30% { transform: scale(1.2) rotate(6deg); opacity: 1; }
+  60% { transform: scale(1) rotate(0); opacity: 1; }
+  100% { transform: scale(1.4) translateY(-30px); opacity: 0; }
+}
+.heart-pop { animation: heart-pop 0.6s ease-out forwards; }
+@keyframes heart-btn {
+  0%, 100% { transform: scale(1.1); }
+  50% { transform: scale(1.45); }
+}
+.heart-pop-btn { animation: heart-btn 0.4s ease-in-out; }
+@media (prefers-reduced-motion: reduce) {
+  .heart-pop, .heart-pop-btn { animation: none; }
+}

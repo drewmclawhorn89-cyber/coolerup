@@ -29,11 +29,11 @@ const CATS = ["Hobbies", "Electronics", "Apparel", "Home", "Vehicles", "Property
 const MOCK: MarketItem[] = NAMES.map((title, i) => ({
   id: `mock-${i}`,
   title,
-  price: [20, 350, 60, 90, 4200, 900, 45, 250, 55, 480][i % 10] + i,
+  price: ([20, 350, 60, 90, 4200, 900, 45, 250, 55, 480][i % 10] ?? 0) + i,
   image: `https://picsum.photos/seed/market${i}/400/400`,
-  location: CITIES[i % CITIES.length],
-  seller: SELLERS[i % SELLERS.length],
-  category: CATS[i % CATS.length],
+  location: CITIES[i % CITIES.length] ?? "",
+  seller: SELLERS[i % SELLERS.length] ?? "",
+  category: CATS[i % CATS.length] ?? "Home",
   description: `${title} in good condition. Pickup available, message me with any questions.`,
 }));
 

@@ -3,7 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { Heart, MessageCircle, Share2, Play, Volume2, VolumeX } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { formatCount, isImageUrl, resolveVideoUrl, type Video } from "@/lib/loop";
+import { formatCount, isImageUrl, parseCaption, resolveVideoUrl, songStreamUrl, type Video } from "@/lib/loop";
 import { getSaved } from "@/lib/offline";
 import { useAuth } from "@/hooks/useAuth";
 import { Comments } from "./Comments";
@@ -38,7 +38,10 @@ export function VideoCard({
   const [isFollowing, setIsFollowing] = useState(false);
   const auth = useAuth();
   const myUsername = auth.handle;
-  const isImage = isImageUrl(video.video_url);
+  const isImage = isImageUrl(video.video_url) || /\.(jpe?g|png|webp|gif|avif)$/i.test(video.video_url);
+  const { text: captionText, song } = parseCaption(video.caption);
+  const songRef = useRef<HTMLAudioElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!auth.user || !myUsername || video.username === myUsername) return;
@@ -97,6 +100,21 @@ export function VideoCard({
     obs.observe(el);
     return () => obs.disconnect();
   }, [src]);
+
+  useEffect(() => {
+    const el = cardRef.current;
+    const a = songRef.current;
+    if (!el || !a || !song) return;
+    const obs = new IntersectionObserver(
+      ([e]) => {
+        if (e && e.isIntersecting && e.intersectionRatio > 0.6) { a.currentTime = 0; a.play().catch(() => {}); }
+        else a.pause();
+      },
+      { threshold: [0, 0.6, 1] },
+    );
+    obs.observe(el);
+    return () => { obs.disconnect(); a.pause(); };
+  }, [song?.id]);
 
   const togglePlay = () => {
     const el = ref.current;
@@ -157,14 +175,20 @@ export function VideoCard({
     <section className="flex h-full snap-start snap-always items-center justify-center md:py-4">
       <div className="relative flex h-full w-full items-end md:h-auto md:w-auto md:gap-4">
         <div className="flex h-full min-w-0 flex-1 flex-col md:h-auto md:flex-none md:gap-3">
-          <div className="relative h-full w-full overflow-hidden bg-card md:aspect-[9/16] md:h-[calc(100dvh-11rem)] md:max-h-[760px] md:w-auto md:rounded-2xl">
+          <div ref={cardRef} className="relative h-full w-full overflow-hidden bg-card md:aspect-[9/16] md:h-[calc(100dvh-11rem)] md:max-h-[760px] md:w-auto md:rounded-2xl">
             {src && isImage && (
               <img
                 src={src}
-                alt={video.caption || `Photo by @${video.username}`}
+                alt={captionText || `Photo by @${video.username}`}
                 onDoubleClick={() => !liked && toggleLike()}
                 className="h-full w-full cursor-pointer object-cover"
               />
+            )}
+            {song && isImage && <audio ref={songRef} src={songStreamUrl(song.id)} loop muted={muted} preload="none" />}
+            {song && isImage && (
+              <div className="absolute left-3 top-3 flex max-w-[70%] items-center gap-2 rounded-full bg-black/50 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur">
+                <span aria-hidden>♫</span><span className="truncate">{song.title} · {song.artist}</span>
+              </div>
             )}
             {src && !isImage && (
               <video
@@ -188,7 +212,7 @@ export function VideoCard({
             
             <div className="video-caption absolute inset-x-0 bottom-2 pb-5 pl-4 pr-20 pt-16 md:hidden">
               <Link to="/u/$username" params={{ username: video.username }} className="break-words text-sm font-bold">@{video.username}</Link>
-              <p className="mt-1 line-clamp-3 break-words text-sm">{video.caption}</p>
+              <p className="mt-1 line-clamp-3 break-words text-sm">{captionText}</p>
             </div>
             {!isImage && (
             <div onClick={seek} className="absolute inset-x-0 bottom-0 h-3 cursor-pointer">
@@ -200,7 +224,7 @@ export function VideoCard({
           </div>
           <div className="hidden max-w-[calc((100dvh-11rem)*9/16)] md:block">
             <Link to="/u/$username" params={{ username: video.username }} className="font-bold hover:text-primary">@{video.username}</Link>
-            <p className="text-sm text-muted-foreground">{video.caption}</p>
+            <p className="text-sm text-muted-foreground">{captionText}</p>
           </div>
         </div>
         <div className="absolute bottom-16 right-2 flex flex-col items-center gap-4 md:static md:mb-16 md:gap-5">

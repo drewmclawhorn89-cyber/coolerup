@@ -1,3 +1,4 @@
+import { parseCaption } from "@/lib/loop";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Download, Eye, Trash2, ArrowLeft } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -114,7 +115,7 @@ function OfflinePage() {
                     ) : null}
                   </div>
                   <div className="min-w-0">
-                    <div className="truncate text-sm font-medium">{item.video?.caption || `@${item.video?.username}`}</div>
+                    <div className="truncate text-sm font-medium">{parseCaption(item.video?.caption ?? "").text || `@${item.video?.username}`}</div>
                     <div className="text-xs text-muted-foreground">{formatBytes(item.size)}</div>
                   </div>
                 </div>

@@ -6,7 +6,7 @@ const APP = "coolerup";
 
 export type Track = { id: string; title: string; artist: string; art?: string; url: string };
 
-async function fetchTracks(query: string): Promise<Track[]> {
+export async function fetchTracks(query: string): Promise<Track[]> {
   const path = query.trim()
     ? `/tracks/search?query=${encodeURIComponent(query.trim())}&`
     : "/tracks/trending?";

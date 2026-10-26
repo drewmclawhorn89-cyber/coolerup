@@ -11,6 +11,26 @@ export type Video = {
   created_at: string;
 };
 
+export type Song = { id: string; title: string; artist: string };
+
+const SONG_TAG = /\s*\[\[song:([^|\]]+)\|([^|\]]*)\|([^\]]*)\]\]\s*$/;
+
+export function songStreamUrl(id: string) {
+  return `https://api.audius.co/v1/tracks/${id}/stream?app_name=coolerup`;
+}
+
+export function withSong(caption: string, song?: Song | null) {
+  if (!song) return caption;
+  const clean = (v: string) => v.replace(/[|\[\]]/g, "").slice(0, 80);
+  return `${caption}[[song:${song.id}|${clean(song.title)}|${clean(song.artist)}]]`;
+}
+
+export function parseCaption(caption: string): { text: string; song: Song | null } {
+  const m = caption.match(SONG_TAG);
+  if (!m) return { text: caption, song: null };
+  return { text: caption.replace(SONG_TAG, ""), song: { id: m[1] ?? "", title: m[2] ?? "", artist: m[3] ?? "" } };
+}
+
 const STORAGE_PREFIX = "storage:";
 
 export function getDeviceId() {
@@ -55,7 +75,7 @@ export async function fetchMyLikes() {
   return new Set((data ?? []).map((l) => l.video_id));
 }
 
-export async function uploadVideo(file: File, username: string, caption: string) {
+export async function uploadVideo(file: File, username: string, caption: string, song?: Song | null) {
   const ext = file.name.split(".").pop() || "mp4";
   const path = `${crypto.randomUUID()}.${ext}`;
   const { error: upErr } = await supabase.storage
@@ -64,7 +84,7 @@ export async function uploadVideo(file: File, username: string, caption: string)
   if (upErr) throw upErr;
   const { error } = await supabase
     .from("videos")
-    .insert({ username, caption, video_url: STORAGE_PREFIX + path });
+    .insert({ username, caption: withSong(caption, file.type.startsWith("image/") ? song : null), video_url: STORAGE_PREFIX + path });
   if (error) throw error;
 }
 

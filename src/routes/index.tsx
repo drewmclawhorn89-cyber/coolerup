@@ -22,6 +22,7 @@ import { UploadDialog } from "@/components/UploadDialog";
 const RecordDialog = lazy(() => import("@/components/RecordDialog").then((m) => ({ default: m.RecordDialog })));
 import { ShopPanel } from "@/components/ShopPanel";
 const PhotoDialog = lazy(() => import("@/components/PhotoDialog").then((m) => ({ default: m.PhotoDialog })));
+import { Marketplace } from "@/components/Marketplace";
 import { LiveStreamDialog } from "@/components/LiveStreamDialog";
 import { fetchMyLikes, fetchVideos, parseCaption, type Video } from "@/lib/loop";
 import { listSaved, onOfflineChange } from "@/lib/offline";
@@ -106,7 +107,7 @@ function Index() {
   const [online, setOnline] = useState(true);
   const [liked, setLiked] = useState<Set<string>>(new Set());
   const [tab, setTab] = useState<Tab>("foryou");
-  const [feedTab, setFeedTab] = useState<"foryou" | "following" | "explore" | "live">("foryou");
+  const [feedTab, setFeedTab] = useState<"foryou" | "following" | "explore" | "marketplace" | "live">("foryou");
   const [followingList, setFollowingList] = useState<string[]>([]);
 
   useEffect(() => {
@@ -312,8 +313,8 @@ function Index() {
   }, [videos, saved, query, activeTab, liked, me, followingList, feedTab]);
 
   const showTopTabs = !offlineMode && (activeTab === "foryou" || activeTab === "following" || activeTab === "explore");
-  const topTab = activeTab === "shop" ? "shop" : activeTab === "following" || activeTab === "explore" ? activeTab : feedTab === "live" ? "live" : "foryou";
-  const pickFeedTab = (t: "foryou" | "following" | "explore" | "live") => {
+  const topTab = activeTab === "shop" ? "shop" : activeTab === "following" || activeTab === "explore" ? activeTab : feedTab === "live" || feedTab === "marketplace" ? feedTab : "foryou";
+  const pickFeedTab = (t: "foryou" | "following" | "explore" | "marketplace" | "live") => {
     setFeedTab(t);
     setTab(t === "following" || t === "explore" ? t : "foryou");
   };
@@ -483,12 +484,24 @@ function Index() {
           </div>
         )}
 
-        {activeTab === "shop" ? (
+        {activeTab === "foryou" && feedTab === "marketplace" && !offlineMode ? (
+          <div className="relative flex min-h-0 flex-1 flex-col">
+            <div className="absolute left-0 right-0 top-0 z-50 flex gap-5 overflow-x-auto bg-black px-4 pb-2 pt-3 no-scrollbar [&>button]:shrink-0 [&>button]:whitespace-nowrap">
+              <button onClick={() => pickFeedTab("following")} className={tabClass("following")}>Following</button>
+              <button onClick={() => pickFeedTab("foryou")} className={tabClass("foryou")}>For You</button>
+              <button onClick={() => pickFeedTab("explore")} className={tabClass("explore")}>Explore</button>
+              <button onClick={() => pickFeedTab("marketplace")} className={tabClass("marketplace")}>Marketplace</button>
+              <button onClick={() => pickFeedTab("live")} className={tabClass("live")}>LIVE</button>
+            </div>
+            <Marketplace />
+          </div>
+        ) : {activeTab === "shop" ? (
           <div className="flex min-h-0 flex-1 flex-col">
             <div className="flex shrink-0 gap-4 bg-black no-scrollbar overflow-x-auto px-4 [&>button]:shrink-0 [&>button]:whitespace-nowrap [&>button:first-child]:ml-auto [&>button:last-child]:mr-auto pb-2 pt-3 md:hidden">
               <button onClick={() => pickFeedTab("following")} className={tabClass("following")}>Following</button>
               <button onClick={() => pickFeedTab("foryou")} className={tabClass("foryou")}>For You</button>
               <button onClick={() => pickFeedTab("explore")} className={tabClass("explore")}>Explore</button>
+              <button onClick={() => pickFeedTab("marketplace")} className={tabClass("marketplace")}>Marketplace</button>
               <button onClick={() => pickFeedTab("live")} className={tabClass("live")}>LIVE</button>
               <button onClick={() => setTab("shop")} className={tabClass("shop")}>Shop</button>
             </div>
@@ -563,6 +576,7 @@ function Index() {
                 <button onClick={() => pickFeedTab("following")} className={tabClass("following")}>Following</button>
                 <button onClick={() => pickFeedTab("foryou")} className={tabClass("foryou")}>For You</button>
                 <button onClick={() => pickFeedTab("explore")} className={tabClass("explore")}>Explore</button>
+                <button onClick={() => pickFeedTab("marketplace")} className={tabClass("marketplace")}>Marketplace</button>
                 <button onClick={() => pickFeedTab("live")} className={tabClass("live")}>
                   <span className="h-2 w-2 rounded-full bg-red-500" />
                   LIVE

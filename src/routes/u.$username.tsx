@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Pencil, X } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { EditProfileDialog, resolveAvatarUrl } from "@/components/EditProfileDialog";
+import { EditProfileDialog, LINK_FIELDS, normalizeLink, resolveAvatarUrl } from "@/components/EditProfileDialog";
 import { fetchSavedVideos, fetchMyLikes, isImageUrl, parseCaption, resolveVideoUrl } from "@/lib/loop";
 import { VideoCard } from "@/components/VideoCard";
 import type { Profile as ProfileRow } from "@/hooks/useAuth";
@@ -67,7 +67,7 @@ const [totalFollowers, setTotalFollowers] = useState(0);
     supabase.from("videos").select("*").eq("username", username).order("created_at", { ascending: false }).then(({ data }) => {
       setVideos(data || []);
     });
-    supabase.from("profiles").select("id, handle, display_name, bio, avatar_url").eq("handle", username).maybeSingle().then(({ data }) => {
+    supabase.from("profiles").select("id, handle, display_name, bio, avatar_url, links").eq("handle", username).maybeSingle().then(({ data }) => {
       const row = (data as ProfileRow | null) ?? null;
       setProfile(row);
       resolveAvatarUrl(row?.avatar_url).then(setAvatar);
@@ -105,6 +105,21 @@ const [totalFollowers, setTotalFollowers] = useState(0);
             <p className="text-sm text-muted-foreground">@{username}</p>
           </div>
           {profile?.bio && <p className="max-w-md text-sm text-muted-foreground">{profile.bio}</p>}
+          {profile?.links && Object.keys(profile.links).length > 0 && (
+            <div className="flex flex-wrap justify-center gap-2">
+              {LINK_FIELDS.filter((f) => profile.links?.[f.key] && normalizeLink(profile.links[f.key])).map((f) => (
+                <a
+                  key={f.key}
+                  href={normalizeLink(profile.links![f.key])!}
+                  target="_blank"
+                  rel="noopener noreferrer nofollow"
+                  className="rounded-full border border-border px-3 py-1 text-xs font-semibold hover:bg-accent"
+                >
+                  {f.label}
+                </a>
+              ))}
+            </div>
+          )}
           {isOwn && (
             <div className="flex gap-2">
               <Button variant="outline" size="sm" onClick={() => setEditing(true)}>

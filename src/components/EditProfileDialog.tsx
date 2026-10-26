@@ -8,6 +8,27 @@ import { Textarea } from "@/components/ui/textarea";
 import { Camera, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
+export const LINK_FIELDS = [
+  { key: "tiktok", label: "TikTok", placeholder: "https://tiktok.com/@you" },
+  { key: "instagram", label: "Instagram", placeholder: "https://instagram.com/you" },
+  { key: "youtube", label: "YouTube", placeholder: "https://youtube.com/@you" },
+  { key: "x", label: "X", placeholder: "https://x.com/you" },
+  { key: "website", label: "Website", placeholder: "https://yoursite.com" },
+] as const;
+
+/** Only allow http(s) links; add https:// when missing. */
+export function normalizeLink(v: string): string | null {
+  const t = v.trim();
+  if (!t) return null;
+  const u = /^https?:\/\//i.test(t) ? t : `https://${t}`;
+  try {
+    const p = new URL(u);
+    return p.protocol === "http:" || p.protocol === "https:" ? p.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
 const AVATAR_PREFIX = "avatars:";
 
 /** Turn a stored avatar reference into a viewable URL (signed, 6h). */
@@ -25,6 +46,7 @@ export function EditProfileDialog({ open, onOpenChange }: { open: boolean; onOpe
   const fileRef = useRef<HTMLInputElement>(null);
   const [displayName, setDisplayName] = useState("");
   const [bio, setBio] = useState("");
+  const [links, setLinks] = useState<Record<string, string>>({});
   const [preview, setPreview] = useState<string | null>(null);
   const [photo, setPhoto] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
@@ -32,6 +54,7 @@ export function EditProfileDialog({ open, onOpenChange }: { open: boolean; onOpe
     if (!open) return;
     setDisplayName(auth.profile?.display_name || auth.name || "");
     setBio(auth.profile?.bio || "");
+    setLinks({ ...(auth.profile?.links ?? {}) });
     setPhoto(null);
     let revoked: string | null = null;
     resolveAvatarUrl(auth.profile?.avatar_url).then((u) => setPreview(u));
@@ -65,6 +88,17 @@ export function EditProfileDialog({ open, onOpenChange }: { open: boolean; onOpe
       toast.error("Bio must be 160 characters or less");
       return;
     }
+    const cleanLinks: Record<string, string> = {};
+    for (const f of LINK_FIELDS) {
+      const raw = (links[f.key] ?? "").trim();
+      if (!raw) continue;
+      const n = normalizeLink(raw);
+      if (!n) {
+        toast.error(`Invalid ${f.label} link`);
+        return;
+      }
+      cleanLinks[f.key] = n;
+    }
     setSaving(true);
     try {
       let avatarUrl = auth.profile.avatar_url;
@@ -79,7 +113,7 @@ export function EditProfileDialog({ open, onOpenChange }: { open: boolean; onOpe
       }
       const { error } = await supabase
         .from("profiles")
-        .update({ display_name: name || null, bio: bio.trim() || null, avatar_url: avatarUrl })
+        .update({ display_name: name || null, bio: bio.trim() || null, avatar_url: avatarUrl, links: cleanLinks })
         .eq("id", auth.user.id);
       if (error) throw error;
       refreshProfile();
@@ -96,7 +130,7 @@ export function EditProfileDialog({ open, onOpenChange }: { open: boolean; onOpe
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-sm border-border bg-card">
+      <DialogContent className="max-h-[90dvh] max-w-sm overflow-y-auto border-border bg-card">
         <DialogHeader>
           <DialogTitle>Edit profile</DialogTitle>
         </DialogHeader>
@@ -145,6 +179,18 @@ export function EditProfileDialog({ open, onOpenChange }: { open: boolean; onOpe
                 placeholder="Tell people a little about you"
               />
             </div>
+            {LINK_FIELDS.map((f) => (
+              <div key={f.key}>
+                <label className="mb-1 block text-xs text-muted-foreground">{f.label}</label>
+                <Input
+                  value={links[f.key] ?? ""}
+                  onChange={(e) => setLinks((l) => ({ ...l, [f.key]: e.target.value }))}
+                  maxLength={200}
+                  inputMode="url"
+                  placeholder={f.placeholder}
+                />
+              </div>
+            ))}
             <p className="text-xs text-muted-foreground">Username: @{auth.handle}</p>
           </div>
 

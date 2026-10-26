@@ -292,6 +292,7 @@ export type Database = {
           display_name: string | null
           handle: string
           id: string
+          links: Json
         }
         Insert: {
           avatar_url?: string | null
@@ -300,6 +301,7 @@ export type Database = {
           display_name?: string | null
           handle: string
           id: string
+          links?: Json
         }
         Update: {
           avatar_url?: string | null
@@ -308,6 +310,7 @@ export type Database = {
           display_name?: string | null
           handle?: string
           id?: string
+          links?: Json
         }
         Relationships: []
       }

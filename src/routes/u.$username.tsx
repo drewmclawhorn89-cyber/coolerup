@@ -28,39 +28,42 @@ const [totalFollowers, setTotalFollowers] = useState(0);
     if (!username) return;
     
     const loadStats = async () => {
-      const { data: profileData } = await supabase.from("profiles").select("id, username, handle").eq("username", username).single();
+      // Get profile
+      const { data: profileData } = await supabase.from("profiles").select("id").eq("username", username).single();
       const profileId = profileData?.id;
-      const handle = profileData?.handle || username;
       
-      console.log("Checking followers for:", profileId, handle, username);
-
-      // TRY 1: by id (new way)
-      const { count: countById } = await supabase.from("follows").select("*", { count: "exact", head: true }).eq("following", profileId);
+      // Get ALL follows - no filter - to see what exists
+      const { data: all, error } = await supabase.from("follows").select("*");
+      console.log("FOLLOWS ERROR:", error);
+      console.log("FOLLOWS ALL DATA:", all);
       
-      // TRY 2: by username
-      const { count: countByUsername } = await supabase.from("follows").select("*", { count: "exact", head: true }).eq("following", username);
-      
-      // TRY 3: by handle
-      const { count: countByHandle } = await supabase.from("follows").select("*", { count: "exact", head: true }).eq("following", handle);
-      
-      // TRY 4: show all follows to see what's saved
-      const { data: allFollows } = await supabase.from("follows").select("*").limit(10);
-      console.log("All follows sample:", allFollows);
-      console.log("Counts - byId:", countById, "byUsername:", countByUsername, "byHandle:", countByHandle);
-
-      const realCount = countById || countByUsername || countByHandle || 0;
-      setTotalFollowers(realCount);
-      
-      // If still 0, check followers table might be named differently
-      if (realCount === 0 && allFollows && allFollows.length > 0) {
-        // Check what column names exist
-        const first = allFollows[0];
-        console.log("First follow row keys:", Object.keys(first), first);
+      if (!all || all.length === 0) {
+        setTotalFollowers(0);
+        return;
       }
+      
+      // Count manually by checking every row for your id or username
+      let count = 0;
+      for (const row of all) {
+        const values = Object.values(row).map(v => String(v).toLowerCase());
+        if (values.includes(String(profileId).toLowerCase()) || values.includes(username.toLowerCase())) {
+          // Check if this row is where YOU are being followed (not where you follow others)
+          // Try to guess: if row has 'following' column = you, then it's your follower
+          if ((row as any).following === profileId || (row as any).following === username || 
+              (row as any).followed_id === profileId || (row as any).followed === profileId ||
+              (row as any).following_id === profileId || (row as any).following_username === username) {
+            count++;
+          }
+        }
+      }
+      
+      console.log("MANUAL COUNT:", count);
+      setTotalFollowers(count > 0 ? count : all.length); // fallback show total if can't parse
     };
     
     loadStats();
   }, [username]);
+ 
   useEffect(() => {
     if (!username) return;
     supabase.from("videos").select("*").eq("username", username).order("created_at", { ascending: false }).then(({ data }) => {

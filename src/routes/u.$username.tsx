@@ -67,7 +67,7 @@ const [totalFollowers, setTotalFollowers] = useState(0);
     supabase.from("videos").select("*").eq("username", username).order("created_at", { ascending: false }).then(({ data }) => {
       setVideos(data || []);
     });
-    supabase.from("profiles").select("id, handle, display_name, bio, avatar_url, links").eq("handle", username).maybeSingle().then(({ data }) => {
+    supabase.from("profiles").select("*").eq("handle", username).maybeSingle().then(({ data }) => {
       const row = (data as ProfileRow | null) ?? null;
       setProfile(row);
       resolveAvatarUrl(row?.avatar_url).then(setAvatar);

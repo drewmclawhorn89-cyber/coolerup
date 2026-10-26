@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { VideoCard } from "@/components/VideoCard";
 import { UploadDialog } from "@/components/UploadDialog";
 import { RecordDialog } from "@/components/RecordDialog";
+import { PhotoDialog } from "@/components/PhotoDialog";
 import { LiveStreamDialog } from "@/components/LiveStreamDialog";
 import { fetchMyLikes, fetchVideos, parseCaption, type Video } from "@/lib/loop";
 import { listSaved, onOfflineChange } from "@/lib/offline";
@@ -101,6 +102,7 @@ function Index() {
   const [liked, setLiked] = useState<Set<string>>(new Set());
   const [tab, setTab] = useState<Tab>("foryou");
   const [query, setQuery] = useState("");
+  const [photoOpen, setPhotoOpen] = useState(false);
   const [muted, setMuted] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [recordingOpen, setRecordingOpen] = useState(false);
@@ -628,6 +630,7 @@ function Index() {
         userId={auth.user?.id}
         username={auth.handle}
         onRecord={() => setRecordingOpen(true)}
+        onPhoto={() => setPhotoOpen(true)}
         onUpload={() => setUploading(true)}
       />
 
@@ -642,6 +645,16 @@ function Index() {
           }}
         />
       )}
+
+      <PhotoDialog
+        open={photoOpen}
+        onOpenChange={setPhotoOpen}
+        username={auth.handle}
+        onPosted={() => {
+          setTab("mine");
+          load();
+        }}
+      />
 
       <RecordDialog
         open={recordingOpen}

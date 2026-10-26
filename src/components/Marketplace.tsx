@@ -175,12 +175,17 @@ export function Marketplace() {
     let imageUrl: string | null = null;
     if (file) {
       const path = `${auth.user.id}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
-      const up = await supabase.storage.from("marketplace").upload(path, file, { contentType: file.type });
+      let bucket = "marketplace";
+      let up = await supabase.storage.from(bucket).upload(path, file, { contentType: file.type });
       if (up.error) {
-        toast.error("Couldn't upload the photo.");
+        bucket = "videos";
+        up = await supabase.storage.from(bucket).upload(`marketplace/${path}`, file, { contentType: file.type });
+      }
+      if (up.error) {
+        toast.error(`Couldn't upload the photo: ${up.error.message}`);
         return false;
       }
-      imageUrl = supabase.storage.from("marketplace").getPublicUrl(path).data.publicUrl;
+      imageUrl = supabase.storage.from(bucket).getPublicUrl(bucket === "videos" ? `marketplace/${path}` : path).data.publicUrl;
     }
     const { data, error } = await (supabase as any)
       .from("marketplace_items")
@@ -197,7 +202,7 @@ export function Marketplace() {
       .select("id")
       .single();
     if (error) {
-      toast.error("Couldn't post your listing.");
+      toast.error(`Couldn't post your listing: ${error.message ?? "unknown error"}`);
       return false;
     }
     setItems((s) => [

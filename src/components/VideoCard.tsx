@@ -220,10 +220,6 @@ export function VideoCard({
               {isFollowing ? "Following" : "Follow"}
             </button>
           )}
-          <button onClick={() => toast.success("Saved!")} className="flex flex-col items-center">
-  <Bookmark className="h-8 w-8 text-white" />
-  <span className="text-white text-[11px] mt-1">Save</span>
-</button>
 
           <Action label={formatCount(likes)} onClick={toggleLike} active={liked}>
             <Heart className={`h-8 w-8 ${liked ? "fill-primary text-white" : ""}`} />
@@ -234,6 +230,10 @@ export function VideoCard({
           <Action label={formatCount(shares)} onClick={() => setShowShare(true)}>
             <Share2 className="h-8 w-8" />
           </Action>
+            <button onClick={() => toast.success("Saved!")} className="flex flex-col items-center">
+  <Bookmark className="h-8 w-8 text-white" />
+  <span className="text-white text-[11px] mt-1">Save</span>
+</button> 
         </div>
       </div>
       {showComments && (

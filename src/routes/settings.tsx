@@ -375,7 +375,7 @@ const changeTheme = (t: string) => {
     ].map(o=>(
       <button key={o.id} onClick={()=>{setMessagePrivacy(o.id); localStorage.setItem("messagePrivacy", o.id);}} className={`flex justify-between p-3 rounded-xl border text-left ${messagePrivacy===o.id?"bg-black text-white border-black":"bg-gray-50"}`}>
         <span className="font-medium text-">{o.label}</span>
-        <div className={`h-5 w-5 rounded-full border-2 flex items-center justify-center ${messagePrivacy===o.id?"border-white":"border-gray-300"}`}>{messagePrivacy===o.id && <div className="h-2 w-2 bg-white rounded-full" />}</div>
+        <div className={`h-5 w-5 rounded-full border-2 flex items-center justify-center ${messagePrivacy===o.id?"border-black":"border-gray-300"}`}>{messagePrivacy===o.id && <div className="h-2 w-2 bg-black rounded-full" />}</div>
       </button>
     ))}
   </div>

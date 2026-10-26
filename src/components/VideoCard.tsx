@@ -84,7 +84,20 @@ export function VideoCard({
       toast.error("Couldn't update follow");
     }
   };
+  const [near, setNear] = useState(false);
   useEffect(() => {
+    const el = cardRef.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      ([e]) => setNear(!!e && e.isIntersecting),
+      { rootMargin: "150% 0px 150% 0px" },
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!near) { setSrc(""); setPlaying(false); return; }
     let blobUrl = "";
     let alive = true;
     getSaved(video.id)
@@ -103,7 +116,7 @@ export function VideoCard({
       alive = false;
       if (blobUrl) URL.revokeObjectURL(blobUrl);
     };
-  }, [video.id, video.video_url]);
+  }, [video.id, video.video_url, near]);
 
   useEffect(() => {
     const el = ref.current;
@@ -147,7 +160,7 @@ export function VideoCard({
   setLikes((n) => n + (next ? 1 : -1));
   if (next) {
     setBurst(true);
-    setTimeout(() => setBurst(false), 500);
+    setTimeout(() => setBurst(false), 650);
   }
   const { data: { user: authUser } } = await supabase.auth.getUser();
   if (!authUser) {
@@ -197,6 +210,8 @@ export function VideoCard({
             {src && isImage && (
               <img
                 src={src}
+                loading="lazy"
+                decoding="async"
                 alt={captionText || `Photo by @${video.username}`}
                 onDoubleClick={() => !liked && toggleLike()}
                 className="h-full w-full cursor-pointer object-cover"
@@ -216,6 +231,7 @@ export function VideoCard({
                 muted={false}
                 playsInline
                 preload="metadata"
+                disableRemotePlayback
                 onClick={togglePlay}
                 onDoubleClick={() => !liked && toggleLike()}
                 onPlay={() => setPlaying(true)}
@@ -228,6 +244,11 @@ export function VideoCard({
               />
             )}
             
+            {burst && (
+              <div aria-hidden className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
+                <Heart className="heart-pop h-28 w-28 fill-primary text-primary drop-shadow-[0_0_24px_rgba(255,45,85,0.8)]" />
+              </div>
+            )}
             <div className="video-caption absolute inset-x-0 bottom-2 pb-5 pl-4 pr-20 pt-16 md:hidden">
               <Link to="/u/$username" params={{ username: video.username }} className="break-words text-sm font-bold">@{video.username}</Link>
               <p className="mt-1 line-clamp-3 break-words text-sm">{captionText}</p>
@@ -304,7 +325,7 @@ function Action({
   return (
     <Button variant="ghost" onClick={onClick} aria-label={typeof children === "object" && children ? undefined : label} className="h-auto flex-col gap-1 p-0 text-xs font-semibold hover:bg-transparent [&_svg]:size-6">
       <span
-        className={`flex h-11 w-11 items-center justify-center rounded-full bg-overlay backdrop-blur-sm transition hover:bg-accent md:h-12 md:w-12 md:bg-secondary ${active ? "scale-110" : ""}`}
+        className={`flex h-11 w-11 items-center justify-center rounded-full bg-overlay backdrop-blur-sm transition hover:bg-accent md:h-12 md:w-12 md:bg-secondary ${active ? "scale-110" : ""} ${active && burst ? "heart-pop-btn" : ""}`}
       >
         {children}
       </span>

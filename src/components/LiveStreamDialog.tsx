@@ -248,13 +248,13 @@ export function LiveStreamDialog({ open, onOpenChange, userId, username, onRecor
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-md rounded-3xl border-white/10 bg-zinc-950 p-0 text-white">
-          <DialogTitle className="px-6 pt-6 font-display text-2xl">Create something</DialogTitle>
-          <DialogDescription className="px-6 text-sm text-zinc-400">Share a moment with the Coolerup community.</DialogDescription>
-          <div className="space-y-3 px-6 pb-6 pt-2">
+        <DialogContent className="w-[calc(100vw-1.5rem)] max-w-md overflow-y-auto overflow-x-hidden overscroll-contain rounded-3xl border-white/10 bg-zinc-950 p-0 text-white max-h-[calc(100dvh-1.5rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))]">
+          <DialogTitle className="px-4 pt-6 font-display text-2xl sm:px-6">Create something</DialogTitle>
+          <DialogDescription className="px-4 text-sm text-zinc-400 sm:px-6">Share a moment with the Coolerup community.</DialogDescription>
+          <div className="space-y-3 px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-2 sm:px-6">
             <button onClick={() => { closeMenu(); void startHost(); }} disabled={!userId} className="flex w-full items-center gap-4 rounded-2xl border border-primary/40 bg-primary/10 p-4 text-left transition hover:bg-primary/20 disabled:opacity-50">
-              <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-white"><Radio /></span>
-              <span><span className="block font-bold">Go live</span><span className="text-sm text-zinc-400">Broadcast from your camera</span></span>
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary text-white"><Radio /></span>
+              <span className="min-w-0"><span className="block font-bold">Go live</span><span className="text-sm text-zinc-400">Broadcast from your camera</span></span>
               <Circle className="ml-auto h-3 w-3 fill-red-500 text-red-500" />
             </button>
             <div className="rounded-2xl border border-white/10 p-4">
@@ -271,12 +271,12 @@ export function LiveStreamDialog({ open, onOpenChange, userId, username, onRecor
             </div>
             <MusicPlayer player={music} open={open} />
             <button onClick={() => { closeMenu(); onRecord(); }} className="flex w-full items-center gap-4 rounded-2xl border border-white/10 p-4 text-left hover:bg-white/5">
-              <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/10"><Camera /></span>
-              <span><span className="block font-bold">Record a video</span><span className="text-sm text-zinc-400">Capture a short moment</span></span>
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white/10"><Camera /></span>
+              <span className="min-w-0"><span className="block font-bold">Record a video</span><span className="text-sm text-zinc-400">Capture a short moment</span></span>
             </button>
             <button onClick={() => { closeMenu(); onUpload(); }} className="flex w-full items-center gap-4 rounded-2xl border border-white/10 p-4 text-left hover:bg-white/5">
-              <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/10"><Video /></span>
-              <span><span className="block font-bold">Upload a video</span><span className="text-sm text-zinc-400">Choose a video or photo</span></span>
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white/10"><Video /></span>
+              <span className="min-w-0"><span className="block font-bold">Upload a video</span><span className="text-sm text-zinc-400">Choose a video or photo</span></span>
             </button>
           </div>
         </DialogContent>

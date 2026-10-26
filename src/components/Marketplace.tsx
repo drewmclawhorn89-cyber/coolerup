@@ -1,6 +1,7 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, ImagePlus, MapPin, Plus, Search } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 
 export type MarketItem = {
@@ -37,7 +38,9 @@ const MOCK: MarketItem[] = NAMES.map((title, i) => ({
 }));
 
 const inputCls = "w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-black outline-none";
-const EMPTY = { title: "", price: "", description: "", location: "", image: "" };
+const EMPTY = { title: "", price: "", description: "", location: "", image: "", category: "Home" };
+type FormState = typeof EMPTY;
+const SELL_CATS = CATEGORIES.filter((c) => c !== "All" && c !== "Free");
 
 function Detail({ item, onBack }: { item: MarketItem; onBack: () => void }) {
   return (
@@ -66,13 +69,16 @@ function Detail({ item, onBack }: { item: MarketItem; onBack: () => void }) {
   );
 }
 
-function SellForm({ onClose, onPost }: { onClose: () => void; onPost: (f: typeof EMPTY) => boolean }) {
+function SellForm({ onClose, onPost }: { onClose: () => void; onPost: (f: FormState, file: File | null) => Promise<boolean> }) {
   const [form, setForm] = useState(EMPTY);
+  const [file, setFile] = useState<File | null>(null);
+  const [busy, setBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const set = (k: keyof typeof EMPTY) => (e: { target: { value: string } }) => setForm({ ...form, [k]: e.target.value });
   const pickImage = (f?: File) => {
     if (!f) return;
     if (!f.type.startsWith("image/")) return void toast.error("Choose an image file.");
+    setFile(f);
     const r = new FileReader();
     r.onload = () => setForm((s) => ({ ...s, image: String(r.result) }));
     r.readAsDataURL(f);
@@ -87,11 +93,25 @@ function SellForm({ onClose, onPost }: { onClose: () => void; onPost: (f: typeof
         </button>
         <input className={inputCls} placeholder="Title" value={form.title} onChange={set("title")} />
         <input className={inputCls} placeholder="Price" inputMode="decimal" value={form.price} onChange={set("price")} />
+        <select className={inputCls} value={form.category} onChange={set("category")}>
+          {SELL_CATS.map((c) => <option key={c}>{c}</option>)}
+        </select>
         <input className={inputCls} placeholder="Location" value={form.location} onChange={set("location")} />
         <textarea className={inputCls} rows={3} placeholder="Description" value={form.description} onChange={set("description")} />
         <div className="flex gap-2">
           <button onClick={onClose} className="flex-1 rounded-lg bg-gray-100 py-3 font-bold">Cancel</button>
-          <button onClick={() => onPost(form) && onClose()} className="flex-1 rounded-lg bg-blue-600 py-3 font-bold text-white">Post</button>
+          <button
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              const ok = await onPost(form, file);
+              setBusy(false);
+              if (ok) onClose();
+            }}
+            className="flex-1 rounded-lg bg-blue-600 py-3 font-bold text-white disabled:opacity-60"
+          >
+            {busy ? "Posting..." : "Post"}
+          </button>
         </div>
       </div>
     </div>
@@ -116,7 +136,33 @@ export function Marketplace() {
     [items, q, cat],
   );
 
-  const post = (f: typeof EMPTY) => {
+  useEffect(() => {
+    let live = true;
+    void (supabase as any)
+      .from("marketplace_items")
+      .select("id, title, price, image_url, location, category, description, seller_username, created_at")
+      .order("created_at", { ascending: false })
+      .limit(100)
+      .then(({ data, error }: { data: any[] | null; error: unknown }) => {
+        if (!live || error || !data?.length) return;
+        const real: MarketItem[] = data.map((r) => ({
+          id: r.id,
+          title: r.title,
+          price: Number(r.price),
+          image: r.image_url || `https://picsum.photos/seed/${r.id}/400/400`,
+          location: r.location || "Nearby",
+          seller: r.seller_username,
+          category: r.category || "Home",
+          description: r.description || "No description.",
+        }));
+        setItems([...real, ...MOCK]);
+      });
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  const post = async (f: FormState, file: File | null) => {
     if (!auth.user || !auth.handle) {
       toast.error("Sign in to sell.");
       return false;
@@ -126,15 +172,43 @@ export function Marketplace() {
       toast.error("Add a title and valid price.");
       return false;
     }
-    setItems((s) => [
-      {
-        id: `new-${Date.now()}`,
+    let imageUrl: string | null = null;
+    if (file) {
+      const path = `${auth.user.id}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+      const up = await supabase.storage.from("marketplace").upload(path, file, { contentType: file.type });
+      if (up.error) {
+        toast.error("Couldn't upload the photo.");
+        return false;
+      }
+      imageUrl = supabase.storage.from("marketplace").getPublicUrl(path).data.publicUrl;
+    }
+    const { data, error } = await (supabase as any)
+      .from("marketplace_items")
+      .insert({
+        user_id: auth.user.id,
+        seller_username: auth.handle,
         title: f.title.trim(),
         price,
-        image: f.image || `https://picsum.photos/seed/${Date.now()}/400/400`,
+        image_url: imageUrl,
+        location: f.location.trim() || null,
+        category: f.category,
+        description: f.description.trim() || null,
+      })
+      .select("id")
+      .single();
+    if (error) {
+      toast.error("Couldn't post your listing.");
+      return false;
+    }
+    setItems((s) => [
+      {
+        id: data.id,
+        title: f.title.trim(),
+        price,
+        image: imageUrl || f.image || `https://picsum.photos/seed/${data.id}/400/400`,
         location: f.location.trim() || "Nearby",
         seller: auth.handle!,
-        category: "Home",
+        category: f.category,
         description: f.description.trim() || "No description.",
       },
       ...s,

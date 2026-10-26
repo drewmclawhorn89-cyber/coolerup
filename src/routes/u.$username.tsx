@@ -1,16 +1,31 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Pencil, X } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { EditProfileDialog, resolveAvatarUrl } from "@/components/EditProfileDialog";
-import { isImageUrl } from "@/lib/loop";
+import { fetchMyLikes, isImageUrl, parseCaption, resolveVideoUrl } from "@/lib/loop";
+import { VideoCard } from "@/components/VideoCard";
 import type { Profile as ProfileRow } from "@/hooks/useAuth";
 
 export const Route = createFileRoute("/u/$username")({
   component: Profile,
 });
+
+function Thumb({ url, caption }: { url: string; caption: string }) {
+  const [src, setSrc] = useState("");
+  useEffect(() => {
+    let alive = true;
+    resolveVideoUrl(url).then((u) => { if (alive) setSrc(u); });
+    return () => { alive = false; };
+  }, [url]);
+  if (!src) return null;
+  const isImage = isImageUrl(url) || /\.(jpe?g|png|webp|gif|avif)$/i.test(url);
+  return isImage
+    ? <img src={src} alt={caption} className="h-full w-full object-cover" />
+    : <video src={`${src}#t=0.5`} muted playsInline preload="metadata" className="h-full w-full object-cover" />;
+}
 
 function Profile() {
   const { username } = Route.useParams();
@@ -20,6 +35,9 @@ function Profile() {
   const [profile, setProfile] = useState<ProfileRow | null>(null);
   const [avatar, setAvatar] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
+  const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
+  const [muted, setMuted] = useState(false);
+  const viewer = useRef<HTMLDivElement>(null);
 const [totalFollowers, setTotalFollowers] = useState(0);
   
    const isOwn = !!auth.handle && auth.handle === username;
@@ -76,6 +94,13 @@ const [totalFollowers, setTotalFollowers] = useState(0);
     });
   }, [username, auth.profile?.avatar_url, auth.profile?.display_name, auth.profile?.bio]);
 
+  useEffect(() => { fetchMyLikes().then(setLikedIds).catch(() => {}); }, [open !== null]);
+  useEffect(() => {
+    if (open === null) return;
+    const el = viewer.current;
+    if (el) el.scrollTop = open * el.clientHeight;
+  }, [open]);
+
   const totalLikes = (videos || []).reduce((a, v) => a + (v.likes_count || 0), 0);
   const displayName = profile?.display_name || username;
 
@@ -115,11 +140,7 @@ const [totalFollowers, setTotalFollowers] = useState(0);
         <div className="grid grid-cols-3 gap-1">
           {videos?.map((v, i) => (
             <button key={v.id} onClick={() => setOpen(i)} className="relative aspect-[9/16] overflow-hidden rounded-md bg-zinc-800">
-              {isImageUrl(v.video_url) ? (
-                <img src={v.video_url} alt={v.caption || ""} className="h-full w-full object-cover" />
-              ) : (
-                <video src={`${v.video_url}#t=0.5`} muted playsInline preload="metadata" className="h-full w-full object-cover" />
-              )}
+              <Thumb url={v.video_url} caption={parseCaption(v.caption || "").text} />
               <div className="absolute bottom-1 left-1 text- text-white bg-black/50 px-1 rounded">♥ {v.likes_count || 0}</div>
             </button>
           ))}
@@ -131,14 +152,16 @@ const [totalFollowers, setTotalFollowers] = useState(0);
           <Button variant="ghost" size="icon" onClick={() => setOpen(null)} className="absolute left-3 top-3 z-50 text-white">
             <X />
           </Button>
-          <div className="h-dvh overflow-y-scroll snap-y snap-mandatory">
+          <div ref={viewer} className="h-dvh snap-y snap-mandatory overflow-y-scroll">
             {videos.map((v) => (
-              <div key={v.id} className="h-dvh snap-start flex items-center justify-center">
-                {isImageUrl(v.video_url) ? (
-                  <img src={v.video_url} alt={v.caption || ""} className="h-full w-full object-cover" />
-                ) : (
-                  <video src={v.video_url} className="h-full w-full object-cover" controls loop playsInline />
-                )}
+              <div key={v.id} className="h-dvh snap-start snap-always">
+                <VideoCard
+                  video={v}
+                  liked={likedIds.has(v.id)}
+                  muted={muted}
+                  onToggleMute={() => setMuted((m) => !m)}
+                  onLikeChange={(on) => setLikedIds((prev) => { const n = new Set(prev); if (on) n.add(v.id); else n.delete(v.id); return n; })}
+                />
               </div>
             ))}
           </div>

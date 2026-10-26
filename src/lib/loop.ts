@@ -9,6 +9,7 @@ export type Video = {
   comments_count: number;
   shares_count: number;
   created_at: string;
+  is_live?: boolean | null;
 };
 
 export type Song = { id: string; title: string; artist: string };

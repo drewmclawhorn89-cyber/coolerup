@@ -101,6 +101,20 @@ function Index() {
   const [online, setOnline] = useState(true);
   const [liked, setLiked] = useState<Set<string>>(new Set());
   const [tab, setTab] = useState<Tab>("foryou");
+  const [feedTab, setFeedTab] = useState<"foryou" | "following" | "live">("foryou");
+  const [followingList, setFollowingList] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!auth.user) {
+      setFollowingList([]);
+      return;
+    }
+    supabase
+      .from("follows")
+      .select("following_username")
+      .eq("follower_id", auth.user.id)
+      .then(({ data }) => setFollowingList((data ?? []).map((r) => r.following_username)));
+  }, [auth.user?.id]);
   const [query, setQuery] = useState("");
   const [photoOpen, setPhotoOpen] = useState(false);
   const [muted, setMuted] = useState(false);
@@ -281,11 +295,21 @@ function Index() {
     const q = query.trim().toLowerCase();
     if (q) list = list.filter((v) => parseCaption(v.caption).text.toLowerCase().includes(q) || v.username.toLowerCase().includes(q));
     if (activeTab === "explore") list = [...list].sort((a, b) => b.likes_count - a.likes_count);
-    if (activeTab === "following") list = list.filter((v) => v.username !== me);
+    if (activeTab === "following") list = list.filter((v) => followingList.includes(v.username));
+    if (activeTab === "foryou" && feedTab === "live") list = list.filter((v) => v.is_live);
     if (activeTab === "liked") list = list.filter((v) => liked.has(v.id));
     if (activeTab === "mine") list = me ? list.filter((v) => v.username === me) : [];
     return list;
-  }, [videos, saved, query, activeTab, liked, me]);
+  }, [videos, saved, query, activeTab, liked, me, followingList, feedTab]);
+
+  const showTopTabs = !offlineMode && (activeTab === "foryou" || activeTab === "following");
+  const topTab = activeTab === "following" ? "following" : feedTab === "following" ? "foryou" : feedTab;
+  const pickFeedTab = (t: "foryou" | "following" | "live") => {
+    setFeedTab(t);
+    setTab(t === "following" ? "following" : "foryou");
+  };
+  const tabClass = (t: string) =>
+    `flex items-center gap-1 border-b-2 pb-1 text-[15px] ${topTab === t ? "border-white font-bold text-white" : "border-transparent text-white/60"}`;
 
   const [title, sub] = query ? [`Results for "${query}"`, `${shown.length} videos`] : HEADERS[activeTab];
 
@@ -506,11 +530,22 @@ function Index() {
           </div>
         ) : (
           <>
-            <header className="shrink-0 px-4 py-2 md:px-10 md:pb-2 md:pt-6">
+            <header className={`shrink-0 px-4 py-2 md:px-10 md:pb-2 md:pt-6 ${showTopTabs ? "hidden md:block" : ""}`}>
               <h2 className="break-words font-display text-base md:text-3xl">{title}</h2>
               <p className="hidden text-sm text-muted-foreground md:block">{sub}</p>
             </header>
 
+            <div className="relative flex min-h-0 flex-1 flex-col">
+            {showTopTabs && (
+              <div className="absolute inset-x-0 top-0 z-50 flex justify-center gap-6 bg-gradient-to-b from-black/60 to-transparent pb-2 pt-3 md:hidden">
+                <button onClick={() => pickFeedTab("following")} className={tabClass("following")}>Following</button>
+                <button onClick={() => pickFeedTab("foryou")} className={tabClass("foryou")}>For You</button>
+                <button onClick={() => pickFeedTab("live")} className={tabClass("live")}>
+                  <span className="h-2 w-2 rounded-full bg-red-500" />
+                  LIVE
+                </button>
+              </div>
+            )}
             <div className="no-scrollbar min-h-0 flex-1 snap-y snap-mandatory overflow-y-scroll overscroll-contain scroll-smooth">
               {error && !offlineMode && <Empty text="Couldn't load videos. Refresh to try again." />}
               {!error && videos === null && activeTab !== "saved" && <Empty text="Loading your feed..." />}
@@ -519,7 +554,11 @@ function Index() {
                   text={
                     activeTab === "saved"
                       ? "No saved videos yet. Tap Share → Save for offline on any video."
-                      : "Nothing here yet."
+                      : activeTab === "foryou" && feedTab === "live"
+                        ? "No LIVE now"
+                        : activeTab === "following"
+                          ? "Follow creators to see their videos here."
+                          : "Nothing here yet."
                   }
                 />
               )}
@@ -541,6 +580,7 @@ function Index() {
                 />
               ))}
               <div id="scroll-sentinel" className="h-10 w-full" />
+            </div>
             </div>
           </>
         )}

@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Mic, MicOff, Phone, PhoneOff } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Mic, MicOff, Phone, PhoneOff, Video, VideoOff } from "lucide-react";
 import { useCall } from "@/lib/calls";
 import { Button } from "@/components/ui/button";
 
@@ -11,7 +11,17 @@ function formatDuration(ms: number) {
 }
 
 export function CallOverlay() {
-  const { call, muted, acceptCall, declineCall, endCall, toggleMute } = useCall();
+  const { call, muted, video, cameraOff, localStream, remoteStream, acceptCall, declineCall, endCall, toggleMute, toggleCamera } =
+    useCall();
+  const localRef = useRef<HTMLVideoElement>(null);
+  const remoteRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    if (localRef.current) localRef.current.srcObject = localStream;
+  }, [localStream, call.status]);
+  useEffect(() => {
+    if (remoteRef.current) remoteRef.current.srcObject = remoteStream;
+  }, [remoteStream, call.status]);
   const [, tick] = useState(0);
 
   // 1s tick for the call timer.
@@ -26,20 +36,33 @@ export function CallOverlay() {
   const initial = call.peer[0]?.toUpperCase() ?? "?";
 
   return (
-    <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center gap-6 bg-background/95 px-6 backdrop-blur">
-      <div className="flex h-24 w-24 items-center justify-center rounded-full bg-primary font-display text-4xl uppercase text-primary-foreground">
+    <div className="fixed inset-x-0 top-0 z-[100] flex h-[100dvh] flex-col items-center justify-center gap-6 bg-background/95 px-6 pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)] backdrop-blur">
+      {video && (
+        <>
+          {/* Remote video fills the screen; audio is played separately by the call provider. */}
+          <video ref={remoteRef} autoPlay playsInline muted className="absolute inset-0 h-full w-full bg-black object-cover" />
+          <video
+            ref={localRef}
+            autoPlay
+            playsInline
+            muted
+            className={`absolute right-4 top-[calc(env(safe-area-inset-top)+1rem)] h-40 w-28 -scale-x-100 rounded-xl border bg-black object-cover shadow-lg ${cameraOff ? "opacity-0" : ""}`}
+          />
+        </>
+      )}
+      <div className={`relative flex h-24 w-24 items-center justify-center rounded-full bg-primary font-display text-4xl uppercase text-primary-foreground ${video && call.status === "active" ? "hidden" : ""}`}>
         {initial}
       </div>
-      <div className="text-center">
+      <div className="relative text-center">
         <p className="font-display text-2xl">@{call.peer}</p>
         <p className="mt-1 text-sm text-muted-foreground">
-          {call.status === "outgoing" && "Calling…"}
-          {call.status === "incoming" && "Incoming voice call"}
+          {call.status === "outgoing" && (video ? "Video calling…" : "Calling…")}
+          {call.status === "incoming" && (video ? "Incoming video call" : "Incoming voice call")}
           {call.status === "active" && formatDuration(Date.now() - call.startedAt)}
         </p>
       </div>
 
-      <div className="flex items-center gap-4">
+      <div className={`relative flex items-center gap-4 ${video && call.status === "active" ? "absolute bottom-[calc(env(safe-area-inset-bottom)+2rem)]" : ""}`}>
         {call.status === "incoming" && (
           <>
             <Button
@@ -85,6 +108,17 @@ export function CallOverlay() {
             >
               {muted ? <MicOff className="h-6 w-6" /> : <Mic className="h-6 w-6" />}
             </Button>
+            {video && (
+              <Button
+                size="icon"
+                variant={cameraOff ? "default" : "secondary"}
+                className="h-14 w-14 rounded-full"
+                onClick={toggleCamera}
+                aria-label={cameraOff ? "Turn camera on" : "Turn camera off"}
+              >
+                {cameraOff ? <VideoOff className="h-6 w-6" /> : <Video className="h-6 w-6" />}
+              </Button>
+            )}
             <Button
               size="icon"
               variant="destructive"

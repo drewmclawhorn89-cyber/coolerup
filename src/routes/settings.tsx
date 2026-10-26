@@ -6,6 +6,7 @@ import { EditProfileDialog } from "@/components/EditProfileDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { MoreSettings } from "@/components/MoreSettings";
 import { ThemePicker } from "@/components/ThemePicker"
 export const Route = createFileRoute("/settings")({
   head: () => ({
@@ -444,6 +445,8 @@ const changeTheme = (t: string) => {
   <button onClick={() => changeTheme("green")} style={{backgroundColor: "#16a34a", color: "white"}} className="rounded-md px-3 py-2">Green</button>
 </div>
 </div> 
+
+      <MoreSettings />
 
       {auth.user && <EditProfileDialog open={editing} onOpenChange={setEditing} />}
     </div>

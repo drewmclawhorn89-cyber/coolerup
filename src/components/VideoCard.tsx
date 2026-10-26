@@ -91,7 +91,7 @@ export function VideoCard({
     if (!el) return;
     const obs = new IntersectionObserver(
       ([e]) => setNear(!!e && e.isIntersecting),
-      { rootMargin: "150% 0px 150% 0px" },
+      { rootMargin: "50% 0px 50% 0px" },
     );
     obs.observe(el);
     return () => obs.disconnect();

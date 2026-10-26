@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { VideoCard } from "@/components/VideoCard";
+import { matchesKeyword, readBool } from "@/lib/prefs";
 import { UploadDialog } from "@/components/UploadDialog";
 import { RecordDialog } from "@/components/RecordDialog";
 import { ShopPanel } from "@/components/ShopPanel";
@@ -303,6 +304,10 @@ function Index() {
     if (activeTab === "foryou" && feedTab === "live") list = list.filter((v) => v.is_live);
     if (activeTab === "liked") list = list.filter((v) => liked.has(v.id));
     if (activeTab === "mine") list = me ? list.filter((v) => v.username === me) : [];
+    if (activeTab !== "mine" && activeTab !== "saved") {
+      list = list.filter((v) => v.username === me || !matchesKeyword(parseCaption(v.caption).text));
+      if (readBool("restricted")) list = list.filter((v) => !/\b(nsfw|18\+|gore|explicit)\b/i.test(v.caption ?? ""));
+    }
     return list;
   }, [videos, saved, query, activeTab, liked, me, followingList, feedTab]);
 

@@ -80,3 +80,13 @@ export const sendCallPush = createServerFn({ method: "POST" })
     }
     return { sent, configured: true };
   });
+
+// Permanently deletes the signed-in user's account (auth user; owned rows cascade where configured).
+export const deleteMyAccount = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await supabaseAdmin.auth.admin.deleteUser(context.userId);
+    if (error) throw new Error("Couldn't delete account");
+    return { ok: true };
+  });

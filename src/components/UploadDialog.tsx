@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Music, Search, Upload, X } from "lucide-react";
 import { toast } from "sonner";
+import { readBool } from "@/lib/prefs";
 import { songStreamUrl, uploadVideo, type Song } from "@/lib/loop";
 import { fetchTracks, type Track } from "@/components/MusicPlayer";
 
@@ -80,6 +81,11 @@ export function UploadDialog({
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!file || !username.trim()) return;
+    const conn = (navigator as unknown as { connection?: { type?: string } }).connection;
+    if (readBool("wifi-upload") && conn?.type === "cellular") {
+      toast.error("Upload over Wi-Fi only is on. Connect to Wi-Fi to post.");
+      return;
+    }
     setBusy(true);
     try {
       const name = username.trim().replace(/^@/, "").slice(0, 40);

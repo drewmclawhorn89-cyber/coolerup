@@ -143,7 +143,7 @@ function Messages() {
           </div>
           <div className="flex-1 space-y-2 overflow-y-auto p-3">
             {convo.map((m) => (
-              <div key={m.id} className={`max-w-[75%] rounded-2xl px-3 py-2 text-sm ${m.from_username === me ? "ml-auto bg-primary text-primary-foreground" : "bg-secondary"}`}>
+              <div key={m.id} className={`${m.message.startsWith("📞 ") ? "mx-auto bg-transparent text-xs italic text-muted-foreground" : `max-w-[75%] rounded-2xl px-3 py-2 text-sm ${m.from_username === me ? "ml-auto bg-primary text-primary-foreground" : "bg-secondary"}`}`}>
                 {m.message}
               </div>
             ))}

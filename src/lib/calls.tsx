@@ -10,6 +10,7 @@ import {
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { savePushSubscription, sendCallPush } from "@/lib/push.functions";
 
 export type CallState =
   | { status: "idle" }
@@ -39,6 +40,17 @@ const CallContext = createContext<CallContextValue | null>(null);
 const RTC_CONFIG: RTCConfiguration = {
   iceServers: [{ urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] }],
 };
+
+function formatCallDuration(ms: number) {
+  const total = Math.floor(ms / 1000);
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
+}
+
+function urlBase64ToBytes(b64: string) {
+  const pad = "=".repeat((4 - (b64.length % 4)) % 4);
+  const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
+  return Uint8Array.from(raw, (ch) => ch.charCodeAt(0));
+}
 
 const RING_TIMEOUT_MS = 30_000;
 
@@ -74,6 +86,21 @@ export function CallProvider({ children }: { children: ReactNode }) {
     setMuted(false);
     setCall({ status: "idle" });
   }, []);
+
+  // Record call outcomes in the chat thread (caller side only, to avoid duplicates).
+  const logCall = useCallback(
+    (c: CallState, text: string) => {
+      if (c.status === "idle" || !auth.user || !auth.handle) return;
+      void supabase.from("direct_messages").insert({
+        from_id: auth.user.id,
+        to_id: c.peerId,
+        from_username: auth.handle,
+        to_username: c.peer,
+        message: text,
+      });
+    },
+    [auth.user, auth.handle],
+  );
 
   const sendSignal = useCallback((peerId: string, signal: Signal) => {
     const ch = supabase.channel(`loop-call-${peerId}`);
@@ -143,10 +170,13 @@ export function CallProvider({ children }: { children: ReactNode }) {
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
         setCall({ status: "outgoing", peer: peerUsername, peerId });
+        // Wake the callee's installed app / background tab.
+        void sendCallPush({ data: { peerId } }).catch(() => {});
         sendSignal(peerId, { kind: "offer", from: auth.handle, fromId: auth.user.id, sdp: offer });
         ringTimerRef.current = setTimeout(() => {
           if (callRef.current.status === "outgoing") {
             toast.message(`@${peerUsername} didn't answer`);
+            logCall(callRef.current, "📞 Missed call");
             sendSignal(peerId, { kind: "end", from: auth.handle ?? "" });
             cleanup();
           }
@@ -156,7 +186,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
         cleanup();
       }
     },
-    [auth, createPeerConnection, sendSignal, cleanup],
+    [auth, createPeerConnection, sendSignal, cleanup, logCall],
   );
 
   const acceptCall = useCallback(async () => {
@@ -194,9 +224,11 @@ export function CallProvider({ children }: { children: ReactNode }) {
     const c = callRef.current;
     if ((c.status === "active" || c.status === "outgoing") && auth.handle) {
       sendSignal(c.peerId, { kind: "end", from: auth.handle });
+      if (c.status === "outgoing") logCall(c, "📞 Missed call");
+      else logCall(c, `📞 Call ended · ${formatCallDuration(Date.now() - c.startedAt)}`);
     }
     cleanup();
-  }, [auth.handle, sendSignal, cleanup]);
+  }, [auth.handle, sendSignal, cleanup, logCall]);
 
   const toggleMute = useCallback(() => {
     const stream = localStreamRef.current;
@@ -225,6 +257,12 @@ export function CallProvider({ children }: { children: ReactNode }) {
           const pc = createPeerConnection(payload.fromId, payload.from);
           await pc.setRemoteDescription(payload.sdp).catch(() => {});
           setCall({ status: "incoming", peer: payload.from, peerId: payload.fromId });
+          if (document.hidden) {
+            navigator.vibrate?.([300, 150, 300, 150, 300]);
+            if ("Notification" in window && Notification.permission === "granted") {
+              new Notification(`Incoming call from @${payload.from}`, { tag: "loop-call", requireInteraction: true });
+            }
+          }
           ringTimerRef.current = setTimeout(() => {
             if (callRef.current.status === "incoming") cleanup();
           }, RING_TIMEOUT_MS);
@@ -265,6 +303,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
         case "decline": {
           if (c.status === "outgoing") {
             toast.message(`@${c.peer} declined the call`);
+            logCall(c, "📞 Declined call");
             cleanup();
           }
           break;
@@ -276,7 +315,35 @@ export function CallProvider({ children }: { children: ReactNode }) {
     return () => {
       void supabase.removeChannel(ch);
     };
-  }, [auth.user?.id, auth.handle, createPeerConnection, sendSignal, cleanup]);
+  }, [auth.user?.id, auth.handle, createPeerConnection, sendSignal, cleanup, logCall]);
+
+  // Ask once, then register this device for Web Push so calls ring even when the app is closed.
+  useEffect(() => {
+    if (!auth.user || !("Notification" in window)) return;
+    const vapid = import.meta.env["VITE_VAPID_PUBLIC_KEY"] as string | undefined;
+    let cancelled = false;
+    (async () => {
+      if (Notification.permission === "default") await Notification.requestPermission();
+      if (cancelled || Notification.permission !== "granted") return;
+      if (!vapid || !("serviceWorker" in navigator) || !("PushManager" in window)) return;
+      const reg = await navigator.serviceWorker.register("/sw.js");
+      await navigator.serviceWorker.ready;
+      const sub =
+        (await reg.pushManager.getSubscription()) ??
+        (await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToBytes(vapid),
+        }));
+      const json = sub.toJSON();
+      if (!json.endpoint || !json.keys?.["p256dh"] || !json.keys?.["auth"]) return;
+      await savePushSubscription({
+        data: { endpoint: json.endpoint, p256dh: json.keys["p256dh"], auth: json.keys["auth"] },
+      });
+    })().catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [auth.user?.id]);
 
   // Hang up if the tab closes mid-call.
   useEffect(() => {

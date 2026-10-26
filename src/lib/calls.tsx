@@ -43,7 +43,19 @@ type CallContextValue = {
 const CallContext = createContext<CallContextValue | null>(null);
 
 const RTC_CONFIG: RTCConfiguration = {
-  iceServers: [{ urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] }],
+  iceServers: [
+    { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] },
+    // TURN relay so media still flows across strict NATs / cellular networks.
+    {
+      urls: [
+        "turn:openrelay.metered.ca:80",
+        "turn:openrelay.metered.ca:443",
+        "turn:openrelay.metered.ca:443?transport=tcp",
+      ],
+      username: "openrelayproject",
+      credential: "openrelayproject",
+    },
+  ],
 };
 
 function formatCallDuration(ms: number) {
@@ -138,14 +150,17 @@ export function CallProvider({ children }: { children: ReactNode }) {
           sendSignal(peerId, { kind: "ice", from: auth.handle ?? "", candidate: e.candidate.toJSON() });
         }
       };
+      const remote = new MediaStream();
       pc.ontrack = (e) => {
+        if (!remote.getTracks().includes(e.track)) remote.addTrack(e.track);
         if (!remoteAudioRef.current) {
           const audio = document.createElement("audio");
           audio.autoplay = true;
           remoteAudioRef.current = audio;
         }
-        remoteAudioRef.current.srcObject = e.streams[0] ?? null;
-        setRemoteStream(e.streams[0] ?? null);
+        remoteAudioRef.current.srcObject = remote;
+        void remoteAudioRef.current.play().catch(() => {});
+        setRemoteStream(remote);
       };
       pc.onconnectionstatechange = () => {
         if (pc.connectionState === "connected") {

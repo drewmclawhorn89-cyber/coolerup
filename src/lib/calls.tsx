@@ -19,7 +19,7 @@ export type CallState =
   | { status: "active"; peer: string; peerId: string; startedAt: number };
 
 type Signal =
-  | { kind: "offer"; from: string; fromId: string; sdp: RTCSessionDescriptionInit }
+  | { kind: "offer"; from: string; fromId: string; video?: boolean; sdp: RTCSessionDescriptionInit }
   | { kind: "answer"; from: string; sdp: RTCSessionDescriptionInit }
   | { kind: "ice"; from: string; candidate: RTCIceCandidateInit }
   | { kind: "end"; from: string }
@@ -28,11 +28,16 @@ type Signal =
 type CallContextValue = {
   call: CallState;
   muted: boolean;
-  startCall: (peerUsername: string, peerId: string) => Promise<void>;
+  video: boolean;
+  cameraOff: boolean;
+  localStream: MediaStream | null;
+  remoteStream: MediaStream | null;
+  startCall: (peerUsername: string, peerId: string, withVideo?: boolean) => Promise<void>;
   acceptCall: () => Promise<void>;
   declineCall: () => void;
   endCall: () => void;
   toggleMute: () => void;
+  toggleCamera: () => void;
 };
 
 const CallContext = createContext<CallContextValue | null>(null);
@@ -58,6 +63,11 @@ export function CallProvider({ children }: { children: ReactNode }) {
   const auth = useAuth();
   const [call, setCall] = useState<CallState>({ status: "idle" });
   const [muted, setMuted] = useState(false);
+  const [video, setVideo] = useState(false);
+  const [cameraOff, setCameraOff] = useState(false);
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
+  const videoRef = useRef(false);
 
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
@@ -83,6 +93,11 @@ export function CallProvider({ children }: { children: ReactNode }) {
       remoteAudioRef.current = null;
     }
     pendingIceRef.current = [];
+    videoRef.current = false;
+    setVideo(false);
+    setCameraOff(false);
+    setLocalStream(null);
+    setRemoteStream(null);
     setMuted(false);
     setCall({ status: "idle" });
   }, []);
@@ -130,6 +145,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
           remoteAudioRef.current = audio;
         }
         remoteAudioRef.current.srcObject = e.streams[0] ?? null;
+        setRemoteStream(e.streams[0] ?? null);
       };
       pc.onconnectionstatechange = () => {
         if (pc.connectionState === "connected") {
@@ -151,18 +167,24 @@ export function CallProvider({ children }: { children: ReactNode }) {
 
   const getMic = async () => {
     if (!localStreamRef.current) {
-      localStreamRef.current = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      localStreamRef.current = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: videoRef.current ? { facingMode: "user" } : false,
+      });
+      setLocalStream(localStreamRef.current);
     }
     return localStreamRef.current;
   };
 
   const startCall = useCallback(
-    async (peerUsername: string, peerId: string) => {
+    async (peerUsername: string, peerId: string, withVideo = false) => {
       if (!auth.user || !auth.handle) {
         void auth.signIn();
         return;
       }
       if (callRef.current.status !== "idle") return;
+      videoRef.current = withVideo;
+      setVideo(withVideo);
       try {
         const stream = await getMic();
         const pc = createPeerConnection(peerId, peerUsername);
@@ -172,7 +194,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
         setCall({ status: "outgoing", peer: peerUsername, peerId });
         // Wake the callee's installed app / background tab.
         void sendCallPush({ data: { peerId } }).catch(() => {});
-        sendSignal(peerId, { kind: "offer", from: auth.handle, fromId: auth.user.id, sdp: offer });
+        sendSignal(peerId, { kind: "offer", from: auth.handle, fromId: auth.user.id, video: withVideo, sdp: offer });
         ringTimerRef.current = setTimeout(() => {
           if (callRef.current.status === "outgoing") {
             toast.message(`@${peerUsername} didn't answer`);
@@ -182,7 +204,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
           }
         }, RING_TIMEOUT_MS);
       } catch {
-        toast.error("Couldn't access your microphone");
+        toast.error("Couldn't access your microphone or camera");
         cleanup();
       }
     },
@@ -206,7 +228,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
       sendSignal(c.peerId, { kind: "answer", from: auth.handle, sdp: answer });
       setCall({ status: "active", peer: c.peer, peerId: c.peerId, startedAt: Date.now() });
     } catch {
-      toast.error("Couldn't access your microphone");
+      toast.error("Couldn't access your microphone or camera");
       sendSignal(c.peerId, { kind: "decline", from: auth.handle });
       cleanup();
     }
@@ -229,6 +251,14 @@ export function CallProvider({ children }: { children: ReactNode }) {
     }
     cleanup();
   }, [auth.handle, sendSignal, cleanup, logCall]);
+
+  const toggleCamera = useCallback(() => {
+    const stream = localStreamRef.current;
+    if (!stream) return;
+    const next = !cameraOff;
+    stream.getVideoTracks().forEach((t) => (t.enabled = !next));
+    setCameraOff(next);
+  }, [cameraOff]);
 
   const toggleMute = useCallback(() => {
     const stream = localStreamRef.current;
@@ -254,13 +284,15 @@ export function CallProvider({ children }: { children: ReactNode }) {
             sendSignal(payload.fromId, { kind: "decline", from: myHandle });
             return;
           }
+          videoRef.current = payload.video === true;
+          setVideo(payload.video === true);
           const pc = createPeerConnection(payload.fromId, payload.from);
           await pc.setRemoteDescription(payload.sdp).catch(() => {});
           setCall({ status: "incoming", peer: payload.from, peerId: payload.fromId });
           if (document.hidden) {
             navigator.vibrate?.([300, 150, 300, 150, 300]);
             if ("Notification" in window && Notification.permission === "granted") {
-              new Notification(`Incoming call from @${payload.from}`, { tag: "loop-call", requireInteraction: true });
+              new Notification(`Incoming ${payload.video ? "video " : ""}call from @${payload.from}`, { tag: "loop-call", requireInteraction: true });
             }
           }
           ringTimerRef.current = setTimeout(() => {
@@ -358,7 +390,20 @@ export function CallProvider({ children }: { children: ReactNode }) {
   }, [auth.handle, sendSignal]);
 
   return (
-    <CallContext.Provider value={{ call, muted, startCall, acceptCall, declineCall, endCall, toggleMute }}>
+    <CallContext.Provider value={{
+        call,
+        muted,
+        video,
+        cameraOff,
+        localStream,
+        remoteStream,
+        startCall,
+        acceptCall,
+        declineCall,
+        endCall,
+        toggleMute,
+        toggleCamera,
+      }}>
       {children}
     </CallContext.Provider>
   );

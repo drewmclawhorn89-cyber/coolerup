@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, Phone } from "lucide-react";
+import { ArrowLeft, Phone, Video } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -73,6 +73,16 @@ function Messages() {
     load();
   };
 
+  const placeCall = async (withVideo: boolean) => {
+    const handle = toUser.trim().replace(/^@/, "").toLowerCase();
+    const { data: target } = await supabase.from("profiles").select("id").eq("handle", handle).maybeSingle();
+    if (!target) {
+      toast.error(`@${handle} hasn't joined Loop yet`);
+      return;
+    }
+    void startCall(handle, target.id, withVideo);
+  };
+
   const inbox = new Map<string, Msg>();
   msgs.forEach((m) => inbox.set(m.from_username === me ? m.to_username : m.from_username, m));
   const convo = msgs.filter((m) => m.from_username === toUser || m.to_username === toUser);
@@ -126,16 +136,15 @@ function Messages() {
             <button onClick={() => setToUser("")} className="text-sm font-bold text-primary">← Inbox</button>
             <span className="font-bold">@{toUser}</span>
             <button
-              onClick={async () => {
-                const handle = toUser.trim().replace(/^@/, "").toLowerCase();
-                const { data: target } = await supabase.from("profiles").select("id").eq("handle", handle).maybeSingle();
-                if (!target) {
-                  toast.error(`@${handle} hasn't joined Loop yet`);
-                  return;
-                }
-                void startCall(handle, target.id);
-              }}
+              onClick={() => placeCall(true)}
               className="ml-auto rounded-full p-2 text-muted-foreground hover:bg-secondary hover:text-foreground"
+              aria-label={`Video call @${toUser}`}
+            >
+              <Video className="h-5 w-5" />
+            </button>
+            <button
+              onClick={() => placeCall(false)}
+              className="rounded-full p-2 text-muted-foreground hover:bg-secondary hover:text-foreground"
               aria-label={`Voice call @${toUser}`}
             >
               <Phone className="h-5 w-5" />

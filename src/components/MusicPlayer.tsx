@@ -98,7 +98,7 @@ export function MusicPlayer({ player, open }: { player: ReturnType<typeof useMus
   const current = player.tracks[player.index];
   const started = player.playing || player.time > 0;
   return (
-    <div className="rounded-2xl border border-white/10 p-4">
+    <div className="min-w-0 rounded-2xl border border-white/10 p-3 sm:p-4">
       <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.16em] text-zinc-500"><Music className="h-3.5 w-3.5" /> Music</div>
       <form onSubmit={(e) => { e.preventDefault(); void player.search(q); }} className="mb-3 flex items-center gap-2 rounded-full bg-white/5 px-3">
         <Search className="h-4 w-4 text-zinc-500" />

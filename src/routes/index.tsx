@@ -495,7 +495,7 @@ function Index() {
             </div>
             <Marketplace />
           </div>
-        ) : {activeTab === "shop" ? (
+        ) : activeTab === "shop" ? (
           <div className="flex min-h-0 flex-1 flex-col">
             <div className="flex shrink-0 gap-4 bg-black no-scrollbar overflow-x-auto px-4 [&>button]:shrink-0 [&>button]:whitespace-nowrap [&>button:first-child]:ml-auto [&>button:last-child]:mr-auto pb-2 pt-3 md:hidden">
               <button onClick={() => pickFeedTab("following")} className={tabClass("following")}>Following</button>

@@ -203,10 +203,10 @@ export function VideoCard({
   };
 
   return (
-    <section className="flex h-full snap-start snap-always items-center justify-center md:py-4">
+    <section className="relative h-full w-full snap-start snap-always bg-black md:flex md:items-center md:justify-center md:bg-transparent md:py-4">
       <div className="relative flex h-full w-full items-end md:h-auto md:w-auto md:gap-4">
         <div className="flex h-full min-w-0 flex-1 flex-col md:h-auto md:flex-none md:gap-3">
-          <div ref={cardRef} className="relative h-full w-full overflow-hidden bg-card md:aspect-[9/16] md:h-[calc(100dvh-11rem)] md:max-h-[760px] md:w-auto md:rounded-2xl">
+          <div ref={cardRef} className="relative h-full w-full overflow-hidden bg-black md:bg-card md:aspect-[9/16] md:h-[calc(100dvh-11rem)] md:max-h-[760px] md:w-auto md:rounded-2xl">
             {src && isImage && (
               <img
                 src={src}
@@ -249,7 +249,7 @@ export function VideoCard({
                 <Heart className="heart-pop h-28 w-28 fill-primary text-primary drop-shadow-[0_0_24px_rgba(255,45,85,0.8)]" />
               </div>
             )}
-            <div className="video-caption absolute inset-x-0 bottom-2 pb-5 pl-4 pr-20 pt-16 md:hidden">
+            <div className="video-caption absolute inset-x-0 bottom-0 z-20 pb-20 pl-2 pr-20 pt-16 md:hidden">
               <Link to="/u/$username" params={{ username: video.username }} className="break-words text-sm font-bold">@{video.username}</Link>
               <p className="mt-1 line-clamp-3 break-words text-sm">{captionText}</p>
             </div>
@@ -266,7 +266,7 @@ export function VideoCard({
             <p className="text-sm text-muted-foreground">{captionText}</p>
           </div>
         </div>
-        <div className="absolute bottom-16 right-2 flex flex-col items-center gap-4 md:static md:mb-16 md:gap-5">
+        <div className="absolute bottom-32 right-2 z-20 flex flex-col items-center gap-4 md:static md:mb-16 md:gap-5">
           <Link
             to="/u/$username"
             params={{ username: video.username }}

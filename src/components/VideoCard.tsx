@@ -220,13 +220,13 @@ export function VideoCard({
             </button>
           )}
           <Action label={formatCount(likes)} onClick={toggleLike} active={liked}>
-            <Heart className={`h-6 w-6 ${liked ? "fill-primary text-primary" : ""}`} />
+            <Heart className={`h-8 w-8 ${liked ? "fill-primary text-white" : ""}`} />
           </Action>
           <Action label={formatCount(comments)} onClick={() => setShowComments(true)}>
-            <MessageCircle className="h-6 w-6" />
+            <MessageCircle className="h-8 w-8" />
           </Action>
           <Action label={formatCount(shares)} onClick={() => setShowShare(true)}>
-            <Share2 className="h-6 w-6" />
+            <Share2 className="h-8 w-8" />
           </Action>
         </div>
       </div>

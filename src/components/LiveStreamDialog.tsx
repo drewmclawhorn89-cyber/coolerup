@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Camera, Circle, Eye, Loader2, Radio, Signal, Video, X } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { MusicPlayer, useMusicPlayer } from "@/components/MusicPlayer";
 import { supabase } from "@/integrations/supabase/client";
 
 type Mode = "host" | "viewer" | null;
@@ -22,6 +23,7 @@ const MIN_FOLLOWERS_TO_GO_LIVE = 500;
 const viewerId = () => globalThis.crypto?.randomUUID?.() ?? `viewer-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
 export function LiveStreamDialog({ open, onOpenChange, userId, username, onRecord, onUpload }: Props) {
+  const music = useMusicPlayer();
   const [mode, setMode] = useState<Mode>(null);
   const [liveNow, setLiveNow] = useState<LiveHost[]>([]);
   const [title, setTitle] = useState("");
@@ -267,6 +269,7 @@ export function LiveStreamDialog({ open, onOpenChange, userId, username, onRecor
                 ))}</div>
               )}
             </div>
+            <MusicPlayer player={music} />
             <button onClick={() => { closeMenu(); onRecord(); }} className="flex w-full items-center gap-4 rounded-2xl border border-white/10 p-4 text-left hover:bg-white/5">
               <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/10"><Camera /></span>
               <span><span className="block font-bold">Record a video</span><span className="text-sm text-zinc-400">Capture a short moment</span></span>

@@ -8,17 +8,13 @@ import { useCall } from "@/lib/calls";
 import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/messages")({
+  component: Messages,
   head: () => ({
     meta: [
-      { title: "Messages — Loop" },
+      { title: "Messages - Loop." },
       { name: "description", content: "Chat with creators on Loop." },
-      { property: "og:title", content: "Messages — Loop" },
-      { property: "og:description", content: "Chat with creators on Loop." },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary" },
     ],
   }),
-  component: Messages,
 });
 
 type Msg = { id: string; from_username: string; to_username: string; message: string; created_at: string };
@@ -32,136 +28,106 @@ function Messages() {
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const endRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    const u = new URLSearchParams(window.location.search).get("user");
-    if (u) setToUser(u);
-  }, []);
+  // MESSAGE SETTINGS - DIFFERENT LIKE TIKTOK
+  const [tab, setTab] = useState<"chat" | "settings">("chat");
+  const [privacy, setPrivacy] = useState(localStorage.getItem("messagePrivacy") || "everyone");
+  const [allowDM, setAllowDM] = useState(localStorage.getItem("allowDM") !== "false");
+  const [readReceipts, setReadReceipts] = useState(localStorage.getItem("readReceipts") !== "false");
+  const [filter, setFilter] = useState(localStorage.getItem("messageFilter") || "all");
 
-  const load = async () => {
-    const { data } = await supabase
-      .from("direct_messages")
-      .select("id, from_username, to_username, message, created_at")
-      .order("created_at", { ascending: true });
-    setMsgs((data ?? []) as Msg[]);
-  };
+  const savePrivacy = (v: string) => { setPrivacy(v); localStorage.setItem("messagePrivacy", v); toast("Saved"); };
+  const saveFilter = (v: string) => { setFilter(v); localStorage.setItem("messageFilter", v); };
 
   useEffect(() => {
-    if (auth.user) load();
-  }, [auth.user?.id]);
+    if (!me || !toUser) return;
+    supabase.from("messages").select("*").or(`and(from_username.eq.${me},to_username.eq.${toUser}),and(from_username.eq.${toUser},to_username.eq.${me})`).order("created_at").then(({ data }) => { if (data) setMsgs(data as any); });
+    const ch = supabase.channel("msgs").on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, (p) => {
+      const m = p.new as Msg;
+      if ((m.from_username===me && m.to_username===toUser) || (m.from_username===toUser && m.to_username===me)) setMsgs(s=>[...s, m]);
+    }).subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [me, toUser]);
 
-  useEffect(() => {
-    endRef.current?.scrollIntoView();
-  }, [msgs.length, toUser]);
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs]);
 
   const send = async () => {
-    const body = text.trim();
-    const to = toUser.trim().replace(/^@/, "").toLowerCase();
-    if (!body || !to || !auth.user || !me) return;
-    const { data: target } = await supabase.from("profiles").select("id").eq("handle", to).maybeSingle();
-    if (!target) {
-      toast.error(`@${to} hasn't joined Loop yet`);
-      return;
-    }
-    const { error } = await supabase
-      .from("direct_messages")
-      .insert({ from_id: auth.user.id, to_id: target.id, from_username: me, to_username: to, message: body });
-    if (error) {
-      toast.error("Couldn't send message");
-      return;
-    }
+    if (!text.trim() || !toUser) return;
+    await supabase.from("messages").insert({ from_username: me, to_username: toUser, message: text });
     setText("");
-    load();
   };
 
-  const inbox = new Map<string, Msg>();
-  msgs.forEach((m) => inbox.set(m.from_username === me ? m.to_username : m.from_username, m));
-  const convo = msgs.filter((m) => m.from_username === toUser || m.to_username === toUser);
-
-  if (auth.ready && !auth.user) {
+  if (tab === "settings") {
     return (
-      <div className="flex h-dvh flex-col items-center justify-center gap-4 bg-background p-6 text-center">
-        <p className="font-display text-2xl">Your messages</p>
-        <p className="text-muted-foreground">Sign in to send and read private messages.</p>
-        <Button onClick={auth.signIn}>Sign in</Button>
-        <Link to="/" className="text-sm text-muted-foreground">Back to Loop</Link>
+      <div className="min-h-screen bg-white max-w- mx-auto p-4 pb-20">
+        <div className="flex items-center gap-3 mb-6">
+          <button onClick={()=>setTab("chat")}><ArrowLeft className="h-6 w-6" /></button>
+          <h1 className="text-xl font-bold">Message Settings</h1>
+        </div>
+
+        <h2 className="font-bold text- mb-3">Who can send you direct messages</h2>
+        <div className="flex flex-col gap-2 mb-6">
+          {[
+            { id: "everyone", label: "Everyone", desc: "Anyone on Loop" },
+            { id: "friends", label: "Friends", desc: "People you follow back" },
+            { id: "mutuals", label: "Friends of friends", desc: "Friends + their friends" },
+            { id: "noone", label: "No one", desc: "No DMs" },
+          ].map(o=>(
+            <button key={o.id} onClick={()=>savePrivacy(o.id)} className={`flex justify-between p-3 rounded-xl border text-left ${privacy===o.id?"bg-black text-white":"bg-gray-50"}`}>
+              <div><div className="font-semibold text-">{o.label}</div><div className="text- opacity-70">{o.desc}</div></div>
+              <div className={`h-5 w-5 rounded-full border-2 flex items-center justify-center ${privacy===o.id?"border-white":"border-gray-300"}`}>{privacy===o.id && <div className="h-2 w-2 bg-white rounded-full" />}</div>
+            </button>
+          ))}
+        </div>
+
+        <h2 className="font-bold text- mb-3">Message requests filter</h2>
+        <div className="flex gap-2 mb-6">
+          {["all","filtered"].map(id=>(
+            <button key={id} onClick={()=>saveFilter(id)} className={`flex-1 py-2 rounded-full font-bold ${filter===id?"bg-black text-white":"bg-gray-100"}`}>{id}</button>
+          ))}
+        </div>
+
+        <div className="border-t pt-4 space-y-4">
+          <div className="flex justify-between items-center">
+            <div><div className="font-medium text-">Allow direct messages</div><div className="text- text-gray-500">Let others message you</div></div>
+            <button onClick={()=>{const v=!allowDM; setAllowDM(v); localStorage.setItem("allowDM", String(v));}} className={`h-7 w-12 rounded-full p-1 ${allowDM?"bg-black":"bg-gray-300"}`}><div className={`h-5 w-5 bg-white rounded-full transition ${allowDM?"translate-x-5":""}`} /></button>
+          </div>
+          <div className="flex justify-between items-center">
+            <div><div className="font-medium text-">Read receipts</div><div className="text- text-gray-500">Show when read</div></div>
+            <button onClick={()=>{const v=!readReceipts; setReadReceipts(v); localStorage.setItem("readReceipts", String(v));}} className={`h-7 w-12 rounded-full p-1 ${readReceipts?"bg-black":"bg-gray-300"}`}><div className={`h-5 w-5 bg-white rounded-full transition ${readReceipts?"translate-x-5":""}`} /></button>
+          </div>
+        </div>
+
+        <Button onClick={()=>setTab("chat")} className="w-full mt-8 bg-black text-white rounded-full py-6 font-bold">Back to Messages</Button>
       </div>
     );
   }
 
   return (
-    <div className="mx-auto flex h-dvh max-w-md flex-col bg-background pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)]">
-      <div className="border-b p-4">
+    <div className="min-h-screen bg-white max-w- mx-auto flex flex-col">
+      <div className="flex items-center justify-between p-3 border-b sticky top-0 bg-white z-10">
         <div className="flex items-center gap-3">
-          <Link to="/" aria-label="Back to Loop" className="text-muted-foreground hover:text-foreground"><ArrowLeft className="h-5 w-5" /></Link>
-          <h1 className="font-display text-xl">Messages</h1>
+          <Link to="/"><ArrowLeft className="h-6 w-6" /></Link>
+          <h1 className="font-bold">Messages</h1>
         </div>
-        <input
-          value={toUser}
-          onChange={(e) => setToUser(e.target.value)}
-          placeholder="Message @username"
-          className="mt-3 w-full rounded-full border bg-secondary px-4 py-2 text-sm outline-none"
-        />
+        <button onClick={()=>setTab("settings")} className="text- font-bold border px-3 py-1 rounded-full">Settings</button>
       </div>
 
-      {toUser === "" ? (
-        <div className="flex-1 overflow-y-auto p-2">
-          <p className="px-3 py-2 text-xs font-bold tracking-widest text-muted-foreground">INBOX</p>
-          {inbox.size === 0 ? (
-            <p className="mt-20 text-center text-muted-foreground">No messages yet</p>
-          ) : (
-            [...inbox.entries()].reverse().map(([user, last]) => (
-              <button key={user} onClick={() => setToUser(user)} className="flex w-full items-center gap-3 rounded-xl p-3 text-left hover:bg-secondary">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary font-display uppercase text-primary-foreground">{user[0]}</div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-bold">@{user}</p>
-                  <p className="truncate text-xs text-muted-foreground">{last.message}</p>
-                </div>
-              </button>
-            ))
-          )}
-        </div>
-      ) : (
-        <>
-          <div className="flex items-center gap-2 border-b p-3">
-            <button onClick={() => setToUser("")} className="text-sm font-bold text-primary">← Inbox</button>
-            <span className="font-bold">@{toUser}</span>
-            <button
-              onClick={async () => {
-                const handle = toUser.trim().replace(/^@/, "").toLowerCase();
-                const { data: target } = await supabase.from("profiles").select("id").eq("handle", handle).maybeSingle();
-                if (!target) {
-                  toast.error(`@${handle} hasn't joined Loop yet`);
-                  return;
-                }
-                void startCall(handle, target.id);
-              }}
-              className="ml-auto rounded-full p-2 text-muted-foreground hover:bg-secondary hover:text-foreground"
-              aria-label={`Voice call @${toUser}`}
-            >
-              <Phone className="h-5 w-5" />
-            </button>
-          </div>
-          <div className="flex-1 space-y-2 overflow-y-auto p-3">
-            {convo.map((m) => (
-              <div key={m.id} className={`max-w-[75%] rounded-2xl px-3 py-2 text-sm ${m.from_username === me ? "ml-auto bg-primary text-primary-foreground" : "bg-secondary"}`}>
-                {m.message}
-              </div>
-            ))}
-            <div ref={endRef} />
-          </div>
-          <div className="flex gap-2 border-t p-3">
-            <input
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && send()}
-              placeholder="Message..."
-              maxLength={2000}
-              className="min-w-0 flex-1 rounded-full border bg-secondary px-4 py-2 outline-none"
-            />
-            <Button onClick={send} className="rounded-full">Send</Button>
-          </div>
-        </>
-      )}
+      <div className="p-3 flex gap-2 border-b">
+        <input value={toUser} onChange={e=>setToUser(e.target.value)} placeholder="Username to chat" className="flex-1 border rounded-full px-4 py-2 text-" />
+        <button onClick={()=>startCall(toUser)} className="h-10 w-10 bg-black text-white rounded-full flex items-center justify-center"><Phone className="h-5 w-5" /></button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-3 space-y-2">
+        {msgs.map(m=>(
+          <div key={m.id} className={`max-w-[75%] p-3 rounded-2xl text- ${m.from_username===me?"bg-black text-white ml-auto":"bg-gray-100"}`}>{m.message}</div>
+        ))}
+        <div ref={endRef} />
+      </div>
+
+      <div className="p-3 border-t flex gap-2 sticky bottom-0 bg-white">
+        <input value={text} onChange={e=>setText(e.target.value)} onKeyDown={e=>e.key==="Enter"&&send()} placeholder="Message..." className="flex-1 border rounded-full px-4 py-3 text-" />
+        <Button onClick={send} className="rounded-full bg-black text-white px-6">Send</Button>
+      </div>
     </div>
   );
 }

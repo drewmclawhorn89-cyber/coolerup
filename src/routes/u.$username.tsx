@@ -22,9 +22,31 @@ function Profile() {
   const [editing, setEditing] = useState(false);
 const [totalFollowers, setTotalFollowers] = useState(0);
   
-  const isOwn = !!auth.handle && auth.handle === username;
+   const isOwn = !!auth.handle && auth.handle === username;
 
   useEffect(() => {
+    if (!username) return;
+    
+    const loadStats = async () => {
+      // First get profile id from username
+      const { data: profileData } = await supabase.from("profiles").select("id, username").eq("username", username).single();
+      const profileId = profileData?.id;
+      if (!profileId) return;
+      
+      // REAL FOLLOWERS COUNT - count where following = profileId
+      const { count: followersCount } = await supabase
+        .from("follows")
+        .select("*", { count: "exact", head: true })
+        .eq("following", profileId);
+      
+      if (followersCount != null) setTotalFollowers(followersCount);
+    };
+    
+    loadStats();
+  }, [username]);
+
+  useEffect(() => {
+    if (!username) return;
     supabase.from("videos").select("*").eq("username", username).order("created_at", { ascending: false }).then(({ data }) => {
       setVideos(data || []);
     });

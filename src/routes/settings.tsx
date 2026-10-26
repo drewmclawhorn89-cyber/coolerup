@@ -24,15 +24,6 @@ function Settings() {
   const auth = useAuth();
   const [editing, setEditing] = useState(false);
   const savePhone = () => {
-   const [messagePrivacy, setMessagePrivacy] = useState(localStorage.getItem("messagePrivacy") || "everyone");
-const [messageFilter, setMessageFilter] = useState(localStorage.getItem("messageFilter") || "all");
-const [allowDirectMessages, setAllowDirectMessages] = useState(localStorage.getItem("allowDM") !== "false");
-const [readReceipts, setReadReceipts] = useState(localStorage.getItem("readReceipts") !== "false");
-
-const saveMessagePrivacy = (v: string) => { setMessagePrivacy(v); localStorage.setItem("messagePrivacy", v); };
-const saveFilter = (v: string) => { setMessageFilter(v); localStorage.setItem("messageFilter", v); };
-const saveDM = (v: boolean) => { setAllowDirectMessages(v); localStorage.setItem("allowDM", String(v)); };
-const saveReadReceipts = (v: boolean) => { setReadReceipts(v); localStorage.setItem("readReceipts", String(v)); }; 
     try {
       localStorage.setItem("settings:phone", phone);
       // If you use Supabase / Lovable Auth, this also saves to your account

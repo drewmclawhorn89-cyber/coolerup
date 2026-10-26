@@ -104,29 +104,43 @@ export function VideoCard({
     else el.pause();
   };
 
- const toggleLike = async () => {
-  const next = !liked;
-  onLikeChange(next);
-  setLikes((n) => n + (next ? 1 : -1));
-  if (next) {
-    setBurst(true);
-    setTimeout(() => setBurst(false), 500);
-  }
-  const { data: { user: authUser } } = await supabase.auth.getUser();
-  if (!authUser) {
-    toast.error("Please log in to like");
-    onLikeChange(!next);
-    setLikes((n) => n + (next ? -1 : 1));
-    return;
-  }
-  const { error } = next
-    ? await supabase.from("likes").insert({ video_id: video.id, user_id: authUser.id })
-    : await supabase.from("likes").delete().eq("video_id", video.id).eq("user_id", authUser.id);
-  if (error) {
-    onLikeChange(!next);
-    setLikes((n) => n + (next ? -1 : 1));
-    toast.error("Couldn't save your like");
-  } else if (next) {
+   const toggleLike = async () => {
+    const next = !liked;
+    onLikeChange(next);
+    setLikes((n) => n + (next ? 1 : -1));
+    if (next) {
+      setBurst(true);
+      setTimeout(() => setBurst(false), 500);
+    }
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    if (!authUser) {
+      toast.error("Please log in to like");
+      onLikeChange(!next);
+      setLikes((n) => n + (next ? -1 : 1));
+      return;
+    }
+
+    // SAVE LIKE + CREATE NOTIFICATION - THIS IS THE FIX FOR YOUR INBOX
+    try {
+      if (next) {
+        await supabase.from("likes").insert({ video_id: video.id, user_id: authUser.id });
+        
+        // CREATE NOTIFICATION FOR VIDEO OWNER - LIKE TIKTOK
+        if (video.user_id && video.user_id !== authUser.id) {
+          await supabase.from("notifications").insert({
+            target_user_id: video.user_id,
+            actor_user_id: authUser.id,
+            video_id: video.id,
+            type: "like",
+            text: `${myUsername} liked your video`,
+            read: false
+          });
+        }
+      } else {
+        await supabase.from("likes").delete().eq("video_id", video.id).eq("user_id", authUser.id);
+      }
+    } catch {}
+  };
     // save notification to account
     const { data: owner } = await supabase.from("profiles").select("id").eq("username", video.username).single();
     if (owner && owner.id !== authUser.id) {

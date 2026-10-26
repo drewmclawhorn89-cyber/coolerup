@@ -46,12 +46,28 @@ export function isImageUrl(url: string) {
   return /\.(jpe?g|png|webp|gif|avif)(\?|#|$)/i.test(url);
 }
 
-export async function resolveVideoUrl(url: string) {
-  if (!url.startsWith(STORAGE_PREFIX)) return url;
-  const { data } = await supabase.storage
+const signedUrlCache = new Map<string, { promise: Promise<string>; at: number }>();
+const SIGNED_TTL = 60 * 60 * 6;
+
+export function resolveVideoUrl(url: string): Promise<string> {
+  if (!url.startsWith(STORAGE_PREFIX)) return Promise.resolve(url);
+  const hit = signedUrlCache.get(url);
+  // Reuse for up to 5h so the 6h signed link never expires while cached.
+  if (hit && Date.now() - hit.at < (SIGNED_TTL - 3600) * 1000) return hit.promise;
+  const promise = supabase.storage
     .from("videos")
-    .createSignedUrl(url.slice(STORAGE_PREFIX.length), 60 * 60 * 6);
-  return data?.signedUrl ?? "";
+    .createSignedUrl(url.slice(STORAGE_PREFIX.length), SIGNED_TTL)
+    .then(({ data }) => {
+      const out = data?.signedUrl ?? "";
+      if (!out) signedUrlCache.delete(url);
+      return out;
+    })
+    .catch(() => {
+      signedUrlCache.delete(url);
+      return "";
+    });
+  signedUrlCache.set(url, { promise, at: Date.now() });
+  return promise;
 }
 
 export async function fetchVideos(page = 0) {

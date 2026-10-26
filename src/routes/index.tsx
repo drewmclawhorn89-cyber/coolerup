@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, Suspense, lazy, useEffect, useMemo, useState } from "react";
 import {
   Bell,
   Download,
@@ -19,9 +19,9 @@ import { Button } from "@/components/ui/button";
 import { VideoCard } from "@/components/VideoCard";
 import { matchesKeyword, readBool } from "@/lib/prefs";
 import { UploadDialog } from "@/components/UploadDialog";
-import { RecordDialog } from "@/components/RecordDialog";
+const RecordDialog = lazy(() => import("@/components/RecordDialog").then((m) => ({ default: m.RecordDialog })));
 import { ShopPanel } from "@/components/ShopPanel";
-import { PhotoDialog } from "@/components/PhotoDialog";
+const PhotoDialog = lazy(() => import("@/components/PhotoDialog").then((m) => ({ default: m.PhotoDialog })));
 import { LiveStreamDialog } from "@/components/LiveStreamDialog";
 import { fetchMyLikes, fetchVideos, parseCaption, type Video } from "@/lib/loop";
 import { listSaved, onOfflineChange } from "@/lib/offline";
@@ -710,7 +710,7 @@ function Index() {
         />
       )}
 
-      <PhotoDialog
+      {photoOpen && <Suspense fallback={null}><PhotoDialog
         open={photoOpen}
         onOpenChange={setPhotoOpen}
         username={auth.handle}
@@ -718,9 +718,9 @@ function Index() {
           setTab("mine");
           load();
         }}
-      />
+      /></Suspense>}
 
-      <RecordDialog
+      {recordingOpen && <Suspense fallback={null}><RecordDialog
         open={recordingOpen}
         onOpenChange={setRecordingOpen}
         username={auth.handle}
@@ -729,7 +729,7 @@ function Index() {
           setTab("mine");
           load();
         }}
-      />
+      /></Suspense>}
     </div>
   );
 }

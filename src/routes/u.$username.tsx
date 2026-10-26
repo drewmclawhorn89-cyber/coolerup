@@ -20,7 +20,7 @@ function Profile() {
   const [profile, setProfile] = useState<ProfileRow | null>(null);
   const [avatar, setAvatar] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
-const [totalFollowers, setTotalFollowers] = useState();
+const [totalFollowers, setTotalFollowers] = useState(0);
   
    const isOwn = !!auth.handle && auth.handle === username;
 

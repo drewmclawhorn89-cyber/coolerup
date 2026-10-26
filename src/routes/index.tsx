@@ -366,7 +366,7 @@ function Index() {
         )}
       </aside>
 
-      <main className="flex min-w-0 flex-1 flex-col">
+      <main className="mx-auto flex h-[100dvh] w-full min-w-0 max-w-[430px] flex-1 flex-col bg-black md:h-auto md:max-w-none md:bg-transparent">
         <div className="mobile-topbar grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b bg-sidebar px-4 md:hidden">
           <h1 className="min-w-0 font-display text-2xl">
             loop<span className="text-primary">.</span>
@@ -511,7 +511,7 @@ function Index() {
               <p className="hidden text-sm text-muted-foreground md:block">{sub}</p>
             </header>
 
-            <div className="no-scrollbar min-h-0 flex-1 snap-y snap-mandatory overflow-y-scroll overscroll-contain">
+            <div className="no-scrollbar min-h-0 flex-1 snap-y snap-mandatory overflow-y-scroll overscroll-contain scroll-smooth">
               {error && !offlineMode && <Empty text="Couldn't load videos. Refresh to try again." />}
               {!error && videos === null && activeTab !== "saved" && <Empty text="Loading your feed..." />}
               {(videos || activeTab === "saved") && shown.length === 0 && (

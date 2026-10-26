@@ -19,7 +19,6 @@ type Props = {
   onUpload: () => void;
 };
 
-const MIN_FOLLOWERS_TO_GO_LIVE = 500;
 
 const viewerId = () => globalThis.crypto?.randomUUID?.() ?? `viewer-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
@@ -227,18 +226,6 @@ export function LiveStreamDialog({ open, onOpenChange, userId, username, onRecor
   const startHost = async () => {
     if (!userId || !username) {
       toast.error("Sign in to start a live stream.");
-      return;
-    }
-    const { count, error } = await supabase
-      .from("follows")
-      .select("id", { count: "exact", head: true })
-      .eq("following_username", username);
-    if (error) {
-      toast.error("Couldn't verify your followers. Try again.");
-      return;
-    }
-    if ((count ?? 0) < MIN_FOLLOWERS_TO_GO_LIVE) {
-      toast.error(`You need ${MIN_FOLLOWERS_TO_GO_LIVE} followers to go live. You have ${count ?? 0}.`);
       return;
     }
     setMode("host");

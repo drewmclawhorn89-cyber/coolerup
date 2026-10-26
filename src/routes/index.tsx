@@ -126,6 +126,8 @@ function Index() {
   const [error, setError] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [quality, setQuality] = useState<"1080p" | "720p" | "480p">("720p");
+ const [notifications, setNotifications] = useState<NotificationRow[]>([]);
+  const [notificationFilter, setNotificationFilter] = useState<NotificationFilter>("all");
 
 
   useEffect(() => {

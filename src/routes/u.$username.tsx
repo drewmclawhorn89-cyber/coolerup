@@ -24,27 +24,43 @@ const [totalFollowers, setTotalFollowers] = useState(0);
   
    const isOwn = !!auth.handle && auth.handle === username;
 
-  useEffect(() => {
+    useEffect(() => {
     if (!username) return;
     
     const loadStats = async () => {
-      // First get profile id from username
-      const { data: profileData } = await supabase.from("profiles").select("id, username").eq("username", username).single();
+      const { data: profileData } = await supabase.from("profiles").select("id, username, handle").eq("username", username).single();
       const profileId = profileData?.id;
-      if (!profileId) return;
+      const handle = profileData?.handle || username;
       
-      // REAL FOLLOWERS COUNT - count where following = profileId
-      const { count: followersCount } = await supabase
-        .from("follows")
-        .select("*", { count: "exact", head: true })
-        .eq("following", profileId);
+      console.log("Checking followers for:", profileId, handle, username);
+
+      // TRY 1: by id (new way)
+      const { count: countById } = await supabase.from("follows").select("*", { count: "exact", head: true }).eq("following", profileId);
       
-      if (followersCount != null) setTotalFollowers(followersCount);
+      // TRY 2: by username
+      const { count: countByUsername } = await supabase.from("follows").select("*", { count: "exact", head: true }).eq("following", username);
+      
+      // TRY 3: by handle
+      const { count: countByHandle } = await supabase.from("follows").select("*", { count: "exact", head: true }).eq("following", handle);
+      
+      // TRY 4: show all follows to see what's saved
+      const { data: allFollows } = await supabase.from("follows").select("*").limit(10);
+      console.log("All follows sample:", allFollows);
+      console.log("Counts - byId:", countById, "byUsername:", countByUsername, "byHandle:", countByHandle);
+
+      const realCount = countById || countByUsername || countByHandle || 0;
+      setTotalFollowers(realCount);
+      
+      // If still 0, check followers table might be named differently
+      if (realCount === 0 && allFollows && allFollows.length > 0) {
+        // Check what column names exist
+        const first = allFollows[0];
+        console.log("First follow row keys:", Object.keys(first), first);
+      }
     };
     
     loadStats();
   }, [username]);
-
   useEffect(() => {
     if (!username) return;
     supabase.from("videos").select("*").eq("username", username).order("created_at", { ascending: false }).then(({ data }) => {

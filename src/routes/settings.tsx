@@ -317,7 +317,7 @@ const changeTheme = (t: string) => {
       </div>
              <div className="rounded-lg border bg-card p-6">
           <h2 className="font-semibold">Social Links - Add to Your Profile</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Add your TikTok so people can find you from Loop. Does not delete account.</p>
+          <p className="mt-1 text-sm text-muted-foreground"> add your links </p>
           <div className="mt-3 space-y-3">
             <div className="flex gap-2">
               <span className="flex items-center rounded-md border bg-muted px-3 text-sm">TikTok</span>
@@ -359,7 +359,7 @@ const changeTheme = (t: string) => {
         </div> 
               <div className="rounded-lg border bg-card p-6">
           <h2 className="font-semibold">Phone Number</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Add your phone number to your account. </p>
+          <p className="mt-1 text-sm text-muted-foreground">Add your phone number to your account </p>
           <div className="mt-3 flex gap-2">
             <input 
               value={phone} 
@@ -376,7 +376,7 @@ const changeTheme = (t: string) => {
         </div>
 <div className="rounded-lg border bg-card p-6">
   <h2 className="font-semibold">Offline Mode</h2>
-  <p className="mt-1 text-sm text-muted-foreground"> </p>
+  <p className="mt-1 text-sm text-muted-foreground"> offline videos </p>
   <div className="mt-3 flex items-center gap-3">
     <button onClick={toggleOffline} style={{backgroundColor: offlineMode ? "#16a34a" : "black", color: "white"}} className="rounded-md px-4 py-2 font-medium">
       {offlineMode ? "ON" : "OFF"}

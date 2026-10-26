@@ -586,8 +586,8 @@ function Index() {
           </>
         )}
 
-        <nav aria-label="Phone navigation" className="mobile-top-nav grid shrink-0 grid-cols-7 place-items-center w-full gap-0 border-0 bg-black px-0 rounded-none md:hidden">
-          {NAV.slice(0, 3).map(({ id, label, icon: Icon }) => (
+        <nav aria-label="Phone navigation" className="mobile-top-nav grid shrink-0 grid-cols-5 place-items-center w-full gap-0 border-0 bg-black px-0 rounded-none md:hidden">
+          {NAV.filter((n) => n.id === "foryou" || n.id === "following").map(({ id, label, icon: Icon }) => (
             <Button
               key={id}
               variant="ghost"
@@ -608,7 +608,7 @@ function Index() {
           >
             <Plus />
           </Button>
-          {NAV.slice(3).map(({ id, label, icon: Icon }) => (
+          {NAV.filter((n) => n.id === "inbox").map(({ id, label, icon: Icon }) => (
             <Fragment key={id}>
               <Button
                 variant="ghost"
@@ -619,7 +619,7 @@ function Index() {
                 }`}
               >
                 <Icon className="h-5 w-5" />
-                {id === "mine" ? "You" : label}
+                {label}
               </Button>
             </Fragment>
           ))}

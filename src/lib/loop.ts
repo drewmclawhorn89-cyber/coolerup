@@ -107,3 +107,19 @@ export function formatCount(n: number) {
   if (n >= 1000) return (n / 1000).toFixed(1) + "K";
   return String(n);
 }
+
+export async function setVideoSaved(videoId: string, on: boolean) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+  if (on) await supabase.from("saved_videos").upsert({ user_id: user.id, video_id: videoId });
+  else await supabase.from("saved_videos").delete().eq("user_id", user.id).eq("video_id", videoId);
+}
+
+export async function fetchSavedVideos(userId: string) {
+  const { data } = await supabase
+    .from("saved_videos")
+    .select("created_at, videos(*)")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
+  return ((data ?? []) as any[]).map((r) => r.videos).filter(Boolean);
+}

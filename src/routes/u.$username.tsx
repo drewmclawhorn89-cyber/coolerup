@@ -5,8 +5,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, Pencil, X } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { EditProfileDialog, resolveAvatarUrl } from "@/components/EditProfileDialog";
-import { listSaved, onOfflineChange } from "@/lib/offline";
-import { fetchMyLikes, isImageUrl, parseCaption, resolveVideoUrl } from "@/lib/loop";
+import { fetchSavedVideos, fetchMyLikes, isImageUrl, parseCaption, resolveVideoUrl } from "@/lib/loop";
 import { VideoCard } from "@/components/VideoCard";
 import type { Profile as ProfileRow } from "@/hooks/useAuth";
 
@@ -98,10 +97,9 @@ const [totalFollowers, setTotalFollowers] = useState(0);
   }, [username, auth.profile?.avatar_url, auth.profile?.display_name, auth.profile?.bio]);
 
   useEffect(() => {
-    const load = () => { listSaved().then((l: any[]) => setSaved(l || [])).catch(() => {}); };
-    load();
-    return onOfflineChange(load) as any;
-  }, []);
+    if (!profile?.id) return;
+    fetchSavedVideos(profile.id).then(setSaved).catch(() => {});
+  }, [profile?.id, tab]);
   useEffect(() => { fetchMyLikes().then(setLikedIds).catch(() => {}); }, [open !== null]);
   useEffect(() => {
     if (open === null) return;
@@ -110,7 +108,7 @@ const [totalFollowers, setTotalFollowers] = useState(0);
   }, [open]);
 
   const totalLikes = (videos || []).reduce((a, v) => a + (v.likes_count || 0), 0);
-  const shownVideos = tab === "saved" && isOwn ? saved : videos;
+  const shownVideos = tab === "saved" ? saved : videos;
   const displayName = profile?.display_name || username;
 
   return (
@@ -146,7 +144,7 @@ const [totalFollowers, setTotalFollowers] = useState(0);
           </div>
         </div>
 
-        {isOwn && (
+        {(
           <div className="mb-3 flex border-b">
             {(["videos", "saved"] as const).map((t) => (
               <button
@@ -160,7 +158,7 @@ const [totalFollowers, setTotalFollowers] = useState(0);
           </div>
         )}
 
-        {tab === "saved" && isOwn && saved.length === 0 && (
+        {tab === "saved" && saved.length === 0 && (
           <p className="py-10 text-center text-sm text-muted-foreground">No saved videos yet.</p>
         )}
         <div className="grid grid-cols-3 gap-1">

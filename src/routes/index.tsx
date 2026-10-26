@@ -480,7 +480,7 @@ function Index() {
 
         {activeTab === "shop" ? (
           <div className="flex min-h-0 flex-1 flex-col">
-            <div className="flex shrink-0 justify-center gap-4 bg-black pb-2 pt-3 md:hidden">
+            <div className="flex shrink-0 gap-4 bg-black no-scrollbar overflow-x-auto px-4 [&>button]:shrink-0 [&>button]:whitespace-nowrap [&>button:first-child]:ml-auto [&>button:last-child]:mr-auto pb-2 pt-3 md:hidden">
               <button onClick={() => pickFeedTab("following")} className={tabClass("following")}>Following</button>
               <button onClick={() => pickFeedTab("foryou")} className={tabClass("foryou")}>For You</button>
               <button onClick={() => pickFeedTab("explore")} className={tabClass("explore")}>Explore</button>
@@ -554,7 +554,7 @@ function Index() {
 
             <div className="relative flex min-h-0 flex-1 flex-col">
             {showTopTabs && (
-              <div className="absolute inset-x-0 top-0 z-50 flex justify-center gap-4 bg-gradient-to-b from-black/60 to-transparent pb-2 pt-3 md:hidden">
+              <div className="absolute inset-x-0 top-0 z-50 flex gap-4 bg-gradient no-scrollbar overflow-x-auto px-4 [&>button]:shrink-0 [&>button]:whitespace-nowrap [&>button:first-child]:ml-auto [&>button:last-child]:mr-auto-to-b from-black/60 to-transparent pb-2 pt-3 md:hidden">
                 <button onClick={() => pickFeedTab("following")} className={tabClass("following")}>Following</button>
                 <button onClick={() => pickFeedTab("foryou")} className={tabClass("foryou")}>For You</button>
                 <button onClick={() => pickFeedTab("explore")} className={tabClass("explore")}>Explore</button>

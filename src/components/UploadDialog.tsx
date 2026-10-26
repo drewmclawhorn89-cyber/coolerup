@@ -13,7 +13,8 @@ export function UploadDialog({
   onDone: () => void;
   defaultUsername: string;
 }) {
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
+  const file = files[0] ?? null;
   const [preview, setPreview] = useState("");
   const [username, setUsername] = useState(defaultUsername);
   const [caption, setCaption] = useState("");
@@ -50,8 +51,16 @@ export function UploadDialog({
     return () => URL.revokeObjectURL(url);
   }, [file]);
 
-  const pick = (f?: File) => {
-    if (!f) return;
+  const pick = (list?: FileList | null) => {
+    const valid: File[] = [];
+    for (const f of Array.from(list ?? [])) {
+      if (!f.type.startsWith("image/") && !f.type.startsWith("video/")) continue;
+      valid.push(f);
+    }
+    if (list && list.length > 0 && valid.length === 0) toast.error("Please choose a video or photo");
+    if (valid.length) setFiles(valid);
+  };
+  const unusedPick = (f: File) => {
     const isImage = f.type.startsWith("image/");
     if (!isImage && !f.type.startsWith("video/")) {
       toast.error("Please choose a video or photo");
@@ -65,7 +74,7 @@ export function UploadDialog({
       toast.error("Videos must be under  ");
       return;
     }
-    setFile(f);
+    setFiles([f]);
   };
 
   const submit = async (e: React.FormEvent) => {
@@ -73,8 +82,11 @@ export function UploadDialog({
     if (!file || !username.trim()) return;
     setBusy(true);
     try {
-      await uploadVideo(file, username.trim().replace(/^@/, "").slice(0, 40), caption.trim().slice(0, 500), song);
-      toast.success("Your video is posted!");
+      const name = username.trim().replace(/^@/, "").slice(0, 40);
+      for (const f of files) {
+        await uploadVideo(f, name, caption.trim().slice(0, 500), f.type.startsWith("image/") ? song : null);
+      }
+      toast.success(files.length > 1 ? `${files.length} posts uploaded!` : "Your video is posted!");
       onDone();
     } catch {
       toast.error("Upload failed. Try again.");
@@ -94,7 +106,7 @@ export function UploadDialog({
           onDragOver={(e) => e.preventDefault()}
           onDrop={(e) => {
             e.preventDefault();
-            pick(e.dataTransfer.files[0]);
+            pick(e.dataTransfer.files);
           }}
           className="flex h-40 w-full shrink-0 cursor-pointer flex-col items-center justify-center gap-2 overflow-hidden rounded-xl border-2 border-dashed bg-secondary text-center text-sm text-muted-foreground sm:aspect-[9/16] sm:h-auto sm:w-48"
         >
@@ -107,11 +119,11 @@ export function UploadDialog({
           ) : (
             <>
               <Upload className="h-8 w-8 text-primary" />
-              Drop a video or photo, or click to choose
+              Drop videos or photos, or click to choose
               <span className="text-xs">     </span>
             </>
           )}
-          <input type="file" accept="video/*,image/*" className="hidden" onChange={(e) => pick(e.target.files?.[0])} />
+          <input type="file" multiple accept="video/*,image/*" className="hidden" onChange={(e) => pick(e.target.files)} />
         </label>
         <div className="flex min-w-0 flex-1 flex-col gap-4 [&_input]:text-base [&_textarea]:text-base">
           <div className="flex items-center justify-between">
@@ -162,7 +174,7 @@ export function UploadDialog({
             disabled={!file || busy}
             className="mt-auto rounded-full bg-primary py-3 font-bold text-primary-foreground disabled:opacity-50"
           >
-            {busy ? "Uploading…" : "Post"}
+            {busy ? "Uploading…" : files.length > 1 ? `Post ${files.length}` : "Post"}
           </button>
         </div>
       </form>

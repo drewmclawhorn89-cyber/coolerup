@@ -88,7 +88,7 @@ const toggleOffline = () => {
   try { localStorage.setItem("settings:offline", String(newVal)); } catch {}
   
   if (newVal) {
-    // Start caching your 1332 videos for offline
+  
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js').catch(() => {});
     }

@@ -361,9 +361,9 @@ const changeTheme = (t: string) => {
           </div>
         </div> 
       {/* DIFFERENT MESSAGE SETTINGS LIKE TIKTOK */}
-<div className="bg-white rounded-xl p-4 mb-4 shadow-sm">
+<div className="bg-black rounded-xl p-4 mb-4 shadow-sm">
   <h2 className="font-bold text- mb-1">💬 Message Privacy</h2>
-  <p className="text-gray-500 text- mb-4">Different settings like TikTok</p>
+  <p className="text-gray-500 text- mb-4"> messages settings </p>
 
   <p className="font-bold text- mb-2">Who can DM you</p>
   <div className="flex flex-col gap-2 mb-5">

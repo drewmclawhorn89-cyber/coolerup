@@ -40,6 +40,11 @@ const RTC_CONFIG: RTCConfiguration = {
   iceServers: [{ urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] }],
 };
 
+function formatCallDuration(ms: number) {
+  const total = Math.floor(ms / 1000);
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
+}
+
 const RING_TIMEOUT_MS = 30_000;
 
 export function CallProvider({ children }: { children: ReactNode }) {
@@ -74,6 +79,21 @@ export function CallProvider({ children }: { children: ReactNode }) {
     setMuted(false);
     setCall({ status: "idle" });
   }, []);
+
+  // Record call outcomes in the chat thread (caller side only, to avoid duplicates).
+  const logCall = useCallback(
+    (c: CallState, text: string) => {
+      if (c.status === "idle" || !auth.user || !auth.handle) return;
+      void supabase.from("direct_messages").insert({
+        from_id: auth.user.id,
+        to_id: c.peerId,
+        from_username: auth.handle,
+        to_username: c.peer,
+        message: text,
+      });
+    },
+    [auth.user, auth.handle],
+  );
 
   const sendSignal = useCallback((peerId: string, signal: Signal) => {
     const ch = supabase.channel(`loop-call-${peerId}`);
@@ -147,6 +167,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
         ringTimerRef.current = setTimeout(() => {
           if (callRef.current.status === "outgoing") {
             toast.message(`@${peerUsername} didn't answer`);
+            logCall(callRef.current, "📞 Missed call");
             sendSignal(peerId, { kind: "end", from: auth.handle ?? "" });
             cleanup();
           }
@@ -156,7 +177,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
         cleanup();
       }
     },
-    [auth, createPeerConnection, sendSignal, cleanup],
+    [auth, createPeerConnection, sendSignal, cleanup, logCall],
   );
 
   const acceptCall = useCallback(async () => {
@@ -194,9 +215,11 @@ export function CallProvider({ children }: { children: ReactNode }) {
     const c = callRef.current;
     if ((c.status === "active" || c.status === "outgoing") && auth.handle) {
       sendSignal(c.peerId, { kind: "end", from: auth.handle });
+      if (c.status === "outgoing") logCall(c, "📞 Missed call");
+      else logCall(c, `📞 Call ended · ${formatCallDuration(Date.now() - c.startedAt)}`);
     }
     cleanup();
-  }, [auth.handle, sendSignal, cleanup]);
+  }, [auth.handle, sendSignal, cleanup, logCall]);
 
   const toggleMute = useCallback(() => {
     const stream = localStreamRef.current;
@@ -225,6 +248,12 @@ export function CallProvider({ children }: { children: ReactNode }) {
           const pc = createPeerConnection(payload.fromId, payload.from);
           await pc.setRemoteDescription(payload.sdp).catch(() => {});
           setCall({ status: "incoming", peer: payload.from, peerId: payload.fromId });
+          if (document.hidden) {
+            navigator.vibrate?.([300, 150, 300, 150, 300]);
+            if ("Notification" in window && Notification.permission === "granted") {
+              new Notification(`Incoming call from @${payload.from}`, { tag: "loop-call", requireInteraction: true });
+            }
+          }
           ringTimerRef.current = setTimeout(() => {
             if (callRef.current.status === "incoming") cleanup();
           }, RING_TIMEOUT_MS);
@@ -265,6 +294,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
         case "decline": {
           if (c.status === "outgoing") {
             toast.message(`@${c.peer} declined the call`);
+            logCall(c, "📞 Declined call");
             cleanup();
           }
           break;
@@ -276,7 +306,14 @@ export function CallProvider({ children }: { children: ReactNode }) {
     return () => {
       void supabase.removeChannel(ch);
     };
-  }, [auth.user?.id, auth.handle, createPeerConnection, sendSignal, cleanup]);
+  }, [auth.user?.id, auth.handle, createPeerConnection, sendSignal, cleanup, logCall]);
+
+  // Ask once so incoming calls can alert while the tab is in the background.
+  useEffect(() => {
+    if (auth.user && "Notification" in window && Notification.permission === "default") {
+      void Notification.requestPermission();
+    }
+  }, [auth.user?.id]);
 
   // Hang up if the tab closes mid-call.
   useEffect(() => {

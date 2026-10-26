@@ -101,7 +101,7 @@ function Index() {
   const [online, setOnline] = useState(true);
   const [liked, setLiked] = useState<Set<string>>(new Set());
   const [tab, setTab] = useState<Tab>("foryou");
-  const [feedTab, setFeedTab] = useState<"foryou" | "following" | "live">("foryou");
+  const [feedTab, setFeedTab] = useState<"foryou" | "following" | "explore" | "live">("foryou");
   const [followingList, setFollowingList] = useState<string[]>([]);
 
   useEffect(() => {
@@ -302,11 +302,11 @@ function Index() {
     return list;
   }, [videos, saved, query, activeTab, liked, me, followingList, feedTab]);
 
-  const showTopTabs = !offlineMode && (activeTab === "foryou" || activeTab === "following");
-  const topTab = activeTab === "following" ? "following" : feedTab === "following" ? "foryou" : feedTab;
-  const pickFeedTab = (t: "foryou" | "following" | "live") => {
+  const showTopTabs = !offlineMode && (activeTab === "foryou" || activeTab === "following" || activeTab === "explore");
+  const topTab = activeTab === "following" || activeTab === "explore" ? activeTab : feedTab === "live" ? "live" : "foryou";
+  const pickFeedTab = (t: "foryou" | "following" | "explore" | "live") => {
     setFeedTab(t);
-    setTab(t === "following" ? "following" : "foryou");
+    setTab(t === "following" || t === "explore" ? t : "foryou");
   };
   const tabClass = (t: string) =>
     `flex items-center gap-1 border-b-2 pb-1 text-[15px] ${topTab === t ? "border-white font-bold text-white" : "border-transparent text-white/60"}`;
@@ -537,9 +537,10 @@ function Index() {
 
             <div className="relative flex min-h-0 flex-1 flex-col">
             {showTopTabs && (
-              <div className="absolute inset-x-0 top-0 z-50 flex justify-center gap-6 bg-gradient-to-b from-black/60 to-transparent pb-2 pt-3 md:hidden">
+              <div className="absolute inset-x-0 top-0 z-50 flex justify-center gap-5 bg-gradient-to-b from-black/60 to-transparent pb-2 pt-3 md:hidden">
                 <button onClick={() => pickFeedTab("following")} className={tabClass("following")}>Following</button>
                 <button onClick={() => pickFeedTab("foryou")} className={tabClass("foryou")}>For You</button>
+                <button onClick={() => pickFeedTab("explore")} className={tabClass("explore")}>Explore</button>
                 <button onClick={() => pickFeedTab("live")} className={tabClass("live")}>
                   <span className="h-2 w-2 rounded-full bg-red-500" />
                   LIVE

@@ -17,11 +17,19 @@ export function CallOverlay() {
   const remoteRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
-    if (localRef.current) localRef.current.srcObject = localStream;
-  }, [localStream, call.status]);
+    const el = localRef.current;
+    if (el) {
+      el.srcObject = localStream;
+      void el.play().catch(() => {});
+    }
+  }, [localStream, call.status, video]);
   useEffect(() => {
-    if (remoteRef.current) remoteRef.current.srcObject = remoteStream;
-  }, [remoteStream, call.status]);
+    const el = remoteRef.current;
+    if (el) {
+      el.srcObject = remoteStream;
+      void el.play().catch(() => {});
+    }
+  }, [remoteStream, call.status, video]);
   const [, tick] = useState(0);
 
   // 1s tick for the call timer.

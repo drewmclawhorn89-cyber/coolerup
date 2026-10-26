@@ -91,12 +91,43 @@ function Index() {
       });
   }, [me]);
 
+  // INBOX NOTIFICATIONS - LIKE TIKTOK
+  const [notifications, setNotifications] = useState<NotificationRow[]>([]);
+  const [notifFilter, setNotifFilter] = useState<NotificationFilter>("all");
+
+  useEffect(() => {
+    if (!auth.user?.id) return;
+    
+    // Load my notifications
+    const load = async () => {
+      const { data } = await supabase.from("notifications").select("*").eq("target_user_id", auth.user.id).order("created_at", { ascending: false }).limit(50);
+      if (data) setNotifications(data as NotificationRow[]);
+    };
+    load();
+
+    // Realtime listener like TikTok
+    const ch = supabase.channel("my-notifs")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "notifications", filter: `target_user_id=eq.${auth.user.id}` }, (p) => {
+        const n = p.new as NotificationRow;
+        setNotifications(prev => [n, ...prev]);
+        if (localStorage.getItem("settings:notifications") !== "false" && Notification.permission === "granted") {
+          new Notification(n.type === "like" ? "❤️ New like" : "👤 New follower", { body: n.text || "New activity" });
+        }
+      }).subscribe();
+
+    if (localStorage.getItem("settings:notifications") !== "false" && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
+
+    return () => { supabase.removeChannel(ch); };
+  }, [auth.user?.id]);
+
   const [videos, setVideos] = useState<Video[] | null>(null);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [saved, setSaved] = useState<Video[]>([]);
-  const [online, setOnline] = useState(true);
+  const [online, setOnline] = useState(false);
   const [liked, setLiked] = useState<Set<string>>(new Set());
   const [tab, setTab] = useState<Tab>("foryou");
   const [query, setQuery] = useState("");

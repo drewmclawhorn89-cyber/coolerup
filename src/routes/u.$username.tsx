@@ -66,6 +66,7 @@ function Profile() {
           <div className="flex gap-8 text-sm">
             <span><b>{videos?.length?? "-"}</b> videos</span>
             <span><b>{totalLikes}</b> likes</span>
+             <span><b>{followers}</b> followers</span>
           </div>
         </div>
 

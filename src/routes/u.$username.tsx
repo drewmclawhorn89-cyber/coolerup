@@ -16,12 +16,22 @@ export const Route = createFileRoute("/u/$username")({
 
 function Thumb({ url, caption }: { url: string; caption: string }) {
   const [src, setSrc] = useState("");
+  const boxRef = useRef<HTMLDivElement>(null);
+  const [near, setNear] = useState(false);
   useEffect(() => {
+    const el = boxRef.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(([e]) => { if (e?.isIntersecting) { setNear(true); obs.disconnect(); } }, { rootMargin: "200px" });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+  useEffect(() => {
+    if (!near) return;
     let alive = true;
     resolveVideoUrl(url).then((u) => { if (alive) setSrc(u); });
     return () => { alive = false; };
-  }, [url]);
-  if (!src) return null;
+  }, [url, near]);
+  if (!src) return <div ref={boxRef} className="h-full w-full" />;
   const isImage = isImageUrl(url) || /\.(jpe?g|png|webp|gif|avif)$/i.test(url);
   return isImage
     ? <img src={src} alt={caption} className="h-full w-full object-cover" />
@@ -88,6 +98,18 @@ const [totalFollowers, setTotalFollowers] = useState(0);
   const totalLikes = (videos || []).reduce((a, v) => a + (v.likes_count || 0), 0);
   const shownVideos = tab === "saved" ? saved : videos;
   const displayName = profile?.display_name || username;
+  const PAGE = 12;
+  const [count, setCount] = useState(PAGE);
+  const sentinel = useRef<HTMLDivElement>(null);
+  useEffect(() => { setCount(PAGE); }, [username, tab]);
+  const total = shownVideos?.length ?? 0;
+  useEffect(() => {
+    const el = sentinel.current;
+    if (!el || count >= total) return;
+    const obs = new IntersectionObserver(([e]) => { if (e?.isIntersecting) setCount((c) => c + PAGE); }, { rootMargin: "400px" });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [count, total]);
 
   return (
     <div className="min-h-dvh bg-background">
@@ -156,13 +178,14 @@ const [totalFollowers, setTotalFollowers] = useState(0);
           <p className="py-10 text-center text-sm text-muted-foreground">No saved videos yet.</p>
         )}
         <div className="grid grid-cols-3 gap-1">
-          {shownVideos?.map((v, i) => (
+          {shownVideos?.slice(0, count).map((v, i) => (
             <button key={v.id} onClick={() => setOpen(i)} className="relative aspect-[9/16] overflow-hidden rounded-md bg-zinc-800">
               <Thumb url={v.video_url} caption={parseCaption(v.caption || "").text} />
               <div className="absolute bottom-1 left-1 text- text-white bg-black/50 px-1 rounded">♥ {v.likes_count || 0}</div>
             </button>
           ))}
         </div>
+        {count < total && <div ref={sentinel} className="h-10" />}
       </div>
 
       {open!== null && shownVideos && (

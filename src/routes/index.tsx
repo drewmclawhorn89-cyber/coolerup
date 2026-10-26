@@ -526,8 +526,8 @@ function Index() {
                   key={`${activeTab}-${v.id}`}
                   video={v}
                   liked={liked.has(v.id)}
-                
-                  
+                  muted={muted}
+                  onToggleMute={() => setMuted((m) => !m)}
                   onLikeChange={(on) => {
                     setLiked((s) => {
                       const n = new Set(s);

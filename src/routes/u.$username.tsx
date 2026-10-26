@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, Pencil, X } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { EditProfileDialog, resolveAvatarUrl } from "@/components/EditProfileDialog";
+import { listSaved, onOfflineChange } from "@/lib/offline";
 import { fetchMyLikes, isImageUrl, parseCaption, resolveVideoUrl } from "@/lib/loop";
 import { VideoCard } from "@/components/VideoCard";
 import type { Profile as ProfileRow } from "@/hooks/useAuth";
@@ -37,6 +38,8 @@ function Profile() {
   const [editing, setEditing] = useState(false);
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
   const [muted, setMuted] = useState(false);
+  const [tab, setTab] = useState<"videos" | "saved">("videos");
+  const [saved, setSaved] = useState<any[]>([]);
   const viewer = useRef<HTMLDivElement>(null);
 const [totalFollowers, setTotalFollowers] = useState(0);
   
@@ -94,6 +97,11 @@ const [totalFollowers, setTotalFollowers] = useState(0);
     });
   }, [username, auth.profile?.avatar_url, auth.profile?.display_name, auth.profile?.bio]);
 
+  useEffect(() => {
+    const load = () => { listSaved().then((l: any[]) => setSaved(l || [])).catch(() => {}); };
+    load();
+    return onOfflineChange(load) as any;
+  }, []);
   useEffect(() => { fetchMyLikes().then(setLikedIds).catch(() => {}); }, [open !== null]);
   useEffect(() => {
     if (open === null) return;
@@ -102,6 +110,7 @@ const [totalFollowers, setTotalFollowers] = useState(0);
   }, [open]);
 
   const totalLikes = (videos || []).reduce((a, v) => a + (v.likes_count || 0), 0);
+  const shownVideos = tab === "saved" && isOwn ? saved : videos;
   const displayName = profile?.display_name || username;
 
   return (
@@ -137,8 +146,25 @@ const [totalFollowers, setTotalFollowers] = useState(0);
           </div>
         </div>
 
+        {isOwn && (
+          <div className="mb-3 flex border-b">
+            {(["videos", "saved"] as const).map((t) => (
+              <button
+                key={t}
+                onClick={() => setTab(t)}
+                className={`flex-1 py-2 text-sm font-bold capitalize ${tab === t ? "border-b-2 border-primary text-primary" : "text-muted-foreground"}`}
+              >
+                {t === "saved" ? `Saved (${saved.length})` : "Videos"}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {tab === "saved" && isOwn && saved.length === 0 && (
+          <p className="py-10 text-center text-sm text-muted-foreground">No saved videos yet.</p>
+        )}
         <div className="grid grid-cols-3 gap-1">
-          {videos?.map((v, i) => (
+          {shownVideos?.map((v, i) => (
             <button key={v.id} onClick={() => setOpen(i)} className="relative aspect-[9/16] overflow-hidden rounded-md bg-zinc-800">
               <Thumb url={v.video_url} caption={parseCaption(v.caption || "").text} />
               <div className="absolute bottom-1 left-1 text- text-white bg-black/50 px-1 rounded">♥ {v.likes_count || 0}</div>
@@ -147,13 +173,13 @@ const [totalFollowers, setTotalFollowers] = useState(0);
         </div>
       </div>
 
-      {open!== null && videos && (
+      {open!== null && shownVideos && (
         <div className="fixed inset-0 z-40 bg-black">
           <Button variant="ghost" size="icon" onClick={() => setOpen(null)} className="absolute left-3 top-3 z-50 text-white">
             <X />
           </Button>
           <div ref={viewer} className="h-dvh snap-y snap-mandatory overflow-y-scroll">
-            {videos.map((v) => (
+            {shownVideos.map((v) => (
               <div key={v.id} className="h-dvh snap-start snap-always">
                 <VideoCard
                   video={v}

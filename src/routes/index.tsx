@@ -90,27 +90,7 @@ function Index() {
         }
       });
   }, [me]);
-  // ===== NOTIFICATIONS - COPY ONLY THIS =====
-  const [notifications, setNotifications] = useState<NotificationRow[]>([]);
 
-  useEffect(() => {
-    if (!auth.user?.id) return;
-    const load = async () => {
-      const { data } = await supabase.from("notifications").select("*").eq("target_user_id", auth.user.id).order("created_at", { ascending: false }).limit(100);
-      if (data) setNotifications(data as NotificationRow[]);
-    };
-    load();
-    const ch = supabase.channel("my-notifs").on("postgres_changes", { event: "INSERT", schema: "public", table: "notifications", filter: `target_user_id=eq.${auth.user.id}` }, (p) => {
-      const n = p.new as NotificationRow;
-      setNotifications(prev => [n, ...prev]);
-      if (localStorage.getItem("settings:notifications") !== "false" && Notification.permission === "granted") {
-        new Notification(n.type === "like" ? "❤️ New like" : "👤 New follower", { body: n.text || "" });
-      }
-    }).subscribe();
-    if (Notification.permission === "default") Notification.requestPermission();
-    return () => { supabase.removeChannel(ch); };
-  }, [auth.user?.id]);
-  // ===== END NOTIFICATIONS =====
   const [videos, setVideos] = useState<Video[] | null>(null);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
@@ -126,9 +106,8 @@ function Index() {
   const [error, setError] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [quality, setQuality] = useState<"1080p" | "720p" | "480p">("720p");
- const [notifications, setNotifications] = useState<NotificationRow[]>([]);
+  const [notifications, setNotifications] = useState<NotificationRow[]>([]);
   const [notificationFilter, setNotificationFilter] = useState<NotificationFilter>("all");
-
 
   useEffect(() => {
     const conn = (navigator as any).connection;

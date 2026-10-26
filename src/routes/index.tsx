@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { VideoCard } from "@/components/VideoCard";
 import { UploadDialog } from "@/components/UploadDialog";
 import { RecordDialog } from "@/components/RecordDialog";
+import { LiveStreamDialog } from "@/components/LiveStreamDialog";
 import { fetchMyLikes, fetchVideos, type Video } from "@/lib/loop";
 import { listSaved, onOfflineChange } from "@/lib/offline";
 import { useAuth } from "@/hooks/useAuth";
@@ -103,6 +104,7 @@ function Index() {
   const [muted, setMuted] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [recordingOpen, setRecordingOpen] = useState(false);
+  const [createMenuOpen, setCreateMenuOpen] = useState(false);
   const [error, setError] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [quality, setQuality] = useState<"1080p" | "720p" | "480p">("720p");
@@ -305,10 +307,10 @@ function Index() {
         </nav>
 
         <button
-          onClick={() => (auth.user ? setUploading(true) : auth.signIn())}
+          onClick={() => (auth.user ? setCreateMenuOpen(true) : auth.signIn())}
           className="flex items-center justify-center gap-2 rounded-full bg-primary py-3.5 font-bold text-primary-foreground shadow-[0_10px_30px_-10px_var(--primary)] transition hover:brightness-95"
         >
-          <Plus className="h-5 w-5" /> Upload video
+          <Plus className="h-5 w-5" /> Create
         </button>
 
         {auth.ready && auth.user ? (
@@ -505,8 +507,8 @@ function Index() {
             </Button>
           ))}
           <Button
-            aria-label="Record video"
-            onClick={() => (auth.user ? setRecordingOpen(true) : auth.signIn())}
+            aria-label="Create video or go live"
+            onClick={() => (auth.user ? setCreateMenuOpen(true) : auth.signIn())}
             className="m-auto h-9 w-10 rounded-lg px-0 [&_svg]:size-6"
           >
             <Plus />
@@ -567,6 +569,15 @@ function Index() {
           </button>
         </div>
       </aside>
+
+      <LiveStreamDialog
+        open={createMenuOpen}
+        onOpenChange={setCreateMenuOpen}
+        userId={auth.user?.id}
+        username={auth.handle}
+        onRecord={() => setRecordingOpen(true)}
+        onUpload={() => setUploading(true)}
+      />
 
       {uploading && auth.handle && (
         <UploadDialog

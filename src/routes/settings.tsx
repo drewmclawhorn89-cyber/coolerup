@@ -359,7 +359,7 @@ const changeTheme = (t: string) => {
         </div> 
               <div className="rounded-lg border bg-card p-6">
           <h2 className="font-semibold">Phone Number</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Add your phone number to your account. Safe - does not delete account.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Add your phone number to your account. .</p>
           <div className="mt-3 flex gap-2">
             <input 
               value={phone} 

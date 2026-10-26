@@ -3,6 +3,9 @@ import { Camera, RefreshCw, RotateCcw, Send, X } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { FilterBar } from "@/components/FilterBar";
+import { AnimalOverlay } from "@/components/AnimalOverlay";
+import { getAnimal, drawAnimal, mirrorFace } from "@/lib/animals";
+import { useFaceTracker } from "@/lib/face";
 import { CAMERA_FILTERS, canBakeFilters } from "@/lib/filters";
 import { uploadVideo } from "@/lib/loop";
 
@@ -26,7 +29,10 @@ export function PhotoDialog({
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
   const [filterId, setFilterId] = useState("none");
+  const [animalId, setAnimalId] = useState("");
+  const animal = getAnimal(animalId);
   const [photo, setPhoto] = useState<Blob | null>(null);
+  const faceRef = useFaceTracker(videoRef, !!animal && open && !photo);
   const [previewUrl, setPreviewUrl] = useState("");
   const [caption, setCaption] = useState("");
   const [posting, setPosting] = useState(false);
@@ -90,6 +96,7 @@ export function PhotoDialog({
       ctx.scale(-1, 1);
     }
     ctx.drawImage(v, 0, 0);
+    if (faceRef.current) drawAnimal(ctx, animal, facingMode === "user" ? mirrorFace(faceRef.current, canvas.width) : faceRef.current);
     canvas.toBlob((b) => b && setPhoto(b), "image/jpeg", 0.92);
   }
 
@@ -98,6 +105,7 @@ export function PhotoDialog({
     setCaption("");
     setPosting(false);
     setFilterId("none");
+    setAnimalId("");
   }
 
   function handleOpenChange(next: boolean) {
@@ -147,6 +155,8 @@ export function PhotoDialog({
             previewUrl && <img src={previewUrl} alt="Your photo" className="h-full w-full object-cover" />
           )}
 
+          {!photo && <AnimalOverlay animal={animal} videoRef={videoRef} faceRef={faceRef} mirror={facingMode === "user"} />}
+
           {!photo && !ready && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 px-8 text-center">
               <Camera className="h-8 w-8" />
@@ -182,7 +192,7 @@ export function PhotoDialog({
             {!photo ? (
               <>
                 {!bake && <p className="pb-2 text-center text-xs text-white/70">Filters can't be saved on this browser, so photos will post unfiltered.</p>}
-                <FilterBar value={filterId} onChange={setFilterId} />
+                <FilterBar value={filterId} onChange={setFilterId} animal={animalId} onAnimalChange={setAnimalId} />
                 <div className="flex justify-center">
                   <button type="button" onClick={snap} disabled={!ready} aria-label="Take photo" className="flex h-20 w-20 items-center justify-center rounded-full border-4 border-white transition disabled:opacity-40">
                     <span className="h-16 w-16 rounded-full bg-white" />

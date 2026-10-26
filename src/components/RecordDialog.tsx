@@ -4,6 +4,9 @@ import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { uploadRecording } from "@/lib/loop";
 import { FilterBar } from "@/components/FilterBar";
+import { AnimalOverlay } from "@/components/AnimalOverlay";
+import { getAnimal, drawAnimal } from "@/lib/animals";
+import { useFaceTracker } from "@/lib/face";
 import { CAMERA_FILTERS, canBakeFilters } from "@/lib/filters";
 
 const MAX_SECONDS = 60;
@@ -46,6 +49,8 @@ export function RecordDialog({
   const startedAtRef = useRef(0);
   const drawRef = useRef(0);
   const [filterId, setFilterId] = useState("none");
+  const [animalId, setAnimalId] = useState("");
+  const animal = getAnimal(animalId);
   const filter = CAMERA_FILTERS.find((f) => f.id === filterId) ?? CAMERA_FILTERS[0]!;
 
   const [facingMode, setFacingMode] = useState<FacingMode>("user");
@@ -54,6 +59,7 @@ export function RecordDialog({
   const [recording, setRecording] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
+  const faceRef = useFaceTracker(videoRef, !!animal && open && !recordedBlob);
   const [previewUrl, setPreviewUrl] = useState("");
   const [caption, setCaption] = useState("");
   const [posting, setPosting] = useState(false);
@@ -130,7 +136,7 @@ export function RecordDialog({
     let recordStream: MediaStream = stream;
     const videoEl = videoRef.current;
     const canvas = document.createElement("canvas");
-    if (filterId !== "none" && videoEl && videoEl.videoWidth && canBakeFilters() && typeof canvas.captureStream === "function") {
+    if ((filterId !== "none" || animal) && videoEl && videoEl.videoWidth && canBakeFilters() && typeof canvas.captureStream === "function") {
       canvas.width = videoEl.videoWidth;
       canvas.height = videoEl.videoHeight;
       const ctx = canvas.getContext("2d");
@@ -138,6 +144,7 @@ export function RecordDialog({
         ctx.filter = filter.css;
         const draw = () => {
           ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
+          drawAnimal(ctx, animal, faceRef.current);
           drawRef.current = requestAnimationFrame(draw);
         };
         draw();
@@ -187,6 +194,7 @@ export function RecordDialog({
     setCaption("");
     setPosting(false);
     setFilterId("none");
+    setAnimalId("");
   }
 
   function handleOpenChange(next: boolean) {
@@ -233,6 +241,7 @@ export function RecordDialog({
         </DialogDescription>
 
         <div className="relative h-full w-full bg-black">
+          {showCamera && <AnimalOverlay animal={animal} videoRef={videoRef} faceRef={faceRef} mirror={facingMode === "user"} />}
           {showCamera ? (
             <video
               ref={videoRef}
@@ -311,8 +320,8 @@ export function RecordDialog({
           <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-12">
             {showCamera ? (
               <>
-              {!canBakeFilters() && filterId !== "none" && <p className="pb-2 text-center text-xs text-white/70">Filters can't be saved on this browser, so the video will post unfiltered.</p>}
-              <FilterBar value={filterId} onChange={setFilterId} disabled={recording} />
+              {!canBakeFilters() && (filterId !== "none" || !!animal) && <p className="pb-2 text-center text-xs text-white/70">Filters can't be saved on this browser, so the video will post unfiltered.</p>}
+              <FilterBar value={filterId} onChange={setFilterId} disabled={recording} animal={animalId} onAnimalChange={setAnimalId} />
               <div className="grid grid-cols-3 items-center">
                 <div className="flex justify-start">
                   {onUploadInstead && !recording && (

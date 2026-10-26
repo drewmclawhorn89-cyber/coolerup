@@ -307,7 +307,7 @@ function Index() {
   }, [videos, saved, query, activeTab, liked, me, followingList, feedTab]);
 
   const showTopTabs = !offlineMode && (activeTab === "foryou" || activeTab === "following" || activeTab === "explore");
-  const topTab = activeTab === "following" || activeTab === "explore" ? activeTab : feedTab === "live" ? "live" : "foryou";
+  const topTab = activeTab === "shop" ? "shop" : activeTab === "following" || activeTab === "explore" ? activeTab : feedTab === "live" ? "live" : "foryou";
   const pickFeedTab = (t: "foryou" | "following" | "explore" | "live") => {
     setFeedTab(t);
     setTab(t === "following" || t === "explore" ? t : "foryou");
@@ -479,8 +479,17 @@ function Index() {
         )}
 
         {activeTab === "shop" ? (
-          <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="flex min-h-0 flex-1 flex-col">
+            <div className="flex shrink-0 justify-center gap-4 bg-black pb-2 pt-3 md:hidden">
+              <button onClick={() => pickFeedTab("following")} className={tabClass("following")}>Following</button>
+              <button onClick={() => pickFeedTab("foryou")} className={tabClass("foryou")}>For You</button>
+              <button onClick={() => pickFeedTab("explore")} className={tabClass("explore")}>Explore</button>
+              <button onClick={() => pickFeedTab("live")} className={tabClass("live")}>LIVE</button>
+              <button onClick={() => setTab("shop")} className={tabClass("shop")}>Shop</button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto">
             <ShopPanel handle={me} posts={me ? (videos ?? []).filter((v) => v.username === me).length : 0} />
+            </div>
           </div>
         ) : activeTab === "inbox" ? (
           <div className="p-6">
@@ -545,7 +554,7 @@ function Index() {
 
             <div className="relative flex min-h-0 flex-1 flex-col">
             {showTopTabs && (
-              <div className="absolute inset-x-0 top-0 z-50 flex justify-center gap-5 bg-gradient-to-b from-black/60 to-transparent pb-2 pt-3 md:hidden">
+              <div className="absolute inset-x-0 top-0 z-50 flex justify-center gap-4 bg-gradient-to-b from-black/60 to-transparent pb-2 pt-3 md:hidden">
                 <button onClick={() => pickFeedTab("following")} className={tabClass("following")}>Following</button>
                 <button onClick={() => pickFeedTab("foryou")} className={tabClass("foryou")}>For You</button>
                 <button onClick={() => pickFeedTab("explore")} className={tabClass("explore")}>Explore</button>
@@ -553,6 +562,7 @@ function Index() {
                   <span className="h-2 w-2 rounded-full bg-red-500" />
                   LIVE
                 </button>
+                <button onClick={() => setTab("shop")} className={tabClass("shop")}>Shop</button>
               </div>
             )}
             <div className="no-scrollbar min-h-0 flex-1 snap-y snap-mandatory overflow-y-scroll overscroll-contain scroll-smooth">

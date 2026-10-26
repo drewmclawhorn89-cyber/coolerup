@@ -107,6 +107,30 @@ function Index() {
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
   const [error, setError] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [userResults, setUserResults] = useState<
+    { id: string; handle: string | null; display_name: string | null; avatar_url: string | null }[]
+  >([]);
+
+  useEffect(() => {
+    const q = query.trim().replace(/^@/, "").replace(/[%,()]/g, "");
+    if (!q) {
+      setUserResults([]);
+      return;
+    }
+    let active = true;
+    const t = setTimeout(async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, handle, display_name, avatar_url")
+        .or(`handle.ilike.%${q}%,display_name.ilike.%${q}%`)
+        .limit(8);
+      if (active) setUserResults(((data ?? []) as any[]).filter((u) => u.handle));
+    }, 250);
+    return () => {
+      active = false;
+      clearTimeout(t);
+    };
+  }, [query]);
   const [quality, setQuality] = useState<"1080p" | "720p" | "480p">("720p");
   const [notifications, setNotifications] = useState<NotificationRow[]>([]);
   const [notificationFilter, setNotificationFilter] = useState<NotificationFilter>("all");
@@ -393,6 +417,34 @@ function Index() {
         {offlineMode && (
           <div className="flex shrink-0 items-center gap-2 bg-primary/10 px-4 py-2 text-sm font-bold text-primary md:px-10">
             <WifiOff className="h-4 w-4" /> You're offline — watching saved videos
+          </div>
+        )}
+
+        {query.trim() && userResults.length > 0 && (
+          <div className="shrink-0 border-b bg-sidebar px-4 py-3 md:px-10">
+            <p className="mb-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">Users</p>
+            <div className="flex flex-col gap-1">
+              {userResults.map((u) => (
+                <Link
+                  key={u.id}
+                  to="/u/$username"
+                  params={{ username: u.handle! }}
+                  className="flex items-center gap-3 rounded-xl px-2 py-2 transition hover:bg-secondary"
+                >
+                  <span className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-secondary font-bold uppercase">
+                    {u.avatar_url ? (
+                      <img src={u.avatar_url} alt={u.display_name || u.handle!} className="h-full w-full object-cover" />
+                    ) : (
+                      u.handle![0]
+                    )}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block truncate font-bold">{u.display_name || u.handle}</span>
+                    <span className="block truncate text-sm text-muted-foreground">@{u.handle}</span>
+                  </span>
+                </Link>
+              ))}
+            </div>
           </div>
         )}
 

@@ -3,7 +3,6 @@ import { Check, Download, Link2, Share2, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import type { Video } from "@/lib/loop";
-import { setVideoSaved } from "@/lib/loop";
 import { formatBytes, getSaved, removeOffline, saveOffline } from "@/lib/offline";
 
 export function ShareMenu({ video, onClose, onShared }: { video: Video; onClose: () => void; onShared: () => void }) {
@@ -20,7 +19,6 @@ export function ShareMenu({ video, onClose, onShared }: { video: Video; onClose:
     try {
       const size = await saveOffline(video, setProgress);
       setSavedSize(size);
-      void setVideoSaved(video.id, true);
       toast.success("Saved for offline viewing");
     } catch {
       toast.error("Couldn't save this video. Check your connection.");
@@ -31,7 +29,6 @@ export function ShareMenu({ video, onClose, onShared }: { video: Video; onClose:
 
   const remove = async () => {
     await removeOffline(video.id);
-    void setVideoSaved(video.id, false);
     setSavedSize(null);
     toast.success("Removed from offline");
   };

@@ -34,10 +34,28 @@ export function VideoCard({
   const [shares, setShares] = useState(video.shares_count);
   const [showComments, setShowComments] = useState(false);
   const [showShare, setShowShare] = useState(false);
+  const [isSaved, setIsSaved] = useState(false);
   const [burst, setBurst] = useState(false);
   const [isFollowing, setIsFollowing] = useState(false);
   const auth = useAuth();
   const myUsername = auth.handle;
+
+  useEffect(() => {
+    if (!auth.user) { setIsSaved(false); return; }
+    supabase.from("saved_videos").select("video_id").eq("user_id", auth.user.id).eq("video_id", video.id).maybeSingle()
+      .then(({ data }) => setIsSaved(!!data));
+  }, [auth.user?.id, video.id]);
+
+  const toggleSave = async () => {
+    if (!auth.user) { toast.error("Sign in to save videos"); return; }
+    const next = !isSaved;
+    setIsSaved(next);
+    const { error } = next
+      ? await supabase.from("saved_videos").upsert({ user_id: auth.user.id, video_id: video.id })
+      : await supabase.from("saved_videos").delete().eq("user_id", auth.user.id).eq("video_id", video.id);
+    if (error) { setIsSaved(!next); toast.error("Couldn't save. Try again."); return; }
+    toast.success(next ? "Saved to your profile" : "Removed from saved");
+  };
   const isImage = isImageUrl(video.video_url) || /\.(jpe?g|png|webp|gif|avif)$/i.test(video.video_url);
   const { text: captionText, song } = parseCaption(video.caption);
   const songRef = useRef<HTMLAudioElement>(null);
@@ -254,8 +272,8 @@ export function VideoCard({
           <Action label={formatCount(shares)} onClick={() => setShowShare(true)}>
             <Share2 className="h-8 w-8" />
           </Action>
-            <button onClick={() => toast.success("Saved!")} className="flex flex-col items-center">
-  <Bookmark className="h-8 w-8 text-white" />
+            <button onClick={toggleSave} className="flex flex-col items-center">
+  <Bookmark className={`h-8 w-8 text-white ${isSaved ? "fill-yellow-400 text-yellow-400" : ""}`} />
   <span className="text-white text-[11px] mt-1">Save</span>
 </button> 
         </div>

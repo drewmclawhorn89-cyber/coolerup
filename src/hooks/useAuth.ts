@@ -9,6 +9,7 @@ export type Profile = {
   display_name: string | null;
   bio: string | null;
   avatar_url: string | null;
+  links: Record<string, string> | null;
 };
 
 const PROFILE_EVENT = "loop-profile-changed";
@@ -61,13 +62,13 @@ export function useAuth() {
     }
     let alive = true;
     (async () => {
-      const { data } = await supabase.from("profiles").select("id, handle, display_name, bio, avatar_url").eq("id", user.id).maybeSingle();
+      const { data } = await supabase.from("profiles").select("id, handle, display_name, bio, avatar_url, links").eq("id", user.id).maybeSingle();
       let row = data as Profile | null;
       if (!row && derivedHandle) {
         const res = await supabase
           .from("profiles")
           .insert({ id: user.id, handle: derivedHandle })
-          .select("id, handle, display_name, bio, avatar_url")
+          .select("id, handle, display_name, bio, avatar_url, links")
           .single();
         if (res.error?.code === "23505") toast.error(`@${derivedHandle} is taken — pick a username in Settings`);
         row = (res.data as Profile | null) ?? null;

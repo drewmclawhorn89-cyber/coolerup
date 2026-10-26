@@ -1,3 +1,4 @@
+import { findItem, useEquipped } from "@/lib/shop";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -43,7 +44,8 @@ function Profile() {
 const [totalFollowers, setTotalFollowers] = useState(0);
   const [totalFollowing, setTotalFollowing] = useState(0);
   
-   const isOwn = !!auth.handle && auth.handle === username;
+   const equipped = useEquipped(username);
+  const isOwn = !!auth.handle && auth.handle === username;
 
     useEffect(() => {
     if (!username) return;
@@ -95,11 +97,11 @@ const [totalFollowers, setTotalFollowers] = useState(0);
         </Link>
 
         <div className="flex flex-col items-center gap-3 py-8 text-center">
-          <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-full bg-primary text-4xl uppercase text-primary-foreground">
+          <div className={`flex h-24 w-24 items-center justify-center overflow-hidden rounded-full bg-primary ${findItem(equipped.top)?.className ?? ""} text-4xl uppercase text-primary-foreground`}>
             {avatar ? <img src={avatar} alt={displayName} className="h-full w-full object-cover" /> : username?.[0]}
           </div>
           <div>
-            <h1 className="text-2xl">{displayName}</h1>
+            <h1 className={`text-2xl ${findItem(equipped.name)?.className ?? ""}`}>{findItem(equipped.top)?.emoji} {displayName}</h1>
             <p className="text-sm text-muted-foreground">@{username}</p>
           </div>
           {profile?.bio && <p className="max-w-md text-sm text-muted-foreground">{profile.bio}</p>}

@@ -9,6 +9,7 @@ import {
   MessageCircle,
   Plus,
   Search,
+  ShoppingBag,
   User,
   Users,
   WifiOff,
@@ -18,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { VideoCard } from "@/components/VideoCard";
 import { UploadDialog } from "@/components/UploadDialog";
 import { RecordDialog } from "@/components/RecordDialog";
+import { ShopPanel } from "@/components/ShopPanel";
 import { PhotoDialog } from "@/components/PhotoDialog";
 import { LiveStreamDialog } from "@/components/LiveStreamDialog";
 import { fetchMyLikes, fetchVideos, parseCaption, type Video } from "@/lib/loop";
@@ -39,7 +41,7 @@ export const Route = createFileRoute("/")({
   component: Index,
 });
 
-type Tab = "foryou" | "explore" | "following" | "liked" | "saved" | "mine" | "inbox";
+type Tab = "foryou" | "explore" | "following" | "liked" | "saved" | "mine" | "inbox" | "shop";
 type NotificationFilter = "all" | "unread";
 
 type NotificationRow = {
@@ -58,6 +60,7 @@ const NAV: { id: Tab; label: string; icon: typeof Home }[] = [
   { id: "explore", label: "Explore", icon: Users },
   { id: "following", label: "Following", icon: Users },
   { id: "inbox", label: "Inbox", icon: Bell },
+  { id: "shop", label: "Shop", icon: ShoppingBag },
   { id: "mine", label: "You", icon: Users },
 ];
 
@@ -69,6 +72,7 @@ const HEADERS: Record<Tab, [string, string]> = {
   saved: ["Offline", "Watch anytime, even without a connection"],
   mine: ["Profile", "Your loop"],
   inbox: ["Inbox", "All your notifications"],
+  shop: ["Shop", "Unlock tops and names"],
 };
 
 function Index() {
@@ -474,7 +478,11 @@ function Index() {
           </div>
         )}
 
-        {activeTab === "inbox" ? (
+        {activeTab === "shop" ? (
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <ShopPanel handle={me} posts={me ? (videos ?? []).filter((v) => v.username === me).length : 0} />
+          </div>
+        ) : activeTab === "inbox" ? (
           <div className="p-6">
             <div className="flex items-center justify-between gap-3">
               <div>

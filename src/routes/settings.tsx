@@ -61,7 +61,10 @@ const [offlineMode, setOfflineMode] = useState(false);
       return true;
     }
   });
-
+const [messagePrivacy, setMessagePrivacy] = useState(localStorage.getItem("messagePrivacy") || "everyone");
+const [messageFilter, setMessageFilter] = useState(localStorage.getItem("messageFilter") || "all");
+const [allowDM, setAllowDM] = useState(localStorage.getItem("allowDM") !== "false");
+const [readReceipts, setReadReceipts] = useState(localStorage.getItem("readReceipts") !== "false");
   // Theme
   const [theme, setTheme] = useState<string>(() => {
     try {
@@ -357,6 +360,44 @@ const changeTheme = (t: string) => {
             )}
           </div>
         </div> 
+      {/* DIFFERENT MESSAGE SETTINGS LIKE TIKTOK */}
+<div className="bg-white rounded-xl p-4 mb-4 shadow-sm">
+  <h2 className="font-bold text- mb-1">💬 Message Privacy</h2>
+  <p className="text-gray-500 text- mb-4">Different settings like TikTok</p>
+
+  <p className="font-bold text- mb-2">Who can DM you</p>
+  <div className="flex flex-col gap-2 mb-5">
+    {[
+      { id: "everyone", label: "Everyone" },
+      { id: "friends", label: "Friends" },
+      { id: "mutuals", label: "Friends of friends" },
+      { id: "noone", label: "No one" },
+    ].map(o=>(
+      <button key={o.id} onClick={()=>{setMessagePrivacy(o.id); localStorage.setItem("messagePrivacy", o.id);}} className={`flex justify-between p-3 rounded-xl border text-left ${messagePrivacy===o.id?"bg-black text-white border-black":"bg-gray-50"}`}>
+        <span className="font-medium text-">{o.label}</span>
+        <div className={`h-5 w-5 rounded-full border-2 flex items-center justify-center ${messagePrivacy===o.id?"border-white":"border-gray-300"}`}>{messagePrivacy===o.id && <div className="h-2 w-2 bg-white rounded-full" />}</div>
+      </button>
+    ))}
+  </div>
+
+  <p className="font-bold text- mb-2">Message requests</p>
+  <div className="flex gap-2 mb-5">
+    {["all","filtered","off"].map(id=>(
+      <button key={id} onClick={()=>{setMessageFilter(id); localStorage.setItem("messageFilter", id);}} className={`flex-1 py-2 rounded-full font-bold text- ${messageFilter===id?"bg-black text-white":"bg-gray-100"}`}>{id}</button>
+    ))}
+  </div>
+
+  <div className="border-t">
+    <div className="flex justify-between items-center py-3">
+      <div><div className="font-medium text-">Allow DMs</div><div className="text- text-gray-500">Let others message you</div></div>
+      <button onClick={()=>{const v=!allowDM; setAllowDM(v); localStorage.setItem("allowDM", String(v));}} className={`h-7 w-12 rounded-full p-1 ${allowDM?"bg-black":"bg-gray-300"}`}><div className={`h-5 w-5 bg-white rounded-full transition ${allowDM?"translate-x-5":""}`} /></button>
+    </div>
+    <div className="flex justify-between items-center py-3 border-t">
+      <div><div className="font-medium text-">Read receipts</div><div className="text- text-gray-500">Show when read</div></div>
+      <button onClick={()=>{const v=!readReceipts; setReadReceipts(v); localStorage.setItem("readReceipts", String(v));}} className={`h-7 w-12 rounded-full p-1 ${readReceipts?"bg-black":"bg-gray-300"}`}><div className={`h-5 w-5 bg-white rounded-full transition ${readReceipts?"translate-x-5":""}`} /></button>
+    </div>
+  </div>
+</div>
               <div className="rounded-lg border bg-card p-6">
           <h2 className="font-semibold">Phone Number</h2>
           <p className="mt-1 text-sm text-muted-foreground">Add your phone number to your account </p>

@@ -93,14 +93,18 @@ export type Database = {
         Row: {
           body: string
           created_at: string
+          gif_url: string | null
           id: string
+          parent_id: string | null
           username: string
           video_id: string
         }
         Insert: {
           body: string
           created_at?: string
+          gif_url?: string | null
           id?: string
+          parent_id?: string | null
           username: string
           video_id: string
         }

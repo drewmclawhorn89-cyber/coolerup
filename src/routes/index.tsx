@@ -102,6 +102,18 @@ function Index() {
   }, [me]);
 
   const [videos, setVideos] = useState<Video[] | null>(null);
+  const [myPostCount, setMyPostCount] = useState(0);
+  useEffect(() => {
+    if (!me) {
+      setMyPostCount(0);
+      return;
+    }
+    supabase
+      .from("videos")
+      .select("id", { count: "exact", head: true })
+      .eq("username", me)
+      .then(({ count }) => setMyPostCount(count ?? 0));
+  }, [me, videos]);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -516,7 +528,7 @@ function Index() {
             {activeTab === "subscriptions" ? (
               <SubscriptionsPanel handle={me} />
             ) : (
-              <ShopPanel handle={me} posts={me ? (videos ?? []).filter((v) => v.username === me).length : 0} />
+              <ShopPanel handle={me} posts={myPostCount} />
             )}
             </div>
           </div>

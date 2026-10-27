@@ -377,6 +377,9 @@ const [totalFollowers, setTotalFollowers] = useState(0);
           isOwn={isOwn}
           onClose={() => setStoryOpen(false)}
           onDeleted={(id) => setStories((p) => p.filter((s) => s.id !== id))}
+          onLikeChange={(id, _liked, count) =>
+            setStories((p) => p.map((s) => (s.id === id ? { ...s, likes_count: count } : s)))
+          }
         />
       )}
 

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { Link } from "@tanstack/react-router";
 import { Heart, MessageCircle, Share2, Play, Volume2, VolumeX } from "lucide-react";
 import { toast } from "sonner";
@@ -48,7 +48,7 @@ export function VideoCard({
       .then(({ data }) => setIsSaved(!!data));
   }, [auth.user?.id, video.id]);
 
-  const toggleSave = async (e?: React.MouseEvent) => {
+  const toggleSave = async (e?: MouseEvent) => {
     e?.stopPropagation();
     if (!auth.user) { toast.error("Sign in to save videos"); return; }
     const next = !isSaved;

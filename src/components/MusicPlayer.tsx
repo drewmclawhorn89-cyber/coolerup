@@ -104,6 +104,11 @@ export function MusicPlayer({ player, open }: { player: ReturnType<typeof useMus
         <Search className="h-4 w-4 text-zinc-500" />
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search songs or artists" className="h-9 w-full bg-transparent text-sm outline-none placeholder:text-zinc-500" />
       </form>
+      <div className="mb-3 flex gap-2">
+        {[["MGK", "mgk machine gun kelly"], ["Trending", ""]].map(([label, query]) => (
+          <button key={label} type="button" onClick={() => { setQ(query); void player.search(query); }} className="rounded-full bg-white/5 px-3 py-1 text-xs font-semibold hover:bg-white/10">{label}</button>
+        ))}
+      </div>
       {started && current && (
         <div className="mb-3">
           <p className="truncate text-sm font-semibold">{current.title} <span className="font-normal text-zinc-400">· {current.artist}</span></p>

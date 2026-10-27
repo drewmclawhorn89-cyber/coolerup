@@ -185,7 +185,8 @@ export function VideoCard({
   if (error) {
     onLikeChange(!next);
     setLikes((n) => n + (next ? -1 : 1));
-    toast.error("Couldn't save your like");
+    console.error("like failed", error);
+    toast.error(`Couldn't save your like: ${error.message}`);
   } else if (next) {
     // save notification to account
     const { data: owner } = await supabase.from("profiles").select("id").eq("handle", video.username).maybeSingle();

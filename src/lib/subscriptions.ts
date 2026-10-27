@@ -15,6 +15,13 @@ export const PLANS: Plan[] = [
   { id: "vip", label: "VIP", emoji: "👑", price: 19.99, perks: ["Everything in Pro", "VIP badge", "Early access to new features"] },
 ];
 
+export const VENMO_HANDLE = "Samantha-Barnes-168";
+
+export function venmoUrl(plan: Plan, handle?: string | null) {
+  const note = encodeURIComponent(`Coolerup ${plan.label} subscription${handle ? ` (@${handle})` : ""}`);
+  return `https://venmo.com/${VENMO_HANDLE}?txn=pay&amount=${plan.price.toFixed(2)}&note=${note}`;
+}
+
 const key = (handle: string) => `subscription:${handle}`;
 const EVT = "subscription-change";
 
@@ -23,9 +30,10 @@ export function getSubscription(handle?: string | null): string | null {
   return localStorage.getItem(key(handle));
 }
 
-// NOTE: no payment provider is connected yet; this only records the chosen plan locally.
+// Payments go through Venmo, which does not report back to the app, so a plan
+// is stored as "pending" ("pending:<planId>") until the owner confirms payment.
 export function subscribe(handle: string, planId: string) {
-  localStorage.setItem(key(handle), planId);
+  localStorage.setItem(key(handle), `pending:${planId}`);
   window.dispatchEvent(new Event(EVT));
 }
 

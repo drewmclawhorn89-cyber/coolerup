@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { Link } from "@tanstack/react-router";
 import { Heart, MessageCircle, Share2, Play, Volume2, VolumeX } from "lucide-react";
 import { toast } from "sonner";
@@ -48,14 +48,21 @@ export function VideoCard({
       .then(({ data }) => setIsSaved(!!data));
   }, [auth.user?.id, video.id]);
 
-  const toggleSave = async () => {
+  const toggleSave = async (e?: MouseEvent) => {
+    e?.stopPropagation();
     if (!auth.user) { toast.error("Sign in to save videos"); return; }
     const next = !isSaved;
     setIsSaved(next);
     const { error } = next
-      ? await supabase.from("saved_videos").upsert({ user_id: auth.user.id, video_id: video.id })
+      ? await supabase.from("saved_videos").insert({ user_id: auth.user.id, video_id: video.id })
       : await supabase.from("saved_videos").delete().eq("user_id", auth.user.id).eq("video_id", video.id);
-    if (error) { setIsSaved(!next); toast.error("Couldn't save. Try again."); return; }
+    // 23505 = already saved, which is fine
+    if (error && error.code !== "23505") {
+      console.error(error);
+      setIsSaved(!next);
+      toast.error(`Couldn't save: ${error.message}`);
+      return;
+    }
     toast.success(next ? "Saved to your profile" : "Removed from saved");
   };
   const isImage = isImageUrl(video.video_url) || /\.(jpe?g|png|webp|gif|avif)$/i.test(video.video_url);
@@ -298,7 +305,7 @@ export function VideoCard({
           <Action label={formatCount(shares)} onClick={() => setShowShare(true)}>
             <Share2 className="h-8 w-8" />
           </Action>
-            <button onClick={toggleSave} className="flex flex-col items-center">
+            <button type="button" onClick={(e) => void toggleSave(e)} className="flex flex-col items-center">
   <Bookmark className={`h-8 w-8 text-white ${isSaved ? "fill-yellow-400 text-yellow-400" : ""}`} />
   <span className="text-white text-[11px] mt-1">Save</span>
 </button> 

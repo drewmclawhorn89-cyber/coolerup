@@ -129,25 +129,23 @@ $$;
 
 do $$
 begin
-  if to_regclass('public.profiles') is null then
-    return;
+  if to_regclass('public.profiles') is not null then
+    drop policy if exists "banned users cannot insert profile" on public.profiles;
+    create policy "banned users cannot insert profile" on public.profiles
+      as restrictive for insert to authenticated
+      with check (not public.is_banned_uid(auth.uid()));
+
+    drop policy if exists "banned users cannot update profile" on public.profiles;
+    create policy "banned users cannot update profile" on public.profiles
+      as restrictive for update to authenticated
+      using (not public.is_banned_uid(auth.uid()))
+      with check (not public.is_banned_uid(auth.uid()));
+
+    drop policy if exists "banned users cannot delete profile" on public.profiles;
+    create policy "banned users cannot delete profile" on public.profiles
+      as restrictive for delete to authenticated
+      using (not public.is_banned_uid(auth.uid()));
   end if;
-
-  drop policy if exists "banned users cannot insert profile" on public.profiles;
-  create policy "banned users cannot insert profile" on public.profiles
-    as restrictive for insert to authenticated
-    with check (not public.is_banned_uid(auth.uid()));
-
-  drop policy if exists "banned users cannot update profile" on public.profiles;
-  create policy "banned users cannot update profile" on public.profiles
-    as restrictive for update to authenticated
-    using (not public.is_banned_uid(auth.uid()))
-    with check (not public.is_banned_uid(auth.uid()));
-
-  drop policy if exists "banned users cannot delete profile" on public.profiles;
-  create policy "banned users cannot delete profile" on public.profiles
-    as restrictive for delete to authenticated
-    using (not public.is_banned_uid(auth.uid()));
 end
 $$;
 

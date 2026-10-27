@@ -63,8 +63,8 @@ export async function resolveVideoUrl(url: string) {
   return data?.signedUrl ?? "";
 }
 
-export async function fetchVideos(page = 0) {
-  const PAGE_SIZE = 20;
+export async function fetchVideos(page = 0, pageSize = 20) {
+  const PAGE_SIZE = Math.max(1, Math.min(50, pageSize));
   const from = page * PAGE_SIZE;
   const to = from + PAGE_SIZE - 1;
 

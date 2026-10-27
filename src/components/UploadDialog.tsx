@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Music, Search, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 import { readBool } from "@/lib/prefs";
+import { isCellularConnection } from "@/lib/network";
 import { songStreamUrl, uploadVideo, type Song } from "@/lib/loop";
 import { fetchTracks, type Track } from "@/components/MusicPlayer";
 
@@ -83,8 +84,7 @@ export function UploadDialog({
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!file || !username.trim()) return;
-    const conn = (navigator as unknown as { connection?: { type?: string } }).connection;
-    if (readBool("wifi-upload") && conn?.type === "cellular") {
+    if (readBool("wifi-upload") && isCellularConnection()) {
       toast.error("Upload over Wi-Fi only is on. Connect to Wi-Fi to post.");
       return;
     }

@@ -1,6 +1,90 @@
-/* Coolerup service worker: incoming-call push alerts. */
-self.addEventListener("install", () => self.skipWaiting());
-self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));
+/* Coolerup service worker: offline app shell + incoming-call push alerts. */
+const CACHE = "coolerup-shell-v2";
+const SHELL = [
+  "/",
+  "/manifest.webmanifest",
+  "/icon-192-coolerup.png",
+  "/icon-512-coolerup.png",
+];
+
+self.addEventListener("install", (event) => {
+  event.waitUntil(
+    caches
+      .open(CACHE)
+      .then((cache) => cache.addAll(SHELL).catch(() => undefined))
+      .then(() => self.skipWaiting()),
+  );
+});
+
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    caches
+      .keys()
+      .then((keys) => Promise.all(keys.filter((key) => key !== CACHE).map((key) => caches.delete(key))))
+      .then(() => self.clients.claim()),
+  );
+});
+
+self.addEventListener("message", (event) => {
+  if (event.data === "SKIP_WAITING") self.skipWaiting();
+});
+
+const isStaticAsset = (url) =>
+  /\.(?:js|mjs|css|woff2?|ttf|otf|eot|png|jpe?g|webp|gif|svg|ico|avif|mp3)$/i.test(url.pathname);
+
+self.addEventListener("fetch", (event) => {
+  const req = event.request;
+  if (req.method !== "GET") return;
+
+  const url = new URL(req.url);
+  // Never intercept cross-origin requests (Supabase, fonts, Audius). Video
+  // bytes are handled by the explicit offline store, not the HTTP cache.
+  if (url.origin !== self.location.origin) return;
+
+  // Navigations: network-first, fall back to the cached shell so the app still
+  // boots when the connection drops.
+  if (req.mode === "navigate") {
+    event.respondWith(
+      fetch(req)
+        .then((res) => {
+          if (res.ok) {
+            const copy = res.clone();
+            caches.open(CACHE).then((cache) => cache.put("/", copy)).catch(() => undefined);
+          }
+          return res;
+        })
+        .catch(async () => {
+          const cached = (await caches.match(req)) || (await caches.match("/"));
+          return (
+            cached ||
+            new Response("You're offline. Open Coolerup again when you have a connection.", {
+              status: 503,
+              headers: { "Content-Type": "text/plain; charset=utf-8" },
+            })
+          );
+        }),
+    );
+    return;
+  }
+
+  // Static assets: cache-first with a background refresh (stale-while-revalidate).
+  if (isStaticAsset(url)) {
+    event.respondWith(
+      caches.match(req).then((hit) => {
+        const network = fetch(req)
+          .then((res) => {
+            if (res.ok) {
+              const copy = res.clone();
+              caches.open(CACHE).then((cache) => cache.put(req, copy)).catch(() => undefined);
+            }
+            return res;
+          })
+          .catch(() => hit);
+        return hit || network;
+      }),
+    );
+  }
+});
 
 self.addEventListener("push", (event) => {
   let data = {};

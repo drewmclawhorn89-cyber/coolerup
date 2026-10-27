@@ -225,7 +225,8 @@ export function MoreSettings() {
         <Toggle id="autoplay" label="Autoplay next video" def />
         <Toggle id="captions" label="Always show captions" />
         <Toggle id="restricted" label="Restricted mode" desc="Limit content that may not be right for everyone" />
-        <Toggle id="data-saver" label="Data saver" desc="Use less mobile data" />
+        <Toggle id="lite-mode" label="Lite mode" desc="Load one video at a time and skip preloading on slow connections" />
+        <Toggle id="data-saver" label="Data saver" desc="Use less mobile data (turns on automatically on 2G)" />
         <Toggle id="wifi-upload" label="Upload over Wi-Fi only" />
         <Choice id="language" label="App language" options={["English", "Español", "Français", "Deutsch", "Português"]} def="English" />
         <Choice id="region" label="Content language" options={["All", "English", "Español", "Français"]} def="All" />

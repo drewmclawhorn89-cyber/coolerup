@@ -12,6 +12,7 @@ import {
   ShoppingBag,
   User,
   Users,
+  Wifi,
   WifiOff,
   X,
 } from "lucide-react";
@@ -32,6 +33,8 @@ const RecordDialog = lazy(() => import("@/components/RecordDialog").then((m) => 
 const PhotoDialog = lazy(() => import("@/components/PhotoDialog").then((m) => ({ default: m.PhotoDialog })));
 import { fetchMyLikes, fetchRepostsByHandles, fetchVideos, parseCaption, type Video } from "@/lib/loop";
 import { listSaved, onOfflineChange } from "@/lib/offline";
+import { readFeedCache, writeFeedCache } from "@/lib/feed-cache";
+import { feedPageSize, isLiteMode, useNetwork } from "@/lib/network";
 import { useBlocked } from "@/lib/safety";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
@@ -89,6 +92,8 @@ const HEADERS: Record<Tab, [string, string]> = {
 function Index() {
   const auth = useAuth();
   const me = auth.handle;
+  const net = useNetwork();
+  const lite = isLiteMode(net);
 
   // Ban enforcement now lives in <BanGate /> (mounted in __root.tsx), which
   // covers every route and shows a proper blocked screen instead of an alert.
@@ -219,30 +224,21 @@ function Index() {
       clearTimeout(t);
     };
   }, [query]);
-  const [quality, setQuality] = useState<"1080p" | "720p" | "480p">("720p");
   const [notifications, setNotifications] = useState<NotificationRow[]>([]);
   const [notificationFilter, setNotificationFilter] = useState<NotificationFilter>("all");
-
-  useEffect(() => {
-    const conn = (navigator as any).connection;
-    if (conn?.effectiveType === "2g" || conn?.effectiveType === "slow-2g") {
-      setQuality("480p");
-    } else if (conn?.effectiveType === "3g") {
-      setQuality("720p");
-    } else {
-      setQuality("1080p");
-    }
-  }, []);
 
   const load = (pageNum = 0, append = false) => {
     if (loadingMore) return;
     setLoadingMore(true);
-    fetchVideos(pageNum)
+    fetchVideos(pageNum, feedPageSize())
       .then((v: any) => {
         if (!v || v.length === 0) setHasMore(false);
         else {
           if (append) setVideos((prev: any) => [...(prev || []), ...v]);
-          else setVideos(v);
+          else {
+            setVideos(v);
+            writeFeedCache(v);
+          }
           setPage(pageNum + 1);
         }
         setError(false);
@@ -269,6 +265,9 @@ function Index() {
   }, [page, hasMore, loadingMore]);
 
   useEffect(() => {
+    // Show the last feed instantly on slow links, then refresh in the background.
+    const cached = readFeedCache();
+    if (cached) setVideos((cur) => cur ?? cached);
     load(0, false);
 
     setTimeout(() => {
@@ -558,6 +557,12 @@ function Index() {
           </div>
         )}
 
+        {!offlineMode && lite && (
+          <div className="flex shrink-0 items-center gap-2 bg-secondary px-4 py-1.5 text-xs font-bold text-muted-foreground md:px-10">
+            <Wifi className="h-3.5 w-3.5" /> Lite mode — saving data on a slow connection
+          </div>
+        )}
+
         {query.trim() && userResults.length > 0 && (
           <div className="shrink-0 border-b bg-sidebar px-4 py-3 md:px-10">
             <p className="mb-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">Users</p>
@@ -704,7 +709,9 @@ function Index() {
               </div>
             )}
             <div className="no-scrollbar min-h-0 flex-1 snap-y snap-mandatory overflow-y-scroll overscroll-contain scroll-smooth">
-              {error && !offlineMode && <Empty text="Couldn't load videos. Refresh to try again." />}
+              {error && !offlineMode && !(videos && videos.length > 0) && (
+                <Empty text="Couldn't load videos. Refresh to try again." />
+              )}
               {!error && videos === null && activeTab !== "saved" && <Empty text="Loading your feed..." />}
               {(videos || activeTab === "saved") && shown.length === 0 && (
                 <Empty

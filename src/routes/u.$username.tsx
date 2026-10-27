@@ -69,6 +69,8 @@ const [totalFollowers, setTotalFollowers] = useState(0);
   const [totalFollowing, setTotalFollowing] = useState(0);
   const [followingOpen, setFollowingOpen] = useState(false);
   const [followingUsers, setFollowingUsers] = useState<FollowingUser[] | null>(null);
+  const [followersOpen, setFollowersOpen] = useState(false);
+  const [followersUsers, setFollowersUsers] = useState<FollowingUser[] | null>(null);
   
    const equipped = useEquipped(username);
   const isOwn = !!auth.handle && auth.handle === username;
@@ -123,6 +125,44 @@ const [totalFollowers, setTotalFollowers] = useState(0);
     })();
     return () => { alive = false; };
   }, [followingOpen, username]);
+
+  useEffect(() => {
+    if (!followersOpen || !username) return;
+    let alive = true;
+    setFollowersUsers(null);
+    (async () => {
+      const { data: rows } = await supabase
+        .from("follows")
+        .select("follower_username")
+        .eq("following_username", username)
+        .order("created_at", { ascending: false })
+        .limit(200);
+      const handles = Array.from(
+        new Set((rows ?? []).map((r) => r.follower_username).filter(Boolean)),
+      );
+      if (handles.length === 0) {
+        if (alive) setFollowersUsers([]);
+        return;
+      }
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("handle, display_name, avatar_url")
+        .in("handle", handles);
+      const byHandle = new Map((profiles ?? []).map((p) => [p.handle, p]));
+      const list = await Promise.all(
+        handles.map(async (handle) => {
+          const p = byHandle.get(handle);
+          return {
+            handle,
+            display_name: p?.display_name ?? null,
+            avatar: await resolveAvatarUrl(p?.avatar_url),
+          } as FollowingUser;
+        }),
+      );
+      if (alive) setFollowersUsers(list);
+    })();
+    return () => { alive = false; };
+  }, [followersOpen, username]);
  
   useEffect(() => {
     if (!username) return;
@@ -255,7 +295,14 @@ const [totalFollowers, setTotalFollowers] = useState(0);
           <div className="flex gap-8 text-sm">
           <span><b>{videos?.length ?? "-"}</b> videos</span>
 <span><b>{totalLikes ?? 0}</b> likes</span>
-<span><b>{totalFollowers}</b> followers</span>
+<button
+  type="button"
+  onClick={() => setFollowersOpen(true)}
+  className="rounded transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+  aria-label={`View accounts following @${username}`}
+>
+  <b>{totalFollowers}</b> followers
+</button>
 <button
   type="button"
   onClick={() => setFollowingOpen(true)}
@@ -354,6 +401,55 @@ const [totalFollowers, setTotalFollowers] = useState(0);
                       to="/u/$username"
                       params={{ username: u.handle }}
                       onClick={() => setFollowingOpen(false)}
+                      className="flex items-center gap-3 py-3 hover:opacity-80"
+                    >
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary text-sm uppercase text-primary-foreground">
+                        {u.avatar ? (
+                          <img src={u.avatar} alt={u.display_name || u.handle} className="h-full w-full object-cover" />
+                        ) : (
+                          u.handle[0]
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold">{u.display_name || u.handle}</p>
+                        <p className="truncate text-xs text-muted-foreground">@{u.handle}</p>
+                      </div>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={followersOpen} onOpenChange={setFollowersOpen}>
+        <DialogContent className="max-h-[80dvh] max-w-md overflow-hidden">
+          <DialogHeader>
+            <DialogTitle>Followers</DialogTitle>
+          </DialogHeader>
+          <div className="-mx-6 max-h-[60dvh] overflow-y-auto px-6">
+            {followersUsers === null ? (
+              <div className="space-y-2 py-2">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} className="flex items-center gap-3 py-2">
+                    <div className="h-10 w-10 animate-pulse rounded-full bg-muted" />
+                    <div className="h-3 w-32 animate-pulse rounded bg-muted" />
+                  </div>
+                ))}
+              </div>
+            ) : followersUsers.length === 0 ? (
+              <p className="py-10 text-center text-sm text-muted-foreground">
+                @{username} doesn't have any followers yet.
+              </p>
+            ) : (
+              <ul className="divide-y">
+                {followersUsers.map((u) => (
+                  <li key={u.handle}>
+                    <Link
+                      to="/u/$username"
+                      params={{ username: u.handle }}
+                      onClick={() => setFollowersOpen(false)}
                       className="flex items-center gap-3 py-3 hover:opacity-80"
                     >
                       <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary text-sm uppercase text-primary-foreground">

@@ -50,7 +50,13 @@ const dateFmt = new Intl.DateTimeFormat(undefined, {
   year: "numeric",
 });
 
-export function SubscriptionsPanel({ handle }: { handle?: string | null }) {
+export function SubscriptionsPanel({
+  handle,
+  onSignIn,
+}: {
+  handle?: string | null;
+  onSignIn?: () => void;
+}) {
   const sub = useSubscription(handle);
   const trialLeft = trialDaysLeft(sub);
   const trialAvailable = canStartTrial(handle);
@@ -138,6 +144,17 @@ export function SubscriptionsPanel({ handle }: { handle?: string | null }) {
 
             {trialing ? (
               <div className="mt-3 space-y-2">
+                {!sub.paymentMethod && (
+                  <div className="space-y-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs">
+                    <p>
+                      <span className="font-semibold">Add a card to keep your trial.</span> This
+                      trial started before cards were required, so it has no payment method on file.
+                    </p>
+                    <Button className="w-full" size="sm" onClick={() => setPendingPlan(p.id)}>
+                      Add a card
+                    </Button>
+                  </div>
+                )}
                 {sub.paymentMethod && (
                   <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-xs">
                     <span>
@@ -191,12 +208,14 @@ export function SubscriptionsPanel({ handle }: { handle?: string | null }) {
               >
                 Subscribed · Cancel
               </Button>
+            ) : !handle ? (
+              <Button className="mt-3 w-full" variant="secondary" onClick={() => onSignIn?.()}>
+                Sign in to start your free trial
+              </Button>
             ) : (
               <Button
                 className="mt-3 w-full"
-                disabled={!handle || (!trialAvailable && !expired)}
                 onClick={() => {
-                  if (!handle) return;
                   if (trialAvailable) {
                     setPendingPlan(p.id);
                     return;

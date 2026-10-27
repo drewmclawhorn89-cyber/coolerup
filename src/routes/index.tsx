@@ -617,7 +617,7 @@ function Index() {
             <div className="min-h-0 flex-1 overflow-y-auto">
             {activeTab === "subscriptions" ? (
               <Suspense fallback={null}>
-                <SubscriptionsPanel handle={me} />
+                <SubscriptionsPanel handle={me} onSignIn={auth.signIn} />
               </Suspense>
             ) : (
               <Suspense fallback={null}>

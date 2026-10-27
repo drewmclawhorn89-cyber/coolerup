@@ -24,7 +24,7 @@ type BanStatus = {
  * (feed, profile, settings, messages, deep links) instead of just "/".
  */
 export function BanGate({ children }: { children: React.ReactNode }) {
-  const { user, ready, signOut } = useAuth();
+  const { user, ready, handle, signOut } = useAuth();
   const [status, setStatus] = useState<BanStatus | null>(null);
   const lastUserId = useRef<string | null>(null);
 
@@ -38,11 +38,31 @@ export function BanGate({ children }: { children: React.ReactNode }) {
         return;
       }
       const row = (Array.isArray(data) ? data[0] : data) as BanStatus | null;
-      setStatus(row?.is_banned ? row : null);
+      if (row?.is_banned) {
+        setStatus(row);
+        return;
+      }
+
+      // Fallback: `my_ban_status` resolves the ban through the profiles row. If
+      // that row is missing, or the ban was saved against a differently-cased /
+      // "@"-prefixed handle, ask by handle directly. This is the exact case that
+      // let a banned account keep using the app before.
+      if (handle) {
+        const { data: byHandle } = await supabase.rpc("ban_status_for_handle", {
+          _handle: handle,
+        });
+        const handleRow = (Array.isArray(byHandle) ? byHandle[0] : byHandle) as BanStatus | null;
+        if (handleRow?.is_banned) {
+          setStatus(handleRow);
+          return;
+        }
+      }
+
+      setStatus(null);
     } catch {
       setStatus(null);
     }
-  }, []);
+  }, [handle]);
 
   useEffect(() => {
     if (!ready) return;

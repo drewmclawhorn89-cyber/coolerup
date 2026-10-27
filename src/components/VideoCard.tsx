@@ -12,6 +12,10 @@ import { ShareMenu } from "./ShareMenu";
 import { Button } from "@/components/ui/button";
 import { Repeat2 } from "lucide-react";
 import { Bookmark } from "lucide-react";
+import { resolveAvatarUrl } from "./EditProfileDialog";
+
+/** Cache resolved avatar URLs per handle so feed scrolling doesn't refetch. */
+const avatarCache = new Map<string, string | null>();
 
 export function VideoCard({
   video,
@@ -41,6 +45,34 @@ export function VideoCard({
   const [isFollowing, setIsFollowing] = useState(false);
   const auth = useAuth();
   const myUsername = auth.handle;
+  const [authorAvatar, setAuthorAvatar] = useState<string | null>(null);
+
+  useEffect(() => {
+    const username = video.username;
+    if (!username) return;
+    if (myUsername && username === myUsername && auth.avatar) {
+      setAuthorAvatar(auth.avatar);
+      return;
+    }
+    if (avatarCache.has(username)) {
+      setAuthorAvatar(avatarCache.get(username) ?? null);
+      return;
+    }
+    let active = true;
+    supabase
+      .from("profiles")
+      .select("avatar_url")
+      .eq("handle", username)
+      .maybeSingle()
+      .then(async ({ data }) => {
+        const url = await resolveAvatarUrl((data as { avatar_url?: string | null } | null)?.avatar_url);
+        avatarCache.set(username, url);
+        if (active) setAuthorAvatar(url);
+      });
+    return () => {
+      active = false;
+    };
+  }, [video.username, myUsername, auth.avatar]);
 
   useEffect(() => {
     if (!auth.user) { setIsSaved(false); return; }
@@ -284,9 +316,18 @@ export function VideoCard({
             to="/u/$username"
             params={{ username: video.username }}
             aria-label={`View @${video.username}'s profile`}
-            className="flex h-10 w-10 items-center justify-center rounded-full bg-primary font-display text-lg uppercase text-primary-foreground md:h-12 md:w-12"
+            className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-primary font-display text-lg uppercase text-primary-foreground md:h-12 md:w-12"
           >
-            {video.username[0]}
+            {authorAvatar ? (
+              <img
+                src={authorAvatar}
+                alt={`@${video.username}`}
+                className="h-full w-full object-cover"
+                loading="lazy"
+              />
+            ) : (
+              video.username[0]
+            )}
           </Link>
           {video.username !== myUsername && (
             <button

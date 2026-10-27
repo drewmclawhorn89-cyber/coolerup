@@ -1,6 +1,6 @@
 import { memo, Suspense, lazy, useCallback, useEffect, useRef, useState, type MouseEvent } from "react";
 import { Link } from "@tanstack/react-router";
-import { Heart, MessageCircle, Share2 } from "lucide-react";
+import { Heart, MessageCircle, Repeat2, Share2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCount, isImageUrl, parseCaption, resolveVideoUrl, songStreamUrl, type Video } from "@/lib/loop";
@@ -69,6 +69,8 @@ function VideoCardImpl({
   const [likes, setLikes] = useState(video.likes_count);
   const [comments, setComments] = useState(video.comments_count);
   const [shares, setShares] = useState(video.shares_count);
+  const [reposted, setReposted] = useState(false);
+  const [repostCount, setRepostCount] = useState(video.reposts ?? video.reposts_count ?? 0);
   const [showComments, setShowComments] = useState(false);
   const [showShare, setShowShare] = useState(false);
   const [deleted, setDeleted] = useState(false);
@@ -126,6 +128,27 @@ function VideoCardImpl({
       active = false;
     };
   }, [auth.user?.id, video.id, isSavedProp]);
+
+  // Has the signed-in user already reposted this video?
+  useEffect(() => {
+    if (!auth.user) {
+      setReposted(false);
+      return;
+    }
+    let active = true;
+    supabase
+      .from("reposts")
+      .select("id")
+      .eq("video_id", video.id)
+      .eq("user_id", auth.user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (active) setReposted(!!data);
+      });
+    return () => {
+      active = false;
+    };
+  }, [auth.user?.id, video.id]);
 
   useEffect(() => {
     if (isFollowingProp !== undefined || !auth.user || !myUsername || video.username === myUsername) return;
@@ -304,6 +327,55 @@ function VideoCardImpl({
     }
   }, [auth.user, liked, onLikeChange, video.id, video.username]);
 
+  const toggleRepost = useCallback(async () => {
+    const authUser = auth.user;
+    if (!authUser) {
+      toast.error("Sign in to repost");
+      auth.signIn();
+      return;
+    }
+    const next = !reposted;
+    haptic();
+    setReposted(next);
+    setRepostCount((c) => Math.max(0, next ? c + 1 : c - 1));
+    if (next) toast.success("Reposted! Your followers will see this");
+
+    try {
+      if (next) {
+        const { error } = await supabase.from("reposts").insert({ video_id: video.id, user_id: authUser.id });
+        // 23505 = already reposted, which is fine.
+        if (error && error.code !== "23505") throw error;
+        const { data: owner } = await supabase
+          .from("profiles")
+          .select("id")
+          .eq("handle", video.username)
+          .maybeSingle();
+        if (owner && owner.id !== authUser.id) {
+          await supabase.from("notifications").insert({
+            target_user_id: owner.id,
+            actor_user_id: authUser.id,
+            video_id: video.id,
+            type: "repost",
+            text: `${myUsername ?? "Someone"} reposted your video`,
+            read: false,
+          });
+        }
+      } else {
+        const { error } = await supabase
+          .from("reposts")
+          .delete()
+          .eq("video_id", video.id)
+          .eq("user_id", authUser.id);
+        if (error) throw error;
+      }
+    } catch {
+      // Roll back the optimistic UI if the write failed.
+      setReposted(!next);
+      setRepostCount((c) => Math.max(0, next ? c - 1 : c + 1));
+      toast.error("Couldn't update repost");
+    }
+  }, [auth.user, auth.signIn, myUsername, reposted, video.id, video.username]);
+
   const onShared = useCallback(async () => {
     setShares((n) => n + 1);
     if (navigator.onLine) await supabase.rpc("increment_share", { _video_id: video.id });
@@ -427,6 +499,22 @@ function VideoCardImpl({
           <Action label={formatCount(comments)} onClick={() => setShowComments(true)}>
             <MessageCircle className="h-8 w-8" />
           </Action>
+          <button
+            type="button"
+            onClick={() => void toggleRepost()}
+            aria-label={reposted ? "Undo repost" : "Repost"}
+            aria-pressed={reposted}
+            className="flex flex-col items-center gap-1"
+          >
+            <span className="flex h-11 w-11 items-center justify-center md:h-12 md:w-12">
+              <Repeat2
+                className={`h-8 w-8 transition ${reposted ? "fill-yellow-400 text-yellow-400" : "text-white"}`}
+              />
+            </span>
+            <span className={`text-[12px] font-bold ${reposted ? "text-yellow-400" : "text-white"}`}>
+              {formatCount(repostCount)}
+            </span>
+          </button>
           <Action label={formatCount(shares)} onClick={() => setShowShare(true)}>
             <Share2 className="h-8 w-8" />
           </Action>

@@ -46,6 +46,133 @@ export function venmoUrl(plan: Plan, handle?: string | null) {
 }
 
 /* -------------------------------------------------------------------------- */
+/*  Payment method                                                            */
+/* -------------------------------------------------------------------------- */
+
+export type CardBrand = "visa" | "mastercard" | "amex" | "discover" | "card";
+
+export type PaymentMethod = {
+  brand: CardBrand;
+  /** last four digits only — the full number is never stored */
+  last4: string;
+  expMonth: number;
+  expYear: number;
+  holder: string;
+  addedAt: string;
+};
+
+export const CARD_BRANDS: Record<Exclude<CardBrand, "card">, string> = {
+  visa: "Visa",
+  mastercard: "Mastercard",
+  amex: "American Express",
+  discover: "Discover",
+};
+
+export function brandLabel(brand: CardBrand): string {
+  return brand === "card" ? "Card" : CARD_BRANDS[brand];
+}
+
+/** Detect the network from the leading digits. */
+export function detectBrand(digits: string): CardBrand {
+  if (/^4/.test(digits)) return "visa";
+  if (/^(5[1-5]|2[2-7])/.test(digits)) return "mastercard";
+  if (/^3[47]/.test(digits)) return "amex";
+  if (/^6(?:011|5)/.test(digits)) return "discover";
+  return "card";
+}
+
+/** Luhn checksum — catches typos and made-up numbers. */
+export function luhnValid(digits: string): boolean {
+  if (!/^\d+$/.test(digits)) return false;
+  let sum = 0;
+  let double = false;
+  for (let i = digits.length - 1; i >= 0; i--) {
+    let d = digits.charCodeAt(i) - 48;
+    if (double) {
+      d *= 2;
+      if (d > 9) d -= 9;
+    }
+    sum += d;
+    double = !double;
+  }
+  return sum % 10 === 0;
+}
+
+export function cardNumberValid(digits: string): boolean {
+  const len = digits.length;
+  const amex = /^3[47]/.test(digits);
+  const okLen = amex ? len === 15 : len >= 13 && len <= 19;
+  return okLen && luhnValid(digits);
+}
+
+export function expiryValid(month: number, year: number, now = new Date()): boolean {
+  if (!Number.isInteger(month) || month < 1 || month > 12) return false;
+  if (!Number.isInteger(year)) return false;
+  const full = year < 100 ? 2000 + year : year;
+  const end = new Date(full, month, 1); // first day of the month after expiry
+  return end.getTime() > now.getTime();
+}
+
+export function cvcValid(cvc: string, brand: CardBrand): boolean {
+  return brand === "amex" ? /^\d{4}$/.test(cvc) : /^\d{3,4}$/.test(cvc);
+}
+
+export type CardInput = {
+  holder: string;
+  number: string;
+  expiry: string; // "MM/YY" or "MM/YYYY"
+  cvc: string;
+};
+
+export type CardErrors = Partial<Record<keyof CardInput, string>>;
+
+/** Validate the whole form. Returns an empty object when everything is good. */
+export function validateCard(input: CardInput, now = new Date()): CardErrors {
+  const errors: CardErrors = {};
+  const digits = input.number.replace(/\D/g, "");
+  const brand = detectBrand(digits);
+
+  if (!input.holder.trim()) errors.holder = "Enter the name on the card";
+  if (!digits) errors.number = "Enter your card number";
+  else if (!cardNumberValid(digits)) errors.number = "That card number isn't valid";
+
+  const m = input.expiry.match(/^\s*(\d{1,2})\s*\/\s*(\d{2,4})\s*$/);
+  if (!input.expiry.trim()) errors.expiry = "Enter the expiry date";
+  else if (!m) errors.expiry = "Use MM/YY";
+  else if (!expiryValid(Number(m[1]), Number(m[2]), now)) errors.expiry = "That card has expired";
+
+  if (!input.cvc.trim()) errors.cvc = "Enter the security code";
+  else if (!cvcValid(input.cvc, brand)) errors.cvc = brand === "amex" ? "4 digits" : "3 digits";
+
+  return errors;
+}
+
+/** Turn a validated form into the record we keep. Never keeps the full PAN. */
+export function toPaymentMethod(input: CardInput): PaymentMethod {
+  const digits = input.number.replace(/\D/g, "");
+  const m = input.expiry.match(/^\s*(\d{1,2})\s*\/\s*(\d{2,4})\s*$/)!;
+  const year = Number(m[2]);
+  return {
+    brand: detectBrand(digits),
+    last4: digits.slice(-4),
+    expMonth: Number(m[1]),
+    expYear: year < 100 ? 2000 + year : year,
+    holder: input.holder.trim(),
+    addedAt: new Date().toISOString(),
+  };
+}
+
+/** "Visa •••• 4242" */
+export function maskCard(pm: PaymentMethod): string {
+  return `${brandLabel(pm.brand)} •••• ${pm.last4}`;
+}
+
+/** "09/28" */
+export function formatExpiry(pm: PaymentMethod): string {
+  return `${String(pm.expMonth).padStart(2, "0")}/${String(pm.expYear).slice(-2)}`;
+}
+
+/* -------------------------------------------------------------------------- */
 /*  Subscription record                                                       */
 /* -------------------------------------------------------------------------- */
 
@@ -60,6 +187,8 @@ export type Subscription = {
   trialEndsAt: string;
   /** set once the owner confirms the Venmo payment */
   paidAt: string | null;
+  /** card on file — required before a trial can start */
+  paymentMethod: PaymentMethod | null;
 };
 
 const key = (handle: string) => `subscription:${handle}`;
@@ -93,6 +222,7 @@ function migrate(raw: string): Subscription | null {
       startedAt: now.toISOString(),
       trialEndsAt: new Date(now.getTime() + TRIAL_DAYS * DAY_MS).toISOString(),
       paidAt: null,
+      paymentMethod: null,
     };
   }
   // Legacy "active" plan with no dates — treat as active, no trial left.
@@ -102,6 +232,7 @@ function migrate(raw: string): Subscription | null {
     startedAt: now.toISOString(),
     trialEndsAt: now.toISOString(),
     paidAt: now.toISOString(),
+    paymentMethod: null,
   };
 }
 
@@ -119,7 +250,15 @@ export function getSubscription(handle?: string | null): Subscription | null {
   const raw = localStorage.getItem(key(handle));
   if (!raw) return null;
   const sub = migrate(raw);
-  return sub ? withCurrentStatus(sub) : null;
+  if (!sub) return null;
+  // Records written before the card gate existed have no paymentMethod key.
+  const normalized: Subscription = { ...sub, paymentMethod: sub.paymentMethod ?? null };
+  return withCurrentStatus(normalized);
+}
+
+/** True when there is a usable card on file. */
+export function hasPaymentMethod(handle?: string | null): boolean {
+  return Boolean(getSubscription(handle)?.paymentMethod?.last4);
 }
 
 /** Whole days left in the trial, rounded up. 0 once it has expired. */
@@ -149,8 +288,19 @@ function write(handle: string, sub: Subscription | null) {
   window.dispatchEvent(new Event(EVT));
 }
 
-/** Start the 7 day free trial. No payment is taken up front. */
-export function startTrial(handle: string, planId: string): Subscription {
+/**
+ * Start the 7 day free trial. A card on file is required first — the card is
+ * not charged today, but it is what gets billed when the trial ends.
+ * Throws if no valid payment method was supplied.
+ */
+export function startTrial(
+  handle: string,
+  planId: string,
+  paymentMethod: PaymentMethod,
+): Subscription {
+  if (!paymentMethod || !paymentMethod.last4) {
+    throw new Error("A payment method is required to start the trial");
+  }
   const now = new Date();
   const sub: Subscription = {
     planId,
@@ -158,10 +308,24 @@ export function startTrial(handle: string, planId: string): Subscription {
     startedAt: now.toISOString(),
     trialEndsAt: new Date(now.getTime() + TRIAL_DAYS * DAY_MS).toISOString(),
     paidAt: null,
+    paymentMethod,
   };
   localStorage.setItem(usedKey(handle), "1");
   write(handle, sub);
   return sub;
+}
+
+/** When the first real charge happens if they don't cancel. */
+export function firstChargeDate(sub: Subscription | null): Date | null {
+  if (!sub || sub.status !== "trial") return null;
+  return new Date(sub.trialEndsAt);
+}
+
+/** Update the card on an existing subscription. */
+export function updatePaymentMethod(handle: string, pm: PaymentMethod) {
+  const existing = getSubscription(handle);
+  if (!existing) return;
+  write(handle, { ...existing, paymentMethod: pm });
 }
 
 /**
@@ -179,6 +343,7 @@ export function requestPayment(handle: string, planId: string) {
     trialEndsAt:
       existing?.trialEndsAt ?? new Date(now.getTime() + TRIAL_DAYS * DAY_MS).toISOString(),
     paidAt: null,
+    paymentMethod: existing?.paymentMethod ?? null,
   });
 }
 

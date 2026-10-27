@@ -52,9 +52,9 @@ function gpayHint(reason: GooglePayReason): string {
     case "script-blocked":
       return "Google Pay couldn't load — an ad blocker or network filter may be blocking pay.google.com. Allow it and tap Try again.";
     case "no-api":
-      return "Google Pay didn't load in this browser. Use a card below, or open this page in Chrome or Safari.";
+      return "Google Pay didn't pre-check in this browser. The button still works \u2014 if the sheet won't open, try Chrome or Safari.";
     case "no-wallet":
-      return "No Google Pay account found on this device. Add a card at pay.google.com, or use a card below.";
+      return "No Google Pay account was detected on this device. If the sheet won't open, add a card at pay.google.com or use a card below.";
     default:
       return "Google Pay isn't available here — use a card below.";
   }
@@ -376,11 +376,20 @@ export function PaymentSheet({ plan, handle, sub, onClose, onSignIn }: Props) {
               }
               onClick={payWithGoogle}
               busy={busy}
-              disabled={!gpayReady || !handle}
+              // Never hard-disable on isReadyToPay: Google documents it as
+              // advisory, and in TEST mode it returns false for almost everyone
+              // even though the sheet still opens with Google's test cards.
+              // A disabled button with no explanation is worse than a click that
+              // surfaces the real error.
+              disabled={busy}
             />
             {!gpayReady && (
               <div className="space-y-1 text-center">
                 <p className="text-[11px] text-muted-foreground">{gpayHint(gpayReason)}</p>
+                <p className="text-[11px] text-muted-foreground">
+                  You can still tap the button above — it will open the Google Pay sheet or
+                  tell you exactly what went wrong.
+                </p>
                 <button
                   type="button"
                   onClick={() => {
@@ -389,7 +398,7 @@ export function PaymentSheet({ plan, handle, sub, onClose, onSignIn }: Props) {
                   }}
                   className="text-[11px] font-medium text-foreground underline underline-offset-2"
                 >
-                  Try again
+                  Re-check Google Pay
                 </button>
               </div>
             )}

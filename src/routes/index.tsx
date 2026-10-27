@@ -344,7 +344,7 @@ function Index() {
       <aside className="hidden w-72 shrink-0 flex-col gap-6 border-r bg-sidebar p-6 md:flex">
         <div>
           <h1 className="font-display text-4xl tracking-tight">
-            loop<span className="text-primary">.</span>
+            coolerup<span className="text-primary">.</span>
           </h1>
           <p className="mt-1 text-[11px] font-bold tracking-[0.3em] text-muted-foreground">A LITTLE MORE YOU</p>
         </div>
@@ -419,7 +419,7 @@ function Index() {
       <main className="mx-auto flex h-[100dvh] w-full min-w-0 max-w-[430px] flex-1 flex-col bg-black md:h-auto md:max-w-none md:bg-transparent">
         <div className="mobile-topbar grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b bg-sidebar px-4 md:hidden">
           <h1 className="min-w-0 font-display text-2xl">
-            loop<span className="text-primary">.</span>
+            coolerup<span className="text-primary">.</span>
           </h1>
           <div className="flex shrink-0 items-center gap-2">
             <Button

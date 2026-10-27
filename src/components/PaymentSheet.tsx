@@ -207,7 +207,9 @@ export function PaymentSheet({ plan, handle, sub, onClose, onSignIn }: Props) {
       if (!result.ok) {
         if (result.reason === "cancelled") return;
         if (result.reason === "unavailable") {
-          setError("Google Pay isn't available in this browser. Use a card instead.");
+          setError(
+            "Google Pay couldn't load. If you use an ad blocker, allow pay.google.com and try again \u2014 otherwise use a card below.",
+          );
           return;
         }
         setError(result.message ?? "Google Pay couldn't complete that payment. Try a card instead.");

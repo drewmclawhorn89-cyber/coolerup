@@ -86,19 +86,25 @@ export function UploadDialog({
       toast.error("Upload over Wi-Fi only is on. Connect to Wi-Fi to post.");
       return;
     }
-    setBusy(true);
-    try {
-      const name = username.trim().replace(/^@/, "").slice(0, 40);
-      for (const f of files) {
-        await uploadVideo(f, name, caption.trim().slice(0, 500), f.type.startsWith("image/") ? song : null);
-      }
-      toast.success(files.length > 1 ? `${files.length} posts uploaded!` : "Your video is posted!");
-      onDone();
-    } catch {
-      toast.error("Upload failed. Try again.");
-    } finally {
-      setBusy(false);
-    }
+    const name = username.trim().replace(/^@/, "").slice(0, 40);
+    const cap = caption.trim().slice(0, 500);
+    const batch = files;
+    const chosenSong = song;
+    // Close immediately and upload in the background so posting feels instant.
+    onClose();
+    toast.promise(
+      (async () => {
+        for (const f of batch) {
+          await uploadVideo(f, name, cap, f.type.startsWith("image/") ? chosenSong : null);
+        }
+        onDone();
+      })(),
+      {
+        loading: batch.length > 1 ? `Posting ${batch.length} items…` : "Posting…",
+        success: batch.length > 1 ? `${batch.length} posts uploaded!` : "Your post is up!",
+        error: "Upload failed. Try again.",
+      },
+    );
   };
 
   return (

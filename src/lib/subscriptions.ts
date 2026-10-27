@@ -355,7 +355,7 @@ export function isActive(sub: Subscription | null): boolean {
 /* -------------------------------------------------------------------------- */
 
 /**
- * Offline downloads are a paid perk that starts with Plus ($4.99).
+ * Offline downloads are a paid perk that starts with the cheapest plan.
  *
  * Access requires a live subscription *and* a plan that includes the feature.
  * A `pending` or `expired` subscription does not count: the plan has to be

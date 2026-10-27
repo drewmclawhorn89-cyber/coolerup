@@ -25,7 +25,7 @@ export const Route = createFileRoute("/settings")({
 
 function Settings() {
   const auth = useAuth();
-  // Offline mode is a Plus ($4.99) perk — re-read the plan whenever it changes.
+  // Offline mode is a paid perk — re-read the plan whenever it changes.
   const subscription = useSubscription(auth.handle);
   const offlineUnlocked = hasOfflineAccess(auth.handle);
   const offlinePrice = offlinePlan().price;

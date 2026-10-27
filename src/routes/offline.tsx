@@ -94,7 +94,7 @@ function OfflinePage() {
     }
   };
 
-  // Offline mode is a Plus ($4.99) perk. Show the paywall instead of the library
+  // Offline mode is a paid perk. Show the paywall instead of the library
   // so a lapsed subscriber cannot keep watching downloads for free.
   if (!unlocked) {
     return (

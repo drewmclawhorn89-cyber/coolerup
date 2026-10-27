@@ -21,7 +21,7 @@ export function ShareMenu({ video, onClose, onShared, onDeleted }: { video: Vide
   const offlineUnlocked = hasOfflineAccess(auth.handle);
 
   const save = async () => {
-    // Offline downloads are a Plus ($4.99) perk. Removing is always allowed.
+    // Offline downloads are a paid perk. Removing is always allowed.
     if (!offlineUnlocked) {
       toast.error(`Save offline is part of Plus ($${offlinePlan().price.toFixed(2)}/mo)`);
       onClose();

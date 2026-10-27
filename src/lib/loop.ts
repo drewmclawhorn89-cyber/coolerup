@@ -64,13 +64,24 @@ export async function fetchVideos(page = 0) {
   const from = page * PAGE_SIZE;
   const to = from + PAGE_SIZE - 1;
 
+  // Select only the columns the feed renders (smaller payload, faster parse).
   const { data, error } = await supabase
     .from("videos")
-    .select("*")
+    .select("id, username, caption, video_url, likes_count, comments_count, shares_count, created_at")
+    .order("created_at", { ascending: false })
     .range(from, to);
 
   if (error) throw error;
-  return (data as Video[]).sort(() => Math.random() - 0.6);
+  // Fisher–Yates shuffle for feed variety (the old sort comparator was invalid).
+  const list = (data ?? []) as Video[];
+  for (let i = list.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const a = list[i]!;
+    const b = list[j]!;
+    list[i] = b;
+    list[j] = a;
+  }
+  return list;
 }
 
 export async function fetchMyLikes() {

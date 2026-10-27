@@ -1,15 +1,34 @@
 // Client-side user preferences, persisted in localStorage and applied app-wide.
 export const prefKey = (k: string) => `settings:${k}`;
 
+/**
+ * localStorage is synchronous and reading it during render is a measurable cost
+ * on low-end phones. Cache values in memory; writes and cross-tab changes clear it.
+ */
+const prefCache = new Map<string, string | null>();
+
+const invalidatePrefs = () => prefCache.clear();
+if (typeof window !== "undefined") {
+  window.addEventListener("storage", (e) => {
+    if (!e.key || e.key.startsWith("settings:")) invalidatePrefs();
+  });
+}
+
 export const readPref = (k: string, d = ""): string => {
+  const cached = prefCache.get(k);
+  if (cached !== undefined) return cached ?? d;
   try {
-    return localStorage.getItem(prefKey(k)) ?? d;
+    const value = localStorage.getItem(prefKey(k));
+    prefCache.set(k, value);
+    return value ?? d;
   } catch {
+    prefCache.set(k, null);
     return d;
   }
 };
 
 export const writePref = (k: string, v: string) => {
+  prefCache.set(k, v);
   try {
     localStorage.setItem(prefKey(k), v);
   } catch {

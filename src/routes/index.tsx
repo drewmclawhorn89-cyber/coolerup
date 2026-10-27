@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Fragment, Suspense, lazy, useEffect, useMemo, useState } from "react";
+import { Fragment, Suspense, lazy, useCallback, useEffect, useMemo, useState } from "react";
 import {
   Bell,
   Download,
@@ -18,13 +18,18 @@ import {
 import { Button } from "@/components/ui/button";
 import { VideoCard } from "@/components/VideoCard";
 import { matchesKeyword, readBool } from "@/lib/prefs";
-import { UploadDialog } from "@/components/UploadDialog";
+// Heavy, interaction-only surfaces are split out so the initial feed bundle stays small.
+const UploadDialog = lazy(() => import("@/components/UploadDialog").then((m) => ({ default: m.UploadDialog })));
+const ShopPanel = lazy(() => import("@/components/ShopPanel").then((m) => ({ default: m.ShopPanel })));
+const SubscriptionsPanel = lazy(() =>
+  import("@/components/SubscriptionsPanel").then((m) => ({ default: m.SubscriptionsPanel })),
+);
+const Marketplace = lazy(() => import("@/components/Marketplace").then((m) => ({ default: m.Marketplace })));
+const LiveStreamDialog = lazy(() =>
+  import("@/components/LiveStreamDialog").then((m) => ({ default: m.LiveStreamDialog })),
+);
 const RecordDialog = lazy(() => import("@/components/RecordDialog").then((m) => ({ default: m.RecordDialog })));
-import { ShopPanel } from "@/components/ShopPanel";
-import { SubscriptionsPanel } from "@/components/SubscriptionsPanel";
 const PhotoDialog = lazy(() => import("@/components/PhotoDialog").then((m) => ({ default: m.PhotoDialog })));
-import { Marketplace } from "@/components/Marketplace";
-import { LiveStreamDialog } from "@/components/LiveStreamDialog";
 import { fetchMyLikes, fetchVideos, parseCaption, type Video } from "@/lib/loop";
 import { listSaved, onOfflineChange } from "@/lib/offline";
 import { useAuth } from "@/hooks/useAuth";
@@ -124,6 +129,26 @@ function Index() {
   const [tab, setTab] = useState<Tab>("foryou");
   const [feedTab, setFeedTab] = useState<"foryou" | "following" | "explore" | "marketplace" | "live">("foryou");
   const [followingList, setFollowingList] = useState<string[]>([]);
+  const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
+
+  // Load all saved video ids once instead of one query per card.
+  useEffect(() => {
+    if (!auth.user) {
+      setSavedIds(new Set());
+      return;
+    }
+    let active = true;
+    supabase
+      .from("saved_videos")
+      .select("video_id")
+      .eq("user_id", auth.user.id)
+      .then(({ data }) => {
+        if (active) setSavedIds(new Set((data ?? []).map((r) => r.video_id)));
+      });
+    return () => {
+      active = false;
+    };
+  }, [auth.user?.id]);
 
   useEffect(() => {
     if (!auth.user) {
@@ -339,6 +364,30 @@ function Index() {
 
   const [title, sub] = query ? [`Results for "${query}"`, `${shown.length} videos`] : HEADERS[activeTab];
 
+  // Stable callbacks so memoized VideoCards don't re-render on every feed update.
+  const handleLikeChange = useCallback((videoId: string, on: boolean) => {
+    setLiked((s) => {
+      const n = new Set(s);
+      if (on) n.add(videoId);
+      else n.delete(videoId);
+      return n;
+    });
+  }, []);
+  const handleToggleMute = useCallback(() => setMuted((m) => !m), []);
+  const handleFollowChange = useCallback((username: string, following: boolean) => {
+    setFollowingList((list) =>
+      following ? (list.includes(username) ? list : [...list, username]) : list.filter((u) => u !== username),
+    );
+  }, []);
+  const handleSavedChange = useCallback((videoId: string, saved: boolean) => {
+    setSavedIds((prev) => {
+      const n = new Set(prev);
+      if (saved) n.add(videoId);
+      else n.delete(videoId);
+      return n;
+    });
+  }, []);
+
   return (
     <div className="flex h-dvh overflow-hidden bg-background">
       <aside className="hidden w-72 shrink-0 flex-col gap-6 border-r bg-sidebar p-6 md:flex">
@@ -512,7 +561,9 @@ function Index() {
               <button onClick={() => setTab("subscriptions")} className={tabClass("subscriptions")}>Subscriptions</button>
               <button onClick={() => setTab("mine")} className={tabClass("mine")}>Mine</button>
             </div>
-            <Marketplace />
+            <Suspense fallback={null}>
+              <Marketplace />
+            </Suspense>
           </div>
         ) : activeTab === "shop" || activeTab === "subscriptions" ? (
           <div className="flex min-h-0 flex-1 flex-col">
@@ -528,9 +579,13 @@ function Index() {
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto">
             {activeTab === "subscriptions" ? (
-              <SubscriptionsPanel handle={me} />
+              <Suspense fallback={null}>
+                <SubscriptionsPanel handle={me} />
+              </Suspense>
             ) : (
-              <ShopPanel handle={me} posts={myPostCount} />
+              <Suspense fallback={null}>
+                <ShopPanel handle={me} posts={myPostCount} />
+              </Suspense>
             )}
             </div>
           </div>
@@ -633,15 +688,12 @@ function Index() {
                   video={v}
                   liked={liked.has(v.id)}
                   muted={muted}
-                  onToggleMute={() => setMuted((m) => !m)}
-                  onLikeChange={(on) => {
-                    setLiked((s) => {
-                      const n = new Set(s);
-                      if (on) n.add(v.id);
-                      else n.delete(v.id);
-                      return n;
-                    });
-                  }}
+                  onToggleMute={handleToggleMute}
+                  onLikeChange={handleLikeChange}
+                  isFollowing={followingList.includes(v.username)}
+                  onFollowChange={handleFollowChange}
+                  isSaved={savedIds.has(v.id)}
+                  onSavedChange={handleSavedChange}
                 />
               ))}
               <div id="scroll-sentinel" className="h-10 w-full" />
@@ -729,27 +781,36 @@ function Index() {
         </div>
       </aside>
 
-      <LiveStreamDialog
-        open={createMenuOpen}
-        onOpenChange={setCreateMenuOpen}
-        userId={auth.user?.id}
-        username={auth.handle}
-        onRecord={() => setRecordingOpen(true)}
-        onPhoto={() => setPhotoOpen(true)}
-        onUpload={() => { setUploadFull(false); setUploading(true); }}
-      />
+      {createMenuOpen && (
+        <Suspense fallback={null}>
+          <LiveStreamDialog
+            open={createMenuOpen}
+            onOpenChange={setCreateMenuOpen}
+            {...(auth.user?.id ? { userId: auth.user.id } : {})}
+            username={auth.handle}
+            onRecord={() => setRecordingOpen(true)}
+            onPhoto={() => setPhotoOpen(true)}
+            onUpload={() => {
+              setUploadFull(false);
+              setUploading(true);
+            }}
+          />
+        </Suspense>
+      )}
 
       {uploading && auth.handle && (
-        <UploadDialog
-          defaultUsername={auth.handle}
-          full={uploadFull}
-          onClose={() => setUploading(false)}
-          onDone={() => {
-            setUploading(false);
-            setTab("mine");
-            load();
-          }}
-        />
+        <Suspense fallback={null}>
+          <UploadDialog
+            defaultUsername={auth.handle}
+            full={uploadFull}
+            onClose={() => setUploading(false)}
+            onDone={() => {
+              setUploading(false);
+              setTab("mine");
+              load();
+            }}
+          />
+        </Suspense>
       )}
 
       {photoOpen && <Suspense fallback={null}><PhotoDialog

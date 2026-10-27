@@ -1,51 +1,89 @@
-import { useEffect, useRef, useState, type MouseEvent } from "react";
+import { memo, Suspense, lazy, useCallback, useEffect, useRef, useState, type MouseEvent } from "react";
 import { Link } from "@tanstack/react-router";
-import { Heart, MessageCircle, Share2, Play, Volume2, VolumeX } from "lucide-react";
+import { Heart, MessageCircle, Share2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCount, isImageUrl, parseCaption, resolveVideoUrl, songStreamUrl, type Video } from "@/lib/loop";
 import { getSaved } from "@/lib/offline";
 import { useAuth } from "@/hooks/useAuth";
 import { haptic, readBool } from "@/lib/prefs";
-import { Comments } from "./Comments";
-import { ShareMenu } from "./ShareMenu";
+import { observeIntersection } from "@/lib/observer";
 import { Button } from "@/components/ui/button";
-import { Repeat2 } from "lucide-react";
 import { Bookmark } from "lucide-react";
 import { resolveAvatarUrl } from "./EditProfileDialog";
 
+const Comments = lazy(() => import("./Comments").then((m) => ({ default: m.Comments })));
+const ShareMenu = lazy(() => import("./ShareMenu").then((m) => ({ default: m.ShareMenu })));
+
 /** Cache resolved avatar URLs per handle so feed scrolling doesn't refetch. */
 const avatarCache = new Map<string, string | null>();
+/** Dedupe concurrent avatar lookups for the same handle. */
+const avatarInflight = new Map<string, Promise<string | null>>();
 
-export function VideoCard({
+async function loadAvatar(username: string): Promise<string | null> {
+  if (avatarCache.has(username)) return avatarCache.get(username) ?? null;
+  const pending = avatarInflight.get(username);
+  if (pending) return pending;
+  const promise = (async () => {
+    try {
+      const { data } = await supabase.from("profiles").select("avatar_url").eq("handle", username).maybeSingle();
+      const url = await resolveAvatarUrl((data as { avatar_url?: string | null } | null)?.avatar_url);
+      avatarCache.set(username, url);
+      return url;
+    } catch {
+      return null;
+    } finally {
+      avatarInflight.delete(username);
+    }
+  })();
+  avatarInflight.set(username, promise);
+  return promise;
+}
+
+export type VideoCardProps = {
+  video: Video;
+  liked: boolean;
+  muted: boolean;
+  onToggleMute: () => void;
+  onLikeChange: (videoId: string, liked: boolean) => void;
+  /** Batched from the feed when available; falls back to a per-card query. */
+  isFollowing?: boolean;
+  onFollowChange?: (username: string, following: boolean) => void;
+  isSaved?: boolean;
+  onSavedChange?: (videoId: string, saved: boolean) => void;
+};
+
+function VideoCardImpl({
   video,
   liked,
   muted,
   onToggleMute,
   onLikeChange,
-}: {
-  video: Video;
-  liked: boolean;
-  muted: boolean;
-  onToggleMute: () => void;
-  onLikeChange: (liked: boolean) => void;
-}) {
+  isFollowing: isFollowingProp,
+  onFollowChange,
+  isSaved: isSavedProp,
+  onSavedChange,
+}: VideoCardProps) {
   const ref = useRef<HTMLVideoElement>(null);
   const [src, setSrc] = useState("");
-  const [playing, setPlaying] = useState(false);
-  const [progress, setProgress] = useState(0);
   const [likes, setLikes] = useState(video.likes_count);
   const [comments, setComments] = useState(video.comments_count);
   const [shares, setShares] = useState(video.shares_count);
   const [showComments, setShowComments] = useState(false);
   const [showShare, setShowShare] = useState(false);
   const [deleted, setDeleted] = useState(false);
-  const [isSaved, setIsSaved] = useState(false);
+  const [isSaved, setIsSaved] = useState(isSavedProp ?? false);
   const [burst, setBurst] = useState(false);
-  const [isFollowing, setIsFollowing] = useState(false);
+  const [isFollowing, setIsFollowing] = useState(isFollowingProp ?? false);
   const auth = useAuth();
   const myUsername = auth.handle;
   const [authorAvatar, setAuthorAvatar] = useState<string | null>(null);
+  const progressRef = useRef<HTMLDivElement>(null);
+
+  // Read prefs once per mount instead of on every render.
+  const [dataSaver] = useState(() => readBool("data-saver"));
+  const [showCaptions] = useState(() => readBool("captions"));
+  const [autoplay] = useState(() => readBool("autoplay", true));
 
   useEffect(() => {
     const username = video.username;
@@ -54,91 +92,119 @@ export function VideoCard({
       setAuthorAvatar(auth.avatar);
       return;
     }
-    if (avatarCache.has(username)) {
-      setAuthorAvatar(avatarCache.get(username) ?? null);
-      return;
-    }
     let active = true;
-    supabase
-      .from("profiles")
-      .select("avatar_url")
-      .eq("handle", username)
-      .maybeSingle()
-      .then(async ({ data }) => {
-        const url = await resolveAvatarUrl((data as { avatar_url?: string | null } | null)?.avatar_url);
-        avatarCache.set(username, url);
-        if (active) setAuthorAvatar(url);
-      });
+    void loadAvatar(username).then((url) => {
+      if (active) setAuthorAvatar(url);
+    });
     return () => {
       active = false;
     };
   }, [video.username, myUsername, auth.avatar]);
 
+  // Keep batched props in sync when the parent learns the state later.
   useEffect(() => {
-    if (!auth.user) { setIsSaved(false); return; }
-    supabase.from("saved_videos").select("video_id").eq("user_id", auth.user.id).eq("video_id", video.id).maybeSingle()
-      .then(({ data }) => setIsSaved(!!data));
-  }, [auth.user?.id, video.id]);
+    if (isSavedProp !== undefined) setIsSaved(isSavedProp);
+  }, [isSavedProp]);
+  useEffect(() => {
+    if (isFollowingProp !== undefined) setIsFollowing(isFollowingProp);
+  }, [isFollowingProp]);
 
-  const toggleSave = async (e?: MouseEvent) => {
-    e?.stopPropagation();
-    if (!auth.user) { toast.error("Sign in to save videos"); return; }
-    const next = !isSaved;
-    setIsSaved(next);
-    const { error } = next
-      ? await supabase.from("saved_videos").insert({ user_id: auth.user.id, video_id: video.id })
-      : await supabase.from("saved_videos").delete().eq("user_id", auth.user.id).eq("video_id", video.id);
-    // 23505 = already saved, which is fine
-    if (error && error.code !== "23505") {
-      console.error(error);
-      setIsSaved(!next);
-      toast.error(`Couldn't save: ${error.message}`);
-      return;
-    }
-    toast.success(next ? "Saved to your profile" : "Removed from saved");
-  };
-  const isImage = isImageUrl(video.video_url) || /\.(jpe?g|png|webp|gif|avif)$/i.test(video.video_url);
-  const { text: captionText, song, full } = parseCaption(video.caption);
-  const songRef = useRef<HTMLAudioElement>(null);
-  const cardRef = useRef<HTMLDivElement>(null);
+  // Fallback only when the parent doesn't provide batched state (e.g. profile page).
+  useEffect(() => {
+    if (isSavedProp !== undefined || !auth.user) return;
+    let active = true;
+    supabase
+      .from("saved_videos")
+      .select("video_id")
+      .eq("user_id", auth.user.id)
+      .eq("video_id", video.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (active) setIsSaved(!!data);
+      });
+    return () => {
+      active = false;
+    };
+  }, [auth.user?.id, video.id, isSavedProp]);
 
   useEffect(() => {
-    if (!auth.user || !myUsername || video.username === myUsername) return;
+    if (isFollowingProp !== undefined || !auth.user || !myUsername || video.username === myUsername) return;
+    let active = true;
     supabase
       .from("follows")
       .select("id")
       .eq("follower_id", auth.user.id)
       .eq("following_username", video.username)
       .maybeSingle()
-      .then(({ data }) => setIsFollowing(!!data));
-  }, [video.username, auth.user?.id, myUsername]);
+      .then(({ data }) => {
+        if (active) setIsFollowing(!!data);
+      });
+    return () => {
+      active = false;
+    };
+  }, [video.username, auth.user?.id, myUsername, isFollowingProp]);
 
-  const toggleFollow = async () => {
+  const toggleSave = useCallback(
+    async (e?: MouseEvent) => {
+      e?.stopPropagation();
+      if (!auth.user) {
+        toast.error("Sign in to save videos");
+        return;
+      }
+      const next = !isSaved;
+      setIsSaved(next);
+      onSavedChange?.(video.id, next);
+      const { error } = next
+        ? await supabase.from("saved_videos").insert({ user_id: auth.user.id, video_id: video.id })
+        : await supabase.from("saved_videos").delete().eq("user_id", auth.user.id).eq("video_id", video.id);
+      // 23505 = already saved, which is fine
+      if (error && error.code !== "23505") {
+        console.error(error);
+        setIsSaved(!next);
+        onSavedChange?.(video.id, !next);
+        toast.error(`Couldn't save: ${error.message}`);
+        return;
+      }
+      toast.success(next ? "Saved to your profile" : "Removed from saved");
+    },
+    [auth.user, isSaved, onSavedChange, video.id],
+  );
+
+  const isImage = isImageUrl(video.video_url) || /\.(jpe?g|png|webp|gif|avif)$/i.test(video.video_url);
+  const { text: captionText, song, full } = parseCaption(video.caption);
+  const songRef = useRef<HTMLAudioElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const [near, setNear] = useState(false);
+
+  const toggleFollow = useCallback(async () => {
     if (!auth.user || !myUsername) return auth.signIn();
     const next = !isFollowing;
     setIsFollowing(next);
+    onFollowChange?.(video.username, next);
     const { error } = next
-      ? await supabase.from("follows").insert({ follower_id: auth.user.id, follower_username: myUsername, following_username: video.username })
+      ? await supabase
+          .from("follows")
+          .insert({ follower_id: auth.user.id, follower_username: myUsername, following_username: video.username })
       : await supabase.from("follows").delete().eq("follower_id", auth.user.id).eq("following_username", video.username);
     if (error) {
       setIsFollowing(!next);
+      onFollowChange?.(video.username, !next);
       toast.error("Couldn't update follow");
     }
-  };
-  const [near, setNear] = useState(false);
+  }, [auth.user, auth.signIn, isFollowing, myUsername, onFollowChange, video.username]);
+
+  // Single shared observer decides whether this card is close enough to load.
   useEffect(() => {
     const el = cardRef.current;
     if (!el) return;
-    const obs = new IntersectionObserver(
-      ([e]) => setNear(!!e && e.isIntersecting),
-      { rootMargin: "50% 0px 50% 0px" },
-    );
-    obs.observe(el);
-    return () => obs.disconnect();
+    return observeIntersection(el, (e) => setNear(!!e && e.isIntersecting), { rootMargin: "50% 0px 50% 0px" });
   }, []);
 
   useEffect(() => {
-    if (!near) { setSrc(""); setPlaying(false); return; }
+    if (!near) {
+      setSrc("");
+      return;
+    }
     let blobUrl = "";
     let alive = true;
     getSaved(video.id)
@@ -162,30 +228,35 @@ export function VideoCard({
   useEffect(() => {
     const el = ref.current;
     if (!el || isImage) return;
-    const obs = new IntersectionObserver(
-      ([e]) => {
-        if (e && e.isIntersecting && e.intersectionRatio > 0.6) { if (readBool("autoplay", true)) el.play().catch(() => {}); }
-        else el.pause();
+    return observeIntersection(
+      el,
+      (e) => {
+        if (e && e.isIntersecting && e.intersectionRatio > 0.6) {
+          if (autoplay) el.play().catch(() => {});
+        } else el.pause();
       },
       { threshold: [0, 0.6, 1] },
     );
-    obs.observe(el);
-    return () => obs.disconnect();
-  }, [src]);
+  }, [src, isImage, autoplay]);
 
   useEffect(() => {
     const el = cardRef.current;
     const a = songRef.current;
     if (!el || !a || !song) return;
-    const obs = new IntersectionObserver(
-      ([e]) => {
-        if (e && e.isIntersecting && e.intersectionRatio > 0.6) { a.currentTime = 0; a.play().catch(() => {}); }
-        else a.pause();
+    const stop = observeIntersection(
+      el,
+      (e) => {
+        if (e && e.isIntersecting && e.intersectionRatio > 0.6) {
+          a.currentTime = 0;
+          a.play().catch(() => {});
+        } else a.pause();
       },
       { threshold: [0, 0.6, 1] },
     );
-    obs.observe(el);
-    return () => { obs.disconnect(); a.pause(); };
+    return () => {
+      stop();
+      a.pause();
+    };
   }, [song?.id]);
 
   const togglePlay = () => {
@@ -195,47 +266,48 @@ export function VideoCard({
     else el.pause();
   };
 
- const toggleLike = async () => {
-  const next = !liked;
-  haptic();
-  onLikeChange(next);
-  setLikes((n) => n + (next ? 1 : -1));
-  if (next) {
-    setBurst(true);
-    setTimeout(() => setBurst(false), 650);
-  }
-  const { data: { user: authUser } } = await supabase.auth.getUser();
-  if (!authUser) {
-    toast.error("Please log in to like");
-    onLikeChange(!next);
-    setLikes((n) => n + (next ? -1 : 1));
-    return;
-  }
-  const { error } = next
-    ? await supabase.from("likes").insert({ video_id: video.id, user_id: authUser.id })
-    : await supabase.from("likes").delete().eq("video_id", video.id).eq("user_id", authUser.id);
-  if (error) {
-    onLikeChange(!next);
-    setLikes((n) => n + (next ? -1 : 1));
-    toast.error("Couldn't save your like");
-  } else if (next) {
-    // save notification to account
-    const { data: owner } = await supabase.from("profiles").select("id").eq("handle", video.username).maybeSingle();
-    if (owner && owner.id !== authUser.id) {
-      await supabase.from("notifications").insert({
-        target_user_id: owner.id,
-        actor_user_id: authUser.id,
-        type: 'like',
-        video_id: video.id,
-        text: 'liked your fit'
-      });
+  const toggleLike = useCallback(async () => {
+    const next = !liked;
+    haptic();
+    onLikeChange(video.id, next);
+    setLikes((n) => n + (next ? 1 : -1));
+    if (next) {
+      setBurst(true);
+      setTimeout(() => setBurst(false), 650);
     }
-  }
-};
-  const onShared = async () => {
+    const authUser = auth.user;
+    if (!authUser) {
+      toast.error("Please log in to like");
+      onLikeChange(video.id, !next);
+      setLikes((n) => n + (next ? -1 : 1));
+      return;
+    }
+    const { error } = next
+      ? await supabase.from("likes").insert({ video_id: video.id, user_id: authUser.id })
+      : await supabase.from("likes").delete().eq("video_id", video.id).eq("user_id", authUser.id);
+    if (error) {
+      onLikeChange(video.id, !next);
+      setLikes((n) => n + (next ? -1 : 1));
+      toast.error("Couldn't save your like");
+    } else if (next) {
+      // save notification to account
+      const { data: owner } = await supabase.from("profiles").select("id").eq("handle", video.username).maybeSingle();
+      if (owner && owner.id !== authUser.id) {
+        await supabase.from("notifications").insert({
+          target_user_id: owner.id,
+          actor_user_id: authUser.id,
+          type: "like",
+          video_id: video.id,
+          text: "liked your fit",
+        });
+      }
+    }
+  }, [auth.user, liked, onLikeChange, video.id, video.username]);
+
+  const onShared = useCallback(async () => {
     setShares((n) => n + 1);
     if (navigator.onLine) await supabase.rpc("increment_share", { _video_id: video.id });
-  };
+  }, [video.id]);
 
   const seek = (e: React.MouseEvent<HTMLDivElement>) => {
     const el = ref.current;
@@ -247,10 +319,13 @@ export function VideoCard({
   if (deleted) return null;
 
   return (
-    <section className="relative h-full w-full snap-start snap-always bg-black md:flex md:items-center md:justify-center md:bg-transparent md:py-4">
+    <section className="feed-card relative h-full w-full snap-start snap-always bg-black md:flex md:items-center md:justify-center md:bg-transparent md:py-4">
       <div className="relative flex h-full w-full items-end md:h-auto md:w-auto md:gap-4">
         <div className="flex h-full min-w-0 flex-1 flex-col md:h-auto md:flex-none md:gap-3">
-          <div ref={cardRef} className="relative h-full w-full overflow-hidden bg-black md:bg-card md:aspect-[9/16] md:h-[calc(100dvh-11rem)] md:max-h-[760px] md:w-auto md:rounded-2xl">
+          <div
+            ref={cardRef}
+            className="relative h-full w-full overflow-hidden bg-black md:aspect-[9/16] md:h-[calc(100dvh-11rem)] md:max-h-[760px] md:w-auto md:rounded-2xl md:bg-card"
+          >
             {src && isImage && (
               <img
                 src={src}
@@ -264,7 +339,10 @@ export function VideoCard({
             {song && isImage && <audio ref={songRef} src={songStreamUrl(song.id)} loop muted={muted} preload="none" />}
             {song && isImage && (
               <div className="absolute left-3 top-3 flex max-w-[70%] items-center gap-2 rounded-full bg-black/50 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur">
-                <span aria-hidden>♫</span><span className="truncate">{song.title} · {song.artist}</span>
+                <span aria-hidden>♫</span>
+                <span className="truncate">
+                  {song.title} · {song.artist}
+                </span>
               </div>
             )}
             {src && !isImage && (
@@ -275,39 +353,43 @@ export function VideoCard({
                 controls={full}
                 muted={false}
                 playsInline
-                preload={readBool("data-saver") ? "none" : "metadata"}
+                preload={dataSaver ? "none" : "metadata"}
                 disableRemotePlayback
                 onClick={togglePlay}
                 onDoubleClick={() => !liked && toggleLike()}
-                onPlay={() => setPlaying(true)}
-                onPause={() => setPlaying(false)}
                 onTimeUpdate={(e) => {
                   const v = e.currentTarget;
-                  if (v.duration) setProgress((v.currentTime / v.duration) * 100);
+                  if (v.duration && progressRef.current) {
+                    progressRef.current.style.width = `${(v.currentTime / v.duration) * 100}%`;
+                  }
                 }}
                 className={`h-full w-full cursor-pointer ${full ? "object-contain" : "object-cover"}`}
               />
             )}
-            
+
             {burst && (
               <div aria-hidden className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
                 <Heart className="heart-pop h-28 w-28 fill-primary text-primary drop-shadow-[0_0_24px_rgba(255,45,85,0.8)]" />
               </div>
             )}
-            <div className={`video-caption absolute inset-x-0 bottom-0 z-20 pb-20 pl-2 pr-20 pt-16 ${readBool("captions") ? "" : "md:hidden"}`}>
-              <Link to="/u/$username" params={{ username: video.username }} className="break-words text-sm font-bold">@{video.username}</Link>
+            <div className={`video-caption absolute inset-x-0 bottom-0 z-20 pb-20 pl-2 pr-20 pt-16 ${showCaptions ? "" : "md:hidden"}`}>
+              <Link to="/u/$username" params={{ username: video.username }} className="break-words text-sm font-bold">
+                @{video.username}
+              </Link>
               <p className="mt-1 line-clamp-3 break-words text-sm">{captionText}</p>
             </div>
             {!isImage && (
-            <div onClick={seek} className="absolute inset-x-0 bottom-0 h-3 cursor-pointer">
-              <div className="absolute inset-x-0 bottom-0 h-1 bg-foreground/20">
-                <div className="h-full bg-primary" style={{ width: `${progress}%` }} />
+              <div onClick={seek} className="absolute inset-x-0 bottom-0 h-3 cursor-pointer">
+                <div className="absolute inset-x-0 bottom-0 h-1 bg-foreground/20">
+                  <div ref={progressRef} className="h-full bg-primary" style={{ width: "0%" }} />
+                </div>
               </div>
-            </div>
             )}
           </div>
           <div className="hidden max-w-[calc((100dvh-11rem)*9/16)] md:block">
-            <Link to="/u/$username" params={{ username: video.username }} className="font-bold hover:text-primary">@{video.username}</Link>
+            <Link to="/u/$username" params={{ username: video.username }} className="font-bold hover:text-primary">
+              @{video.username}
+            </Link>
             <p className="text-sm text-muted-foreground">{captionText}</p>
           </div>
         </div>
@@ -324,6 +406,7 @@ export function VideoCard({
                 alt={`@${video.username}`}
                 className="h-full w-full object-cover"
                 loading="lazy"
+                decoding="async"
               />
             ) : (
               video.username[0]
@@ -347,23 +430,31 @@ export function VideoCard({
           <Action label={formatCount(shares)} onClick={() => setShowShare(true)}>
             <Share2 className="h-8 w-8" />
           </Action>
-            <button type="button" onClick={(e) => void toggleSave(e)} className="flex flex-col items-center">
-  <Bookmark className={`h-8 w-8 text-white ${isSaved ? "fill-yellow-400 text-yellow-400" : ""}`} />
-  <span className="text-white text-[11px] mt-1">Save</span>
-</button> 
+          <button type="button" onClick={(e) => void toggleSave(e)} className="flex flex-col items-center">
+            <Bookmark className={`h-8 w-8 text-white ${isSaved ? "fill-yellow-400 text-yellow-400" : ""}`} />
+            <span className="mt-1 text-[11px] text-white">Save</span>
+          </button>
         </div>
       </div>
       {showComments && (
-        <Comments
-          videoId={video.id}
-          onClose={() => setShowComments(false)}
-          onAdded={() => setComments((n) => n + 1)}
-        />
+        <Suspense fallback={null}>
+          <Comments videoId={video.id} onClose={() => setShowComments(false)} onAdded={() => setComments((n) => n + 1)} />
+        </Suspense>
       )}
-      {showShare && <ShareMenu video={video} onClose={() => setShowShare(false)} onShared={onShared} onDeleted={() => setDeleted(true)} />}
+      {showShare && (
+        <Suspense fallback={null}>
+          <ShareMenu video={video} onClose={() => setShowShare(false)} onShared={onShared} onDeleted={() => setDeleted(true)} />
+        </Suspense>
+      )}
     </section>
   );
 }
+
+/**
+ * Memoized: the feed re-renders on likes/mute changes and we don't want every
+ * offscreen card to re-render with it.
+ */
+export const VideoCard = memo(VideoCardImpl);
 
 function Action({
   children,
@@ -377,7 +468,12 @@ function Action({
   active?: boolean;
 }) {
   return (
-    <Button variant="ghost" onClick={onClick} aria-label={typeof children === "object" && children ? undefined : label} className="h-auto flex-col gap-1 p-0 text-xs font-semibold hover:bg-transparent [&_svg]:size-6">
+    <Button
+      variant="ghost"
+      onClick={onClick}
+      aria-label={typeof children === "object" && children ? undefined : label}
+      className="h-auto flex-col gap-1 p-0 text-xs font-semibold hover:bg-transparent [&_svg]:size-6"
+    >
       <span
         className={`flex h-11 w-11 items-center justify-center rounded-full bg-overlay backdrop-blur-sm transition hover:bg-accent md:h-12 md:w-12 md:bg-secondary ${active ? "scale-110" : ""}`}
       >

@@ -18,6 +18,7 @@ import { PhoneAuthDialog } from "../components/PhoneAuthDialog";
 import { Toaster } from "sonner";
 import { WellbeingWatcher } from "../components/MoreSettings";
 import { applyPrefs } from "../lib/prefs";
+import { AuthProvider } from "../hooks/useAuth";
 function NotFoundComponent() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -79,8 +80,11 @@ function ErrorComponent({ error, reset }: ErrorComponentProps) {
 }
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
-  head: () => ({
-    meta: [
+  head: () => {
+    const supabaseUrl = import.meta.env["VITE_SUPABASE_URL"] as string | undefined;
+    const supabaseOrigin = supabaseUrl ? new URL(supabaseUrl).origin : undefined;
+    return {
+      meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
       { title: "coolerup" },
@@ -100,12 +104,20 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "apple-touch-icon", href: "/icons/icon-192.png" },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
+      ...(supabaseOrigin
+        ? [
+            { rel: "preconnect" as const, href: supabaseOrigin, crossOrigin: "anonymous" as const },
+            { rel: "dns-prefetch" as const, href: supabaseOrigin },
+          ]
+        : []),
+      { rel: "preconnect", href: "https://api.audius.co" },
       {
         rel: "stylesheet",
         href: "https://fonts.googleapis.com/css2?family=Archivo+Black&family=Manrope:wght@400;500;600;700;800&display=swap",
       },
     ],
-  }),
+    };
+  },
   shellComponent: RootShell,
   component: RootComponent,
   notFoundComponent: NotFoundComponent,
@@ -138,14 +150,16 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <CallProvider>
-        {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-        <Outlet />
-        <CallOverlay />
-        <WellbeingWatcher />
-      </CallProvider>
-      <PhoneAuthDialog />
-      <Toaster theme="dark" position="top-center" />
+      <AuthProvider>
+        <CallProvider>
+          {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+          <Outlet />
+          <CallOverlay />
+          <WellbeingWatcher />
+        </CallProvider>
+        <PhoneAuthDialog />
+        <Toaster theme="dark" position="top-center" />
+      </AuthProvider>
     </QueryClientProvider>
   );
 }

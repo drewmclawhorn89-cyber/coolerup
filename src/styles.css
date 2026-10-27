@@ -166,11 +166,39 @@
     border-color: var(--color-border);
   }
 
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
     font-family: var(--font-sans);
   }
+
+  /* Remove the 300ms tap delay and the grey flash on mobile. */
+  button,
+  a,
+  [role="button"] {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+}
+
+/*
+ * Isolate each feed card so layout/paint work stays local. This keeps scrolling
+ * smooth on low-end phones without collapsing the snap container's height.
+ */
+.feed-card {
+  contain: layout paint style;
+}
+
+/* Skip rendering work for media that is far offscreen. */
+.feed-card img,
+.feed-card video {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 480px;
 }
 
 @utility no-scrollbar {

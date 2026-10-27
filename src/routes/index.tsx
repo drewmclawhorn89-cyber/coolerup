@@ -32,6 +32,7 @@ const RecordDialog = lazy(() => import("@/components/RecordDialog").then((m) => 
 const PhotoDialog = lazy(() => import("@/components/PhotoDialog").then((m) => ({ default: m.PhotoDialog })));
 import { fetchMyLikes, fetchRepostsByHandles, fetchVideos, parseCaption, type Video } from "@/lib/loop";
 import { listSaved, onOfflineChange } from "@/lib/offline";
+import { useBlocked } from "@/lib/safety";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -116,6 +117,27 @@ function Index() {
   const [followingList, setFollowingList] = useState<string[]>([]);
   const [repostedFeed, setRepostedFeed] = useState<Video[]>([]);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
+
+  // Moderation: videos the user tapped "Not interested" on, plus blocked authors.
+  const { blocked } = useBlocked();
+  const [notInterested, setNotInterested] = useState<Set<string>>(() => {
+    try {
+      return new Set(JSON.parse(localStorage.getItem("loop-not-interested") || "[]") as string[]);
+    } catch {
+      return new Set<string>();
+    }
+  });
+  useEffect(() => {
+    const sync = () => {
+      try {
+        setNotInterested(new Set(JSON.parse(localStorage.getItem("loop-not-interested") || "[]") as string[]));
+      } catch {
+        /* ignore */
+      }
+    };
+    window.addEventListener("loop-not-interested-changed", sync);
+    return () => window.removeEventListener("loop-not-interested-changed", sync);
+  }, []);
 
   // Load all saved video ids once instead of one query per card.
   useEffect(() => {
@@ -344,6 +366,9 @@ function Index() {
     let list = activeTab === "saved" ? saved : videos ?? [];
     const q = query.trim().toLowerCase();
     if (q) list = list.filter((v) => parseCaption(v.caption).text.toLowerCase().includes(q) || v.username.toLowerCase().includes(q));
+    // "Not interested" and blocked authors never come back in this browser.
+    if (notInterested.size > 0) list = list.filter((v) => !notInterested.has(v.id));
+    if (blocked.size > 0) list = list.filter((v) => !blocked.has(v.username));
     if (activeTab === "explore") list = [...list].sort((a, b) => b.likes_count - a.likes_count);
     if (activeTab === "following") {
       const own = list.filter((v) => followingList.includes(v.username));
@@ -363,7 +388,7 @@ function Index() {
       if (readBool("restricted")) list = list.filter((v) => !/\b(nsfw|18\+|gore|explicit)\b/i.test(v.caption ?? ""));
     }
     return list;
-  }, [videos, saved, query, activeTab, liked, me, followingList, feedTab, repostedFeed]);
+  }, [videos, saved, query, activeTab, liked, me, followingList, feedTab, repostedFeed, notInterested, blocked]);
 
   const showTopTabs = !offlineMode && (activeTab === "foryou" || activeTab === "following" || activeTab === "explore" || activeTab === "mine");
   const topTab = activeTab === "shop" || activeTab === "subscriptions" || activeTab === "mine" ? activeTab : activeTab === "following" || activeTab === "explore" ? activeTab : feedTab === "live" || feedTab === "marketplace" ? feedTab : "foryou";

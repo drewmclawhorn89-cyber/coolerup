@@ -37,31 +37,67 @@ export type Database = {
       }
       banned_users: {
         Row: {
+          auto: boolean
           banned_at: string
           banned_by: string | null
+          created_at: string
           expires_at: string | null
           id: string
           is_permanent: boolean
+          kind: string
           reason: string | null
+          report_count: number | null
+          user_id: string | null
           username: string
         }
         Insert: {
+          auto?: boolean
           banned_at?: string
           banned_by?: string | null
+          created_at?: string
           expires_at?: string | null
           id?: string
           is_permanent?: boolean
+          kind?: string
           reason?: string | null
+          report_count?: number | null
+          user_id?: string | null
           username: string
         }
         Update: {
+          auto?: boolean
           banned_at?: string
           banned_by?: string | null
+          created_at?: string
           expires_at?: string | null
           id?: string
           is_permanent?: boolean
+          kind?: string
           reason?: string | null
+          report_count?: number | null
+          user_id?: string | null
           username?: string
+        }
+        Relationships: []
+      }
+      banned_words: {
+        Row: {
+          created_at: string
+          id: string
+          severity: string
+          word: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          severity?: string
+          word: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          severity?: string
+          word?: string
         }
         Relationships: []
       }
@@ -320,37 +356,49 @@ export type Database = {
       }
       reports: {
         Row: {
+          action_taken: string | null
+          auto_actioned: boolean
           created_at: string
           details: string | null
           id: string
           reason: string
+          reported_user_id: string | null
           reported_username: string
           reported_video_id: string | null
           reporter_id: string
           reporter_username: string
           status: string
+          video_id: string | null
         }
         Insert: {
+          action_taken?: string | null
+          auto_actioned?: boolean
           created_at?: string
           details?: string | null
           id?: string
           reason: string
+          reported_user_id?: string | null
           reported_username: string
           reported_video_id?: string | null
           reporter_id: string
           reporter_username: string
           status?: string
+          video_id?: string | null
         }
         Update: {
+          action_taken?: string | null
+          auto_actioned?: boolean
           created_at?: string
           details?: string | null
           id?: string
           reason?: string
+          reported_user_id?: string | null
           reported_username?: string
           reported_video_id?: string | null
           reporter_id?: string
           reporter_username?: string
           status?: string
+          video_id?: string | null
         }
         Relationships: []
       }
@@ -449,10 +497,13 @@ export type Database = {
           caption: string
           comments_count: number
           created_at: string
+          hidden: boolean
+          hidden_reason: string | null
           id: string
           likes_count: number
           reposts_count: number
           shares_count: number
+          user_id: string | null
           username: string
           video_url: string
         }
@@ -460,10 +511,13 @@ export type Database = {
           caption?: string
           comments_count?: number
           created_at?: string
+          hidden?: boolean
+          hidden_reason?: string | null
           id?: string
           likes_count?: number
           reposts_count?: number
           shares_count?: number
+          user_id?: string | null
           username: string
           video_url: string
         }
@@ -471,12 +525,60 @@ export type Database = {
           caption?: string
           comments_count?: number
           created_at?: string
+          hidden?: boolean
+          hidden_reason?: string | null
           id?: string
           likes_count?: number
           reposts_count?: number
           shares_count?: number
+          user_id?: string | null
           username?: string
           video_url?: string
+        }
+        Relationships: []
+      }
+      moderation_log: {
+        Row: {
+          action: string
+          actor: string | null
+          auto: boolean
+          created_at: string
+          expires_at: string | null
+          id: string
+          is_permanent: boolean
+          reason: string | null
+          report_count: number | null
+          user_id: string | null
+          username: string | null
+          window_hours: number | null
+        }
+        Insert: {
+          action: string
+          actor?: string | null
+          auto?: boolean
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          is_permanent?: boolean
+          reason?: string | null
+          report_count?: number | null
+          user_id?: string | null
+          username?: string | null
+          window_hours?: number | null
+        }
+        Update: {
+          action?: string
+          actor?: string | null
+          auto?: boolean
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          is_permanent?: boolean
+          reason?: string | null
+          report_count?: number | null
+          user_id?: string | null
+          username?: string | null
+          window_hours?: number | null
         }
         Relationships: []
       }
@@ -505,6 +607,85 @@ export type Database = {
         }[]
       }
       is_banned_username: { Args: { _username: string }; Returns: boolean }
+      is_muted: { Args: { _username: string }; Returns: boolean }
+      contains_banned_word: { Args: { _text: string }; Returns: boolean }
+      am_i_admin: { Args: never; Returns: boolean }
+      auto_ban_if_needed: { Args: { _user_id: string | null; _username: string }; Returns: Json }
+      apply_moderation: {
+        Args: {
+          _user_id: string | null
+          _username: string
+          _action: string
+          _reason: string
+          _hours?: number | null
+          _permanent?: boolean
+          _kind?: string
+          _auto?: boolean
+          _actor?: string
+          _report_count?: number | null
+          _window_hours?: number | null
+        }
+        Returns: Json
+      }
+      report_content: {
+        Args: { _video_id: string | null; _reported_username: string; _reason: string; _details?: string | null }
+        Returns: Json
+      }
+      admin_reports: {
+        Args: { _limit?: number }
+        Returns: {
+          id: string
+          video_id: string | null
+          reported_video_id: string | null
+          reporter_username: string
+          reported_username: string
+          reported_user_id: string | null
+          reason: string
+          details: string | null
+          status: string
+          action_taken: string | null
+          created_at: string
+        }[]
+      }
+      admin_bans: {
+        Args: never
+        Returns: {
+          id: string
+          username: string
+          user_id: string | null
+          reason: string | null
+          banned_by: string | null
+          kind: string
+          is_permanent: boolean
+          expires_at: string | null
+          auto: boolean
+          report_count: number | null
+          created_at: string
+          active: boolean
+        }[]
+      }
+      admin_moderation_log: {
+        Args: { _limit?: number }
+        Returns: {
+          id: string
+          username: string | null
+          action: string
+          reason: string | null
+          report_count: number | null
+          is_permanent: boolean
+          expires_at: string | null
+          auto: boolean
+          actor: string | null
+          created_at: string
+        }[]
+      }
+      admin_ban: {
+        Args: { _username: string; _hours?: number | null; _permanent?: boolean; _reason?: string }
+        Returns: Json
+      }
+      admin_unban: { Args: { _username: string }; Returns: Json }
+      admin_dismiss_report: { Args: { _report_id: string }; Returns: Json }
+      admin_unhide_video: { Args: { _video_id: string }; Returns: Json }
       my_ban_status: {
         Args: never
         Returns: {

@@ -314,8 +314,8 @@ function Index() {
     return list;
   }, [videos, saved, query, activeTab, liked, me, followingList, feedTab]);
 
-  const showTopTabs = !offlineMode && (activeTab === "foryou" || activeTab === "following" || activeTab === "explore");
-  const topTab = activeTab === "shop" || activeTab === "subscriptions" ? activeTab : activeTab === "following" || activeTab === "explore" ? activeTab : feedTab === "live" || feedTab === "marketplace" ? feedTab : "foryou";
+  const showTopTabs = !offlineMode && (activeTab === "foryou" || activeTab === "following" || activeTab === "explore" || activeTab === "mine");
+  const topTab = activeTab === "shop" || activeTab === "subscriptions" || activeTab === "mine" ? activeTab : activeTab === "following" || activeTab === "explore" ? activeTab : feedTab === "live" || feedTab === "marketplace" ? feedTab : "foryou";
   const pickFeedTab = (t: "foryou" | "following" | "explore" | "marketplace" | "live") => {
     setFeedTab(t);
     setTab(t === "following" || t === "explore" ? t : "foryou");
@@ -496,6 +496,7 @@ function Index() {
               <button onClick={() => pickFeedTab("live")} className={tabClass("live")}>LIVE</button>
               <button onClick={() => setTab("shop")} className={tabClass("shop")}>Shop</button>
               <button onClick={() => setTab("subscriptions")} className={tabClass("subscriptions")}>Subscriptions</button>
+              <button onClick={() => setTab("mine")} className={tabClass("mine")}>Mine</button>
             </div>
             <Marketplace />
           </div>
@@ -509,6 +510,7 @@ function Index() {
               <button onClick={() => pickFeedTab("live")} className={tabClass("live")}>LIVE</button>
               <button onClick={() => setTab("shop")} className={tabClass("shop")}>Shop</button>
               <button onClick={() => setTab("subscriptions")} className={tabClass("subscriptions")}>Subscriptions</button>
+              <button onClick={() => setTab("mine")} className={tabClass("mine")}>Mine</button>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto">
             {activeTab === "subscriptions" ? (
@@ -592,6 +594,7 @@ function Index() {
                 </button>
                 <button onClick={() => setTab("shop")} className={tabClass("shop")}>Shop</button>
                 <button onClick={() => setTab("subscriptions")} className={tabClass("subscriptions")}>Subscriptions</button>
+                <button onClick={() => setTab("mine")} className={tabClass("mine")}>Mine</button>
               </div>
             )}
             <div className="no-scrollbar min-h-0 flex-1 snap-y snap-mandatory overflow-y-scroll overscroll-contain scroll-smooth">

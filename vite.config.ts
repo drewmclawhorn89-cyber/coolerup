@@ -12,4 +12,11 @@ export default defineConfig({
     // nitro/vite builds from this
     server: { entry: "server" },
   },
+  vite: {
+    build: {
+      // Broad support for older phones while keeping modern output small.
+      target: "es2020",
+      cssCodeSplit: true,
+    },
+  },
 });

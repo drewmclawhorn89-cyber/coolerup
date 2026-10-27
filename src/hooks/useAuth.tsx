@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -20,7 +20,24 @@ export const OPEN_AUTH_EVENT = "loop-open-auth";
 /** Open the sign-in dialog (Phone | Email | Google), mounted once in the root route. */
 export const openAuthDialog = () => window.dispatchEvent(new Event(OPEN_AUTH_EVENT));
 
-export function useAuth() {
+export type AuthValue = {
+  user: User | null;
+  ready: boolean;
+  name: string | null;
+  handle: string | null;
+  avatar: string | null;
+  profile: Profile | null;
+  isAdmin: boolean;
+  signIn: () => Promise<void>;
+  signOut: () => Promise<void>;
+};
+
+/**
+ * The auth session is app-global, so it must be loaded exactly once and shared.
+ * Previously every VideoCard ran its own subscription + profile fetch, which
+ * meant ~20 duplicate auth listeners and network requests per feed page.
+ */
+function useAuthState(): AuthValue {
   const [user, setUser] = useState<User | null>(null);
   const [ready, setReady] = useState(false);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -58,6 +75,7 @@ export function useAuth() {
     if (!user) {
       setProfile(null);
       setIsAdmin(false);
+      setResolvedAvatar(null);
       return;
     }
     let alive = true;
@@ -73,7 +91,12 @@ export function useAuth() {
         if (res.error?.code === "23505") toast.error(`@${derivedHandle} is taken — pick a username in Settings`);
         row = (res.data as Profile | null) ?? null;
       }
-      const { data: role } = await supabase.from("user_roles").select("role").eq("user_id", user.id).eq("role", "admin").maybeSingle();
+      const { data: role } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .eq("role", "admin")
+        .maybeSingle();
       let avatarUrl: string | null = null;
       if (row?.avatar_url?.startsWith("avatars:")) {
         const { data: signed } = await supabase.storage
@@ -97,8 +120,29 @@ export function useAuth() {
   const name: string | null = profile?.display_name || googleName;
   const avatar: string | null = resolvedAvatar || user?.user_metadata?.["avatar_url"] || null;
 
-  const signIn = async () => openAuthDialog();
-  const signOut = () => supabase.auth.signOut();
+  const signIn = async () => {
+    openAuthDialog();
+  };
+  const signOut = async () => {
+    await supabase.auth.signOut();
+  };
 
-  return { user, ready, name, handle, avatar, profile, isAdmin, signIn, signOut };
+  return useMemo(
+    () => ({ user, ready, name, handle, avatar, profile, isAdmin, signIn, signOut }),
+    [user, ready, name, handle, avatar, profile, isAdmin],
+  );
+}
+
+const AuthContext = createContext<AuthValue | null>(null);
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const value = useAuthState();
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+/** Read the single shared auth session. Must be used inside <AuthProvider>. */
+export function useAuth(): AuthValue {
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error("useAuth must be used within <AuthProvider>");
+  return ctx;
 }

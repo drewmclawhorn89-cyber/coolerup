@@ -35,6 +35,7 @@ export function VideoCard({
   const [shares, setShares] = useState(video.shares_count);
   const [showComments, setShowComments] = useState(false);
   const [showShare, setShowShare] = useState(false);
+  const [deleted, setDeleted] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   const [burst, setBurst] = useState(false);
   const [isFollowing, setIsFollowing] = useState(false);
@@ -204,6 +205,8 @@ export function VideoCard({
     el.currentTime = ((e.clientX - rect.left) / rect.width) * el.duration;
   };
 
+  if (deleted) return null;
+
   return (
     <section className="relative h-full w-full snap-start snap-always bg-black md:flex md:items-center md:justify-center md:bg-transparent md:py-4">
       <div className="relative flex h-full w-full items-end md:h-auto md:w-auto md:gap-4">
@@ -308,7 +311,7 @@ export function VideoCard({
           onAdded={() => setComments((n) => n + 1)}
         />
       )}
-      {showShare && <ShareMenu video={video} onClose={() => setShowShare(false)} onShared={onShared} />}
+      {showShare && <ShareMenu video={video} onClose={() => setShowShare(false)} onShared={onShared} onDeleted={() => setDeleted(true)} />}
     </section>
   );
 }

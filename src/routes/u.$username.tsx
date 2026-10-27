@@ -3,6 +3,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ArrowLeft, Pencil, Plus, X } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { EditProfileDialog, LINK_FIELDS, normalizeLink, resolveAvatarUrl } from "@/components/EditProfileDialog";
@@ -41,6 +42,12 @@ function Thumb({ url, caption }: { url: string; caption: string }) {
     : <video src={`${src}#t=0.5`} muted playsInline preload="metadata" className="h-full w-full object-cover" />;
 }
 
+type FollowingUser = {
+  handle: string;
+  display_name: string | null;
+  avatar: string | null;
+};
+
 function Profile() {
   const { username } = Route.useParams();
   const auth = useAuth();
@@ -60,6 +67,8 @@ function Profile() {
   const storyFile = useRef<HTMLInputElement>(null);
 const [totalFollowers, setTotalFollowers] = useState(0);
   const [totalFollowing, setTotalFollowing] = useState(0);
+  const [followingOpen, setFollowingOpen] = useState(false);
+  const [followingUsers, setFollowingUsers] = useState<FollowingUser[] | null>(null);
   
    const equipped = useEquipped(username);
   const isOwn = !!auth.handle && auth.handle === username;
@@ -78,6 +87,42 @@ const [totalFollowers, setTotalFollowers] = useState(0);
 
     loadStats();
   }, [username]);
+
+  useEffect(() => {
+    if (!followingOpen || !username) return;
+    let alive = true;
+    setFollowingUsers(null);
+    (async () => {
+      const { data: rows } = await supabase
+        .from("follows")
+        .select("following_username")
+        .eq("follower_username", username)
+        .order("created_at", { ascending: false })
+        .limit(200);
+      const handles = (rows ?? []).map((r) => r.following_username);
+      if (handles.length === 0) {
+        if (alive) setFollowingUsers([]);
+        return;
+      }
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("handle, display_name, avatar_url")
+        .in("handle", handles);
+      const byHandle = new Map((profiles ?? []).map((p) => [p.handle, p]));
+      const list = await Promise.all(
+        handles.map(async (handle) => {
+          const p = byHandle.get(handle);
+          return {
+            handle,
+            display_name: p?.display_name ?? null,
+            avatar: await resolveAvatarUrl(p?.avatar_url),
+          } as FollowingUser;
+        }),
+      );
+      if (alive) setFollowingUsers(list);
+    })();
+    return () => { alive = false; };
+  }, [followingOpen, username]);
  
   useEffect(() => {
     if (!username) return;
@@ -211,7 +256,14 @@ const [totalFollowers, setTotalFollowers] = useState(0);
           <span><b>{videos?.length ?? "-"}</b> videos</span>
 <span><b>{totalLikes ?? 0}</b> likes</span>
 <span><b>{totalFollowers}</b> followers</span>
-<span><b>{totalFollowing}</b> following</span>
+<button
+  type="button"
+  onClick={() => setFollowingOpen(true)}
+  className="rounded transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+  aria-label={`View accounts @${username} is following`}
+>
+  <b>{totalFollowing}</b> following
+</button>
           </div>
         </div>
 
@@ -274,6 +326,55 @@ const [totalFollowers, setTotalFollowers] = useState(0);
       )}
 
       {isOwn && <EditProfileDialog open={editing} onOpenChange={setEditing} />}
+
+      <Dialog open={followingOpen} onOpenChange={setFollowingOpen}>
+        <DialogContent className="max-h-[80dvh] max-w-md overflow-hidden">
+          <DialogHeader>
+            <DialogTitle>Following</DialogTitle>
+          </DialogHeader>
+          <div className="-mx-6 max-h-[60dvh] overflow-y-auto px-6">
+            {followingUsers === null ? (
+              <div className="space-y-2 py-2">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} className="flex items-center gap-3 py-2">
+                    <div className="h-10 w-10 animate-pulse rounded-full bg-muted" />
+                    <div className="h-3 w-32 animate-pulse rounded bg-muted" />
+                  </div>
+                ))}
+              </div>
+            ) : followingUsers.length === 0 ? (
+              <p className="py-10 text-center text-sm text-muted-foreground">
+                @{username} isn't following anyone yet.
+              </p>
+            ) : (
+              <ul className="divide-y">
+                {followingUsers.map((u) => (
+                  <li key={u.handle}>
+                    <Link
+                      to="/u/$username"
+                      params={{ username: u.handle }}
+                      onClick={() => setFollowingOpen(false)}
+                      className="flex items-center gap-3 py-3 hover:opacity-80"
+                    >
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary text-sm uppercase text-primary-foreground">
+                        {u.avatar ? (
+                          <img src={u.avatar} alt={u.display_name || u.handle} className="h-full w-full object-cover" />
+                        ) : (
+                          u.handle[0]
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold">{u.display_name || u.handle}</p>
+                        <p className="truncate text-xs text-muted-foreground">@{u.handle}</p>
+                      </div>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

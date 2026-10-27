@@ -30,7 +30,7 @@ const LiveStreamDialog = lazy(() =>
 );
 const RecordDialog = lazy(() => import("@/components/RecordDialog").then((m) => ({ default: m.RecordDialog })));
 const PhotoDialog = lazy(() => import("@/components/PhotoDialog").then((m) => ({ default: m.PhotoDialog })));
-import { fetchMyLikes, fetchVideos, parseCaption, type Video } from "@/lib/loop";
+import { fetchMyLikes, fetchRepostsByHandles, fetchVideos, parseCaption, type Video } from "@/lib/loop";
 import { listSaved, onOfflineChange } from "@/lib/offline";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
@@ -129,6 +129,7 @@ function Index() {
   const [tab, setTab] = useState<Tab>("foryou");
   const [feedTab, setFeedTab] = useState<"foryou" | "following" | "explore" | "marketplace" | "live">("foryou");
   const [followingList, setFollowingList] = useState<string[]>([]);
+  const [repostedFeed, setRepostedFeed] = useState<Video[]>([]);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
 
   // Load all saved video ids once instead of one query per card.
@@ -161,6 +162,23 @@ function Index() {
       .eq("follower_id", auth.user.id)
       .then(({ data }) => setFollowingList((data ?? []).map((r) => r.following_username)));
   }, [auth.user?.id]);
+
+  // Reposts by people you follow show up in the Following feed.
+  useEffect(() => {
+    if (!auth.user || followingList.length === 0) {
+      setRepostedFeed([]);
+      return;
+    }
+    let active = true;
+    fetchRepostsByHandles(followingList)
+      .then((v) => {
+        if (active) setRepostedFeed(v);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [auth.user?.id, followingList]);
   const [query, setQuery] = useState("");
   const [photoOpen, setPhotoOpen] = useState(false);
   const [muted, setMuted] = useState(false);
@@ -342,7 +360,16 @@ function Index() {
     const q = query.trim().toLowerCase();
     if (q) list = list.filter((v) => parseCaption(v.caption).text.toLowerCase().includes(q) || v.username.toLowerCase().includes(q));
     if (activeTab === "explore") list = [...list].sort((a, b) => b.likes_count - a.likes_count);
-    if (activeTab === "following") list = list.filter((v) => followingList.includes(v.username));
+    if (activeTab === "following") {
+      const own = list.filter((v) => followingList.includes(v.username));
+      const ids = new Set(own.map((v) => v.id));
+      const extras = repostedFeed.filter(
+        (v) =>
+          !ids.has(v.id) &&
+          (!q || parseCaption(v.caption).text.toLowerCase().includes(q) || v.username.toLowerCase().includes(q)),
+      );
+      list = [...extras, ...own];
+    }
     if (activeTab === "foryou" && feedTab === "live") list = list.filter((v) => v.is_live);
     if (activeTab === "liked") list = list.filter((v) => liked.has(v.id));
     if (activeTab === "mine") list = me ? list.filter((v) => v.username === me) : [];
@@ -351,7 +378,7 @@ function Index() {
       if (readBool("restricted")) list = list.filter((v) => !/\b(nsfw|18\+|gore|explicit)\b/i.test(v.caption ?? ""));
     }
     return list;
-  }, [videos, saved, query, activeTab, liked, me, followingList, feedTab]);
+  }, [videos, saved, query, activeTab, liked, me, followingList, feedTab, repostedFeed]);
 
   const showTopTabs = !offlineMode && (activeTab === "foryou" || activeTab === "following" || activeTab === "explore" || activeTab === "mine");
   const topTab = activeTab === "shop" || activeTab === "subscriptions" || activeTab === "mine" ? activeTab : activeTab === "following" || activeTab === "explore" ? activeTab : feedTab === "live" || feedTab === "marketplace" ? feedTab : "foryou";

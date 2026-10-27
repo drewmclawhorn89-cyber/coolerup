@@ -10,6 +10,10 @@ export type Video = {
   shares_count: number;
   created_at: string;
   is_live?: boolean | null;
+  /** Repost count, kept in sync with the `reposts` table. */
+  reposts?: number;
+  /** Raw column name returned by `select("*")` on the videos table. */
+  reposts_count?: number;
 };
 
 export type Song = { id: string; title: string; artist: string };
@@ -67,13 +71,13 @@ export async function fetchVideos(page = 0) {
   // Select only the columns the feed renders (smaller payload, faster parse).
   const { data, error } = await supabase
     .from("videos")
-    .select("id, username, caption, video_url, likes_count, comments_count, shares_count, created_at")
+    .select("id, username, caption, video_url, likes_count, comments_count, shares_count, reposts_count, created_at")
     .order("created_at", { ascending: false })
     .range(from, to);
 
   if (error) throw error;
   // Fisher–Yates shuffle for feed variety (the old sort comparator was invalid).
-  const list = (data ?? []) as Video[];
+  const list = (data ?? []).map((v) => ({ ...v, reposts: v.reposts_count ?? 0 })) as Video[];
   for (let i = list.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     const a = list[i]!;
@@ -138,6 +142,37 @@ export async function fetchSavedVideos(userId: string) {
     .eq("user_id", userId)
     .order("created_at", { ascending: false });
   return ((data ?? []) as any[]).map((r) => r.videos).filter(Boolean);
+}
+
+/** Videos a user has reposted, newest repost first (for the profile Reposts tab). */
+export async function fetchRepostedVideos(userId: string) {
+  const { data } = await supabase
+    .from("reposts")
+    .select("created_at, videos(*)")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
+  return ((data ?? []) as unknown as { videos: Video | null }[])
+    .map((r) => r.videos)
+    .filter((v): v is Video => !!v)
+    .map((v) => ({ ...v, reposts: v.reposts_count ?? 0 }));
+}
+
+/** Reposts made by the people a user follows, for the Following feed. */
+export async function fetchRepostsByHandles(handles: string[]) {
+  if (handles.length === 0) return [] as Video[];
+  const { data: profiles } = await supabase.from("profiles").select("id").in("handle", handles);
+  const ids = (profiles ?? []).map((p) => p.id);
+  if (ids.length === 0) return [] as Video[];
+  const { data } = await supabase
+    .from("reposts")
+    .select("created_at, videos(*)")
+    .in("user_id", ids)
+    .order("created_at", { ascending: false })
+    .limit(50);
+  return ((data ?? []) as unknown as { videos: Video | null }[])
+    .map((r) => r.videos)
+    .filter((v): v is Video => !!v)
+    .map((v) => ({ ...v, reposts: v.reposts_count ?? 0 }));
 }
 
 export async function deleteVideo(video: Video) {

@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { ArrowLeft, Pencil, Plus, X } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { EditProfileDialog, LINK_FIELDS, normalizeLink, resolveAvatarUrl } from "@/components/EditProfileDialog";
-import { fetchSavedVideos, fetchMyLikes, isImageUrl, parseCaption, resolveVideoUrl } from "@/lib/loop";
+import { fetchSavedVideos, fetchRepostedVideos, fetchMyLikes, isImageUrl, parseCaption, resolveVideoUrl } from "@/lib/loop";
 import { VideoCard } from "@/components/VideoCard";
 import { StoryViewer } from "@/components/StoryViewer";
 import { fetchStories, postStory, type Story } from "@/lib/stories";
@@ -58,8 +58,9 @@ function Profile() {
   const [editing, setEditing] = useState(false);
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
   const [muted, setMuted] = useState(false);
-  const [tab, setTab] = useState<"videos" | "saved">("videos");
+  const [tab, setTab] = useState<"videos" | "reposts" | "saved">("videos");
   const [saved, setSaved] = useState<any[]>([]);
+  const [reposts, setReposts] = useState<any[]>([]);
   const viewer = useRef<HTMLDivElement>(null);
   const [stories, setStories] = useState<Story[]>([]);
   const [storyOpen, setStoryOpen] = useState(false);
@@ -204,6 +205,10 @@ const [totalFollowers, setTotalFollowers] = useState(0);
     if (!profile?.id) return;
     fetchSavedVideos(profile.id).then(setSaved).catch(() => {});
   }, [profile?.id, tab]);
+  useEffect(() => {
+    if (!profile?.id) return;
+    fetchRepostedVideos(profile.id).then(setReposts).catch(() => {});
+  }, [profile?.id, tab]);
   useEffect(() => { fetchMyLikes().then(setLikedIds).catch(() => {}); }, [open !== null]);
   useEffect(() => {
     if (open === null) return;
@@ -212,7 +217,7 @@ const [totalFollowers, setTotalFollowers] = useState(0);
   }, [open]);
 
   const totalLikes = (videos || []).reduce((a, v) => a + (v.likes_count || 0), 0);
-  const shownVideos = tab === "saved" ? saved : videos;
+  const shownVideos = tab === "saved" ? saved : tab === "reposts" ? reposts : videos;
   const displayName = profile?.display_name || username;
   const PAGE = 12;
   const [count, setCount] = useState(PAGE);
@@ -316,13 +321,13 @@ const [totalFollowers, setTotalFollowers] = useState(0);
 
         {(
           <div className="mb-3 flex border-b">
-            {(["videos", "saved"] as const).map((t) => (
+            {(["videos", "reposts", "saved"] as const).map((t) => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
                 className={`flex-1 py-2 text-sm font-bold capitalize ${tab === t ? "border-b-2 border-primary text-primary" : "text-muted-foreground"}`}
               >
-                {t === "saved" ? `Saved (${saved.length})` : "Videos"}
+                {t === "saved" ? `Saved (${saved.length})` : t === "reposts" ? `Reposts (${reposts.length})` : "Videos"}
               </button>
             ))}
           </div>
@@ -330,6 +335,9 @@ const [totalFollowers, setTotalFollowers] = useState(0);
 
         {tab === "saved" && saved.length === 0 && (
           <p className="py-10 text-center text-sm text-muted-foreground">No saved videos yet.</p>
+        )}
+        {tab === "reposts" && reposts.length === 0 && (
+          <p className="py-10 text-center text-sm text-muted-foreground">No reposts yet.</p>
         )}
         <div className="grid grid-cols-3 gap-1">
           {shownVideos?.slice(0, count).map((v, i) => (

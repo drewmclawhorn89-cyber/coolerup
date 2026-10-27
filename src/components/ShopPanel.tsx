@@ -35,10 +35,11 @@ export function ShopPanel({ handle, posts }: { handle: string | null; posts: num
     <div className="space-y-6 p-4 pb-24 md:p-10">
       <div>
         <h2 className="font-display text-2xl md:text-3xl">Shop</h2>
-        <p className="text-sm text-muted-foreground">You've posted {posts}. Unlock tops and name styles by posting, then equip them on your profile.</p>
+        <p className="text-sm text-muted-foreground">You've posted {posts}. Unlock tops, name styles and animals by posting, then equip them on your profile.</p>
       </div>
       {section("top", "Tops")}
       {section("name", "Name shop")}
+      {section("animal", "Animals (unlock one every 10 videos)")}
     </div>
   );
 }

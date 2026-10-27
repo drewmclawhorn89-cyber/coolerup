@@ -17,6 +17,7 @@ import {
   Heart,
   MessageCircle,
   MoreVertical,
+  Play,
   Repeat2,
   Share2,
 } from "lucide-react";
@@ -33,6 +34,7 @@ import {
 import { getSaved } from "@/lib/offline";
 import { useAuth } from "@/hooks/useAuth";
 import { haptic, readBool } from "@/lib/prefs";
+import { isLiteMode, useNetwork } from "@/lib/network";
 import { observeIntersection } from "@/lib/observer";
 import { Button } from "@/components/ui/button";
 import {
@@ -214,7 +216,8 @@ function VideoCardImpl({
   }, [block, video.username]);
 
   // Read prefs once per mount instead of on every render.
-  const [dataSaver] = useState(() => readBool("data-saver"));
+  const net = useNetwork();
+  const lite = isLiteMode(net);
   const [showCaptions] = useState(() => readBool("captions"));
   const [autoplay] = useState(() => readBool("autoplay", true));
 
@@ -335,6 +338,11 @@ function VideoCardImpl({
   const songRef = useRef<HTMLAudioElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
   const [near, setNear] = useState(false);
+  // In lite mode only the card actually filling the viewport may download.
+  const [active, setActive] = useState(false);
+  const [manualLoad, setManualLoad] = useState(false);
+  const [retry, setRetry] = useState(0);
+  const [loadState, setLoadState] = useState<"idle" | "loading" | "ready" | "error">("idle");
 
   const toggleFollow = useCallback(async () => {
     if (!auth.user || !myUsername) return auth.signIn();
@@ -365,18 +373,34 @@ function VideoCardImpl({
   useEffect(() => {
     const el = cardRef.current;
     if (!el) return;
-    return observeIntersection(el, (e) => setNear(!!e && e.isIntersecting), {
-      rootMargin: "50% 0px 50% 0px",
-    });
+    return observeIntersection(
+      el,
+      (e) => {
+        setNear(!!e && e.isIntersecting);
+        setActive(!!e && e.isIntersecting && e.intersectionRatio > 0.6);
+      },
+      { rootMargin: "50% 0px 50% 0px", threshold: [0, 0.6, 1] },
+    );
   }, []);
 
+  // Lite mode streams one video at a time; otherwise preload the next card.
+  const shouldLoad = lite ? active || manualLoad : near;
+
+  // Drop a manually-started video once the card is well off screen so it stops
+  // holding a network connection and memory.
   useEffect(() => {
-    if (!near) {
+    if (!near) setManualLoad(false);
+  }, [near]);
+
+  useEffect(() => {
+    if (!shouldLoad) {
       setSrc("");
+      setLoadState("idle");
       return;
     }
     let blobUrl = "";
     let alive = true;
+    setLoadState("loading");
     getSaved(video.id)
       .catch(() => null)
       .then(async (saved) => {
@@ -386,14 +410,27 @@ function VideoCardImpl({
           setSrc(blobUrl);
         } else {
           const u = await resolveVideoUrl(video.video_url);
-          if (alive) setSrc(u);
+          if (!alive) return;
+          setSrc(u);
+          if (!u) setLoadState("error");
         }
+      })
+      .catch(() => {
+        if (alive) setLoadState("error");
       });
     return () => {
       alive = false;
       if (blobUrl) URL.revokeObjectURL(blobUrl);
     };
-  }, [video.id, video.video_url, near]);
+  }, [video.id, video.video_url, shouldLoad, retry]);
+
+  // If the user tapped "play" on a card that wasn't auto-loading, start it once
+  // the source is ready.
+  useEffect(() => {
+    if (!manualLoad || !src) return;
+    const el = ref.current;
+    if (el) el.play().catch(() => {});
+  }, [manualLoad, src]);
 
   useEffect(() => {
     const el = ref.current;
@@ -557,6 +594,8 @@ function VideoCardImpl({
                 loading="lazy"
                 decoding="async"
                 alt={captionText || `Photo by @${video.username}`}
+                onLoad={() => setLoadState("ready")}
+                onError={() => setLoadState("error")}
                 onDoubleClick={() => !liked && toggleLike()}
                 className="h-full w-full cursor-pointer object-cover"
               />
@@ -578,12 +617,14 @@ function VideoCardImpl({
                 src={src}
                 loop={!full}
                 controls={full}
-                muted={false}
+                muted={muted}
                 playsInline
-                preload={dataSaver ? "none" : "metadata"}
+                preload={lite ? "none" : "metadata"}
                 disableRemotePlayback
                 onClick={togglePlay}
                 onDoubleClick={() => !liked && toggleLike()}
+                onLoadedData={() => setLoadState("ready")}
+                onError={() => setLoadState("error")}
                 onTimeUpdate={(e) => {
                   const v = e.currentTarget;
                   if (v.duration && progressRef.current) {
@@ -592,6 +633,51 @@ function VideoCardImpl({
                 }}
                 className={`h-full w-full cursor-pointer ${full ? "object-contain" : "object-cover"}`}
               />
+            )}
+
+            {!isImage && loadState !== "ready" && (
+              <div className="absolute inset-0 z-[5] flex flex-col items-center justify-center gap-3 bg-gradient-to-b from-zinc-900 via-black to-black px-6 text-center">
+                {loadState === "error" ? (
+                  <>
+                    <p className="text-sm text-white/70">Couldn't load this video.</p>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setLoadState("loading");
+                        setRetry((r) => r + 1);
+                      }}
+                      className="rounded-full border border-white/30 px-4 py-1.5 text-xs font-bold text-white transition hover:bg-white/10"
+                    >
+                      Try again
+                    </button>
+                  </>
+                ) : loadState === "idle" ? (
+                  <>
+                    <button
+                      type="button"
+                      aria-label="Play video"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setManualLoad(true);
+                      }}
+                      className="flex h-14 w-14 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur transition hover:bg-white/25"
+                    >
+                      <Play className="h-7 w-7 fill-current" />
+                    </button>
+                    <p className="text-xs text-white/60">
+                      {lite ? "Tap to play · lite mode" : "Tap to play"}
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <span className="h-9 w-9 animate-spin rounded-full border-2 border-white/20 border-t-primary" />
+                    <p className="text-xs text-white/60">
+                      {lite ? "Loading in lite mode…" : "Loading…"}
+                    </p>
+                  </>
+                )}
+              </div>
             )}
 
             {burst && (

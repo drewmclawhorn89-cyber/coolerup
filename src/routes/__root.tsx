@@ -149,6 +149,14 @@ function RootComponent() {
     return () => mq?.removeEventListener?.("change", applyPrefs);
   }, []);
 
+  // Cache the app shell and static assets so Coolerup still opens on weak or
+  // missing connections. Skipped in dev to avoid stale-module confusion.
+  useEffect(() => {
+    if (!import.meta.env.PROD) return;
+    if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return;
+    navigator.serviceWorker.register("/sw.js").catch(() => undefined);
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>

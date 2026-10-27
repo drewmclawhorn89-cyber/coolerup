@@ -21,6 +21,7 @@ import { matchesKeyword, readBool } from "@/lib/prefs";
 import { UploadDialog } from "@/components/UploadDialog";
 const RecordDialog = lazy(() => import("@/components/RecordDialog").then((m) => ({ default: m.RecordDialog })));
 import { ShopPanel } from "@/components/ShopPanel";
+import { SubscriptionsPanel } from "@/components/SubscriptionsPanel";
 const PhotoDialog = lazy(() => import("@/components/PhotoDialog").then((m) => ({ default: m.PhotoDialog })));
 import { Marketplace } from "@/components/Marketplace";
 import { LiveStreamDialog } from "@/components/LiveStreamDialog";
@@ -43,7 +44,7 @@ export const Route = createFileRoute("/")({
   component: Index,
 });
 
-type Tab = "foryou" | "explore" | "following" | "liked" | "saved" | "mine" | "inbox" | "shop";
+type Tab = "foryou" | "explore" | "following" | "liked" | "saved" | "mine" | "inbox" | "shop" | "subscriptions";
 type NotificationFilter = "all" | "unread";
 
 type NotificationRow = {
@@ -75,6 +76,7 @@ const HEADERS: Record<Tab, [string, string]> = {
   mine: ["Profile", "Your loop"],
   inbox: ["Inbox", "All your notifications"],
   shop: ["Shop", "Unlock tops and names"],
+  subscriptions: ["Subscriptions", "Paid plans and perks"],
 };
 
 function Index() {
@@ -313,7 +315,7 @@ function Index() {
   }, [videos, saved, query, activeTab, liked, me, followingList, feedTab]);
 
   const showTopTabs = !offlineMode && (activeTab === "foryou" || activeTab === "following" || activeTab === "explore");
-  const topTab = activeTab === "shop" ? "shop" : activeTab === "following" || activeTab === "explore" ? activeTab : feedTab === "live" || feedTab === "marketplace" ? feedTab : "foryou";
+  const topTab = activeTab === "shop" || activeTab === "subscriptions" ? activeTab : activeTab === "following" || activeTab === "explore" ? activeTab : feedTab === "live" || feedTab === "marketplace" ? feedTab : "foryou";
   const pickFeedTab = (t: "foryou" | "following" | "explore" | "marketplace" | "live") => {
     setFeedTab(t);
     setTab(t === "following" || t === "explore" ? t : "foryou");
@@ -492,10 +494,12 @@ function Index() {
               <button onClick={() => pickFeedTab("explore")} className={tabClass("explore")}>Explore</button>
               <button onClick={() => pickFeedTab("marketplace")} className={tabClass("marketplace")}>Marketplace</button>
               <button onClick={() => pickFeedTab("live")} className={tabClass("live")}>LIVE</button>
+              <button onClick={() => setTab("shop")} className={tabClass("shop")}>Shop</button>
+              <button onClick={() => setTab("subscriptions")} className={tabClass("subscriptions")}>Subscriptions</button>
             </div>
             <Marketplace />
           </div>
-        ) : activeTab === "shop" ? (
+        ) : activeTab === "shop" || activeTab === "subscriptions" ? (
           <div className="flex min-h-0 flex-1 flex-col">
             <div className="flex shrink-0 gap-4 bg-black no-scrollbar overflow-x-auto px-4 [&>button]:shrink-0 [&>button]:whitespace-nowrap [&>button:first-child]:ml-auto [&>button:last-child]:mr-auto pb-2 pt-3 md:hidden">
               <button onClick={() => pickFeedTab("following")} className={tabClass("following")}>Following</button>
@@ -504,9 +508,14 @@ function Index() {
               <button onClick={() => pickFeedTab("marketplace")} className={tabClass("marketplace")}>Marketplace</button>
               <button onClick={() => pickFeedTab("live")} className={tabClass("live")}>LIVE</button>
               <button onClick={() => setTab("shop")} className={tabClass("shop")}>Shop</button>
+              <button onClick={() => setTab("subscriptions")} className={tabClass("subscriptions")}>Subscriptions</button>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto">
-            <ShopPanel handle={me} posts={me ? (videos ?? []).filter((v) => v.username === me).length : 0} />
+            {activeTab === "subscriptions" ? (
+              <SubscriptionsPanel handle={me} />
+            ) : (
+              <ShopPanel handle={me} posts={me ? (videos ?? []).filter((v) => v.username === me).length : 0} />
+            )}
             </div>
           </div>
         ) : activeTab === "inbox" ? (
@@ -582,6 +591,7 @@ function Index() {
                   LIVE
                 </button>
                 <button onClick={() => setTab("shop")} className={tabClass("shop")}>Shop</button>
+                <button onClick={() => setTab("subscriptions")} className={tabClass("subscriptions")}>Subscriptions</button>
               </div>
             )}
             <div className="no-scrollbar min-h-0 flex-1 snap-y snap-mandatory overflow-y-scroll overscroll-contain scroll-smooth">

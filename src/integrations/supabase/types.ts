@@ -587,6 +587,18 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      app_status: {
+        Args: never
+        Returns: {
+          is_maintenance: boolean
+          maintenance_message: string | null
+          updated_at: string | null
+        }[]
+      }
+      set_app_status: {
+        Args: { _maintenance: boolean; _message?: string | null }
+        Returns: undefined
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

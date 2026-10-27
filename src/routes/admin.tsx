@@ -4,6 +4,7 @@ import {
   Ban,
   Clock,
   Flag,
+  Power,
   RefreshCw,
   ShieldCheck,
   ShieldOff,
@@ -26,6 +27,13 @@ import {
   type AdminReport,
   type ModerationLogRow,
 } from "@/lib/moderation";
+import { appBuildId } from "@/lib/appBuild";
+import {
+  DEFAULT_MAINTENANCE_MESSAGE,
+  fetchAppStatus,
+  setAppStatus,
+  type AppStatus,
+} from "@/lib/maintenance";
 
 export const Route = createFileRoute("/admin")({
   head: () => ({
@@ -40,7 +48,7 @@ export const Route = createFileRoute("/admin")({
   component: AdminPage,
 });
 
-type Tab = "reports" | "bans" | "log";
+type Tab = "reports" | "bans" | "log" | "update";
 
 const reasonLabel = (id: string) => REPORT_REASONS.find((r) => r.id === id)?.label ?? id;
 
@@ -69,6 +77,9 @@ function AdminPage() {
   const [log, setLog] = useState<ModerationLogRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
+  const [status, setStatus] = useState<AppStatus | null>(null);
+  const [statusMsg, setStatusMsg] = useState("");
+  const [statusBusy, setStatusBusy] = useState(false);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -81,6 +92,9 @@ function AdminPage() {
       setReports(r);
       setBans(b);
       setLog(l);
+      const s = await fetchAppStatus();
+      setStatus(s);
+      if (s?.message) setStatusMsg(s.message);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Couldn't load moderation data");
     } finally {
@@ -116,6 +130,26 @@ function AdminPage() {
       await refresh();
     } finally {
       setBusy(null);
+    }
+  };
+
+  /**
+   * Flip the update switch. This is the "shut the app down" button: everyone
+   * else's tab stops rendering the app within ~15s and shows a holding page
+   * until it's switched back off.
+   */
+  const toggleMaintenance = async (on: boolean) => {
+    setStatusBusy(true);
+    try {
+      const res = await setAppStatus(on, statusMsg || null);
+      if (!res.ok) {
+        toast.error(res.error || "Couldn't change update mode");
+        return;
+      }
+      toast.success(on ? "App is shut down for everyone" : "App is back up");
+      setStatus(await fetchAppStatus());
+    } finally {
+      setStatusBusy(false);
     }
   };
 
@@ -447,6 +481,80 @@ function AdminPage() {
               </p>
             </article>
           ))}
+        </section>
+      )}
+
+      {tab === "update" && (
+        <section className="space-y-4">
+          <article
+            className={`rounded-xl border p-4 ${
+              status?.maintenance ? "border-destructive/40 bg-destructive/5" : "border-border bg-card"
+            }`}
+          >
+            <div className="flex items-start gap-3">
+              <div
+                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
+                  status?.maintenance ? "bg-destructive/15" : "bg-primary/15"
+                }`}
+              >
+                <Power
+                  className={`h-5 w-5 ${status?.maintenance ? "text-destructive" : "text-primary"}`}
+                />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold">
+                  {status?.maintenance ? "App is shut down" : "App is live"}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {status?.maintenance
+                    ? "Everyone sees a holding page instead of the app. You can still get in through the admin bypass link on that page."
+                    : "Turn this on before you publish an update. Every open tab shuts down within ~15 seconds, and comes back on its own when you turn it off."}
+                </p>
+                {status?.updatedAt && (
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    changed {when(status.updatedAt)}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <label
+              className="mt-4 block text-xs font-medium text-muted-foreground"
+              htmlFor="maintenance-message"
+            >
+              Message shown to users
+            </label>
+            <textarea
+              id="maintenance-message"
+              value={statusMsg}
+              onChange={(e) => setStatusMsg(e.target.value)}
+              rows={2}
+              placeholder={DEFAULT_MAINTENANCE_MESSAGE}
+              className="mt-1 w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
+            />
+
+            <Button
+              className="mt-3 w-full"
+              variant={status?.maintenance ? "default" : "destructive"}
+              disabled={statusBusy || status === null}
+              onClick={() => void toggleMaintenance(!status?.maintenance)}
+            >
+              {statusBusy
+                ? "Working…"
+                : status?.maintenance
+                  ? "Bring the app back up"
+                  : "Shut the app down"}
+            </Button>
+          </article>
+
+          <article className="rounded-xl border border-border bg-card p-4">
+            <p className="text-sm font-semibold">Automatic shutdown on new builds</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Every build carries an id. When a newer one is published, open tabs shut down and
+              reload themselves into it — no switch to flip. This build:{" "}
+              <code className="rounded bg-muted px-1">{appBuildId()}</code>
+            </p>
+          </article>
         </section>
       )}
     </main>

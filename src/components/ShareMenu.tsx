@@ -3,7 +3,7 @@ import { Check, Download, Link2, Share2, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
-import { deleteVideo, type Video } from "@/lib/loop";
+import { deleteVideo, resolveVideoUrl, type Video } from "@/lib/loop";
 import { formatBytes, getSaved, removeOffline, saveOffline } from "@/lib/offline";
 
 export function ShareMenu({ video, onClose, onShared, onDeleted }: { video: Video; onClose: () => void; onShared: () => void; onDeleted?: () => void }) {
@@ -49,27 +49,48 @@ export function ShareMenu({ video, onClose, onShared, onDeleted }: { video: Vide
   };
 
   const download = async () => {
+    const t = toast.loading("Preparing download…");
     try {
-      // Try a direct fetch of the video URL and trigger a client-side download.
-      const resp = await fetch(video.video_url);
+      const src = await resolveVideoUrl(video.video_url);
+      if (!src) throw new Error("No video URL");
+      const resp = await fetch(src);
       if (!resp.ok) throw new Error("Network response was not ok");
       const blob = await resp.blob();
-      const extMatch = (video.video_url || "").match(/\.([a-z0-9]+)(?:[?#]|$)/i);
-      const ext = extMatch ? extMatch[1] : "mp4";
+      const extMatch = (video.video_url || "").match(/\.([a-z0-9]{2,4})(?:[?#]|$)/i);
+      const ext = extMatch?.[1] ?? (blob.type.includes("webm") ? "webm" : blob.type.startsWith("image/") ? blob.type.split("/")[1] : "mp4");
       const filename = `${video.id}.${ext}`;
-      const href = URL.createObjectURL(blob);
+      const type = blob.type || `video/${ext}`;
+      const file = new File([blob], filename, { type });
+
+      // On phones, the share sheet is the way to save to the camera roll / Files.
+      const isTouch = typeof navigator !== "undefined" && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      if (isTouch && navigator.canShare?.({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file] });
+          toast.success("Saved", { id: t });
+          onShared();
+          return;
+        } catch (e: any) {
+          if (e?.name === "AbortError") {
+            toast.dismiss(t);
+            return;
+          }
+        }
+      }
+
+      const href = URL.createObjectURL(file);
       const a = document.createElement("a");
       a.href = href;
       a.download = filename;
       document.body.appendChild(a);
       a.click();
       a.remove();
-      URL.revokeObjectURL(href);
-      toast.success("Download started");
+      setTimeout(() => URL.revokeObjectURL(href), 10000);
+      toast.success("Download started", { id: t });
       onShared();
     } catch (err) {
       console.error(err);
-      toast.error("Couldn't download the file. The host may block cross-origin requests.");
+      toast.error("Couldn't download this video. Try again.", { id: t });
     }
   };
 
@@ -119,14 +140,12 @@ export function ShareMenu({ video, onClose, onShared, onDeleted }: { video: Vide
 
           <button
             className="flex flex-col items-center gap-2"
-            onClick={() => (savedSize ? remove() : download())}
+            onClick={download}
           >
             <div className="w-14 h-14 rounded-full bg-zinc-800 flex items-center justify-center">
-              {savedSize ? <Check size={22} /> : <Download size={22} />}
+              <Download size={22} />
             </div>
-            <span className="text-xs text-zinc-300">
-              {savedSize ? formatBytes(savedSize) : "Download"}
-            </span>
+            <span className="text-xs text-zinc-300">Download</span>
           </button>
 
           <button
@@ -143,7 +162,7 @@ export function ShareMenu({ video, onClose, onShared, onDeleted }: { video: Vide
             <div className="w-14 h-14 rounded-full bg-zinc-800 flex items-center justify-center">
               {savedSize ? <Trash2 size={22} /> : <Check size={22} />}
             </div>
-            <span className="text-xs text-zinc-300">{savedSize ? "Remove" : "Save"}</span>
+            <span className="text-xs text-zinc-300">{savedSize ? `Remove (${formatBytes(savedSize)})` : "Save offline"}</span>
           </button>
 
           {isOwner && (

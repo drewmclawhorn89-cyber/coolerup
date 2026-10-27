@@ -28,6 +28,7 @@ import { LiveStreamDialog } from "@/components/LiveStreamDialog";
 import { fetchMyLikes, fetchVideos, parseCaption, type Video } from "@/lib/loop";
 import { listSaved, onOfflineChange } from "@/lib/offline";
 import { useAuth } from "@/hooks/useAuth";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/")({
@@ -494,6 +495,7 @@ function Index() {
               <button onClick={() => pickFeedTab("explore")} className={tabClass("explore")}>Explore</button>
               <button onClick={() => pickFeedTab("marketplace")} className={tabClass("marketplace")}>Marketplace</button>
               <button onClick={() => pickFeedTab("live")} className={tabClass("live")}>LIVE</button>
+              <button onClick={() => (auth.handle ? setUploading(true) : toast.error("Sign in to post full videos"))} className={tabClass("full")}>Full Videos</button>
               <button onClick={() => setTab("shop")} className={tabClass("shop")}>Shop</button>
               <button onClick={() => setTab("subscriptions")} className={tabClass("subscriptions")}>Subscriptions</button>
               <button onClick={() => setTab("mine")} className={tabClass("mine")}>Mine</button>
@@ -508,6 +510,7 @@ function Index() {
               <button onClick={() => pickFeedTab("explore")} className={tabClass("explore")}>Explore</button>
               <button onClick={() => pickFeedTab("marketplace")} className={tabClass("marketplace")}>Marketplace</button>
               <button onClick={() => pickFeedTab("live")} className={tabClass("live")}>LIVE</button>
+              <button onClick={() => (auth.handle ? setUploading(true) : toast.error("Sign in to post full videos"))} className={tabClass("full")}>Full Videos</button>
               <button onClick={() => setTab("shop")} className={tabClass("shop")}>Shop</button>
               <button onClick={() => setTab("subscriptions")} className={tabClass("subscriptions")}>Subscriptions</button>
               <button onClick={() => setTab("mine")} className={tabClass("mine")}>Mine</button>
@@ -592,7 +595,8 @@ function Index() {
                   <span className="h-2 w-2 rounded-full bg-red-500" />
                   LIVE
                 </button>
-                <button onClick={() => setTab("shop")} className={tabClass("shop")}>Shop</button>
+                <button onClick={() => (auth.handle ? setUploading(true) : toast.error("Sign in to post full videos"))} className={tabClass("full")}>Full Videos</button>
+              <button onClick={() => setTab("shop")} className={tabClass("shop")}>Shop</button>
                 <button onClick={() => setTab("subscriptions")} className={tabClass("subscriptions")}>Subscriptions</button>
                 <button onClick={() => setTab("mine")} className={tabClass("mine")}>Mine</button>
               </div>

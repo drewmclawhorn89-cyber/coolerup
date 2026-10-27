@@ -140,6 +140,7 @@ function Index() {
   const [photoOpen, setPhotoOpen] = useState(false);
   const [muted, setMuted] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadFull, setUploadFull] = useState(false);
   const [recordingOpen, setRecordingOpen] = useState(false);
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
   const [error, setError] = useState(false);
@@ -507,7 +508,7 @@ function Index() {
               <button onClick={() => pickFeedTab("explore")} className={tabClass("explore")}>Explore</button>
               <button onClick={() => pickFeedTab("marketplace")} className={tabClass("marketplace")}>Marketplace</button>
               <button onClick={() => pickFeedTab("live")} className={tabClass("live")}>LIVE</button>
-              <button onClick={() => (auth.handle ? setUploading(true) : toast.error("Sign in to post full videos"))} className={tabClass("full")}>Full Videos</button>
+              <button onClick={() => (auth.handle ? (setUploadFull(true), setUploading(true)) : toast.error("Sign in to post full videos"))} className={tabClass("full")}>Full Videos</button>
               <button onClick={() => setTab("shop")} className={tabClass("shop")}>Shop</button>
               <button onClick={() => setTab("subscriptions")} className={tabClass("subscriptions")}>Subscriptions</button>
               <button onClick={() => setTab("mine")} className={tabClass("mine")}>Mine</button>
@@ -522,7 +523,7 @@ function Index() {
               <button onClick={() => pickFeedTab("explore")} className={tabClass("explore")}>Explore</button>
               <button onClick={() => pickFeedTab("marketplace")} className={tabClass("marketplace")}>Marketplace</button>
               <button onClick={() => pickFeedTab("live")} className={tabClass("live")}>LIVE</button>
-              <button onClick={() => (auth.handle ? setUploading(true) : toast.error("Sign in to post full videos"))} className={tabClass("full")}>Full Videos</button>
+              <button onClick={() => (auth.handle ? (setUploadFull(true), setUploading(true)) : toast.error("Sign in to post full videos"))} className={tabClass("full")}>Full Videos</button>
               <button onClick={() => setTab("shop")} className={tabClass("shop")}>Shop</button>
               <button onClick={() => setTab("subscriptions")} className={tabClass("subscriptions")}>Subscriptions</button>
               <button onClick={() => setTab("mine")} className={tabClass("mine")}>Mine</button>
@@ -607,7 +608,7 @@ function Index() {
                   <span className="h-2 w-2 rounded-full bg-red-500" />
                   LIVE
                 </button>
-                <button onClick={() => (auth.handle ? setUploading(true) : toast.error("Sign in to post full videos"))} className={tabClass("full")}>Full Videos</button>
+                <button onClick={() => (auth.handle ? (setUploadFull(true), setUploading(true)) : toast.error("Sign in to post full videos"))} className={tabClass("full")}>Full Videos</button>
               <button onClick={() => setTab("shop")} className={tabClass("shop")}>Shop</button>
                 <button onClick={() => setTab("subscriptions")} className={tabClass("subscriptions")}>Subscriptions</button>
                 <button onClick={() => setTab("mine")} className={tabClass("mine")}>Mine</button>
@@ -738,12 +739,13 @@ function Index() {
         username={auth.handle}
         onRecord={() => setRecordingOpen(true)}
         onPhoto={() => setPhotoOpen(true)}
-        onUpload={() => setUploading(true)}
+        onUpload={() => { setUploadFull(false); setUploading(true); }}
       />
 
       {uploading && auth.handle && (
         <UploadDialog
           defaultUsername={auth.handle}
+          full={uploadFull}
           onClose={() => setUploading(false)}
           onDone={() => {
             setUploading(false);

@@ -66,7 +66,7 @@ export function VideoCard({
     toast.success(next ? "Saved to your profile" : "Removed from saved");
   };
   const isImage = isImageUrl(video.video_url) || /\.(jpe?g|png|webp|gif|avif)$/i.test(video.video_url);
-  const { text: captionText, song } = parseCaption(video.caption);
+  const { text: captionText, song, full } = parseCaption(video.caption);
   const songRef = useRef<HTMLAudioElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
 
@@ -239,7 +239,8 @@ export function VideoCard({
               <video
                 ref={ref}
                 src={src}
-                loop
+                loop={!full}
+                controls={full}
                 muted={false}
                 playsInline
                 preload={readBool("data-saver") ? "none" : "metadata"}
@@ -252,7 +253,7 @@ export function VideoCard({
                   const v = e.currentTarget;
                   if (v.duration) setProgress((v.currentTime / v.duration) * 100);
                 }}
-                className="h-full w-full cursor-pointer object-cover"
+                className={`h-full w-full cursor-pointer ${full ? "object-contain" : "object-cover"}`}
               />
             )}
             

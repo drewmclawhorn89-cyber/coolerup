@@ -26,10 +26,14 @@ export function withSong(caption: string, song?: Song | null) {
   return `${caption}[[song:${song.id}|${clean(song.title)}|${clean(song.artist)}]]`;
 }
 
-export function parseCaption(caption: string): { text: string; song: Song | null } {
+const FULL_TAG = /\s*\[\[full\]\]\s*$/;
+
+export function parseCaption(raw: string): { text: string; song: Song | null; full: boolean } {
+  const full = FULL_TAG.test(raw);
+  const caption = full ? raw.replace(FULL_TAG, "") : raw;
   const m = caption.match(SONG_TAG);
-  if (!m) return { text: caption, song: null };
-  return { text: caption.replace(SONG_TAG, ""), song: { id: m[1] ?? "", title: m[2] ?? "", artist: m[3] ?? "" } };
+  if (!m) return { text: caption, song: null, full };
+  return { text: caption.replace(SONG_TAG, ""), song: { id: m[1] ?? "", title: m[2] ?? "", artist: m[3] ?? "" }, full };
 }
 
 const STORAGE_PREFIX = "storage:";
@@ -76,7 +80,7 @@ export async function fetchMyLikes() {
   return new Set((data ?? []).map((l) => l.video_id));
 }
 
-export async function uploadVideo(file: File, username: string, caption: string, song?: Song | null) {
+export async function uploadVideo(file: File, username: string, caption: string, song?: Song | null, full = false) {
   const ext = file.name.split(".").pop() || "mp4";
   const path = `${crypto.randomUUID()}.${ext}`;
   const { error: upErr } = await supabase.storage
@@ -85,7 +89,7 @@ export async function uploadVideo(file: File, username: string, caption: string,
   if (upErr) throw upErr;
   const { error } = await supabase
     .from("videos")
-    .insert({ username, caption: withSong(caption, file.type.startsWith("image/") ? song : null), video_url: STORAGE_PREFIX + path });
+    .insert({ username, caption: withSong(caption, file.type.startsWith("image/") ? song : null) + (full && file.type.startsWith("video/") ? "[[full]]" : ""), video_url: STORAGE_PREFIX + path });
   if (error) throw error;
 }
 

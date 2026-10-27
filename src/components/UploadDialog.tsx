@@ -9,10 +9,12 @@ export function UploadDialog({
   onClose,
   onDone,
   defaultUsername,
+  full = false,
 }: {
   onClose: () => void;
   onDone: () => void;
   defaultUsername: string;
+  full?: boolean;
 }) {
   const [files, setFiles] = useState<File[]>([]);
   const file = files[0] ?? null;
@@ -55,10 +57,10 @@ export function UploadDialog({
   const pick = (list?: FileList | null) => {
     const valid: File[] = [];
     for (const f of Array.from(list ?? [])) {
-      if (!f.type.startsWith("image/") && !f.type.startsWith("video/")) continue;
+      if (!f.type.startsWith("video/") && (full || !f.type.startsWith("image/"))) continue;
       valid.push(f);
     }
-    if (list && list.length > 0 && valid.length === 0) toast.error("Please choose a video or photo");
+    if (list && list.length > 0 && valid.length === 0) toast.error(full ? "Please choose a video" : "Please choose a video or photo");
     if (valid.length) setFiles(valid);
   };
   const unusedPick = (f: File) => {
@@ -95,7 +97,7 @@ export function UploadDialog({
     toast.promise(
       (async () => {
         for (const f of batch) {
-          await uploadVideo(f, name, cap, f.type.startsWith("image/") ? chosenSong : null);
+          await uploadVideo(f, name, cap, f.type.startsWith("image/") ? chosenSong : null, full);
         }
         onDone();
       })(),
@@ -131,7 +133,7 @@ export function UploadDialog({
           ) : (
             <>
               <Upload className="h-8 w-8 text-primary" />
-              Drop videos or photos, or click to choose
+              {full ? "Drop a full-length video, or click to choose" : "Drop videos or photos, or click to choose"}
               <span className="text-xs">     </span>
             </>
           )}
@@ -139,7 +141,7 @@ export function UploadDialog({
         </label>
         <div className="flex min-w-0 flex-1 flex-col gap-4 [&_input]:text-base [&_textarea]:text-base">
           <div className="flex items-center justify-between">
-            <h2 className="font-display text-2xl">Upload</h2>
+            <h2 className="font-display text-2xl">{full ? "Upload full video" : "Upload"}</h2>
             <button type="button" onClick={onClose} aria-label="Close">
               <X className="h-5 w-5" />
             </button>

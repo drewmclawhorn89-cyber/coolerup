@@ -495,6 +495,15 @@ export type Database = {
       increment_share: { Args: { _video_id: string }; Returns: undefined }
       is_banned: { Args: { _username: string }; Returns: boolean }
       is_banned_uid: { Args: { _uid: string }; Returns: boolean }
+      ban_status_for_handle: {
+        Args: { _handle: string }
+        Returns: {
+          is_banned: boolean
+          reason: string
+          is_permanent: boolean
+          expires_at: string
+        }[]
+      }
       is_banned_username: { Args: { _username: string }; Returns: boolean }
       my_ban_status: {
         Args: never

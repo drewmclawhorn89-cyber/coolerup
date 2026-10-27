@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { Check, Download, Link2, Share2, Trash2, X } from "lucide-react";
+import { Check, Download, Link2, Lock, Share2, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { deleteVideo, resolveVideoUrl, type Video } from "@/lib/loop";
 import { formatBytes, getSaved, removeOffline, saveOffline } from "@/lib/offline";
+import { hasOfflineAccess, offlinePlan } from "@/lib/subscriptions";
 
 export function ShareMenu({ video, onClose, onShared, onDeleted }: { video: Video; onClose: () => void; onShared: () => void; onDeleted?: () => void }) {
   const [savedSize, setSavedSize] = useState<number | null>(null);
@@ -17,7 +18,16 @@ export function ShareMenu({ video, onClose, onShared, onDeleted }: { video: Vide
     getSaved(video.id).then((s) => setSavedSize(s?.size?? null)).catch(() => {});
   }, [video.id]);
 
+  const offlineUnlocked = hasOfflineAccess(auth.handle);
+
   const save = async () => {
+    // Offline downloads are a Plus ($4.99) perk. Removing is always allowed.
+    if (!offlineUnlocked) {
+      toast.error(`Save offline is part of Plus ($${offlinePlan().price.toFixed(2)}/mo)`);
+      onClose();
+      window.location.href = "/?tab=subscriptions";
+      return;
+    }
     setProgress(0);
     try {
       const size = await saveOffline(video, setProgress);
@@ -160,9 +170,17 @@ export function ShareMenu({ video, onClose, onShared, onDeleted }: { video: Vide
             }}
           >
             <div className="w-14 h-14 rounded-full bg-zinc-800 flex items-center justify-center">
-              {savedSize ? <Trash2 size={22} /> : <Check size={22} />}
+              {savedSize ? (
+                <Trash2 size={22} />
+              ) : offlineUnlocked ? (
+                <Check size={22} />
+              ) : (
+                <Lock size={22} className="text-zinc-400" />
+              )}
             </div>
-            <span className="text-xs text-zinc-300">{savedSize ? `Remove (${formatBytes(savedSize)})` : "Save offline"}</span>
+            <span className="text-xs text-zinc-300">
+              {savedSize ? `Remove (${formatBytes(savedSize)})` : offlineUnlocked ? "Save offline" : "Plus only"}
+            </span>
           </button>
 
           {isOwner && (

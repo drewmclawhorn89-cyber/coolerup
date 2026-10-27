@@ -11,7 +11,7 @@ import {
 import { PLANS, offlinePlan, planIncludesOffline } from "@/lib/plans";
 
 /**
- * Offline mode is a paid perk: it starts with Plus ($4.99) and every higher
+ * Offline mode is a paid perk: it starts with Plus and every higher
  * tier inherits it. These tests pin the gate down so a future refactor can't
  * quietly hand offline downloads to free accounts.
  */
@@ -45,15 +45,15 @@ describe("planIncludesOffline", () => {
     expect(planIncludesOffline(null)).toBe(false);
   });
 
-  it("advertises offline downloads on the $4.99 Plus plan", () => {
+  it("advertises offline downloads on the Plus plan", () => {
     const plus = PLANS.find((p) => p.id === "plus")!;
-    expect(plus.price).toBe(4.99);
+    expect(plus.price).toBe(7.99);
     expect(plus.perks).toContain("Offline downloads");
   });
 
   it("points upgrade prompts at the cheapest offline plan", () => {
     expect(offlinePlan().id).toBe("plus");
-    expect(offlinePlan().price).toBe(4.99);
+    expect(offlinePlan().price).toBe(7.99);
   });
 });
 
@@ -103,5 +103,27 @@ describe("hasOfflineAccess", () => {
     localStorage.setItem(`subscription:${H}`, JSON.stringify(lapsed));
     expect(hasOfflineAccess(H)).toBe(false);
     expect(offlineLockReason(H)).toBe("expired");
+  });
+});
+
+describe("pricing", () => {
+  it("charges a positive monthly price for every plan", () => {
+    for (const plan of PLANS) {
+      expect(plan.price).toBeGreaterThan(0);
+    }
+  });
+
+  it("keeps the tiers ordered cheapest to most expensive", () => {
+    const plus = PLANS.find((p) => p.id === "plus")!;
+    const pro = PLANS.find((p) => p.id === "pro")!;
+    const vip = PLANS.find((p) => p.id === "vip")!;
+    expect(plus.price).toBeLessThan(pro.price);
+    expect(pro.price).toBeLessThan(vip.price);
+  });
+
+  it("prices Plus at 7.99, Pro at 14.99 and VIP at 29.99", () => {
+    expect(PLANS.find((p) => p.id === "plus")!.price).toBe(7.99);
+    expect(PLANS.find((p) => p.id === "pro")!.price).toBe(14.99);
+    expect(PLANS.find((p) => p.id === "vip")!.price).toBe(29.99);
   });
 });

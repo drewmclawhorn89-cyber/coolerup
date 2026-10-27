@@ -33,10 +33,15 @@ const STRIPE_TOKEN = JSON.stringify({
   card: { last4: "4242", brand: "Visa", exp_month: 9, exp_year: 2032 },
 });
 
+/**
+ * Installs the fake under the namespace Google Pay actually uses:
+ * `google.payments.api.PaymentsClient`. Using `google.pay` here would hide the
+ * very bug that broke production.
+ */
 function installGooglePay(paymentData: Req | null) {
   FakePaymentsClient.nextPaymentData = paymentData;
   (window as unknown as { google: unknown }).google = {
-    pay: { api: { PaymentsClient: FakePaymentsClient } },
+    payments: { api: { PaymentsClient: FakePaymentsClient } },
   };
 }
 
@@ -140,5 +145,30 @@ describe("requestGooglePay", () => {
     expect(out.ok).toBe(false);
     if (out.ok) return;
     expect(out.reason).toBe("failed");
+  });
+});
+
+describe("Google Pay namespace", () => {
+  it("uses google.payments.api.PaymentsClient", async () => {
+    installGooglePay(null);
+    const { googlePayAvailable } = await import("@/lib/googlepay");
+
+    // If the module looked at `google.pay` this would resolve false and the
+    // user would be told Google Pay "isn't available in this browser".
+    await expect(googlePayAvailable()).resolves.toBe(true);
+  });
+
+  it("still accepts the legacy google.pay namespace", async () => {
+    (window as unknown as { google: unknown }).google = {
+      pay: { api: { PaymentsClient: FakePaymentsClient } },
+    };
+    const { googlePayAvailable } = await import("@/lib/googlepay");
+    await expect(googlePayAvailable()).resolves.toBe(true);
+  });
+
+  it("reports ready instead of 'not available' when the real namespace is present", async () => {
+    installGooglePay(null);
+    const { googlePayDiagnose } = await import("@/lib/googlepay");
+    await expect(googlePayDiagnose()).resolves.toEqual({ ready: true, reason: "ready" });
   });
 });

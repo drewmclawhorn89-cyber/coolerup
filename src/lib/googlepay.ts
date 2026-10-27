@@ -33,9 +33,31 @@ const GATEWAY_MERCHANT_ID = HAS_STRIPE ? "coolerup" : "exampleGatewayMerchantId"
 const SCRIPT_SRC = "https://pay.google.com/gp/p/js/pay.js";
 const MERCHANT_NAME = "Coolerup";
 
+/**
+ * The Google Pay JS exposes `google.payments.api.PaymentsClient`.
+ *
+ * NOTE: it is `google.payments`, NOT `google.pay`. Earlier versions of this
+ * file checked `google.pay.api.PaymentsClient`, which is always undefined, so
+ * the script would load successfully and we would still conclude "Google Pay
+ * isn't available in this browser" and grey out the button. That single wrong
+ * namespace was the whole bug.
+ */
+type PaymentsClientCtor = new (opts: AnyRecord) => AnyRecord;
+
 type GooglePayWindow = Window & {
-  google?: { pay?: { api?: { PaymentsClient?: new (opts: AnyRecord) => AnyRecord } } };
+  google?: {
+    payments?: { api?: { PaymentsClient?: PaymentsClientCtor } };
+    /** Legacy/alternate namespace kept as a fallback. */
+    pay?: { api?: { PaymentsClient?: PaymentsClientCtor } };
+  };
 };
+
+/** Resolves the PaymentsClient constructor across both known namespaces. */
+function paymentsClientCtor(): PaymentsClientCtor | null {
+  if (typeof window === "undefined") return null;
+  const g = (window as GooglePayWindow).google;
+  return g?.payments?.api?.PaymentsClient ?? g?.pay?.api?.PaymentsClient ?? null;
+}
 
 const ALLOWED_CARD_NETWORKS = ["AMEX", "DISCOVER", "MASTERCARD", "VISA"];
 
@@ -48,8 +70,7 @@ export function loadGooglePay(): Promise<boolean> {
   if (typeof window === "undefined" || typeof document === "undefined") {
     return Promise.resolve(false);
   }
-  const w = window as GooglePayWindow;
-  if (w.google?.pay?.api?.PaymentsClient) return Promise.resolve(true);
+  if (paymentsClientCtor()) return Promise.resolve(true);
   if (scriptPromise) return scriptPromise;
 
   scriptPromise = new Promise<boolean>((resolve) => {
@@ -62,34 +83,39 @@ export function loadGooglePay(): Promise<boolean> {
 
     const existing = document.querySelector<HTMLScriptElement>(`script[src="${SCRIPT_SRC}"]`);
     if (existing) {
-      existing.addEventListener("load", () => done(Boolean(w.google?.pay?.api?.PaymentsClient)));
+      existing.addEventListener("load", () => done(Boolean(paymentsClientCtor())));
       existing.addEventListener("error", () => {
         scriptBlocked = true;
         done(false);
       });
-      setTimeout(() => done(Boolean(w.google?.pay?.api?.PaymentsClient)), 4000);
+      setTimeout(() => done(Boolean(paymentsClientCtor())), 4000);
       return;
     }
 
     const script = document.createElement("script");
     script.src = SCRIPT_SRC;
     script.async = true;
-    script.onload = () => done(Boolean(w.google?.pay?.api?.PaymentsClient));
+    script.onload = () => done(Boolean(paymentsClientCtor()));
     script.onerror = () => {
       scriptBlocked = true;
       done(false);
     };
     document.head.appendChild(script);
     // Never leave the button spinning forever on a blocked network.
-    setTimeout(() => done(Boolean(w.google?.pay?.api?.PaymentsClient)), 6000);
+    setTimeout(() => done(Boolean(paymentsClientCtor())), 6000);
+  }).then((ok) => {
+    // A failed load must not poison the session: clear the cache so the next
+    // tap (or "Re-check Google Pay") genuinely retries instead of replaying
+    // the stale `false` forever.
+    if (!ok) scriptPromise = null;
+    return ok;
   });
 
   return scriptPromise;
 }
 
 function paymentsClient(): AnyRecord | null {
-  const w = window as GooglePayWindow;
-  const Ctor = w.google?.pay?.api?.PaymentsClient;
+  const Ctor = paymentsClientCtor();
   if (!Ctor) return null;
   return new Ctor({
     environment: GOOGLE_PAY_ENV,

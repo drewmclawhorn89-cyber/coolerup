@@ -51,14 +51,19 @@ export function venmoUrl(plan: Plan, handle?: string | null) {
 
 export type CardBrand = "visa" | "mastercard" | "amex" | "discover" | "card";
 
+/** Where the payment method came from. */
+export type PaymentProvider = "card" | "googlepay" | "venmo";
+
 export type PaymentMethod = {
   brand: CardBrand;
   /** last four digits only — the full number is never stored */
   last4: string;
+  /** 0 when the provider does not expose an expiry (Google Pay) */
   expMonth: number;
   expYear: number;
   holder: string;
   addedAt: string;
+  provider?: PaymentProvider | undefined;
 };
 
 export const CARD_BRANDS: Record<Exclude<CardBrand, "card">, string> = {
@@ -153,6 +158,7 @@ export function toPaymentMethod(input: CardInput): PaymentMethod {
   const m = input.expiry.match(/^\s*(\d{1,2})\s*\/\s*(\d{2,4})\s*$/)!;
   const year = Number(m[2]);
   return {
+    provider: "card",
     brand: detectBrand(digits),
     last4: digits.slice(-4),
     expMonth: Number(m[1]),
@@ -162,14 +168,23 @@ export function toPaymentMethod(input: CardInput): PaymentMethod {
   };
 }
 
-/** "Visa •••• 4242" */
+/** "Visa •••• 4242" / "Google Pay •••• 1234" */
 export function maskCard(pm: PaymentMethod): string {
-  return `${brandLabel(pm.brand)} •••• ${pm.last4}`;
+  const brand = pm.provider === "googlepay" ? "Google Pay" : brandLabel(pm.brand);
+  return pm.last4 && pm.last4 !== "0000" ? `${brand} •••• ${pm.last4}` : brand;
 }
 
-/** "09/28" */
+/** "09/28" — blank for wallets that don't expose an expiry. */
 export function formatExpiry(pm: PaymentMethod): string {
+  if (!pm.expMonth) return "on file";
   return `${String(pm.expMonth).padStart(2, "0")}/${String(pm.expYear).slice(-2)}`;
+}
+
+/** Human label for the provider, used on receipts and buttons. */
+export function providerLabel(pm: PaymentMethod): string {
+  if (pm.provider === "googlepay") return "Google Pay";
+  if (pm.provider === "venmo") return "Venmo";
+  return "Card";
 }
 
 /* -------------------------------------------------------------------------- */
@@ -258,7 +273,7 @@ export function getSubscription(handle?: string | null): Subscription | null {
 
 /** True when there is a usable card on file. */
 export function hasPaymentMethod(handle?: string | null): boolean {
-  return Boolean(getSubscription(handle)?.paymentMethod?.last4);
+  return Boolean(getSubscription(handle)?.paymentMethod);
 }
 
 /** Whole days left in the trial, rounded up. 0 once it has expired. */
@@ -298,7 +313,7 @@ export function startTrial(
   planId: string,
   paymentMethod: PaymentMethod,
 ): Subscription {
-  if (!paymentMethod || !paymentMethod.last4) {
+  if (!paymentMethod) {
     throw new Error("A payment method is required to start the trial");
   }
   const now = new Date();

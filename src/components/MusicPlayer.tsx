@@ -6,6 +6,14 @@ const APP = "coolerup";
 
 export type Track = { id: string; title: string; artist: string; art?: string; url: string };
 
+export const MGK_VIDEOS = [
+  { id: "J_n01uvyhI8", title: "my ex's best friend (feat. blackbear)" },
+  { id: "0tn6nWYNK3Q", title: "forget me too (feat. Halsey)" },
+  { id: "yh_ydvIJAxg", title: "emo girl (feat. WILLOW)" },
+  { id: "wSdT-SArM2Q", title: "Bloody Valentine" },
+  { id: "vHiFxhPs2TQ", title: "Bloody Valentine (Acoustic)" },
+];
+
 export async function fetchTracks(query: string): Promise<Track[]> {
   const path = query.trim()
     ? `/tracks/search?query=${encodeURIComponent(query.trim())}&`
@@ -93,6 +101,8 @@ const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).p
 
 export function MusicPlayer({ player, open }: { player: ReturnType<typeof useMusicPlayer>; open: boolean }) {
   const [q, setQ] = useState("");
+  const [showYt, setShowYt] = useState(false);
+  const [yt, setYt] = useState(MGK_VIDEOS[0]);
   const { ensureLoaded } = player;
   useEffect(() => { if (open) ensureLoaded(); }, [open]);
   const current = player.tracks[player.index];
@@ -106,9 +116,22 @@ export function MusicPlayer({ player, open }: { player: ReturnType<typeof useMus
       </form>
       <div className="mb-3 flex gap-2">
         {[["MGK", "mgk machine gun kelly"], ["Trending", ""]].map(([label, query]) => (
-          <button key={label} type="button" onClick={() => { setQ(query); void player.search(query); }} className="rounded-full bg-white/5 px-3 py-1 text-xs font-semibold hover:bg-white/10">{label}</button>
+          <button key={label} type="button" onClick={() => { setQ(query); setShowYt(false); void player.search(query); }} className="rounded-full bg-white/5 px-3 py-1 text-xs font-semibold hover:bg-white/10">{label}</button>
         ))}
+        <button type="button" onClick={() => { if (!showYt && player.playing) player.toggle(); setShowYt(!showYt); }} className={`rounded-full px-3 py-1 text-xs font-semibold ${showYt ? "bg-primary" : "bg-white/5 hover:bg-white/10"}`}>MGK on YouTube</button>
       </div>
+      {showYt && (
+        <div className="mb-3">
+          <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-black">
+            <iframe key={yt.id} src={`https://www.youtube-nocookie.com/embed/${yt.id}?autoplay=1&playsinline=1`} title={yt.title} allow="autoplay; encrypted-media; picture-in-picture" allowFullScreen className="absolute inset-0 h-full w-full" />
+          </div>
+          <div className="mt-2 max-h-32 space-y-1 overflow-y-auto">
+            {MGK_VIDEOS.map((v) => (
+              <button key={v.id} type="button" onClick={() => setYt(v)} className={`block w-full truncate rounded-lg px-2 py-1.5 text-left text-sm ${v.id === yt.id ? "bg-white/10 font-semibold" : "hover:bg-white/5"}`}>{v.title}</button>
+            ))}
+          </div>
+        </div>
+      )}
       {started && current && (
         <div className="mb-3">
           <p className="truncate text-sm font-semibold">{current.title} <span className="font-normal text-zinc-400">· {current.artist}</span></p>

@@ -18,6 +18,7 @@ import { PhoneAuthDialog } from "../components/PhoneAuthDialog";
 import { Toaster } from "sonner";
 import { WellbeingWatcher } from "../components/MoreSettings";
 import { BanGate } from "../components/BanGate";
+import { UpdateGate } from "../components/UpdateGate";
 import { applyPrefs } from "../lib/prefs";
 import { AuthProvider } from "../hooks/useAuth";
 function NotFoundComponent() {
@@ -162,9 +163,13 @@ function RootComponent() {
       <AuthProvider>
         <CallProvider>
           {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-          <BanGate>
-            <Outlet />
-          </BanGate>
+          {/* UpdateGate sits outermost: when a deploy is in progress, or a newer
+              build has shipped, it unmounts the entire app — BanGate included. */}
+          <UpdateGate>
+            <BanGate>
+              <Outlet />
+            </BanGate>
+          </UpdateGate>
           <CallOverlay />
           <WellbeingWatcher />
         </CallProvider>

@@ -224,7 +224,7 @@ export const RULES = [
 /* -------------------------------------------------------------------------- */
 /*  TikTok-style auto moderation                                              */
 /*                                                                            */
-/*  All of the threshold logic (3 reports / 24h, 5 / 7d, 10 total, video and  */
+/*  All of the threshold logic (3 reports / 24h, 5 / 7d, 10 total, and        */
 /*  comment spam) lives in Postgres SECURITY DEFINER functions, because        */
 /*  `reports` and `banned_users` are admin-only under RLS. A client-side       */
 /*  "count the reports" check would always see zero and never ban anybody.    */

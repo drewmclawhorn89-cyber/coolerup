@@ -1,13 +1,6 @@
 import { useState } from "react";
-import { PaymentMethodForm } from "@/components/PaymentMethodForm";
+import { PaymentSheet } from "@/components/PaymentSheet";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import {
   PLANS,
   TRIAL_DAYS,
@@ -15,15 +8,12 @@ import {
   canStartTrial,
   firstChargeDate,
   formatExpiry,
-  isActive,
   maskCard,
   requestPayment,
-  startTrial,
   trialDaysLeft,
-  updatePaymentMethod,
   useSubscription,
   venmoUrl,
-  type PaymentMethod,
+  type Plan,
 } from "@/lib/subscriptions";
 
 function StatusBadge({
@@ -61,23 +51,24 @@ export function SubscriptionsPanel({
   const trialLeft = trialDaysLeft(sub);
   const trialAvailable = canStartTrial(handle);
 
-  // Plan the user is currently entering a card for, if any.
-  const [pendingPlan, setPendingPlan] = useState<string | null>(null);
-  const pendingPlanObj = PLANS.find((p) => p.id === pendingPlan);
+  // Plan whose tap-to-pay sheet is open, if any.
+  const [sheetPlan, setSheetPlan] = useState<Plan | null>(null);
   const chargeDate = firstChargeDate(sub);
 
-  const beginTrial = (pm: PaymentMethod) => {
-    if (!handle || !pendingPlan) return;
-    startTrial(handle, pendingPlan, pm);
-    setPendingPlan(null);
+  const openSheet = (plan: Plan) => {
+    if (!handle) {
+      onSignIn?.();
+      return;
+    }
+    setSheetPlan(plan);
   };
 
   return (
     <div className="mx-auto w-full max-w-2xl space-y-3 p-4 pb-24">
       <h2 className="text-xl font-bold">Subscriptions</h2>
       <p className="text-sm text-muted-foreground">
-        Try any plan free for {TRIAL_DAYS} days. A card is required to start — you won&apos;t be
-        charged until the trial ends.
+        Try any plan free for {TRIAL_DAYS} days. Tap a plan to start the trial or pay now with
+        Google Pay, a card, or Venmo.
       </p>
       {!handle && <p className="text-sm">Sign in to subscribe.</p>}
 
@@ -114,7 +105,23 @@ export function SubscriptionsPanel({
         return (
           <div
             key={p.id}
-            className={`rounded-xl border p-4 ${highlighted ? "border-primary" : "border-border"}`}
+            role="button"
+            tabIndex={0}
+            aria-label={`${p.label} plan`}
+            onClick={(e) => {
+              // Let real controls inside the card handle their own clicks.
+              if ((e.target as HTMLElement).closest("button, a, input")) return;
+              openSheet(p);
+            }}
+            onKeyDown={(e) => {
+              if (e.key !== "Enter" && e.key !== " ") return;
+              if ((e.target as HTMLElement).closest("button, a, input")) return;
+              e.preventDefault();
+              openSheet(p);
+            }}
+            className={`cursor-pointer rounded-xl border p-4 transition-colors hover:border-primary/60 active:scale-[0.995] ${
+              highlighted ? "border-primary" : "border-border"
+            }`}
           >
             <div className="flex items-center justify-between">
               <div className="flex flex-wrap items-center gap-2 text-lg font-semibold">
@@ -147,11 +154,13 @@ export function SubscriptionsPanel({
                 {!sub.paymentMethod && (
                   <div className="space-y-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs">
                     <p>
-                      <span className="font-semibold">Add a card to keep your trial.</span> This
-                      trial started before cards were required, so it has no payment method on file.
+                      <span className="font-semibold">
+                        Add a payment method to keep your trial.
+                      </span>{" "}
+                      This trial started before payments were required, so nothing is on file.
                     </p>
-                    <Button className="w-full" size="sm" onClick={() => setPendingPlan(p.id)}>
-                      Add a card
+                    <Button className="w-full" size="sm" onClick={() => openSheet(p)}>
+                      Add payment method
                     </Button>
                   </div>
                 )}
@@ -163,7 +172,7 @@ export function SubscriptionsPanel({
                     <button
                       type="button"
                       className="font-medium text-primary"
-                      onClick={() => setPendingPlan(p.id)}
+                      onClick={() => openSheet(p)}
                     >
                       Change
                     </button>
@@ -190,7 +199,7 @@ export function SubscriptionsPanel({
             ) : pending ? (
               <div className="mt-3 space-y-2">
                 <p className="text-sm">
-                  Payment pending — waiting for confirmation of your Venmo payment.
+                  Payment pending — waiting for confirmation of your payment.
                 </p>
                 <Button
                   className="w-full"
@@ -208,25 +217,20 @@ export function SubscriptionsPanel({
               >
                 Subscribed · Cancel
               </Button>
-            ) : !handle ? (
-              <Button className="mt-3 w-full" variant="secondary" onClick={() => onSignIn?.()}>
-                Sign in to start your free trial
-              </Button>
             ) : (
               <Button
                 className="mt-3 w-full"
                 onClick={() => {
-                  if (trialAvailable) {
-                    setPendingPlan(p.id);
+                  if (!handle) {
+                    onSignIn?.();
                     return;
                   }
-                  window.open(venmoUrl(p, handle), "_blank", "noopener,noreferrer");
-                  requestPayment(handle, p.id);
+                  openSheet(p);
                 }}
               >
                 {trialAvailable
                   ? `Start ${TRIAL_DAYS}-day free trial`
-                  : `Pay $${p.price.toFixed(2)}/mo with Venmo`}
+                  : `Get ${p.label} — $${p.price.toFixed(2)}/mo`}
               </Button>
             )}
           </div>
@@ -234,41 +238,17 @@ export function SubscriptionsPanel({
       })}
 
       <p className="pt-1 text-center text-xs text-muted-foreground">
-        One free trial per account. A card is required to start the trial and is charged
+        One free trial per account. A payment method is required to start the trial and is charged
         automatically when it ends unless you cancel first.
       </p>
 
-      <Dialog open={Boolean(pendingPlan)} onOpenChange={(open) => !open && setPendingPlan(null)}>
-        <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>
-              {sub?.status === "trial" ? "Update your card" : "Add a card to start your trial"}
-            </DialogTitle>
-            <DialogDescription>
-              {pendingPlanObj
-                ? `${pendingPlanObj.label} · ${TRIAL_DAYS} days free, then $${pendingPlanObj.price.toFixed(2)}/mo.`
-                : ""}
-            </DialogDescription>
-          </DialogHeader>
-          {pendingPlanObj && (
-            <PaymentMethodForm
-              planLabel={pendingPlanObj.label}
-              price={pendingPlanObj.price}
-              trialDays={TRIAL_DAYS}
-              submitLabel={sub?.status === "trial" ? "Save card" : "Start free trial"}
-              onCancel={() => setPendingPlan(null)}
-              onSubmit={(pm) => {
-                if (sub?.status === "trial" && handle) {
-                  updatePaymentMethod(handle, pm);
-                  setPendingPlan(null);
-                  return;
-                }
-                beginTrial(pm);
-              }}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
+      <PaymentSheet
+        plan={sheetPlan}
+        handle={handle}
+        sub={sub}
+        onClose={() => setSheetPlan(null)}
+        onSignIn={onSignIn ?? undefined}
+      />
     </div>
   );
 }

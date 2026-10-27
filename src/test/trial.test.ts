@@ -8,6 +8,7 @@ import {
   detectBrand,
   expiryValid,
   firstChargeDate,
+  formatExpiry,
   getSubscription,
   hasPaymentMethod,
   hasUsedTrial,
@@ -69,11 +70,18 @@ describe("card validation", () => {
   });
 
   it("passes a complete valid form", () => {
-    expect(validateCard({ holder: "Alex", number: "4242 4242 4242 4242", expiry: "09/32", cvc: "123" })).toEqual({});
+    expect(
+      validateCard({ holder: "Alex", number: "4242 4242 4242 4242", expiry: "09/32", cvc: "123" }),
+    ).toEqual({});
   });
 
   it("never keeps the full number", () => {
-    const pm = toPaymentMethod({ holder: "Alex", number: "4242 4242 4242 4242", expiry: "09/32", cvc: "123" });
+    const pm = toPaymentMethod({
+      holder: "Alex",
+      number: "4242 4242 4242 4242",
+      expiry: "09/32",
+      cvc: "123",
+    });
     expect(pm.last4).toBe("4242");
     expect(JSON.stringify(pm)).not.toContain("4242424242424242");
     expect(maskCard(pm)).toBe("Visa •••• 4242");
@@ -155,6 +163,36 @@ describe("7 day free trial requires a card", () => {
     updatePaymentMethod(H, { ...CARD, last4: "1111", brand: "mastercard" });
     expect(getSubscription(H)?.paymentMethod?.last4).toBe("1111");
     expect(getSubscription(H)?.status).toBe("trial");
+  });
+
+  it("accepts a Google Pay method with no expiry", () => {
+    const gpay = {
+      provider: "googlepay" as const,
+      brand: "visa" as const,
+      last4: "1234",
+      expMonth: 0,
+      expYear: 0,
+      holder: "Google Pay",
+      addedAt: new Date().toISOString(),
+    };
+    startTrial(H, "plus", gpay);
+    expect(getSubscription(H)?.paymentMethod?.provider).toBe("googlepay");
+    expect(hasPaymentMethod(H)).toBe(true);
+    expect(maskCard(gpay)).toBe("Google Pay \u2022\u2022\u2022\u2022 1234");
+    expect(formatExpiry(gpay)).toBe("on file");
+  });
+
+  it("labels an opaque wallet token without digits", () => {
+    const gpay = {
+      provider: "googlepay" as const,
+      brand: "card" as const,
+      last4: "0000",
+      expMonth: 0,
+      expYear: 0,
+      holder: "Google Pay",
+      addedAt: new Date().toISOString(),
+    };
+    expect(maskCard(gpay)).toBe("Google Pay");
   });
 
   it("migrates the old bare-string format", () => {

@@ -9,7 +9,6 @@
 --   3 reports in 24h   -> 24 hour ban
 --   5 reports in 7d    -> 7 day ban
 --   10 reports total   -> permanent ban
---   5 videos in 10 min -> 1 hour ban (spam)
 --   5 identical comments -> 1 hour mute
 --   banned words in a caption -> video hidden + warning logged
 --
@@ -483,7 +482,7 @@ $$;
 grant execute on function public.report_content(uuid, text, text, text) to authenticated, service_role;
 
 -- ---------------------------------------------------------------------------
--- 9. Video spam + caption filter triggers
+-- 9. Caption filter trigger (hides videos containing banned words)
 -- ---------------------------------------------------------------------------
 
 create or replace function public.moderate_new_video()
@@ -494,7 +493,6 @@ set search_path = public
 as $$
 declare
   handle text := public.norm_handle(new.username);
-  recent integer;
   words text;
 begin
   -- Caption filter: hide the video and log a warning. Never blocks the upload.
@@ -514,20 +512,6 @@ begin
       new.user_id, handle, 'video_hidden',
       format('Caption contained banned words%s', coalesce(': ' || words, '')),
       true, 'auto-moderation'
-    );
-  end if;
-
-  -- Posting 5 videos in 10 minutes is spam.
-  select count(*) into recent
-    from public.videos v
-   where public.norm_handle(v.username) = handle
-     and v.created_at >= now() - interval '10 minutes';
-
-  if recent >= 5 then
-    perform public.apply_moderation(
-      new.user_id, handle, 'auto_ban_1h_spam',
-      format('Auto-banned: %s videos in 10 minutes', recent + 1),
-      1, false, 'ban', true, 'auto-moderation', null, null
     );
   end if;
 

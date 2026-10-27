@@ -114,7 +114,8 @@ export function Comments({
       .single();
     setBusy(false);
     if (error) {
-      toast.error("Couldn't post comment");
+      console.error("comment insert failed", error);
+      toast.error(`Couldn't post comment: ${error.message}`);
       return;
     }
     setItems((c) => [data, ...(c ?? [])]);

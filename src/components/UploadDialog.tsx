@@ -162,6 +162,7 @@ export function UploadDialog({
           {isPhoto && (
             <div className="min-w-0 text-sm">
               <div className="mb-1 flex items-center gap-2 font-semibold"><Music className="h-4 w-4 text-primary" /> Add a song{song && <span className="min-w-0 truncate font-normal text-muted-foreground">· {song.title}</span>}</div>
+              <button type="button" onClick={() => { const v = "mgk machine gun kelly"; setQ(v); setSearching(true); fetchTracks(v).then((r) => setResults(r.slice(0, 10))).catch(() => toast.error("Couldn't load songs")).finally(() => setSearching(false)); }} className="mb-2 rounded-full bg-primary px-3 py-1 text-xs font-bold text-primary-foreground">MGK</button>
               <div className="mb-2 flex items-center gap-2 rounded-full bg-secondary px-3">
                 <Search className="h-4 w-4 text-muted-foreground" />
                 <input value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void findSongs(); } }} placeholder="Search songs" className="h-9 w-full bg-transparent outline-none" />

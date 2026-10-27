@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Camera, RefreshCw, RotateCcw, Send, X } from "lucide-react";
+import { Camera, Music, RefreshCw, RotateCcw, Search, Send, X } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { FilterBar } from "@/components/FilterBar";
@@ -7,7 +7,10 @@ import { AnimalOverlay } from "@/components/AnimalOverlay";
 import { getAnimal, drawAnimal, mirrorFace } from "@/lib/animals";
 import { useFaceTracker } from "@/lib/face";
 import { CAMERA_FILTERS, canBakeFilters } from "@/lib/filters";
-import { uploadVideo } from "@/lib/loop";
+import { songStreamUrl, uploadVideo, type Song } from "@/lib/loop";
+import { fetchTracks, type Track } from "@/components/MusicPlayer";
+
+const MGK_QUERY = "mgk machine gun kelly";
 
 type FacingMode = "user" | "environment";
 
@@ -36,7 +39,44 @@ export function PhotoDialog({
   const [previewUrl, setPreviewUrl] = useState("");
   const [caption, setCaption] = useState("");
   const [posting, setPosting] = useState(false);
+  const [song, setSong] = useState<Song | null>(null);
+  const [songQ, setSongQ] = useState(MGK_QUERY);
+  const [results, setResults] = useState<Track[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const bake = canBakeFilters();
+
+  async function findSongs(query: string) {
+    setSongQ(query);
+    setSearching(true);
+    try {
+      setResults((await fetchTracks(query)).slice(0, 10));
+    } catch {
+      toast.error("Couldn't load songs");
+    } finally {
+      setSearching(false);
+    }
+  }
+
+  function chooseSong(t: Track) {
+    audioRef.current?.pause();
+    if (song?.id === t.id) {
+      setSong(null);
+      return;
+    }
+    setSong({ id: t.id, title: t.title, artist: t.artist });
+    const a = new Audio(songStreamUrl(t.id));
+    audioRef.current = a;
+    void a.play().catch(() => {});
+  }
+
+  useEffect(() => {
+    if (photo && pickerOpen && results.length === 0) void findSongs(MGK_QUERY);
+  }, [photo, pickerOpen]);
+  useEffect(() => {
+    if (!open || !photo) audioRef.current?.pause();
+  }, [open, photo]);
   const filter = CAMERA_FILTERS.find((f) => f.id === filterId) ?? CAMERA_FILTERS[0]!;
 
   useEffect(() => {
@@ -106,6 +146,9 @@ export function PhotoDialog({
     setPosting(false);
     setFilterId("none");
     setAnimalId("");
+    audioRef.current?.pause();
+    setSong(null);
+    setPickerOpen(false);
   }
 
   function handleOpenChange(next: boolean) {
@@ -125,7 +168,7 @@ export function PhotoDialog({
     setPosting(true);
     try {
       const file = new File([photo], `photo-${Date.now()}.jpg`, { type: "image/jpeg" });
-      await uploadVideo(file, username, caption.trim().slice(0, 500));
+      await uploadVideo(file, username, caption.trim().slice(0, 500), song);
       toast.success("Your photo is posted!");
       reset();
       onOpenChange(false);
@@ -209,6 +252,31 @@ export function PhotoDialog({
                   aria-label="Caption"
                   className="w-full rounded-full bg-white/15 px-4 py-3 text-base text-white outline-none placeholder:text-white/60 focus:ring-2 focus:ring-white/70"
                 />
+                <div className="flex items-center gap-2">
+                  <button type="button" onClick={() => setPickerOpen((v) => !v)} className="flex min-w-0 items-center gap-2 rounded-full bg-white/15 px-4 py-2 text-sm font-semibold">
+                    <Music className="h-4 w-4 shrink-0" /> <span className="truncate">{song ? song.title : "Add a song"}</span>
+                  </button>
+                  {song && <button type="button" onClick={() => { audioRef.current?.pause(); setSong(null); }} aria-label="Remove song" className="flex h-8 w-8 items-center justify-center rounded-full bg-white/15"><X className="h-4 w-4" /></button>}
+                </div>
+                {pickerOpen && (
+                  <div className="rounded-2xl bg-black/60 p-2 text-sm">
+                    <div className="mb-2 flex gap-2">
+                      <button type="button" onClick={() => void findSongs(MGK_QUERY)} className="rounded-full bg-primary px-3 py-1 text-xs font-bold text-primary-foreground">MGK</button>
+                      <div className="flex min-w-0 flex-1 items-center gap-2 rounded-full bg-white/15 px-3">
+                        <Search className="h-4 w-4 shrink-0" />
+                        <input value={songQ} onChange={(e) => setSongQ(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void findSongs(songQ); } }} placeholder="Search songs" aria-label="Search songs" className="h-8 w-full bg-transparent text-base outline-none placeholder:text-white/60" />
+                      </div>
+                    </div>
+                    <div className="max-h-[28dvh] space-y-1 overflow-y-auto">
+                      {searching ? <p className="py-2 text-center text-white/70">Loading…</p> : results.map((t) => (
+                        <button type="button" key={t.id} onClick={() => chooseSong(t)} className={`flex w-full items-center gap-2 rounded-lg p-2 text-left ${song?.id === t.id ? "bg-white/25" : "hover:bg-white/10"}`}>
+                          <span className="min-w-0 flex-1"><span className="block truncate font-semibold">{t.title}</span><span className="block truncate text-xs text-white/70">{t.artist}</span></span>
+                          {song?.id === t.id && <span className="text-xs font-bold">Selected</span>}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-3">
                   <button type="button" onClick={() => setPhoto(null)} disabled={posting} className="flex items-center justify-center gap-2 rounded-full border border-white/70 py-3 font-bold disabled:opacity-50">
                     <RotateCcw className="h-5 w-5" /> Retake

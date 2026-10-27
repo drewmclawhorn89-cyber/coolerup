@@ -3,11 +3,14 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Pencil, X } from "lucide-react";
+import { ArrowLeft, Pencil, Plus, X } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { EditProfileDialog, LINK_FIELDS, normalizeLink, resolveAvatarUrl } from "@/components/EditProfileDialog";
 import { fetchSavedVideos, fetchMyLikes, isImageUrl, parseCaption, resolveVideoUrl } from "@/lib/loop";
 import { VideoCard } from "@/components/VideoCard";
+import { StoryViewer } from "@/components/StoryViewer";
+import { fetchStories, postStory, type Story } from "@/lib/stories";
+import { toast } from "sonner";
 import type { Profile as ProfileRow } from "@/hooks/useAuth";
 
 export const Route = createFileRoute("/u/$username")({
@@ -51,6 +54,10 @@ function Profile() {
   const [tab, setTab] = useState<"videos" | "saved">("videos");
   const [saved, setSaved] = useState<any[]>([]);
   const viewer = useRef<HTMLDivElement>(null);
+  const [stories, setStories] = useState<Story[]>([]);
+  const [storyOpen, setStoryOpen] = useState(false);
+  const [storyUploading, setStoryUploading] = useState(false);
+  const storyFile = useRef<HTMLInputElement>(null);
 const [totalFollowers, setTotalFollowers] = useState(0);
   const [totalFollowing, setTotalFollowing] = useState(0);
   
@@ -83,6 +90,30 @@ const [totalFollowers, setTotalFollowers] = useState(0);
       resolveAvatarUrl(row?.avatar_url).then(setAvatar);
     });
   }, [username, auth.profile?.avatar_url, auth.profile?.display_name, auth.profile?.bio]);
+
+  useEffect(() => {
+    if (!username) return;
+    fetchStories(username).then(setStories).catch(() => setStories([]));
+  }, [username]);
+
+  async function addStory(file: File | null) {
+    if (!file || !username) return;
+    if (!file.type.startsWith("image/") && !file.type.startsWith("video/")) {
+      toast.error("Pick a photo or video");
+      return;
+    }
+    setStoryUploading(true);
+    try {
+      await postStory(file, username);
+      setStories(await fetchStories(username));
+      toast.success("Story posted");
+    } catch (e: any) {
+      toast.error(e?.message || "Couldn't post story");
+    } finally {
+      setStoryUploading(false);
+      if (storyFile.current) storyFile.current.value = "";
+    }
+  }
 
   useEffect(() => {
     if (!profile?.id) return;
@@ -119,8 +150,32 @@ const [totalFollowers, setTotalFollowers] = useState(0);
         </Link>
 
         <div className="flex flex-col items-center gap-3 py-8 text-center">
-          <div className={`flex h-24 w-24 items-center justify-center overflow-hidden rounded-full bg-primary ${findItem(equipped.top)?.className ?? ""} text-4xl uppercase text-primary-foreground`}>
-            {avatar ? <img src={avatar} alt={displayName} className="h-full w-full object-cover" /> : username?.[0]}
+          <div className="relative">
+            <button
+              type="button"
+              disabled={stories.length === 0}
+              onClick={() => setStoryOpen(true)}
+              aria-label={stories.length ? "View story" : "Profile photo"}
+              className={`rounded-full p-1 ${stories.length ? "bg-gradient-to-tr from-primary to-pink-500" : ""}`}
+            >
+              <div className={`flex h-24 w-24 items-center justify-center overflow-hidden rounded-full bg-primary ${findItem(equipped.top)?.className ?? ""} text-4xl uppercase text-primary-foreground`}>
+                {avatar ? <img src={avatar} alt={displayName} className="h-full w-full object-cover" /> : username?.[0]}
+              </div>
+            </button>
+            {isOwn && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => storyFile.current?.click()}
+                  disabled={storyUploading}
+                  aria-label="Add to your story"
+                  className="absolute bottom-0 right-0 flex h-8 w-8 items-center justify-center rounded-full border-2 border-background bg-primary text-primary-foreground disabled:opacity-50"
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
+                <input ref={storyFile} type="file" accept="image/*,video/*" className="hidden" onChange={(e) => void addStory(e.target.files?.[0] ?? null)} />
+              </>
+            )}
           </div>
           <div>
             <h1 className={`text-2xl ${findItem(equipped.name)?.className ?? ""}`}>{findItem(equipped.top)?.emoji} {displayName}</h1>
@@ -207,6 +262,15 @@ const [totalFollowers, setTotalFollowers] = useState(0);
             ))}
           </div>
         </div>
+      )}
+
+      {storyOpen && stories.length > 0 && (
+        <StoryViewer
+          stories={stories}
+          isOwn={isOwn}
+          onClose={() => setStoryOpen(false)}
+          onDeleted={(id) => setStories((p) => p.filter((s) => s.id !== id))}
+        />
       )}
 
       {isOwn && <EditProfileDialog open={editing} onOpenChange={setEditing} />}

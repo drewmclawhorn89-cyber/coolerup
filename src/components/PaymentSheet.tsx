@@ -8,7 +8,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { HAS_STRIPE, googlePayAvailable, requestGooglePay } from "@/lib/googlepay";
+import {
+  HAS_STRIPE,
+  googlePayDiagnose,
+  requestGooglePay,
+  resetGooglePay,
+  type GooglePayReason,
+} from "@/lib/googlepay";
 import { chargePlanWithGooglePay, saveCardForTrial } from "@/lib/payments.functions";
 import {
   TRIAL_DAYS,
@@ -37,6 +43,20 @@ function cardBrandFrom(gatewayBrand: string, fallback: PaymentMethod["brand"]): 
       return "discover";
     default:
       return fallback;
+  }
+}
+
+/** Plain-English explanation for why the Google Pay button is disabled. */
+function gpayHint(reason: GooglePayReason): string {
+  switch (reason) {
+    case "script-blocked":
+      return "Google Pay couldn't load — an ad blocker or network filter may be blocking pay.google.com. Allow it and tap Try again.";
+    case "no-api":
+      return "Google Pay didn't load in this browser. Use a card below, or open this page in Chrome or Safari.";
+    case "no-wallet":
+      return "No Google Pay account found on this device. Add a card at pay.google.com, or use a card below.";
+    default:
+      return "Google Pay isn't available here — use a card below.";
   }
 }
 
@@ -111,6 +131,7 @@ export function PaymentSheet({ plan, handle, sub, onClose, onSignIn }: Props) {
   const [mode, setMode] = useState<Mode>("trial");
   const [stage, setStage] = useState<"choose" | "card">("choose");
   const [gpayReady, setGpayReady] = useState(false);
+  const [gpayReason, setGpayReason] = useState<GooglePayReason>("no-api");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
@@ -125,12 +146,21 @@ export function PaymentSheet({ plan, handle, sub, onClose, onSignIn }: Props) {
     setMode(manage ? "manage" : trialAllowed ? "trial" : "pay");
   }, [open, plan?.id, manage, trialAllowed]);
 
-  // Only advertise Google Pay where it can actually render.
+  // Only advertise Google Pay where it can actually render, and remember why.
+  const checkGooglePay = () => {
+    googlePayDiagnose().then((d) => {
+      setGpayReady(d.ready);
+      setGpayReason(d.reason);
+    });
+  };
+
   useEffect(() => {
     if (!open) return;
     let alive = true;
-    googlePayAvailable().then((ok) => {
-      if (alive) setGpayReady(ok);
+    googlePayDiagnose().then((d) => {
+      if (!alive) return;
+      setGpayReady(d.ready);
+      setGpayReason(d.reason);
     });
     return () => {
       alive = false;
@@ -349,9 +379,19 @@ export function PaymentSheet({ plan, handle, sub, onClose, onSignIn }: Props) {
               disabled={!gpayReady || !handle}
             />
             {!gpayReady && (
-              <p className="text-center text-[11px] text-muted-foreground">
-                Google Pay isn&apos;t available in this browser — use a card or Venmo below.
-              </p>
+              <div className="space-y-1 text-center">
+                <p className="text-[11px] text-muted-foreground">{gpayHint(gpayReason)}</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    resetGooglePay();
+                    checkGooglePay();
+                  }}
+                  className="text-[11px] font-medium text-foreground underline underline-offset-2"
+                >
+                  Try again
+                </button>
+              </div>
             )}
             {!HAS_STRIPE && gpayReady && (
               <p className="text-center text-[11px] text-muted-foreground">

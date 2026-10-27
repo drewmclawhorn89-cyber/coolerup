@@ -40,6 +40,8 @@ type GooglePayWindow = Window & {
 const ALLOWED_CARD_NETWORKS = ["AMEX", "DISCOVER", "MASTERCARD", "VISA"];
 
 let scriptPromise: Promise<boolean> | null = null;
+/** Set when the pay.google.com script itself failed to load (blocker, CSP, offline). */
+let scriptBlocked = false;
 
 /** Injects the Google Pay JS once and resolves true when the API is usable. */
 export function loadGooglePay(): Promise<boolean> {
@@ -61,7 +63,10 @@ export function loadGooglePay(): Promise<boolean> {
     const existing = document.querySelector<HTMLScriptElement>(`script[src="${SCRIPT_SRC}"]`);
     if (existing) {
       existing.addEventListener("load", () => done(Boolean(w.google?.pay?.api?.PaymentsClient)));
-      existing.addEventListener("error", () => done(false));
+      existing.addEventListener("error", () => {
+        scriptBlocked = true;
+        done(false);
+      });
       setTimeout(() => done(Boolean(w.google?.pay?.api?.PaymentsClient)), 4000);
       return;
     }
@@ -70,7 +75,10 @@ export function loadGooglePay(): Promise<boolean> {
     script.src = SCRIPT_SRC;
     script.async = true;
     script.onload = () => done(Boolean(w.google?.pay?.api?.PaymentsClient));
-    script.onerror = () => done(false);
+    script.onerror = () => {
+      scriptBlocked = true;
+      done(false);
+    };
     document.head.appendChild(script);
     // Never leave the button spinning forever on a blocked network.
     setTimeout(() => done(Boolean(w.google?.pay?.api?.PaymentsClient)), 6000);
@@ -195,6 +203,57 @@ function readToken(raw: string): TokenDetails {
   } catch {
     const loose = raw.match(/(\d{4})(?!.*\d)/);
     return { ...fallback, last4: loose?.[1] ?? "0000" };
+  }
+}
+
+export type GooglePayReason =
+  | "ready"
+  | "no-api"
+  | "script-blocked"
+  | "no-wallet"
+  | "unsupported";
+
+export type GooglePayDiagnosis = { ready: boolean; reason: GooglePayReason };
+
+/**
+ * Like `googlePayAvailable`, but says *why* it failed so the UI can tell the
+ * user something actionable instead of a dead grey button.
+ */
+export async function googlePayDiagnose(): Promise<GooglePayDiagnosis> {
+  if (typeof window === "undefined" || typeof document === "undefined") {
+    return { ready: false, reason: "unsupported" };
+  }
+  const ok = await loadGooglePay();
+  if (!ok) {
+    return { ready: false, reason: scriptBlocked ? "script-blocked" : "no-api" };
+  }
+  const client = paymentsClient();
+  if (!client) return { ready: false, reason: "no-api" };
+  try {
+    const isReadyToPay = client["isReadyToPay"] as (
+      req: AnyRecord,
+    ) => Promise<{ result?: boolean } | undefined>;
+    const res = await isReadyToPay({
+      apiVersion: 2,
+      apiVersionMinor: 0,
+      existingPaymentMethodRequired: false,
+      allowedPaymentMethods: [baseCardPaymentMethod()],
+    });
+    return res?.result ? { ready: true, reason: "ready" } : { ready: false, reason: "no-wallet" };
+  } catch {
+    return { ready: false, reason: "no-wallet" };
+  }
+}
+
+/** Clears the cached script state so a retry can re-attempt the load. */
+export function resetGooglePay(): void {
+  scriptPromise = null;
+  scriptBlocked = false;
+  if (typeof document !== "undefined") {
+    document.querySelectorAll(`script[src="${SCRIPT_SRC}"]`).forEach((el) => el.remove());
+  }
+  if (typeof window !== "undefined") {
+    delete (window as GooglePayWindow).google;
   }
 }
 

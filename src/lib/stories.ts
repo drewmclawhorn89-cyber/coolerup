@@ -8,6 +8,7 @@ export type Story = {
   media_type: "image" | "video";
   created_at: string;
   expires_at: string;
+  likes_count?: number | null;
 };
 
 const STORY_PREFIX = "storage:";
@@ -44,6 +45,51 @@ export async function postStory(file: File, username: string) {
 export async function deleteStory(id: string) {
   const { error } = await db.from("stories").delete().eq("id", id);
   if (error) throw error;
+}
+
+/** Story ids the signed-in user has already hearted. */
+export async function fetchLikedStoryIds(): Promise<Set<string>> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return new Set<string>();
+  const { data } = await db.from("story_likes").select("story_id").eq("user_id", user.id);
+  return new Set(((data ?? []) as { story_id: string }[]).map((r) => r.story_id));
+}
+
+/**
+ * Persist a story heart. Returns the new liked state so the caller can keep its
+ * optimistic UI honest if the write fails.
+ */
+export async function setStoryLiked(story: Story, liked: boolean): Promise<boolean> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Sign in to like stories");
+
+  if (liked) {
+    const { error } = await db.from("story_likes").insert({ story_id: story.id, user_id: user.id });
+    // 23505 = already liked, which is fine.
+    if (error && error.code !== "23505") throw error;
+
+    if (story.username) {
+      const { data: owner } = await supabase
+        .from("profiles")
+        .select("id, handle")
+        .eq("handle", story.username)
+        .maybeSingle();
+      if (owner && owner.id !== user.id) {
+        const { data: me } = await supabase.from("profiles").select("handle").eq("id", user.id).maybeSingle();
+        await db.from("notifications").insert({
+          target_user_id: owner.id,
+          actor_user_id: user.id,
+          type: "story_like",
+          text: `${me?.handle ?? "Someone"} liked your story`,
+          read: false,
+        });
+      }
+    }
+  } else {
+    const { error } = await db.from("story_likes").delete().eq("story_id", story.id).eq("user_id", user.id);
+    if (error) throw error;
+  }
+  return liked;
 }
 
 export const resolveStoryUrl = resolveVideoUrl;

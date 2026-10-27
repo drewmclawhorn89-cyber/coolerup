@@ -5,14 +5,21 @@
 -- admin-write-only under RLS — a client-side "count the reports" check would
 -- always see zero and never ban anyone.
 --
--- Rules implemented:
---   3 reports in 24h   -> 24 hour ban
---   5 reports in 7d    -> 7 day ban
---   10 reports total   -> permanent ban
---   5 identical comments -> 1 hour mute
---   banned words in a caption -> video hidden + warning logged
+-- AUTO-BANS ARE OFF.
 --
--- Idempotent: safe to run more than once.
+-- Reports are still recorded and still listed in /admin, but nothing bans or
+-- mutes anybody automatically. A human decides, using the buttons in /admin.
+--
+-- What still happens automatically:
+--   banned words in a caption -> that one video is hidden + logged
+--
+-- What was removed:
+--   3 reports / 24h, 5 reports / 7d, 10 reports total  -> no auto-ban
+--   5 identical comments -> no auto-mute
+--   5 videos in 10 min   -> no auto-ban
+--
+-- Idempotent: safe to run more than once. Re-running this file removes the
+-- old auto-ban and auto-mute triggers from a database that already has them.
 
 -- ---------------------------------------------------------------------------
 -- 1. Banned words
@@ -308,8 +315,12 @@ grant execute on function public.apply_moderation(uuid, text, text, text, intege
   to service_role;
 
 -- ---------------------------------------------------------------------------
--- 7. Threshold evaluation
+-- 7. Threshold evaluation  (DISABLED — reports no longer auto-ban)
 -- ---------------------------------------------------------------------------
+-- Auto-bans are turned OFF. This function is kept only so existing callers
+-- (report_content) and the client wrapper do not break; it always reports
+-- "nothing applied". Reports are still recorded and still show up in /admin,
+-- where a human decides what to do.
 
 create or replace function public.auto_ban_if_needed(_user_id uuid, _username text)
 returns jsonb
@@ -317,73 +328,8 @@ language plpgsql
 security definer
 set search_path = public
 as $$
-declare
-  handle text := public.norm_handle(_username);
-  uid uuid := _user_id;
-  c24 integer := 0;
-  c7d integer := 0;
-  c_all integer := 0;
-  existing public.banned_users%rowtype;
 begin
-  if uid is null then
-    select p.id into uid from public.profiles p
-     where public.norm_handle(p.handle) = handle limit 1;
-  end if;
-
-  if handle is null or handle = '' then
-    return jsonb_build_object('applied', false);
-  end if;
-
-  -- Already under a stricter active ban? Don't downgrade it.
-  select * into existing from public.banned_users b
-   where public.norm_handle(b.username) = handle
-     and (b.is_permanent or b.expires_at is null or b.expires_at > now())
-   limit 1;
-
-  if found and existing.is_permanent then
-    return jsonb_build_object('applied', false, 'reason', 'already permanently banned');
-  end if;
-
-  select count(*) into c24 from public.reports r
-   where (r.reported_user_id = uid or public.norm_handle(r.reported_username) = handle)
-     and r.created_at >= now() - interval '24 hours'
-     and r.status <> 'dismissed';
-
-  select count(*) into c7d from public.reports r
-   where (r.reported_user_id = uid or public.norm_handle(r.reported_username) = handle)
-     and r.created_at >= now() - interval '7 days'
-     and r.status <> 'dismissed';
-
-  select count(*) into c_all from public.reports r
-   where (r.reported_user_id = uid or public.norm_handle(r.reported_username) = handle)
-     and r.status <> 'dismissed';
-
-  -- Most severe rule wins.
-  if c_all >= 10 then
-    return public.apply_moderation(
-      uid, handle, 'auto_ban_permanent',
-      format('Auto-banned: %s reports total', c_all),
-      null, true, 'ban', true, 'auto-moderation', c_all, null
-    );
-  end if;
-
-  if c7d >= 5 then
-    return public.apply_moderation(
-      uid, handle, 'auto_ban_7d',
-      format('Auto-banned: %s reports in 7 days', c7d),
-      168, false, 'ban', true, 'auto-moderation', c7d, 168
-    );
-  end if;
-
-  if c24 >= 3 then
-    return public.apply_moderation(
-      uid, handle, 'auto_ban_24h',
-      format('Auto-banned: %s reports in 24 hours', c24),
-      24, false, 'ban', true, 'auto-moderation', c24, 24
-    );
-  end if;
-
-  return jsonb_build_object('applied', false, 'reports_24h', c24, 'reports_7d', c7d, 'reports_total', c_all);
+  return jsonb_build_object('applied', false, 'disabled', true);
 end
 $$;
 
@@ -525,46 +471,13 @@ create trigger videos_moderate_insert
   for each row execute function public.moderate_new_video();
 
 -- ---------------------------------------------------------------------------
--- 10. Comment spam -> 1 hour mute
+-- 10. Comment spam mute  (DISABLED — no automatic mutes)
 -- ---------------------------------------------------------------------------
-
-create or replace function public.moderate_new_comment()
-returns trigger
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  handle text := public.norm_handle(new.username);
-  body text := lower(btrim(new.body));
-  same integer;
-  uid uuid;
-begin
-  select p.id into uid from public.profiles p
-   where public.norm_handle(p.handle) = handle limit 1;
-
-  select count(*) into same
-    from public.comments c
-   where public.norm_handle(c.username) = handle
-     and lower(btrim(c.body)) = body
-     and c.created_at >= now() - interval '10 minutes';
-
-  if same >= 4 then
-    perform public.apply_moderation(
-      uid, handle, 'auto_mute_1h_spam',
-      format('Auto-muted: posted the same comment %s times', same + 1),
-      1, false, 'mute', true, 'auto-moderation', null, null
-    );
-  end if;
-
-  return new;
-end
-$$;
+-- The "5 identical comments -> 1 hour mute" rule is turned off. The trigger is
+-- dropped so nothing fires on insert. Duplicate comments are now just left for
+-- a human to look at in /admin.
 
 drop trigger if exists comments_moderate_insert on public.comments;
-create trigger comments_moderate_insert
-  before insert on public.comments
-  for each row execute function public.moderate_new_comment();
 
 -- ---------------------------------------------------------------------------
 -- 11. Mute lookup
@@ -795,7 +708,15 @@ $$;
 grant execute on function public.admin_unhide_video(uuid) to authenticated, service_role;
 
 -- ---------------------------------------------------------------------------
--- 13. Refresh PostgREST's schema cache
+-- 13. Lift any bans that the old auto-ban rules already applied
+-- ---------------------------------------------------------------------------
+-- Only rows flagged auto = true are touched. Bans you set by hand (auto = false)
+-- are left exactly as they are. The moderation_log keeps the history.
+
+delete from public.banned_users where auto = true;
+
+-- ---------------------------------------------------------------------------
+-- 14. Refresh PostgREST's schema cache
 -- ---------------------------------------------------------------------------
 
 notify pgrst, 'reload schema';

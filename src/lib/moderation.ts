@@ -224,11 +224,10 @@ export const RULES = [
 /* -------------------------------------------------------------------------- */
 /*  TikTok-style auto moderation                                              */
 /*                                                                            */
-/*  All of the threshold logic (3 reports / 24h, 5 / 7d, 10 total, and        */
-/*  comment spam) lives in Postgres SECURITY DEFINER functions, because        */
-/*  `reports` and `banned_users` are admin-only under RLS. A client-side       */
-/*  "count the reports" check would always see zero and never ban anybody.    */
-/*  These are thin wrappers around those RPCs.                                */
+/*  Auto-bans are DISABLED. Reports are recorded and shown in /admin, but     */
+/*  nothing bans or mutes a user automatically — you decide.                   */
+/*  The only automatic action left is hiding a single video whose caption      */
+/*  trips the banned-word filter.                                             */
 /* -------------------------------------------------------------------------- */
 
 /** Report categories, in TikTok's order. */
@@ -273,9 +272,9 @@ export async function checkIfBanned(username: string): Promise<boolean> {
 }
 
 /**
- * Ask the database to re-evaluate this user's report history and ban them if
- * they crossed a threshold. Safe to call after any report — it is a no-op when
- * nothing changed. Returns the action that was applied, if any.
+ * Auto-bans are disabled — this always returns `{ ok: true, banned: false }`.
+ * It is kept so existing callers keep compiling; banning is now manual, from
+ * the buttons in /admin.
  */
 export async function autoBanIfNeeded(
   userId: string | null,

@@ -124,3 +124,11 @@ export async function fetchSavedVideos(userId: string) {
     .order("created_at", { ascending: false });
   return ((data ?? []) as any[]).map((r) => r.videos).filter(Boolean);
 }
+
+export async function deleteVideo(video: Video) {
+  const { error } = await supabase.from("videos").delete().eq("id", video.id);
+  if (error) throw error;
+  if (video.video_url.startsWith(STORAGE_PREFIX)) {
+    await supabase.storage.from("videos").remove([video.video_url.slice(STORAGE_PREFIX.length)]);
+  }
+}

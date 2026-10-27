@@ -2,12 +2,15 @@ import { useEffect, useState } from "react";
 import { Check, Download, Link2, Share2, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import type { Video } from "@/lib/loop";
+import { useAuth } from "@/hooks/useAuth";
+import { deleteVideo, type Video } from "@/lib/loop";
 import { formatBytes, getSaved, removeOffline, saveOffline } from "@/lib/offline";
 
-export function ShareMenu({ video, onClose, onShared }: { video: Video; onClose: () => void; onShared: () => void }) {
+export function ShareMenu({ video, onClose, onShared, onDeleted }: { video: Video; onClose: () => void; onShared: () => void; onDeleted?: () => void }) {
   const [savedSize, setSavedSize] = useState<number | null>(null);
   const [progress, setProgress] = useState<number | null>(null);
+  const auth = useAuth();
+  const isOwner = !!auth.user && !!auth.handle && auth.handle === video.username;
   const url = typeof window!== "undefined"? `${window.location.origin}/v/${video.id}` : "";
 
   useEffect(() => {
@@ -31,6 +34,18 @@ export function ShareMenu({ video, onClose, onShared }: { video: Video; onClose:
     await removeOffline(video.id);
     setSavedSize(null);
     toast.success("Removed from offline");
+  };
+
+  const deleteMine = async () => {
+    if (!window.confirm("Delete this video? This can't be undone.")) return;
+    try {
+      await deleteVideo(video);
+      toast.success("Video deleted");
+      onDeleted?.();
+      onClose();
+    } catch {
+      toast.error("Couldn't delete this video.");
+    }
   };
 
   const download = async () => {
@@ -130,6 +145,15 @@ export function ShareMenu({ video, onClose, onShared }: { video: Video; onClose:
             </div>
             <span className="text-xs text-zinc-300">{savedSize ? "Remove" : "Save"}</span>
           </button>
+
+          {isOwner && (
+            <button className="flex flex-col items-center gap-2" onClick={deleteMine}>
+              <div className="w-14 h-14 rounded-full bg-red-600 flex items-center justify-center">
+                <Trash2 size={22} />
+              </div>
+              <span className="text-xs text-red-400">Delete</span>
+            </button>
+          )}
         </div>
 
         {progress!== null && (

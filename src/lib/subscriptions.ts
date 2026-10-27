@@ -1,9 +1,16 @@
 import { useEffect, useState } from "react";
 
-import { PLANS, TRIAL_DAYS, planById, type Plan } from "@/lib/plans";
+import {
+  PLANS,
+  TRIAL_DAYS,
+  offlinePlan,
+  planById,
+  planIncludesOffline,
+  type Plan,
+} from "@/lib/plans";
 
 export type { Plan };
-export { PLANS, TRIAL_DAYS, planById };
+export { PLANS, TRIAL_DAYS, planById, planIncludesOffline, offlinePlan };
 
 export const VENMO_HANDLE = "Samantha-Barnes-168";
 
@@ -341,6 +348,36 @@ export function cancelSubscription(handle: string) {
 /** True when the plan is giving them perks right now. */
 export function isActive(sub: Subscription | null): boolean {
   return sub?.status === "trial" || sub?.status === "active";
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Offline mode access                                                       */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Offline downloads are a paid perk that starts with Plus ($4.99).
+ *
+ * Access requires a live subscription *and* a plan that includes the feature.
+ * A `pending` or `expired` subscription does not count: the plan has to be
+ * currently giving them perks (trial or active) for the offline library to
+ * unlock.
+ */
+export function hasOfflineAccess(handle?: string | null): boolean {
+  const sub = getSubscription(handle);
+  if (!isActive(sub)) return false;
+  return planIncludesOffline(sub?.planId);
+}
+
+/** Why offline mode is locked, so the UI can say something useful. */
+export type OfflineLockReason = "signed-out" | "no-plan" | "plan-lacks-offline" | "expired";
+
+export function offlineLockReason(handle?: string | null): OfflineLockReason | null {
+  if (hasOfflineAccess(handle)) return null;
+  if (!handle) return "signed-out";
+  const sub = getSubscription(handle);
+  if (!sub) return "no-plan";
+  if (sub.status === "expired" || sub.status === "pending") return "expired";
+  return "plan-lacks-offline";
 }
 
 export function useSubscription(handle?: string | null) {

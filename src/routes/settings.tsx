@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeft, LogOut, Pencil, ShieldCheck, UserRound } from "lucide-react";
+import { ArrowLeft, Lock, LogOut, Pencil, ShieldCheck, UserRound } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { EditProfileDialog } from "@/components/EditProfileDialog";
@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { writePref } from "@/lib/prefs";
 import { MoreSettings } from "@/components/MoreSettings";
+import { hasOfflineAccess, offlinePlan, useSubscription } from "@/lib/subscriptions";
 import { ThemePicker } from "@/components/ThemePicker"
 export const Route = createFileRoute("/settings")({
   head: () => ({
@@ -24,6 +25,10 @@ export const Route = createFileRoute("/settings")({
 
 function Settings() {
   const auth = useAuth();
+  // Offline mode is a Plus ($4.99) perk — re-read the plan whenever it changes.
+  const subscription = useSubscription(auth.handle);
+  const offlineUnlocked = hasOfflineAccess(auth.handle);
+  const offlinePrice = offlinePlan().price;
   const [editing, setEditing] = useState(false);
   const savePhone = () => {
     try {
@@ -78,17 +83,34 @@ const [readReceipts, setReadReceipts] = useState(localStorage.getItem("readRecei
 useEffect(() => {
   try {
     const savedOffline = localStorage.getItem("settings:offline") === "true";
-    setOfflineMode(savedOffline);
+    // A subscription that lapsed must not leave offline mode switched on.
+    // Wait for auth to resolve first: running this while `handle` is still null
+    // would read "no subscription" and wipe a real subscriber's setting.
+    if (auth.ready) {
+      const allowed = savedOffline && hasOfflineAccess(auth.handle);
+      setOfflineMode(allowed);
+      if (savedOffline && !allowed) localStorage.setItem("settings:offline", "false");
+    } else {
+      setOfflineMode(savedOffline);
+    }
           setPrivateAccount(localStorage.getItem("settings:private") === "true");
           setPhone(localStorage.getItem("settings:phone") || "");
          setTiktokLink(localStorage.getItem("settings:tiktok") || "");
       setInstagramLink(localStorage.getItem("settings:instagram") || "");
       setYoutubeLink(localStorage.getItem("settings:youtube") || ""); 
   } catch {}
-}, []);
+}, [auth.ready, auth.handle]);
 
 const toggleOffline = () => {
   const newVal = !offlineMode;
+
+  // Turning it ON is a paid feature. Turning it OFF is always allowed so a
+  // lapsed subscriber can still clean up.
+  if (newVal && !offlineUnlocked) {
+    toast.error(`Offline mode is part of Plus ($${offlinePrice.toFixed(2)}/mo)`);
+    return;
+  }
+
   setOfflineMode(newVal);
   try { localStorage.setItem("settings:offline", String(newVal)); } catch {}
   
@@ -400,17 +422,61 @@ const changeTheme = (t: string) => {
           {phone && <p className="mt-2 text-xs text-muted-foreground">Saved: {phone}</p>}
         </div>
 <div className="rounded-lg border bg-card p-6">
-  <h2 className="font-semibold">Offline Mode</h2>
-  <p className="mt-1 text-sm text-muted-foreground"> offline videos </p>
-  <div className="mt-3 flex items-center gap-3">
-    <button onClick={toggleOffline} style={{backgroundColor: offlineMode ? "#16a34a" : "black", color: "white"}} className="rounded-md px-4 py-2 font-medium">
-      {offlineMode ? "ON" : "OFF"}
-    </button>
-    <button onClick={() => window.location.href = "/offline"} style={{backgroundColor: "black", color: "white"}} className="rounded-md px-4 py-2 font-medium">
-      View Offline Videos →
-    </button>
+  <div className="flex items-center gap-2">
+    <h2 className="font-semibold">Offline Mode</h2>
+    {!offlineUnlocked && (
+      <span className="rounded-full border px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+        Plus
+      </span>
+    )}
   </div>
-  <p className="mt-2 text-xs text-muted-foreground">{offlineMode ? "Tap View to see your saved videos" : "Turn ON first, then view"}</p>
+
+  {offlineUnlocked ? (
+    <>
+      <p className="mt-1 text-sm text-muted-foreground">Save videos and watch them without a connection.</p>
+      <div className="mt-3 flex items-center gap-3">
+        <button onClick={toggleOffline} style={{backgroundColor: offlineMode ? "#16a34a" : "black", color: "white"}} className="rounded-md px-4 py-2 font-medium">
+          {offlineMode ? "ON" : "OFF"}
+        </button>
+        <button onClick={() => window.location.href = "/offline"} style={{backgroundColor: "black", color: "white"}} className="rounded-md px-4 py-2 font-medium">
+          View Offline Videos →
+        </button>
+      </div>
+      <p className="mt-2 text-xs text-muted-foreground">
+        {offlineMode ? "Tap View to see your saved videos" : "Turn ON first, then view"}
+      </p>
+      {subscription?.status === "trial" && (
+        <p className="mt-1 text-xs text-muted-foreground">
+          Included with your free trial — offline mode locks when the trial ends unless you subscribe.
+        </p>
+      )}
+    </>
+  ) : (
+    <>
+      <p className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
+        <Lock className="h-4 w-4" />
+        Offline mode is a Plus feature. Subscribe to save videos and watch them without a connection.
+      </p>
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        <Link
+          to="/"
+          search={{ tab: "subscriptions" }}
+          style={{backgroundColor: "black", color: "white"}}
+          className="rounded-md px-4 py-2 font-medium"
+        >
+          Get Plus — ${offlinePrice.toFixed(2)}/mo
+        </Link>
+        <button onClick={() => window.location.href = "/offline"} className="rounded-md border px-4 py-2 font-medium">
+          See what's included
+        </button>
+      </div>
+      <p className="mt-2 text-xs text-muted-foreground">
+        {subscription?.status === "expired" || subscription?.status === "pending"
+          ? "Your subscription isn't active, so offline mode is locked."
+          : "Already subscribed? Offline mode unlocks as soon as your plan is active."}
+      </p>
+    </>
+  )}
 </div>
    {/* Appearance */}
 <div className="rounded-2xl border bg-card p-4">

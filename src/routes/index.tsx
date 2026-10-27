@@ -117,7 +117,15 @@ function Index() {
   const [saved, setSaved] = useState<Video[]>([]);
   const [online, setOnline] = useState(true);
   const [liked, setLiked] = useState<Set<string>>(new Set());
-  const [tab, setTab] = useState<Tab>("foryou");
+  const [tab, setTab] = useState<Tab>(() => {
+    // Deep link support: /?tab=subscriptions lets upgrade prompts land the
+    // user straight on the plans instead of the feed.
+    if (typeof window !== "undefined") {
+      const wanted = new URLSearchParams(window.location.search).get("tab");
+      if (wanted === "subscriptions" || wanted === "shop") return wanted;
+    }
+    return "foryou";
+  });
   const [feedTab, setFeedTab] = useState<"foryou" | "following" | "explore" | "marketplace" | "live">("foryou");
   const [followingList, setFollowingList] = useState<string[]>([]);
   const [repostedFeed, setRepostedFeed] = useState<Video[]>([]);

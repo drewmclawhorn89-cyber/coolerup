@@ -1,9 +1,11 @@
 import { parseCaption } from "@/lib/loop";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Download, Eye, Trash2, ArrowLeft } from "lucide-react";
+import { Download, Eye, Lock, Trash2, ArrowLeft } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { formatBytes, getSaved, listSaved, onOfflineChange, removeOffline } from "@/lib/offline";
+import { useAuth } from "@/hooks/useAuth";
+import { hasOfflineAccess, offlinePlan } from "@/lib/subscriptions";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/offline")({
@@ -14,6 +16,8 @@ export const Route = createFileRoute("/offline")({
 });
 
 function OfflinePage() {
+  const auth = useAuth();
+  const unlocked = hasOfflineAccess(auth.handle);
   const [items, setItems] = useState<{ id: string; video: any; size: number }[] | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
 
@@ -89,6 +93,44 @@ function OfflinePage() {
       setRemovingId(null);
     }
   };
+
+  // Offline mode is a Plus ($4.99) perk. Show the paywall instead of the library
+  // so a lapsed subscriber cannot keep watching downloads for free.
+  if (!unlocked) {
+    return (
+      <div className="mx-auto max-w-xl px-4 pb-10 pt-6 space-y-6">
+        <div className="flex items-center gap-3">
+          <Link to="/settings" aria-label="Back to settings" className="text-muted-foreground hover:text-foreground">
+            <ArrowLeft className="h-5 w-5" />
+          </Link>
+          <h1 className="font-display text-2xl">Offline videos</h1>
+        </div>
+
+        <div className="rounded-2xl border bg-card p-6 text-center">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+            <Lock className="h-6 w-6 text-muted-foreground" />
+          </div>
+          <h2 className="mt-3 font-semibold">Offline mode is a Plus feature</h2>
+          <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">
+            Subscribe to save videos and watch them without a connection. Offline downloads start
+            at ${offlinePlan().price.toFixed(2)}/mo and are included in every paid plan.
+          </p>
+          <Link
+            to="/"
+            search={{ tab: "subscriptions" }}
+            className="mt-4 inline-flex rounded-md bg-black px-4 py-2 font-medium text-white"
+          >
+            Get Plus — ${offlinePlan().price.toFixed(2)}/mo
+          </Link>
+          <p className="mt-3 text-xs text-muted-foreground">
+            {auth.handle
+              ? "Already subscribed? Offline mode unlocks as soon as your plan is active."
+              : "Sign in first so we can check your plan."}
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-xl px-4 pb-10 pt-6 space-y-6">

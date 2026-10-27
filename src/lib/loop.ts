@@ -112,7 +112,7 @@ export function formatCount(n: number) {
 export async function setVideoSaved(videoId: string, on: boolean) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return;
-  if (on) await supabase.from("saved_videos").upsert({ user_id: user.id, video_id: videoId });
+  if (on) await supabase.from("saved_videos").insert({ user_id: user.id, video_id: videoId });
   else await supabase.from("saved_videos").delete().eq("user_id", user.id).eq("video_id", videoId);
 }
 

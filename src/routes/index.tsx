@@ -89,23 +89,8 @@ function Index() {
   const auth = useAuth();
   const me = auth.handle;
 
-  useEffect(() => {
-    if (!me) return;
-    supabase
-      .from("banned_users")
-      .select("*")
-      .eq("username", me)
-      .maybeSingle()
-      .then(async ({ data }) => {
-        if (!data) return;
-        const isStillBanned = data.is_permanent || (data.expires_at && new Date(data.expires_at) > new Date());
-        if (isStillBanned) {
-          alert(`You are banned: ${data.reason}`);
-          await supabase.auth.signOut();
-          window.location.href = "/";
-        }
-      });
-  }, [me]);
+  // Ban enforcement now lives in <BanGate /> (mounted in __root.tsx), which
+  // covers every route and shows a proper blocked screen instead of an alert.
 
   const [videos, setVideos] = useState<Video[] | null>(null);
   const [myPostCount, setMyPostCount] = useState(0);

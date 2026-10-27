@@ -17,6 +17,7 @@ import { CallOverlay } from "../components/CallOverlay";
 import { PhoneAuthDialog } from "../components/PhoneAuthDialog";
 import { Toaster } from "sonner";
 import { WellbeingWatcher } from "../components/MoreSettings";
+import { BanGate } from "../components/BanGate";
 import { applyPrefs } from "../lib/prefs";
 import { AuthProvider } from "../hooks/useAuth";
 function NotFoundComponent() {
@@ -153,7 +154,9 @@ function RootComponent() {
       <AuthProvider>
         <CallProvider>
           {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-          <Outlet />
+          <BanGate>
+            <Outlet />
+          </BanGate>
           <CallOverlay />
           <WellbeingWatcher />
         </CallProvider>

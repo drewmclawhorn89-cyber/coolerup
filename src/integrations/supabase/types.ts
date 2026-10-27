@@ -368,6 +368,50 @@ export type Database = {
           },
         ]
       }
+      stories: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          media_type: string
+          media_url: string
+          user_id: string
+          username: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          media_type?: string
+          media_url: string
+          user_id: string
+          username: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          media_type?: string
+          media_url?: string
+          user_id?: string
+          username?: string
+        }
+        Relationships: []
+      }
+      story_likes: {
+        Row: { created_at: string; id: string; story_id: string; user_id: string }
+        Insert: { created_at?: string; id?: string; story_id: string; user_id: string }
+        Update: { created_at?: string; id?: string; story_id?: string; user_id?: string }
+        Relationships: [
+          {
+            foreignKeyName: "story_likes_story_id_fkey"
+            columns: ["story_id"]
+            isOneToOne: false
+            referencedRelation: "stories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       saved_videos: {
         Row: { created_at: string; user_id: string; video_id: string }
         Insert: { created_at?: string; user_id: string; video_id: string }
@@ -450,6 +494,17 @@ export type Database = {
       }
       increment_share: { Args: { _video_id: string }; Returns: undefined }
       is_banned: { Args: { _username: string }; Returns: boolean }
+      is_banned_uid: { Args: { _uid: string }; Returns: boolean }
+      is_banned_username: { Args: { _username: string }; Returns: boolean }
+      my_ban_status: {
+        Args: never
+        Returns: {
+          is_banned: boolean
+          reason: string
+          is_permanent: boolean
+          expires_at: string
+        }[]
+      }
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"

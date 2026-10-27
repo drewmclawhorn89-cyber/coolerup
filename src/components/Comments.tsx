@@ -14,7 +14,7 @@ type Comment = {
 };
 
 const COLS = "id, username, body, created_at, gif_url, parent_id";
-const GIPHY_KEY = (import.meta.env.VITE_GIPHY_API_KEY as string | undefined) ?? "dc6zaTOxFJmzC";
+const GIPHY_KEY = (import.meta.env.VITE_GIPHY_API_KEY as string | undefined) ?? "";
 
 type Gif = { id: string; url: string; preview: string };
 
@@ -25,6 +25,10 @@ function GifPicker({ onPick, onClose }: { onPick: (url: string) => void; onClose
 
   useEffect(() => {
     const t = setTimeout(async () => {
+      if (!GIPHY_KEY) {
+        toast.error("GIFs need a Giphy API key (VITE_GIPHY_API_KEY)");
+        return;
+      }
       setLoading(true);
       try {
         const base = q.trim() ? "search" : "trending";
@@ -32,6 +36,7 @@ function GifPicker({ onPick, onClose }: { onPick: (url: string) => void; onClose
         if (q.trim()) params.set("q", q.trim());
         const res = await fetch(`https://api.giphy.com/v1/gifs/${base}?${params}`);
         const json = await res.json();
+        if (!res.ok) throw new Error(json?.meta?.msg ?? `HTTP ${res.status}`);
         setGifs(
           (json.data ?? []).map((g: any) => ({
             id: g.id,
@@ -39,8 +44,8 @@ function GifPicker({ onPick, onClose }: { onPick: (url: string) => void; onClose
             preview: g.images.fixed_height_small?.url ?? g.images.fixed_height.url,
           })),
         );
-      } catch {
-        toast.error("Couldn't load GIFs");
+      } catch (err) {
+        toast.error(`Couldn't load GIFs: ${err instanceof Error ? err.message : "unknown error"}`);
       }
       setLoading(false);
     }, 300);

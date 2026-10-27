@@ -8,9 +8,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { GOOGLE_PAY_ENV, googlePayAvailable, requestGooglePay } from "@/lib/googlepay";
+import { HAS_STRIPE, googlePayAvailable, requestGooglePay } from "@/lib/googlepay";
+import { chargePlanWithGooglePay, saveCardForTrial } from "@/lib/payments.functions";
 import {
   TRIAL_DAYS,
+  confirmPayment,
   maskCard,
   requestPayment,
   startTrial,
@@ -20,6 +22,23 @@ import {
   type Plan,
   type Subscription,
 } from "@/lib/subscriptions";
+
+/** Maps a gateway brand string ("visa", "VISA") onto our CardBrand union. */
+function cardBrandFrom(gatewayBrand: string, fallback: PaymentMethod["brand"]): PaymentMethod["brand"] {
+  switch (gatewayBrand.toLowerCase()) {
+    case "visa":
+      return "visa";
+    case "mastercard":
+      return "mastercard";
+    case "amex":
+    case "american_express":
+      return "amex";
+    case "discover":
+      return "discover";
+    default:
+      return fallback;
+  }
+}
 
 type Mode = "trial" | "pay" | "manage";
 
@@ -148,19 +167,73 @@ export function PaymentSheet({ plan, handle, sub, onClose, onSignIn }: Props) {
 
   const payWithGoogle = async () => {
     setError(null);
+    if (!handle) {
+      onSignIn?.();
+      return;
+    }
     setBusy(true);
     try {
-      const result = await requestGooglePay(chargeToday, `${plan.label} · Coolerup`);
+      const result = await requestGooglePay(chargeToday, `${plan.label} \u00b7 Coolerup`);
       if (!result.ok) {
         if (result.reason === "cancelled") return;
         if (result.reason === "unavailable") {
           setError("Google Pay isn't available in this browser. Use a card instead.");
           return;
         }
-        setError("Google Pay couldn't complete that payment. Try a card instead.");
+        setError(result.message ?? "Google Pay couldn't complete that payment. Try a card instead.");
         return;
       }
-      applyPaymentMethod(result.paymentMethod);
+
+      // The token is only worth something once the server has exchanged it with
+      // the gateway. Until then nothing has been charged or vaulted.
+      if (isTrialMode || manage) {
+        const saved = await saveCardForTrial({
+          data: { planId: plan.id, paymentToken: result.token },
+        });
+        if (!saved.ok) {
+          setError(saved.message);
+          return;
+        }
+        applyPaymentMethod({
+          ...result.paymentMethod,
+          brand: cardBrandFrom(saved.card.brand, result.paymentMethod.brand),
+          last4: saved.card.last4 !== "0000" ? saved.card.last4 : result.paymentMethod.last4,
+          expMonth: saved.card.expMonth,
+          expYear: saved.card.expYear,
+        });
+        return;
+      }
+
+      const charge = await chargePlanWithGooglePay({
+        data: { planId: plan.id, paymentToken: result.token },
+      });
+      if (!charge.ok) {
+        setError(charge.message);
+        return;
+      }
+
+      const pm: PaymentMethod = {
+        ...result.paymentMethod,
+        brand: cardBrandFrom(charge.card.brand, result.paymentMethod.brand),
+        last4: charge.card.last4 !== "0000" ? charge.card.last4 : result.paymentMethod.last4,
+        expMonth: charge.card.expMonth,
+        expYear: charge.card.expYear,
+      };
+
+      // A successful charge activates the plan right away instead of leaving it
+      // stuck at "pending" waiting for someone to hand-confirm a Venmo transfer.
+      updatePaymentMethod(handle, pm);
+      requestPayment(handle, plan.id);
+      if (charge.status === "succeeded") {
+        confirmPayment(handle);
+        setDone(`Paid $${(charge.amountCents / 100).toFixed(2)} \u2014 ${plan.label} is active.`);
+      } else if (charge.status === "processing") {
+        setDone("Payment is processing \u2014 your plan activates as soon as it clears.");
+      } else {
+        setDone("Payment submitted \u2014 we'll confirm it shortly.");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Google Pay couldn't complete that payment.");
     } finally {
       setBusy(false);
     }
@@ -280,9 +353,10 @@ export function PaymentSheet({ plan, handle, sub, onClose, onSignIn }: Props) {
                 Google Pay isn&apos;t available in this browser — use a card or Venmo below.
               </p>
             )}
-            {GOOGLE_PAY_ENV === "TEST" && gpayReady && (
+            {!HAS_STRIPE && gpayReady && (
               <p className="text-center text-[11px] text-muted-foreground">
-                Google Pay is in test mode: the sheet is real, but no money moves.
+                Test mode: the Google Pay sheet is real, but no card is charged until a payment
+                gateway key is added.
               </p>
             )}
 

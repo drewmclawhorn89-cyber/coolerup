@@ -1,40 +1,9 @@
 import { useEffect, useState } from "react";
 
-export type Plan = {
-  id: string;
-  label: string;
-  emoji: string;
-  /** price in USD per month */
-  price: number;
-  perks: string[];
-};
+import { PLANS, TRIAL_DAYS, planById, type Plan } from "@/lib/plans";
 
-/** Every plan gets the same 7 day free trial. */
-export const TRIAL_DAYS = 7;
-
-export const PLANS: Plan[] = [
-  {
-    id: "plus",
-    label: "Plus",
-    emoji: "⭐",
-    price: 4.99,
-    perks: ["Ad-free feed", "Plus badge on your profile"],
-  },
-  {
-    id: "pro",
-    label: "Pro",
-    emoji: "🚀",
-    price: 9.99,
-    perks: ["Everything in Plus", "Exclusive tops and names", "Priority uploads"],
-  },
-  {
-    id: "vip",
-    label: "VIP",
-    emoji: "👑",
-    price: 19.99,
-    perks: ["Everything in Pro", "VIP badge", "Early access to new features"],
-  },
-];
+export type { Plan };
+export { PLANS, TRIAL_DAYS, planById };
 
 export const VENMO_HANDLE = "Samantha-Barnes-168";
 
@@ -211,10 +180,6 @@ const usedKey = (handle: string) => `trial-used:${handle}`;
 const EVT = "subscription-change";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-
-export function planById(id?: string | null): Plan | undefined {
-  return PLANS.find((p) => p.id === id);
-}
 
 /**
  * Old versions stored a bare string ("pro" or "pending:pro"). Turn anything we

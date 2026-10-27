@@ -507,7 +507,7 @@ function AdminPage() {
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">
                   {status?.maintenance
-                    ? "Everyone sees a holding page instead of the app. You can still get in through the admin bypass link on that page."
+                    ? "Everyone sees a holding page instead of the app — you included. To get back in, turn this switch off from the Supabase table editor (app_settings, id = 1)."
                     : "Turn this on before you publish an update. Every open tab shuts down within ~15 seconds, and comes back on its own when you turn it off."}
                 </p>
                 {status?.updatedAt && (

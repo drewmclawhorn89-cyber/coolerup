@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Loader2, RefreshCw, Wrench } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useAuth } from "@/hooks/useAuth";
 import { reloadIntoNewBuild, watchForUpdate } from "@/lib/appBuild";
 import { DEFAULT_MAINTENANCE_MESSAGE, watchAppStatus, type AppStatus } from "@/lib/maintenance";
 
@@ -25,12 +24,11 @@ import { DEFAULT_MAINTENANCE_MESSAGE, watchAppStatus, type AppStatus } from "@/l
  * the app runs. Locking everyone out because of one dropped request is worse
  * than letting a stale tab live another minute.
  *
- * Admins can step through the maintenance page, so flipping the switch can
- * never lock the owner out of their own app.
+ * No bypass: the shutdown applies to everyone, admins included. To get back in
+ * during maintenance, turn the switch off from the Supabase table editor.
  */
 
 const RELOAD_SECONDS = 5;
-const BYPASS_KEY = "update-gate:bypass";
 
 type Shutdown =
   | { kind: "maintenance"; status: AppStatus }
@@ -38,20 +36,9 @@ type Shutdown =
   | null;
 
 export function UpdateGate({ children }: { children: React.ReactNode }) {
-  const { isAdmin } = useAuth();
   const [shutdown, setShutdown] = useState<Shutdown>(null);
-  const [bypassed, setBypassed] = useState(false);
   const [seconds, setSeconds] = useState(RELOAD_SECONDS);
   const [reloading, setReloading] = useState(false);
-
-  // A bypass lasts for this tab only.
-  useEffect(() => {
-    try {
-      setBypassed(sessionStorage.getItem(BYPASS_KEY) === "1");
-    } catch {
-      // Private mode: no sessionStorage, no bypass. Fine.
-    }
-  }, []);
 
   // Maintenance switch.
   useEffect(() => {
@@ -96,18 +83,7 @@ export function UpdateGate({ children }: { children: React.ReactNode }) {
     return () => clearInterval(tick);
   }, [isStale]);
 
-  const bypass = useCallback(() => {
-    try {
-      sessionStorage.setItem(BYPASS_KEY, "1");
-    } catch {
-      // In-memory bypass still applies.
-    }
-    setBypassed(true);
-  }, []);
-
-  const down = shutdown && !(shutdown.kind === "maintenance" && bypassed && isAdmin);
-
-  if (!down) return <>{children}</>;
+  if (!shutdown) return <>{children}</>;
 
   if (shutdown.kind === "stale") {
     return (
@@ -143,20 +119,9 @@ export function UpdateGate({ children }: { children: React.ReactNode }) {
       title="Coolerup is updating"
       body={shutdown.status.message || DEFAULT_MAINTENANCE_MESSAGE}
       footer={
-        <>
-          <p className="text-xs text-muted-foreground">
-            This page unlocks on its own as soon as the update is done.
-          </p>
-          {isAdmin && (
-            <button
-              type="button"
-              onClick={bypass}
-              className="text-xs font-medium text-muted-foreground underline underline-offset-4 hover:text-foreground"
-            >
-              I'm an admin — let me in anyway
-            </button>
-          )}
-        </>
+        <p className="text-xs text-muted-foreground">
+          This page unlocks on its own as soon as the update is done.
+        </p>
       }
     />
   );

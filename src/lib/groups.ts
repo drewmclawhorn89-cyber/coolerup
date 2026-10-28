@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { resolveMediaUrl } from "@/lib/media";
 
 /**
  * Groups (Facebook-style group pages).
@@ -61,6 +62,31 @@ const GROUP_COLUMNS =
 /* Reads                                                               */
 /* ------------------------------------------------------------------ */
 
+/** Swap stored media values for signed URLs the browser can load. */
+async function hydrateGroupMedia(group: Group): Promise<Group> {
+  const [cover, avatar] = await Promise.all([
+    resolveMediaUrl(group.cover_image),
+    resolveMediaUrl(group.avatar_image),
+  ]);
+  return {
+    ...group,
+    cover_image: cover || null,
+    avatar_image: avatar || null,
+  };
+}
+
+async function hydratePostMedia(post: GroupPost): Promise<GroupPost> {
+  const [video, image] = await Promise.all([
+    resolveMediaUrl(post.video_url),
+    resolveMediaUrl(post.image_url),
+  ]);
+  return {
+    ...post,
+    video_url: video || null,
+    image_url: image || null,
+  };
+}
+
 export async function fetchGroups(): Promise<Group[]> {
   const { data, error } = await db
     .from("groups")
@@ -68,13 +94,14 @@ export async function fetchGroups(): Promise<Group[]> {
     .order("created_at", { ascending: false })
     .limit(200);
   if (error) throw error;
-  return (data ?? []) as Group[];
+  return Promise.all(((data ?? []) as Group[]).map(hydrateGroupMedia));
 }
 
 export async function fetchGroup(groupId: string): Promise<Group | null> {
   const { data, error } = await db.from("groups").select(GROUP_COLUMNS).eq("id", groupId).maybeSingle();
   if (error) throw error;
-  return (data ?? null) as Group | null;
+  const group = (data ?? null) as Group | null;
+  return group ? hydrateGroupMedia(group) : null;
 }
 
 /** Every membership row for a user, keyed by group id (includes pending/banned). */
@@ -105,7 +132,7 @@ export async function fetchGroupPosts(groupId: string): Promise<GroupPost[]> {
     .order("created_at", { ascending: false })
     .limit(100);
   if (error) throw error;
-  return (data ?? []) as GroupPost[];
+  return Promise.all(((data ?? []) as GroupPost[]).map(hydratePostMedia));
 }
 
 /* ------------------------------------------------------------------ */
@@ -146,7 +173,7 @@ export async function createGroup(
   });
   if (memberError) throw memberError;
 
-  return group;
+  return hydrateGroupMedia(group);
 }
 
 /**
@@ -225,7 +252,7 @@ export async function createGroupPost(input: {
     .select("*")
     .single();
   if (error) throw error;
-  return data as GroupPost;
+  return hydratePostMedia(data as GroupPost);
 }
 
 export async function likeGroupPost(post: GroupPost, liked: boolean): Promise<number> {
@@ -254,28 +281,32 @@ async function bumpMembers(groupId: string, delta: number) {
 /* ------------------------------------------------------------------ */
 
 /**
- * Group images live in the public "videos" storage bucket (the same bucket
- * already used for marketplace photos and stories), under a groups/ prefix.
+ * Group images live in the private "videos" storage bucket (the same bucket
+ * already used for feed videos), under a groups/ prefix. We store a
+ * `storage:<path>` reference and sign it on read, because the bucket is not
+ * publicly readable.
  */
 export async function uploadGroupImage(file: File, userId: string, kind: "cover" | "avatar"): Promise<string> {
   const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
   const path = `${userId}/groups/${kind}-${Date.now()}-${safe}`;
   const { error } = await supabase.storage.from("videos").upload(path, file, { contentType: file.type });
   if (error) throw error;
-  return supabase.storage.from("videos").getPublicUrl(path).data.publicUrl;
+  return `storage:${path}`;
 }
 
 /** Upload a photo or video for a group post. */
 export async function uploadGroupMedia(
   file: File,
   userId: string,
-): Promise<{ url: string; kind: "image" | "video" }> {
+): Promise<{ url: string; previewUrl: string; kind: "image" | "video" }> {
   const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
   const path = `${userId}/groups/post-${Date.now()}-${safe}`;
   const { error } = await supabase.storage.from("videos").upload(path, file, { contentType: file.type });
   if (error) throw error;
+  const url = `storage:${path}`;
   return {
-    url: supabase.storage.from("videos").getPublicUrl(path).data.publicUrl,
+    url,
+    previewUrl: await resolveMediaUrl(url),
     kind: file.type.startsWith("video/") ? "video" : "image",
   };
 }

@@ -15,6 +15,7 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
+import { GroupVideo } from "@/components/GroupVideo";
 import { useAuth } from "@/hooks/useAuth";
 import {
   approveMember,
@@ -302,7 +303,7 @@ function PostsTab({
 }) {
   const auth = useAuth();
   const [caption, setCaption] = useState("");
-  const [media, setMedia] = useState<{ url: string; kind: "image" | "video" } | null>(null);
+  const [media, setMedia] = useState<{ url: string; previewUrl: string; kind: "image" | "video" } | null>(null);
   const [posting, setPosting] = useState(false);
   const [liked, setLiked] = useState<Set<string>>(new Set());
   const fileRef = useRef<HTMLInputElement>(null);
@@ -381,9 +382,9 @@ function PostsTab({
           {media && (
             <div className="relative mt-2 overflow-hidden rounded-lg">
               {media.kind === "image" ? (
-                <img src={media.url} alt="" className="max-h-64 w-full object-cover" />
+                <img src={media.previewUrl} alt="" className="max-h-64 w-full object-cover" />
               ) : (
-                <video src={media.url} controls playsInline className="max-h-64 w-full object-cover" />
+                <video src={media.previewUrl} controls playsInline className="max-h-64 w-full object-cover" />
               )}
               <button
                 onClick={() => setMedia(null)}
@@ -445,7 +446,7 @@ function PostsTab({
           </div>
           {post.caption && <p className="px-3 pb-2 text-[14px] text-gray-200">{post.caption}</p>}
           {post.image_url && <img src={post.image_url} alt="" className="w-full object-cover" loading="lazy" />}
-          {post.video_url && <video src={post.video_url} controls playsInline className="w-full" />}
+          {post.video_url && <GroupVideo src={post.video_url} />}
           <div className="flex items-center gap-4 p-3">
             <button
               onClick={() => toggleLike(post)}

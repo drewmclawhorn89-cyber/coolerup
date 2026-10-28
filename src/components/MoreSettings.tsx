@@ -7,13 +7,19 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { deleteMyAccount } from "@/lib/push.functions";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { announcePushPref, ensurePushSubscription } from "@/lib/push-client";
 
 function Toggle({ id, label, desc, def = false }: { id: string; label: string; desc?: string; def?: boolean }) {
   const [on, setOn] = useState(read(id, String(def)) === "true");
   const change = async (v: boolean) => {
-    if (v && id.startsWith("n-") && typeof Notification !== "undefined" && Notification.permission === "default") {
-      const p = await Notification.requestPermission();
-      if (p !== "granted") toast("Browser notifications are blocked. Enable them in your browser settings.");
+    if (v && id.startsWith("n-")) {
+      // Turning any notification category on registers this device for Web Push
+      // so the alert can arrive even when the app is closed.
+      const ok = await ensurePushSubscription();
+      if (!ok && typeof Notification !== "undefined" && Notification.permission === "denied") {
+        toast("Browser notifications are blocked. Enable them in your browser settings.");
+      }
+      announcePushPref(true);
     }
     if (v && id === "contacts-sync") toast("Contact sync needs device permission and is limited on the web.");
     setOn(v);

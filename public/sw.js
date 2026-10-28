@@ -1,5 +1,5 @@
 /* Coolerup service worker: offline app shell + incoming-call push alerts. */
-const CACHE = "coolerup-shell-v2";
+const CACHE = "coolerup-shell-v3";
 const SHELL = [
   "/",
   "/manifest.webmanifest",
@@ -86,37 +86,76 @@ self.addEventListener("fetch", (event) => {
   }
 });
 
+// Handles every push kind the app sends: calls, likes, comments, follows,
+// reposts, story likes and direct messages. Payload shape:
+//   { kind, title, body, url, tag, from? }
+// Calls keep their ring-style behaviour (persistent, vibrating, high urgency).
 self.addEventListener("push", (event) => {
   let data = {};
   try {
     data = event.data ? event.data.json() : {};
   } catch {}
+
+  const kind = data.kind || "generic";
+  const isCall = kind === "call";
   const from = data.from || "someone";
+
+  const title = data.title || (isCall ? `Incoming call from @${from}` : "Coolerup");
+  const body = data.body || (isCall ? "Tap to answer" : "");
+  const url =
+    data.url || (isCall ? `/messages?user=${encodeURIComponent(from)}` : "/");
+
   event.waitUntil(
-    self.registration.showNotification(`Incoming call from @${from}`, {
-      body: "Tap to answer",
-      tag: "loop-call",
-      renotify: true,
-      requireInteraction: true,
-      vibrate: [300, 150, 300, 150, 300],
+    self.registration.showNotification(title, {
+      body,
+      tag: data.tag || (isCall ? "loop-call" : kind),
+      renotify: isCall,
+      requireInteraction: isCall,
+      silent: false,
+      vibrate: isCall ? [300, 150, 300, 150, 300] : [120, 80, 120],
       icon: "/icon-192-coolerup.png",
-      data: { url: `/messages?user=${encodeURIComponent(from)}` },
+      badge: "/icon-192-coolerup.png",
+      data: { url, kind },
     }),
   );
 });
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const url = (event.notification.data && event.notification.data.url) || "/messages";
+  const url = (event.notification.data && event.notification.data.url) || "/";
   event.waitUntil(
-    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
+    (async () => {
+      const list = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
       for (const c of list) {
         if ("focus" in c) {
-          c.focus();
+          await c.focus();
+          // Reuse the open tab but send it to the notification's target.
+          if ("navigate" in c) {
+            try {
+              await c.navigate(url);
+            } catch {
+              // Cross-origin or unsupported: leave the focused tab as-is.
+            }
+          }
           return;
         }
       }
-      return self.clients.openWindow(url);
-    }),
+      await self.clients.openWindow(url);
+    })(),
+  );
+});
+
+// If the browser rotates the subscription, drop the stale one so the next app
+// open re-registers a fresh endpoint instead of silently missing pushes.
+self.addEventListener("pushsubscriptionchange", (event) => {
+  event.waitUntil(
+    (async () => {
+      try {
+        const sub = await self.registration.pushManager.getSubscription();
+        if (!sub) return;
+      } catch {
+        // Nothing to do without the VAPID key in the worker scope.
+      }
+    })(),
   );
 });

@@ -10,7 +10,8 @@ import {
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { savePushSubscription, sendCallPush } from "@/lib/push.functions";
+import { sendCallPush } from "@/lib/push.functions";
+import { ensurePushSubscription } from "@/lib/push-client";
 
 export type CallState =
   | { status: "idle" }
@@ -61,12 +62,6 @@ const RTC_CONFIG: RTCConfiguration = {
 function formatCallDuration(ms: number) {
   const total = Math.floor(ms / 1000);
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
-}
-
-function urlBase64ToBytes(b64: string) {
-  const pad = "=".repeat((4 - (b64.length % 4)) % 4);
-  const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
-  return Uint8Array.from(raw, (ch) => ch.charCodeAt(0));
 }
 
 const RING_TIMEOUT_MS = 30_000;
@@ -462,32 +457,11 @@ export function CallProvider({ children }: { children: ReactNode }) {
     };
   }, [auth.user?.id, auth.handle, createPeerConnection, sendSignal, cleanup, logCall]);
 
-  // Ask once, then register this device for Web Push so calls ring even when the app is closed.
+  // Register this device for Web Push so calls ring even when the app is closed.
+  // (Likes, comments, follows and DMs are handled by the global PushRegistrar.)
   useEffect(() => {
-    if (!auth.user || !("Notification" in window)) return;
-    const vapid = import.meta.env["VITE_VAPID_PUBLIC_KEY"] as string | undefined;
-    let cancelled = false;
-    (async () => {
-      if (Notification.permission === "default") await Notification.requestPermission();
-      if (cancelled || Notification.permission !== "granted") return;
-      if (!vapid || !("serviceWorker" in navigator) || !("PushManager" in window)) return;
-      const reg = await navigator.serviceWorker.register("/sw.js");
-      await navigator.serviceWorker.ready;
-      const sub =
-        (await reg.pushManager.getSubscription()) ??
-        (await reg.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: urlBase64ToBytes(vapid),
-        }));
-      const json = sub.toJSON();
-      if (!json.endpoint || !json.keys?.["p256dh"] || !json.keys?.["auth"]) return;
-      await savePushSubscription({
-        data: { endpoint: json.endpoint, p256dh: json.keys["p256dh"], auth: json.keys["auth"] },
-      });
-    })().catch(() => {});
-    return () => {
-      cancelled = true;
-    };
+    if (!auth.user) return;
+    void ensurePushSubscription();
   }, [auth.user?.id]);
 
   // Hang up if the tab closes mid-call.

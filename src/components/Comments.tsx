@@ -3,6 +3,7 @@ import { CornerDownRight, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { notifyUser, profileIdForHandle } from "@/lib/notify";
 
 type Comment = {
   id: string;
@@ -107,7 +108,7 @@ export function Comments({
   const [gif, setGif] = useState<string | null>(null);
   const [showGifs, setShowGifs] = useState(false);
   const [replyTo, setReplyTo] = useState<Comment | null>(null);
-  const { handle, signIn } = useAuth();
+  const { handle, signIn, user } = useAuth();
 
   const load = useCallback(async () => {
     setLoadError(null);
@@ -159,6 +160,31 @@ export function Comments({
     setShowGifs(false);
     setReplyTo(null);
     onAdded();
+
+    // Let the video owner know — in the bell and on their phone.
+    void (async () => {
+      try {
+        if (!user?.id) return;
+        const { data: video } = await supabase
+          .from("videos")
+          .select("username")
+          .eq("id", videoId)
+          .maybeSingle();
+        if (!video?.username) return;
+        const ownerId = await profileIdForHandle(video.username);
+        if (!ownerId) return;
+        await notifyUser({
+          targetUserId: ownerId,
+          actorUserId: user.id,
+          type: "comment",
+          videoId,
+          text: `${handle ?? "Someone"} commented: ${body.slice(0, 80)}`,
+          url: "/",
+        });
+      } catch {
+        // Notifications are best-effort; the comment itself already saved.
+      }
+    })();
   };
 
   const topLevel = items?.filter((c) => !c.parent_id) ?? [];

@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { notifyUser } from "@/lib/notify";
 import { resolveVideoUrl } from "@/lib/loop";
 
 export type Story = {
@@ -76,12 +77,12 @@ export async function setStoryLiked(story: Story, liked: boolean): Promise<boole
         .maybeSingle();
       if (owner && owner.id !== user.id) {
         const { data: me } = await supabase.from("profiles").select("handle").eq("id", user.id).maybeSingle();
-        await db.from("notifications").insert({
-          target_user_id: owner.id,
-          actor_user_id: user.id,
+        await notifyUser({
+          targetUserId: owner.id,
+          actorUserId: user.id,
           type: "story_like",
           text: `${me?.handle ?? "Someone"} liked your story`,
-          read: false,
+          url: "/",
         });
       }
     }

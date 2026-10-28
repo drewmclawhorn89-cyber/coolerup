@@ -17,6 +17,7 @@ import { CallOverlay } from "../components/CallOverlay";
 import { PhoneAuthDialog } from "../components/PhoneAuthDialog";
 import { Toaster } from "sonner";
 import { WellbeingWatcher } from "../components/MoreSettings";
+import { PushRegistrar } from "../components/PushRegistrar";
 import { BanGate } from "../components/BanGate";
 import { UpdateGate } from "../components/UpdateGate";
 import { applyPrefs } from "../lib/prefs";
@@ -172,6 +173,7 @@ function RootComponent() {
           </UpdateGate>
           <CallOverlay />
           <WellbeingWatcher />
+          <PushRegistrar />
         </CallProvider>
         <PhoneAuthDialog />
         <Toaster theme="dark" position="top-center" />

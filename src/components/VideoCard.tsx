@@ -796,10 +796,11 @@ function VideoCardImpl({
             <p className="text-sm text-muted-foreground">{captionText}</p>
           </div>
         </div>
-        {/* Right rail: avatar, then like / comment / repost / share / save.
-            No background circles — TikTok draws bare white icons over the video. */}
+        {/* Right rail: avatar, then like / comment / repost / bookmark / share.
+            TikTok style: bare white icons over the video, no background circles. */}
         <div className="absolute bottom-28 right-2 z-20 flex flex-col items-center gap-6 md:static md:mb-16 md:gap-5">
-          <div className="relative mb-1">
+          {/* AVATAR + FOLLOW */}
+          <div className="flex flex-col items-center">
             <Link
               to="/u/$username"
               params={{ username: video.username }}
@@ -826,51 +827,68 @@ function VideoCardImpl({
                   isFollowing ? `Unfollow @${video.username}` : `Follow @${video.username}`
                 }
                 aria-pressed={isFollowing}
-                className={`absolute -bottom-2 left-1/2 flex h-5 w-5 -translate-x-1/2 items-center justify-center rounded-full text-[13px] font-bold leading-none transition ${
-                  isFollowing ? "bg-white text-black" : "bg-[#fe2c55] text-white"
+                className={`-mt-3 flex h-6 w-6 items-center justify-center rounded-full text-[14px] font-bold leading-none text-white transition ${
+                  isFollowing ? "bg-white !text-black" : "bg-[#fe2c55]"
                 }`}
               >
-                {isFollowing ? "✓" : "+"}
+                {isFollowing ? "\u2713" : "+"}
               </button>
             )}
           </div>
 
-          <RailButton label={formatCount(likes)} onClick={toggleLike} pressed={liked}>
+          {/* LIKE - Heart */}
+          <button type="button" onClick={toggleLike} aria-pressed={liked} className="flex flex-col items-center focus-visible:outline-none">
             <Heart
-              className={`h-8 w-8 transition ${liked ? "fill-[#fe2c55] text-[#fe2c55]" : "text-white"} ${
-                liked && burst ? "heart-pop-btn" : ""
-              }`}
+              className={`h-8 w-8 drop-shadow-lg transition ${
+                liked ? "fill-[#fe2c55] text-[#fe2c55]" : "text-white"
+              } ${liked && burst ? "heart-pop-btn" : ""}`}
             />
-          </RailButton>
+            <span className="mt-1 text-[12px] font-bold text-white drop-shadow">
+              {formatCount(likes)}
+            </span>
+          </button>
 
-          <RailButton label={formatCount(comments)} onClick={() => setShowComments(true)}>
-            <MessageCircle className="h-8 w-8 text-white" />
-          </RailButton>
+          {/* COMMENT - Bubble */}
+          <button type="button" onClick={() => setShowComments(true)} className="flex flex-col items-center focus-visible:outline-none">
+            <MessageCircle className="h-8 w-8 fill-white text-white drop-shadow-lg" />
+            <span className="mt-1 text-[12px] font-bold text-white drop-shadow">
+              {formatCount(comments)}
+            </span>
+          </button>
 
-          <RailButton
-            label={formatCount(repostCount)}
-            onClick={() => void toggleRepost()}
-            pressed={reposted}
-            activeClass="text-yellow-400"
-          >
+          {/* REPOST - Repeat2 */}
+          <button type="button" onClick={() => void toggleRepost()} aria-pressed={reposted} className="flex flex-col items-center focus-visible:outline-none">
             <Repeat2
-              className={`h-8 w-8 transition ${
-                reposted ? "fill-yellow-400 text-yellow-400" : "text-white"
+              className={`h-8 w-8 drop-shadow-lg transition ${
+                reposted ? "text-yellow-400" : "text-white"
               }`}
             />
-          </RailButton>
+            <span
+              className={`mt-1 text-[12px] font-bold drop-shadow ${
+                reposted ? "text-yellow-400" : "text-white"
+              }`}
+            >
+              {formatCount(repostCount)}
+            </span>
+          </button>
 
-          <RailButton label={formatCount(shares)} onClick={() => setShowShare(true)}>
-            <Share2 className="h-8 w-8 text-white" />
-          </RailButton>
-
-          <RailButton label="Save" onClick={(e) => void toggleSave(e)} pressed={isSaved}>
+          {/* BOOKMARK - Save */}
+          <button type="button" onClick={(e) => void toggleSave(e)} aria-pressed={isSaved} className="flex flex-col items-center focus-visible:outline-none">
             <Bookmark
-              className={`h-8 w-8 transition ${
-                isSaved ? "fill-yellow-400 text-yellow-400" : "text-white"
+              className={`h-8 w-8 drop-shadow-lg transition ${
+                isSaved ? "fill-white text-white" : "text-white"
               }`}
             />
-          </RailButton>
+            <span className="mt-1 text-[12px] font-bold text-white drop-shadow">
+              {isSaved ? "Saved" : ""}
+            </span>
+          </button>
+
+          {/* SHARE - Arrow */}
+          <button type="button" onClick={() => setShowShare(true)} className="flex flex-col items-center focus-visible:outline-none">
+            <Share2 className="h-8 w-8 text-white drop-shadow-lg" />
+            <span className="mt-1 text-[12px] font-bold text-white drop-shadow">Share</span>
+          </button>
         </div>
       </div>
       {showComments && (
@@ -979,32 +997,3 @@ function VideoCardImpl({
  */
 export const VideoCard = memo(VideoCardImpl);
 
-function RailButton({
-  children,
-  label,
-  onClick,
-  pressed,
-  activeClass = "text-[#fe2c55]",
-}: {
-  children: React.ReactNode;
-  label: string;
-  onClick: (e: React.MouseEvent<HTMLButtonElement>) => void;
-  pressed?: boolean;
-  activeClass?: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={pressed}
-      className="flex flex-col items-center focus-visible:outline-none"
-    >
-      <span className="tiktok-icon-shadow flex items-center justify-center">{children}</span>
-      <span
-        className={`tiktok-shadow mt-1 text-[12px] font-bold ${pressed ? activeClass : "text-white"}`}
-      >
-        {label}
-      </span>
-    </button>
-  );
-}

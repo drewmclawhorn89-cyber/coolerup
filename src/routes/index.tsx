@@ -18,20 +18,37 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { VideoCard } from "@/components/VideoCard";
+import { GroupsPage } from "@/components/GroupsPage";
 import { matchesKeyword, readBool } from "@/lib/prefs";
 // Heavy, interaction-only surfaces are split out so the initial feed bundle stays small.
-const UploadDialog = lazy(() => import("@/components/UploadDialog").then((m) => ({ default: m.UploadDialog })));
-const ShopPanel = lazy(() => import("@/components/ShopPanel").then((m) => ({ default: m.ShopPanel })));
+const UploadDialog = lazy(() =>
+  import("@/components/UploadDialog").then((m) => ({ default: m.UploadDialog })),
+);
+const ShopPanel = lazy(() =>
+  import("@/components/ShopPanel").then((m) => ({ default: m.ShopPanel })),
+);
 const SubscriptionsPanel = lazy(() =>
   import("@/components/SubscriptionsPanel").then((m) => ({ default: m.SubscriptionsPanel })),
 );
-const Marketplace = lazy(() => import("@/components/Marketplace").then((m) => ({ default: m.Marketplace })));
+const Marketplace = lazy(() =>
+  import("@/components/Marketplace").then((m) => ({ default: m.Marketplace })),
+);
 const LiveStreamDialog = lazy(() =>
   import("@/components/LiveStreamDialog").then((m) => ({ default: m.LiveStreamDialog })),
 );
-const RecordDialog = lazy(() => import("@/components/RecordDialog").then((m) => ({ default: m.RecordDialog })));
-const PhotoDialog = lazy(() => import("@/components/PhotoDialog").then((m) => ({ default: m.PhotoDialog })));
-import { fetchMyLikes, fetchRepostsByHandles, fetchVideos, parseCaption, type Video } from "@/lib/loop";
+const RecordDialog = lazy(() =>
+  import("@/components/RecordDialog").then((m) => ({ default: m.RecordDialog })),
+);
+const PhotoDialog = lazy(() =>
+  import("@/components/PhotoDialog").then((m) => ({ default: m.PhotoDialog })),
+);
+import {
+  fetchMyLikes,
+  fetchRepostsByHandles,
+  fetchVideos,
+  parseCaption,
+  type Video,
+} from "@/lib/loop";
 import { listSaved, onOfflineChange } from "@/lib/offline";
 import { readFeedCache, writeFeedCache } from "@/lib/feed-cache";
 import { feedPageSize, isLiteMode, useNetwork } from "@/lib/network";
@@ -44,9 +61,15 @@ export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
       { title: "Coolerup — For You" },
-      { name: "description", content: "A fresh perspective with every scroll. Less perfect, more real." },
+      {
+        name: "description",
+        content: "A fresh perspective with every scroll. Less perfect, more real.",
+      },
       { property: "og:title", content: "Coolerup — A little more you" },
-      { property: "og:description", content: "A fresh perspective with every scroll. Less perfect, more real." },
+      {
+        property: "og:description",
+        content: "A fresh perspective with every scroll. Less perfect, more real.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
@@ -54,7 +77,16 @@ export const Route = createFileRoute("/")({
   component: Index,
 });
 
-type Tab = "foryou" | "explore" | "following" | "liked" | "saved" | "mine" | "inbox" | "shop" | "subscriptions";
+type Tab =
+  | "foryou"
+  | "explore"
+  | "following"
+  | "liked"
+  | "saved"
+  | "mine"
+  | "inbox"
+  | "shop"
+  | "subscriptions";
 type NotificationFilter = "all" | "unread";
 
 type NotificationRow = {
@@ -126,7 +158,22 @@ function Index() {
     }
     return "foryou";
   });
-  const [feedTab, setFeedTab] = useState<"foryou" | "following" | "explore" | "marketplace" | "live">("foryou");
+  const [feedTab, setFeedTab] = useState<
+    "foryou" | "following" | "explore" | "marketplace" | "groups" | "live"
+  >(() => {
+    // Deep link support: /?feed=groups lands straight on the Groups tab.
+    if (typeof window !== "undefined") {
+      const wanted = new URLSearchParams(window.location.search).get("feed");
+      if (
+        wanted === "groups" ||
+        wanted === "marketplace" ||
+        wanted === "live" ||
+        wanted === "following"
+      )
+        return wanted;
+    }
+    return "foryou";
+  });
   const [followingList, setFollowingList] = useState<string[]>([]);
   const [repostedFeed, setRepostedFeed] = useState<Video[]>([]);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
@@ -143,7 +190,9 @@ function Index() {
   useEffect(() => {
     const sync = () => {
       try {
-        setNotInterested(new Set(JSON.parse(localStorage.getItem("loop-not-interested") || "[]") as string[]));
+        setNotInterested(
+          new Set(JSON.parse(localStorage.getItem("loop-not-interested") || "[]") as string[]),
+        );
       } catch {
         /* ignore */
       }
@@ -213,7 +262,10 @@ function Index() {
   >([]);
 
   useEffect(() => {
-    const q = query.trim().replace(/^@/, "").replace(/[%,()]/g, "");
+    const q = query
+      .trim()
+      .replace(/^@/, "")
+      .replace(/[%,()]/g, "");
     if (!q) {
       setUserResults([]);
       return;
@@ -265,7 +317,7 @@ function Index() {
       ([entry]) => {
         if (entry?.isIntersecting) loadMore();
       },
-      { threshold: 0.1 }
+      { threshold: 0.1 },
     );
     const el = document.getElementById("scroll-sentinel");
     if (el) observer.observe(el);
@@ -283,8 +335,13 @@ function Index() {
       if (el) el.scrollTop = 0;
     }, 300);
 
-    fetchMyLikes().then(setLiked).catch(() => {});
-    const refresh = () => listSaved().then((s) => setSaved(s.map((x) => x.video))).catch(() => {});
+    fetchMyLikes()
+      .then(setLiked)
+      .catch(() => {});
+    const refresh = () =>
+      listSaved()
+        .then((s) => setSaved(s.map((x) => x.video)))
+        .catch(() => {});
     refresh();
     const off = onOfflineChange(refresh);
     const update = () => {
@@ -321,18 +378,28 @@ function Index() {
       .channel(`notifications:user=${auth.user.id}`)
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "notifications", filter: `target_user_id=eq.${auth.user.id}` },
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "notifications",
+          filter: `target_user_id=eq.${auth.user.id}`,
+        },
         (payload) => {
           setNotifications((cur) => [payload.new as NotificationRow, ...cur]);
-        }
+        },
       )
       .on(
         "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "notifications", filter: `target_user_id=eq.${auth.user.id}` },
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "notifications",
+          filter: `target_user_id=eq.${auth.user.id}`,
+        },
         (payload) => {
           const updated = payload.new as NotificationRow;
           setNotifications((cur) => cur.map((n) => (n.id === updated.id ? updated : n)));
-        }
+        },
       )
       .subscribe();
 
@@ -370,9 +437,14 @@ function Index() {
   const activeTab = offlineMode ? "saved" : tab;
 
   const shown = useMemo(() => {
-    let list = activeTab === "saved" ? saved : videos ?? [];
+    let list = activeTab === "saved" ? saved : (videos ?? []);
     const q = query.trim().toLowerCase();
-    if (q) list = list.filter((v) => parseCaption(v.caption).text.toLowerCase().includes(q) || v.username.toLowerCase().includes(q));
+    if (q)
+      list = list.filter(
+        (v) =>
+          parseCaption(v.caption).text.toLowerCase().includes(q) ||
+          v.username.toLowerCase().includes(q),
+      );
     // "Not interested" and blocked authors never come back in this browser.
     if (notInterested.size > 0) list = list.filter((v) => !notInterested.has(v.id));
     if (blocked.size > 0) list = list.filter((v) => !blocked.has(v.username));
@@ -383,7 +455,9 @@ function Index() {
       const extras = repostedFeed.filter(
         (v) =>
           !ids.has(v.id) &&
-          (!q || parseCaption(v.caption).text.toLowerCase().includes(q) || v.username.toLowerCase().includes(q)),
+          (!q ||
+            parseCaption(v.caption).text.toLowerCase().includes(q) ||
+            v.username.toLowerCase().includes(q)),
       );
       list = [...extras, ...own];
     }
@@ -392,21 +466,51 @@ function Index() {
     if (activeTab === "mine") list = me ? list.filter((v) => v.username === me) : [];
     if (activeTab !== "mine" && activeTab !== "saved") {
       list = list.filter((v) => v.username === me || !matchesKeyword(parseCaption(v.caption).text));
-      if (readBool("restricted")) list = list.filter((v) => !/\b(nsfw|18\+|gore|explicit)\b/i.test(v.caption ?? ""));
+      if (readBool("restricted"))
+        list = list.filter((v) => !/\b(nsfw|18\+|gore|explicit)\b/i.test(v.caption ?? ""));
     }
     return list;
-  }, [videos, saved, query, activeTab, liked, me, followingList, feedTab, repostedFeed, notInterested, blocked]);
+  }, [
+    videos,
+    saved,
+    query,
+    activeTab,
+    liked,
+    me,
+    followingList,
+    feedTab,
+    repostedFeed,
+    notInterested,
+    blocked,
+  ]);
 
-  const showTopTabs = !offlineMode && (activeTab === "foryou" || activeTab === "following" || activeTab === "explore" || activeTab === "mine");
-  const topTab = activeTab === "shop" || activeTab === "subscriptions" || activeTab === "mine" ? activeTab : activeTab === "following" || activeTab === "explore" ? activeTab : feedTab === "live" || feedTab === "marketplace" ? feedTab : "foryou";
-  const pickFeedTab = (t: "foryou" | "following" | "explore" | "marketplace" | "live") => {
-    setFeedTab(t);
-    setTab(t === "following" || t === "explore" ? t : "foryou");
+  const showTopTabs =
+    !offlineMode &&
+    (activeTab === "foryou" ||
+      activeTab === "following" ||
+      activeTab === "explore" ||
+      activeTab === "mine");
+  const topTab =
+    activeTab === "shop" || activeTab === "subscriptions" || activeTab === "mine"
+      ? activeTab
+      : activeTab === "following" || activeTab === "explore"
+        ? activeTab
+        : feedTab === "live" || feedTab === "marketplace"
+          ? feedTab
+          : "foryou";
+  const pickFeedTab = (
+    t: "home" | "foryou" | "following" | "explore" | "marketplace" | "groups" | "live",
+  ) => {
+    const next = t === "home" ? "foryou" : t;
+    setFeedTab(next);
+    setTab(next === "following" || next === "explore" ? next : "foryou");
   };
   const tabClass = (t: string) =>
     `flex items-center gap-1 border-b-2 pb-1 text-[15px] ${topTab === t ? "border-white font-bold text-white" : "border-transparent text-white/60"}`;
 
-  const [title, sub] = query ? [`Results for "${query}"`, `${shown.length} videos`] : HEADERS[activeTab];
+  const [title, sub] = query
+    ? [`Results for "${query}"`, `${shown.length} videos`]
+    : HEADERS[activeTab];
 
   // Stable callbacks so memoized VideoCards don't re-render on every feed update.
   const handleLikeChange = useCallback((videoId: string, on: boolean) => {
@@ -420,7 +524,11 @@ function Index() {
   const handleToggleMute = useCallback(() => setMuted((m) => !m), []);
   const handleFollowChange = useCallback((username: string, following: boolean) => {
     setFollowingList((list) =>
-      following ? (list.includes(username) ? list : [...list, username]) : list.filter((u) => u !== username),
+      following
+        ? list.includes(username)
+          ? list
+          : [...list, username]
+        : list.filter((u) => u !== username),
     );
   }, []);
   const handleSavedChange = useCallback((videoId: string, saved: boolean) => {
@@ -439,7 +547,9 @@ function Index() {
           <h1 className="font-display text-4xl tracking-tight">
             coolerup<span className="text-primary">.</span>
           </h1>
-          <p className="mt-1 text-[11px] font-bold tracking-[0.3em] text-muted-foreground">A LITTLE MORE YOU</p>
+          <p className="mt-1 text-[11px] font-bold tracking-[0.3em] text-muted-foreground">
+            A LITTLE MORE YOU
+          </p>
         </div>
 
         <label className="flex items-center gap-2 rounded-full bg-secondary px-4 py-2.5">
@@ -458,7 +568,9 @@ function Index() {
               <button
                 onClick={() => setTab(id)}
                 className={`flex items-center gap-3 rounded-xl px-4 py-3 text-left font-bold transition ${
-                  activeTab === id ? "bg-primary/10 text-primary" : "text-foreground hover:bg-secondary"
+                  activeTab === id
+                    ? "bg-primary/10 text-primary"
+                    : "text-foreground hover:bg-secondary"
                 }`}
               >
                 <Icon className="h-5 w-5" />
@@ -495,7 +607,11 @@ function Index() {
               <p className="text-muted-foreground">Signed in as</p>
               <p className="truncate font-bold">{auth.name}</p>
             </div>
-            <button onClick={auth.signOut} aria-label="Sign out" className="text-muted-foreground hover:text-foreground">
+            <button
+              onClick={auth.signOut}
+              aria-label="Sign out"
+              className="text-muted-foreground hover:text-foreground"
+            >
               <LogOut className="h-4 w-4" />
             </button>
           </div>
@@ -552,7 +668,12 @@ function Index() {
               className="min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground"
             />
             {query && (
-              <Button variant="ghost" size="icon" aria-label="Clear search" onClick={() => setQuery("")}>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Clear search"
+                onClick={() => setQuery("")}
+              >
                 <X />
               </Button>
             )}
@@ -573,7 +694,9 @@ function Index() {
 
         {query.trim() && userResults.length > 0 && (
           <div className="shrink-0 border-b bg-sidebar px-4 py-3 md:px-10">
-            <p className="mb-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">Users</p>
+            <p className="mb-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">
+              Users
+            </p>
             <div className="flex flex-col gap-1">
               {userResults.map((u) => (
                 <Link
@@ -584,14 +707,20 @@ function Index() {
                 >
                   <span className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-secondary font-bold uppercase">
                     {u.avatar_url ? (
-                      <img src={u.avatar_url} alt={u.display_name || u.handle!} className="h-full w-full object-cover" />
+                      <img
+                        src={u.avatar_url}
+                        alt={u.display_name || u.handle!}
+                        className="h-full w-full object-cover"
+                      />
                     ) : (
                       u.handle![0]
                     )}
                   </span>
                   <span className="min-w-0">
                     <span className="block truncate font-bold">{u.display_name || u.handle}</span>
-                    <span className="block truncate text-sm text-muted-foreground">@{u.handle}</span>
+                    <span className="block truncate text-sm text-muted-foreground">
+                      @{u.handle}
+                    </span>
                   </span>
                 </Link>
               ))}
@@ -599,17 +728,43 @@ function Index() {
           </div>
         )}
 
-        {activeTab === "foryou" && feedTab === "marketplace" && !offlineMode ? (
+        {activeTab === "foryou" && feedTab === "groups" && !offlineMode ? (
+          <div className="min-h-0 flex-1 overflow-y-auto bg-black no-scrollbar">
+            <GroupsPage feedTab={feedTab} onPick={pickFeedTab} />
+          </div>
+        ) : activeTab === "foryou" && feedTab === "marketplace" && !offlineMode ? (
           <div className="relative flex min-h-0 flex-1 flex-col">
             <div className="absolute left-0 right-0 top-0 z-50 flex gap-5 overflow-x-auto bg-black px-4 pb-2 pt-3 no-scrollbar [&>button]:shrink-0 [&>button]:whitespace-nowrap">
-              <button onClick={() => pickFeedTab("following")} className={tabClass("following")}>Following</button>
-              <button onClick={() => pickFeedTab("foryou")} className={tabClass("foryou")}>For You</button>
-              <button onClick={() => pickFeedTab("explore")} className={tabClass("explore")}>Explore</button>
-              <button onClick={() => pickFeedTab("marketplace")} className={tabClass("marketplace")}>Marketplace</button>
-              <button onClick={() => pickFeedTab("live")} className={tabClass("live")}>LIVE</button>
-              <button onClick={() => setTab("shop")} className={tabClass("shop")}>Shop</button>
-              <button onClick={() => setTab("subscriptions")} className={tabClass("subscriptions")}>Subscriptions</button>
-              <button onClick={() => setTab("mine")} className={tabClass("mine")}>Mine</button>
+              <button onClick={() => pickFeedTab("following")} className={tabClass("following")}>
+                Following
+              </button>
+              <button onClick={() => pickFeedTab("foryou")} className={tabClass("foryou")}>
+                For You
+              </button>
+              <button onClick={() => pickFeedTab("explore")} className={tabClass("explore")}>
+                Explore
+              </button>
+              <button
+                onClick={() => pickFeedTab("marketplace")}
+                className={tabClass("marketplace")}
+              >
+                Marketplace
+              </button>
+              <button onClick={() => pickFeedTab("live")} className={tabClass("live")}>
+                LIVE
+              </button>
+              <button onClick={() => pickFeedTab("groups")} className={tabClass("groups")}>
+                Groups
+              </button>
+              <button onClick={() => setTab("shop")} className={tabClass("shop")}>
+                Shop
+              </button>
+              <button onClick={() => setTab("subscriptions")} className={tabClass("subscriptions")}>
+                Subscriptions
+              </button>
+              <button onClick={() => setTab("mine")} className={tabClass("mine")}>
+                Mine
+              </button>
             </div>
             <Suspense fallback={null}>
               <Marketplace />
@@ -618,25 +773,47 @@ function Index() {
         ) : activeTab === "shop" || activeTab === "subscriptions" ? (
           <div className="flex min-h-0 flex-1 flex-col">
             <div className="flex shrink-0 gap-4 bg-black no-scrollbar overflow-x-auto px-4 [&>button]:shrink-0 [&>button]:whitespace-nowrap [&>button:first-child]:ml-auto [&>button:last-child]:mr-auto pb-2 pt-3 md:hidden">
-              <button onClick={() => pickFeedTab("following")} className={tabClass("following")}>Following</button>
-              <button onClick={() => pickFeedTab("foryou")} className={tabClass("foryou")}>For You</button>
-              <button onClick={() => pickFeedTab("explore")} className={tabClass("explore")}>Explore</button>
-              <button onClick={() => pickFeedTab("marketplace")} className={tabClass("marketplace")}>Marketplace</button>
-              <button onClick={() => pickFeedTab("live")} className={tabClass("live")}>LIVE</button>
-              <button onClick={() => setTab("shop")} className={tabClass("shop")}>Shop</button>
-              <button onClick={() => setTab("subscriptions")} className={tabClass("subscriptions")}>Subscriptions</button>
-              <button onClick={() => setTab("mine")} className={tabClass("mine")}>Mine</button>
+              <button onClick={() => pickFeedTab("following")} className={tabClass("following")}>
+                Following
+              </button>
+              <button onClick={() => pickFeedTab("foryou")} className={tabClass("foryou")}>
+                For You
+              </button>
+              <button onClick={() => pickFeedTab("explore")} className={tabClass("explore")}>
+                Explore
+              </button>
+              <button
+                onClick={() => pickFeedTab("marketplace")}
+                className={tabClass("marketplace")}
+              >
+                Marketplace
+              </button>
+              <button onClick={() => pickFeedTab("live")} className={tabClass("live")}>
+                LIVE
+              </button>
+              <button onClick={() => pickFeedTab("groups")} className={tabClass("groups")}>
+                Groups
+              </button>
+              <button onClick={() => setTab("shop")} className={tabClass("shop")}>
+                Shop
+              </button>
+              <button onClick={() => setTab("subscriptions")} className={tabClass("subscriptions")}>
+                Subscriptions
+              </button>
+              <button onClick={() => setTab("mine")} className={tabClass("mine")}>
+                Mine
+              </button>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto">
-            {activeTab === "subscriptions" ? (
-              <Suspense fallback={null}>
-                <SubscriptionsPanel handle={me} onSignIn={auth.signIn} />
-              </Suspense>
-            ) : (
-              <Suspense fallback={null}>
-                <ShopPanel handle={me} posts={myPostCount} />
-              </Suspense>
-            )}
+              {activeTab === "subscriptions" ? (
+                <Suspense fallback={null}>
+                  <SubscriptionsPanel handle={me} onSignIn={auth.signIn} />
+                </Suspense>
+              ) : (
+                <Suspense fallback={null}>
+                  <ShopPanel handle={me} posts={myPostCount} />
+                </Suspense>
+              )}
             </div>
           </div>
         ) : activeTab === "inbox" ? (
@@ -644,7 +821,9 @@ function Index() {
             <div className="flex items-center justify-between gap-3">
               <div>
                 <h2 className="text-2xl font-display font-bold">Inbox</h2>
-                <p className="mt-1 text-sm text-muted-foreground">All your notifications in one place</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  All your notifications in one place
+                </p>
               </div>
               <div className="flex items-center gap-2">
                 <Button
@@ -659,7 +838,10 @@ function Index() {
                     Mark all read
                   </Button>
                 )}
-                <Link to="/messages" className="flex items-center gap-3 rounded-xl px-4 py-3 font-bold transition hover:bg-secondary">
+                <Link
+                  to="/messages"
+                  className="flex items-center gap-3 rounded-xl px-4 py-3 font-bold transition hover:bg-secondary"
+                >
                   <MessageCircle className="h-5 w-5" />
                   Messages
                 </Link>
@@ -695,80 +877,115 @@ function Index() {
           </div>
         ) : (
           <>
-            <header className={`shrink-0 px-4 py-2 md:px-10 md:pb-2 md:pt-6 ${showTopTabs ? "hidden md:block" : ""}`}>
+            <header
+              className={`shrink-0 px-4 py-2 md:px-10 md:pb-2 md:pt-6 ${showTopTabs ? "hidden md:block" : ""}`}
+            >
               <h2 className="break-words font-display text-base md:text-3xl">{title}</h2>
               <p className="hidden text-sm text-muted-foreground md:block">{sub}</p>
             </header>
 
             <div className="relative flex min-h-0 flex-1 flex-col">
-            {showTopTabs && (
-              <div className="absolute inset-x-0 top-0 z-50 flex gap-4 bg-gradient no-scrollbar overflow-x-auto px-4 [&>button]:shrink-0 [&>button]:whitespace-nowrap [&>button:first-child]:ml-auto [&>button:last-child]:mr-auto-to-b from-black/60 to-transparent pb-2 pt-3 md:hidden">
-                <button onClick={() => pickFeedTab("following")} className={tabClass("following")}>Following</button>
-                <button onClick={() => pickFeedTab("foryou")} className={tabClass("foryou")}>For You</button>
-                <button onClick={() => pickFeedTab("explore")} className={tabClass("explore")}>Explore</button>
-                <button onClick={() => pickFeedTab("marketplace")} className={tabClass("marketplace")}>Marketplace</button>
-                <button onClick={() => pickFeedTab("live")} className={tabClass("live")}>
-                  <span className="h-2 w-2 rounded-full bg-red-500" />
-                  LIVE
-                </button>
-              <button onClick={() => setTab("shop")} className={tabClass("shop")}>Shop</button>
-                <button onClick={() => setTab("subscriptions")} className={tabClass("subscriptions")}>Subscriptions</button>
-                <button onClick={() => setTab("mine")} className={tabClass("mine")}>Mine</button>
+              {showTopTabs && (
+                <div className="fixed left-1/2 top-0 z-50 flex w-full max-w-[430px] -translate-x-1/2 justify-center gap-3 overflow-x-auto bg-gradient-to-b from-black/80 to-transparent px-3 pb-2 pt-3 no-scrollbar [&>button]:shrink-0 [&>button]:whitespace-nowrap md:hidden">
+                  <button
+                    onClick={() => pickFeedTab("following")}
+                    className={tabClass("following")}
+                  >
+                    Following
+                  </button>
+                  <button onClick={() => pickFeedTab("foryou")} className={tabClass("foryou")}>
+                    For You
+                  </button>
+                  <button onClick={() => pickFeedTab("explore")} className={tabClass("explore")}>
+                    Explore
+                  </button>
+                  <button
+                    onClick={() => pickFeedTab("marketplace")}
+                    className={tabClass("marketplace")}
+                  >
+                    Marketplace
+                  </button>
+                  <button onClick={() => pickFeedTab("live")} className={tabClass("live")}>
+                    <span className="h-2 w-2 rounded-full bg-red-500" />
+                    LIVE
+                  </button>
+                  <button onClick={() => pickFeedTab("groups")} className={tabClass("groups")}>
+                    Groups
+                  </button>
+                  <button onClick={() => setTab("shop")} className={tabClass("shop")}>
+                    Shop
+                  </button>
+                  <button
+                    onClick={() => setTab("subscriptions")}
+                    className={tabClass("subscriptions")}
+                  >
+                    Subscriptions
+                  </button>
+                  <button onClick={() => setTab("mine")} className={tabClass("mine")}>
+                    Mine
+                  </button>
+                </div>
+              )}
+              <div className="no-scrollbar min-h-0 flex-1 snap-y snap-mandatory overflow-y-scroll overscroll-contain scroll-smooth">
+                {error && !offlineMode && !(videos && videos.length > 0) && (
+                  <Empty text="Couldn't load videos. Refresh to try again." />
+                )}
+                {!error && videos === null && activeTab !== "saved" && (
+                  <Empty text="Loading your feed..." />
+                )}
+                {(videos || activeTab === "saved") && shown.length === 0 && (
+                  <Empty
+                    text={
+                      activeTab === "saved"
+                        ? "No saved videos yet. Tap Share → Save for offline on any video."
+                        : activeTab === "foryou" && feedTab === "live"
+                          ? "No LIVE now"
+                          : activeTab === "following"
+                            ? "Follow creators to see their videos here."
+                            : "Nothing here yet."
+                    }
+                  />
+                )}
+                {shown.map((v) => (
+                  <VideoCard
+                    key={`${activeTab}-${v.id}`}
+                    video={v}
+                    liked={liked.has(v.id)}
+                    muted={muted}
+                    onToggleMute={handleToggleMute}
+                    onLikeChange={handleLikeChange}
+                    isFollowing={followingList.includes(v.username)}
+                    onFollowChange={handleFollowChange}
+                    isSaved={savedIds.has(v.id)}
+                    onSavedChange={handleSavedChange}
+                  />
+                ))}
+                <div id="scroll-sentinel" className="h-10 w-full" />
               </div>
-            )}
-            <div className="no-scrollbar min-h-0 flex-1 snap-y snap-mandatory overflow-y-scroll overscroll-contain scroll-smooth">
-              {error && !offlineMode && !(videos && videos.length > 0) && (
-                <Empty text="Couldn't load videos. Refresh to try again." />
-              )}
-              {!error && videos === null && activeTab !== "saved" && <Empty text="Loading your feed..." />}
-              {(videos || activeTab === "saved") && shown.length === 0 && (
-                <Empty
-                  text={
-                    activeTab === "saved"
-                      ? "No saved videos yet. Tap Share → Save for offline on any video."
-                      : activeTab === "foryou" && feedTab === "live"
-                        ? "No LIVE now"
-                        : activeTab === "following"
-                          ? "Follow creators to see their videos here."
-                          : "Nothing here yet."
-                  }
-                />
-              )}
-              {shown.map((v) => (
-                <VideoCard
-                  key={`${activeTab}-${v.id}`}
-                  video={v}
-                  liked={liked.has(v.id)}
-                  muted={muted}
-                  onToggleMute={handleToggleMute}
-                  onLikeChange={handleLikeChange}
-                  isFollowing={followingList.includes(v.username)}
-                  onFollowChange={handleFollowChange}
-                  isSaved={savedIds.has(v.id)}
-                  onSavedChange={handleSavedChange}
-                />
-              ))}
-              <div id="scroll-sentinel" className="h-10 w-full" />
-            </div>
             </div>
           </>
         )}
 
-        <nav aria-label="Phone navigation" className="mobile-top-nav grid shrink-0 grid-cols-5 place-items-center w-full gap-0 border-0 bg-black px-0 rounded-none md:hidden">
-          {NAV.filter((n) => n.id === "foryou" || n.id === "following").map(({ id, label, icon: Icon }) => (
-            <Button
-              key={id}
-              variant="ghost"
-              onClick={() => setTab(id)}
-              aria-current={activeTab === id ? "page" : undefined}
-              className={`h-14 min-w-0 flex-col gap-1 rounded-none px-0 text-[9px] ${
-                activeTab === id ? "text-primary" : "text-muted-foreground"
-              }`}
-            >
-              <Icon className="h-5 w-5" />
-              {label}
-            </Button>
-          ))}
+        <nav
+          aria-label="Phone navigation"
+          className="mobile-top-nav grid shrink-0 grid-cols-5 place-items-center w-full gap-0 border-0 bg-black px-0 rounded-none md:hidden"
+        >
+          {NAV.filter((n) => n.id === "foryou" || n.id === "following").map(
+            ({ id, label, icon: Icon }) => (
+              <Button
+                key={id}
+                variant="ghost"
+                onClick={() => setTab(id)}
+                aria-current={activeTab === id ? "page" : undefined}
+                className={`h-14 min-w-0 flex-col gap-1 rounded-none px-0 text-[9px] ${
+                  activeTab === id ? "text-primary" : "text-muted-foreground"
+                }`}
+              >
+                <Icon className="h-5 w-5" />
+                {label}
+              </Button>
+            ),
+          )}
           <Button
             aria-label="Create video or go live"
             onClick={() => (auth.user ? setCreateMenuOpen(true) : auth.signIn())}
@@ -865,30 +1082,40 @@ function Index() {
         </Suspense>
       )}
 
-      {photoOpen && <Suspense fallback={null}><PhotoDialog
-        open={photoOpen}
-        onOpenChange={setPhotoOpen}
-        username={auth.handle}
-        onPosted={() => {
-          setTab("mine");
-          load();
-        }}
-      /></Suspense>}
+      {photoOpen && (
+        <Suspense fallback={null}>
+          <PhotoDialog
+            open={photoOpen}
+            onOpenChange={setPhotoOpen}
+            username={auth.handle}
+            onPosted={() => {
+              setTab("mine");
+              load();
+            }}
+          />
+        </Suspense>
+      )}
 
-      {recordingOpen && <Suspense fallback={null}><RecordDialog
-        open={recordingOpen}
-        onOpenChange={setRecordingOpen}
-        username={auth.handle}
-        onUploadInstead={() => setUploading(true)}
-        onPosted={() => {
-          setTab("mine");
-          load();
-        }}
-      /></Suspense>}
+      {recordingOpen && (
+        <Suspense fallback={null}>
+          <RecordDialog
+            open={recordingOpen}
+            onOpenChange={setRecordingOpen}
+            username={auth.handle}
+            onUploadInstead={() => setUploading(true)}
+            onPosted={() => {
+              setTab("mine");
+              load();
+            }}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }
 
 function Empty({ text }: { text: string }) {
-  return <div className="flex h-full items-center justify-center text-muted-foreground">{text}</div>;
+  return (
+    <div className="flex h-full items-center justify-center text-muted-foreground">{text}</div>
+  );
 }

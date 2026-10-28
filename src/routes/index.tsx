@@ -332,14 +332,36 @@ function Index() {
     if (cached) setVideos((cur) => cur ?? cached);
     load(0, false);
 
-    // Always start at the top card. A single reset after mount is not enough:
-    // cards arrive asynchronously, so reset again once the first batch lands.
+    // Always start at the top card. Timed resets alone are not enough: cards
+    // arrive asynchronously and the browser can re-snap the scroller to a
+    // random card boundary well after mount. So until the user actually
+    // touches the feed, pin it to the first video.
     const resetTop = () => {
       if (feedScroller.current) feedScroller.current.scrollTop = 0;
     };
     resetTop();
     const t1 = setTimeout(resetTop, 300);
     const t2 = setTimeout(resetTop, 900);
+    const t3 = setTimeout(resetTop, 2000);
+
+    let pinned = true;
+    const el = feedScroller.current;
+    const unpin = () => {
+      pinned = false;
+    };
+    const onScroll = () => {
+      if (pinned && el && el.scrollTop !== 0) el.scrollTop = 0;
+    };
+    if (el) {
+      el.addEventListener("wheel", unpin, { passive: true });
+      el.addEventListener("touchstart", unpin, { passive: true });
+      el.addEventListener("pointerdown", unpin, { passive: true });
+      el.addEventListener("keydown", unpin);
+      el.addEventListener("scroll", onScroll, { passive: true });
+    }
+    if (typeof history !== "undefined" && "scrollRestoration" in history) {
+      history.scrollRestoration = "manual";
+    }
 
     fetchMyLikes()
       .then(setLiked)
@@ -360,6 +382,14 @@ function Index() {
     return () => {
       clearTimeout(t1);
       clearTimeout(t2);
+      clearTimeout(t3);
+      if (el) {
+        el.removeEventListener("wheel", unpin);
+        el.removeEventListener("touchstart", unpin);
+        el.removeEventListener("pointerdown", unpin);
+        el.removeEventListener("keydown", unpin);
+        el.removeEventListener("scroll", onScroll);
+      }
       off();
       window.removeEventListener("online", update);
       window.removeEventListener("offline", update);

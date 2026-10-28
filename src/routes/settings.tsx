@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeft, Lock, LogOut, Pencil, ShieldCheck, UserRound } from "lucide-react";
-import { useEffect, useState } from "react";
+import { ArrowLeft, ChevronRight, CreditCard, Lock, LogOut, Pencil, ShieldCheck, UserRound } from "lucide-react";
+import { Suspense, lazy, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { EditProfileDialog } from "@/components/EditProfileDialog";
 import { refreshProfile, useAuth } from "@/hooks/useAuth";
@@ -8,8 +8,15 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { writePref } from "@/lib/prefs";
 import { MoreSettings } from "@/components/MoreSettings";
-import { hasOfflineAccess, offlinePlan, useSubscription } from "@/lib/subscriptions";
+import { hasOfflineAccess, offlinePlan, trialDaysLeft, useSubscription } from "@/lib/subscriptions";
 import { ThemePicker } from "@/components/ThemePicker"
+
+// Subscriptions moved out of the top tab row and into Settings. Lazy-loaded so
+// the payment sheet code isn't part of the settings bundle.
+const SubscriptionsPanel = lazy(() =>
+  import("@/components/SubscriptionsPanel").then((m) => ({ default: m.SubscriptionsPanel })),
+);
+
 export const Route = createFileRoute("/settings")({
   head: () => ({
     meta: [
@@ -30,6 +37,8 @@ function Settings() {
   const offlineUnlocked = hasOfflineAccess(auth.handle);
   const offlinePrice = offlinePlan().price;
   const [editing, setEditing] = useState(false);
+  // Subscriptions used to be its own top tab; it now opens from inside Settings.
+  const [showSubscriptions, setShowSubscriptions] = useState(false);
   const savePhone = () => {
     try {
       localStorage.setItem("settings:phone", phone);
@@ -230,6 +239,27 @@ const changeTheme = (t: string) => {
     );
   }
 
+  // Subscriptions screen, opened from the Settings list.
+  if (showSubscriptions) {
+    return (
+      <div className="mx-auto max-w-xl pb-10">
+        <div className="flex items-center gap-3 px-4 pt-6">
+          <button
+            onClick={() => setShowSubscriptions(false)}
+            aria-label="Back to settings"
+            className="text-muted-foreground hover:text-foreground"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </button>
+          <h1 className="font-display text-2xl">Subscriptions</h1>
+        </div>
+        <Suspense fallback={<p className="px-4 pt-4 text-sm text-muted-foreground">Loading plans…</p>}>
+          <SubscriptionsPanel handle={auth.handle} onSignIn={auth.signIn} />
+        </Suspense>
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-xl px-4 pb-10 pt-6 space-y-6">
       <div className="flex items-center gap-3">
@@ -276,6 +306,32 @@ const changeTheme = (t: string) => {
             Sign out
           </Button>
         </div>
+      </div>
+
+      {/* Subscriptions (moved here from the top tab row) */}
+      <div className="rounded-2xl border bg-card p-4">
+        <h2 className="font-semibold">Subscriptions</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Manage your plan, free trial, payment method, and billing.
+        </p>
+        <button
+          onClick={() => setShowSubscriptions(true)}
+          className="mt-3 flex w-full items-center justify-between rounded-md border bg-background px-4 py-3 text-left text-sm font-medium transition-colors hover:bg-accent"
+        >
+          <span className="flex items-center gap-2">
+            <CreditCard className="h-4 w-4" />
+            {subscription?.status === "active"
+              ? "Your subscription is active"
+              : subscription?.status === "trial"
+                ? `Free trial — ${trialDaysLeft(subscription)} ${trialDaysLeft(subscription) === 1 ? "day" : "days"} left`
+                : subscription?.status === "pending"
+                  ? "Payment pending"
+                  : subscription?.status === "expired"
+                    ? "Subscription expired — renew"
+                    : "View plans and start a free trial"}
+          </span>
+          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+        </button>
       </div>
 
       {/* Username editor */}
@@ -458,14 +514,13 @@ const changeTheme = (t: string) => {
         Offline mode is a Plus feature. Subscribe to save videos and watch them without a connection.
       </p>
       <div className="mt-3 flex flex-wrap items-center gap-3">
-        <Link
-          to="/"
-          search={{ tab: "subscriptions" }}
+        <button
+          onClick={() => setShowSubscriptions(true)}
           style={{backgroundColor: "black", color: "white"}}
           className="rounded-md px-4 py-2 font-medium"
         >
           Get Plus — ${offlinePrice.toFixed(2)}/mo
-        </Link>
+        </button>
         <button onClick={() => window.location.href = "/offline"} className="rounded-md border px-4 py-2 font-medium">
           See what's included
         </button>

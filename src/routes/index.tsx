@@ -429,8 +429,9 @@ function Index() {
   };
 
   // One shared top tab bar (Home | Following | For You | Marketplace | Groups | LIVE).
-  // Shop / Subscriptions / Mine stay on the end of the scrollable row so those
-  // screens are still reachable on phones.
+  // Shop / Mine stay on the end of the scrollable row so those screens are still
+  // reachable on phones. Subscriptions now lives in Settings (/?tab=subscriptions
+  // deep links still resolve for upgrade prompts).
   const TopTabs = ({ className = "" }: { className?: string }) => (
     <div className={className}>
       <button onClick={() => pickFeedTab("home")} className={tabClass("home")}>Home</button>
@@ -444,7 +445,6 @@ function Index() {
       </button>
       <button onClick={() => pickFeedTab("explore")} className={tabClass("explore")}>Explore</button>
       <button onClick={() => setTab("shop")} className={tabClass("shop")}>Shop</button>
-      <button onClick={() => setTab("subscriptions")} className={tabClass("subscriptions")}>Subscriptions</button>
       <button onClick={() => setTab("mine")} className={tabClass("mine")}>Mine</button>
     </div>
   );

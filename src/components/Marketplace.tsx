@@ -228,7 +228,7 @@ export function Marketplace() {
         <Detail item={open} onBack={() => setOpen(null)} />
       ) : (
         <>
-          <div className="shrink-0 px-3 pb-2 pt-[calc(3rem+env(safe-area-inset-top))]">
+          <div className="shrink-0 px-3 pb-2 pt-[calc(5rem+env(safe-area-inset-top))]">
             <div className="flex items-center gap-2 rounded-full bg-gray-100 px-3">
               <Search className="h-4 w-4 text-gray-500" />
               <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search Marketplace" className="w-full bg-transparent py-2 text-sm outline-none" />

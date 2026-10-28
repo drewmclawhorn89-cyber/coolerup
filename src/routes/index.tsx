@@ -734,7 +734,7 @@ function Index() {
           </div>
         ) : activeTab === "foryou" && feedTab === "marketplace" && !offlineMode ? (
           <div className="relative flex min-h-0 flex-1 flex-col">
-            <div className="absolute left-0 right-0 top-4 z-50 flex gap-5 overflow-x-auto bg-black px-4 pb-2 pt-4 no-scrollbar [&>button]:shrink-0 [&>button]:whitespace-nowrap">
+            <div className="absolute left-0 right-0 top-6 z-50 flex gap-5 overflow-x-auto bg-black px-4 pb-2 pt-4 no-scrollbar [&>button]:shrink-0 [&>button]:whitespace-nowrap">
               <button onClick={() => pickFeedTab("following")} className={tabClass("following")}>
                 Following
               </button>
@@ -772,7 +772,7 @@ function Index() {
           </div>
         ) : activeTab === "shop" || activeTab === "subscriptions" ? (
           <div className="flex min-h-0 flex-1 flex-col">
-            <div className="flex shrink-0 gap-4 bg-black no-scrollbar overflow-x-auto px-4 [&>button]:shrink-0 [&>button]:whitespace-nowrap [&>button:first-child]:ml-auto [&>button:last-child]:mr-auto pb-2 pt-8 md:hidden">
+            <div className="flex shrink-0 gap-4 bg-black no-scrollbar overflow-x-auto px-4 [&>button]:shrink-0 [&>button]:whitespace-nowrap [&>button:first-child]:ml-auto [&>button:last-child]:mr-auto pb-2 pt-10 md:hidden">
               <button onClick={() => pickFeedTab("following")} className={tabClass("following")}>
                 Following
               </button>
@@ -886,7 +886,7 @@ function Index() {
 
             <div className="relative flex min-h-0 flex-1 flex-col">
               {showTopTabs && (
-                <div className="fixed left-1/2 top-4 z-50 flex w-full max-w-[430px] -translate-x-1/2 justify-center gap-3 overflow-x-auto bg-gradient-to-b from-black/80 to-transparent px-3 pb-2 pt-4 no-scrollbar [&>button]:shrink-0 [&>button]:whitespace-nowrap md:hidden">
+                <div className="fixed left-1/2 top-6 z-50 flex w-full max-w-[430px] -translate-x-1/2 justify-center gap-3 overflow-x-auto bg-gradient-to-b from-black/80 to-transparent px-3 pb-2 pt-4 no-scrollbar [&>button]:shrink-0 [&>button]:whitespace-nowrap md:hidden">
                   <button
                     onClick={() => pickFeedTab("following")}
                     className={tabClass("following")}

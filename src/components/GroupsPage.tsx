@@ -32,7 +32,7 @@ export function GroupsTopTabs({
   onPick: (tab: FeedTab) => void;
 }) {
   return (
-    <div className="fixed left-1/2 top-4 z-50 flex w-full max-w-[430px] -translate-x-1/2 justify-center gap-3 overflow-x-auto bg-gradient-to-b from-black/80 to-transparent px-3 pb-2 pt-4 no-scrollbar">
+    <div className="fixed left-1/2 top-6 z-50 flex w-full max-w-[430px] -translate-x-1/2 justify-center gap-3 overflow-x-auto bg-gradient-to-b from-black/80 to-transparent px-3 pb-2 pt-4 no-scrollbar">
       {TOP_TABS.map((t) => (
         <button
           key={t.id}
@@ -206,7 +206,7 @@ export function GroupsPage({
     <div className="min-h-screen bg-black pb-24">
       <GroupsTopTabs feedTab={feedTab} onPick={pick} />
 
-      <div className="mx-auto max-w-[430px] p-2 pt-20">
+      <div className="mx-auto max-w-[430px] p-2 pt-24">
         <div className="mb-3 flex items-center justify-between">
           <h1 className="text-[20px] font-bold text-white">Groups</h1>
           <button

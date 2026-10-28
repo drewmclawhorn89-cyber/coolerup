@@ -215,6 +215,51 @@ export type Database = {
         }
         Relationships: []
       }
+      gift_card_orders: {
+        Row: {
+          amount_cents: number
+          card_id: string
+          card_name: string
+          code: string | null
+          created_at: string
+          id: string
+          payment_intent_id: string | null
+          provider_order_id: string | null
+          recipient_email: string
+          redemption_url: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          amount_cents: number
+          card_id: string
+          card_name: string
+          code?: string | null
+          created_at?: string
+          id?: string
+          payment_intent_id?: string | null
+          provider_order_id?: string | null
+          recipient_email: string
+          redemption_url?: string | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          amount_cents?: number
+          card_id?: string
+          card_name?: string
+          code?: string | null
+          created_at?: string
+          id?: string
+          payment_intent_id?: string | null
+          provider_order_id?: string | null
+          recipient_email?: string
+          redemption_url?: string | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       likes: {
         Row: {
           created_at: string

@@ -9,18 +9,7 @@ import {
   type MouseEvent,
 } from "react";
 import { Link } from "@tanstack/react-router";
-import {
-  Ban,
-  Bookmark,
-  EyeOff,
-  Flag,
-  Heart,
-  MessageCircle,
-  MoreVertical,
-  Play,
-  Repeat2,
-  Share2,
-} from "lucide-react";
+import { Bookmark, Heart, MessageCircle, Play, Repeat2, Share2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -45,7 +34,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { REPORT_REASONS, checkIfBanned, reportContent, type ReportReason } from "@/lib/moderation";
-import { useBlocked } from "@/lib/safety";
 import { resolveAvatarUrl } from "./EditProfileDialog";
 
 const Comments = lazy(() => import("./Comments").then((m) => ({ default: m.Comments })));
@@ -125,15 +113,12 @@ function VideoCardImpl({
   const progressRef = useRef<HTMLDivElement>(null);
 
   // --- moderation -----------------------------------------------------------
-  const { block } = useBlocked();
   const [isBanned, setIsBanned] = useState(false);
   const [notInterested, setNotInterested] = useState(false);
-  const [showMenu, setShowMenu] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [reportReason, setReportReason] = useState<ReportReason | null>(null);
   const [reportDetails, setReportDetails] = useState("");
   const [submittingReport, setSubmittingReport] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
 
   // Hide the card outright if the author is banned. The database already filters
   // these out of the feed, so this only matters for stale caches.
@@ -147,23 +132,6 @@ function VideoCardImpl({
       active = false;
     };
   }, [video.username]);
-
-  // Close the ... menu on outside click / Escape.
-  useEffect(() => {
-    if (!showMenu) return;
-    const onDown = (e: globalThis.MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setShowMenu(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setShowMenu(false);
-    };
-    document.addEventListener("mousedown", onDown);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDown);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [showMenu]);
 
   const submitReport = useCallback(async () => {
     if (!reportReason || submittingReport) return;
@@ -194,26 +162,6 @@ function VideoCardImpl({
       setSubmittingReport(false);
     }
   }, [auth, reportDetails, reportReason, submittingReport, video.id, video.username]);
-
-  const hideBecauseNotInterested = useCallback(() => {
-    setShowMenu(false);
-    setNotInterested(true);
-    try {
-      const key = "loop-not-interested";
-      const list = JSON.parse(localStorage.getItem(key) || "[]") as string[];
-      if (!list.includes(video.id)) localStorage.setItem(key, JSON.stringify([...list, video.id]));
-    } catch {
-      /* ignore */
-    }
-    window.dispatchEvent(new Event("loop-not-interested-changed"));
-    toast("We'll show you fewer videos like this");
-  }, [video.id]);
-
-  const blockAuthor = useCallback(async () => {
-    setShowMenu(false);
-    await block(video.username);
-    setNotInterested(true);
-  }, [block, video.username]);
 
   // Read prefs once per mount instead of on every render.
   const net = useNetwork();
@@ -687,72 +635,6 @@ function VideoCardImpl({
               </div>
             )}
 
-            {/* ... overflow menu: Report / Not interested / Block user */}
-            <div ref={menuRef} className="absolute right-2 top-4 z-30 flex flex-col items-end">
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowMenu((v) => !v);
-                }}
-                aria-label="More options"
-                aria-expanded={showMenu}
-                className="flex h-9 w-9 items-center justify-center rounded-full text-white/90 drop-shadow-[0_1px_4px_rgba(0,0,0,0.6)] transition hover:bg-black/30 hover:text-white"
-              >
-                <MoreVertical className="h-6 w-6" />
-              </button>
-
-              {showMenu && (
-                <div
-                  role="menu"
-                  className="mt-1 w-52 overflow-hidden rounded-xl border border-border bg-popover/95 py-1 text-popover-foreground shadow-xl backdrop-blur"
-                >
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setShowMenu(false);
-                      if (!auth.user) {
-                        void auth.signIn();
-                        return;
-                      }
-                      setShowReport(true);
-                    }}
-                    className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm font-medium hover:bg-accent"
-                  >
-                    <Flag className="h-4 w-4" />
-                    Report
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      hideBecauseNotInterested();
-                    }}
-                    className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm font-medium hover:bg-accent"
-                  >
-                    <EyeOff className="h-4 w-4" />
-                    Not interested
-                  </button>
-                  {video.username !== myUsername && (
-                    <button
-                      type="button"
-                      role="menuitem"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        void blockAuthor();
-                      }}
-                      className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm font-medium text-destructive hover:bg-accent"
-                    >
-                      <Ban className="h-4 w-4" />
-                      Block @{video.username}
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
             <div
               className={`video-caption absolute inset-x-0 bottom-0 z-20 pb-20 pl-2 pr-20 pt-16 ${showCaptions ? "" : "md:hidden"}`}
             >

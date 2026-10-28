@@ -38,7 +38,7 @@ function Thumb({ url, caption }: { url: string; caption: string }) {
   if (!src) return <div ref={boxRef} className="h-full w-full" />;
   const isImage = isImageUrl(url) || /\.(jpe?g|png|webp|gif|avif)$/i.test(url);
   return isImage
-    ? <img src={src} alt={caption} className="h-full w-full object-cover" />
+    ? <img src={src} alt={caption} loading="lazy" decoding="async" className="h-full w-full object-cover" />
     : <video src={`${src}#t=0.5`} muted playsInline preload="metadata" className="h-full w-full object-cover" />;
 }
 

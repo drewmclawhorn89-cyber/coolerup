@@ -32,7 +32,14 @@ const LiveStreamDialog = lazy(() =>
 );
 const RecordDialog = lazy(() => import("@/components/RecordDialog").then((m) => ({ default: m.RecordDialog })));
 const PhotoDialog = lazy(() => import("@/components/PhotoDialog").then((m) => ({ default: m.PhotoDialog })));
-import { fetchMyLikes, fetchRepostsByHandles, fetchVideos, parseCaption, type Video } from "@/lib/loop";
+import {
+  fetchMyLikes,
+  fetchRepostsByHandles,
+  fetchVideos,
+  parseCaption,
+  resetFeedOrder,
+  type Video,
+} from "@/lib/loop";
 import { listSaved, onOfflineChange } from "@/lib/offline";
 import { readFeedCache, writeFeedCache } from "@/lib/feed-cache";
 import { feedPageSize, isLiteMode, useNetwork } from "@/lib/network";
@@ -292,9 +299,19 @@ function Index() {
   }, [page, hasMore, loadingMore]);
 
   useEffect(() => {
+    // Every visit gets a fresh mix: drop the previous shuffle before loading.
+    resetFeedOrder();
     // Show the last feed instantly on slow links, then refresh in the background.
+    // Shuffle the cached page too so even the first paint feels different.
     const cached = readFeedCache();
-    if (cached) setVideos((cur) => cur ?? cached);
+    if (cached) {
+      const mixed = [...cached];
+      for (let i = mixed.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [mixed[i], mixed[j]] = [mixed[j]!, mixed[i]!];
+      }
+      setVideos((cur) => cur ?? mixed);
+    }
     load(0, false);
 
     setTimeout(() => {

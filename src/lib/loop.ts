@@ -63,21 +63,8 @@ export async function resolveVideoUrl(url: string) {
   return data?.signedUrl ?? "";
 }
 
-export async function fetchVideos(page = 0, pageSize = 20) {
-  const PAGE_SIZE = Math.max(1, Math.min(50, pageSize));
-  const from = page * PAGE_SIZE;
-  const to = from + PAGE_SIZE - 1;
-
-  // Select only the columns the feed renders (smaller payload, faster parse).
-  const { data, error } = await supabase
-    .from("videos")
-    .select("id, username, caption, video_url, likes_count, comments_count, shares_count, reposts_count, created_at")
-    .order("created_at", { ascending: false })
-    .range(from, to);
-
-  if (error) throw error;
-  // Fisher–Yates shuffle for feed variety (the old sort comparator was invalid).
-  const list = (data ?? []).map((v) => ({ ...v, reposts: v.reposts_count ?? 0 })) as Video[];
+/** Fisher–Yates shuffle, in place. */
+function shuffle<T>(list: T[]): T[] {
   for (let i = list.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     const a = list[i]!;
@@ -86,6 +73,80 @@ export async function fetchVideos(page = 0, pageSize = 20) {
     list[j] = a;
   }
   return list;
+}
+
+/**
+ * Shuffled order of every video in the library, built once per app session.
+ *
+ * The feed used to page through videos newest-first and only shuffle within
+ * that single page, so every visit showed the same handful of recent uploads.
+ * We now pull every video id (tiny payload), shuffle the whole library, and
+ * hand out batches from that order. Reloading the app builds a fresh shuffle,
+ * so the mix is different every time you open it.
+ */
+let feedOrder: string[] | null = null;
+let feedOrderPromise: Promise<string[]> | null = null;
+
+const ID_PAGE_SIZE = 1000;
+
+async function loadVideoIds(): Promise<string[]> {
+  const ids: string[] = [];
+  for (let from = 0; ; from += ID_PAGE_SIZE) {
+    const { data, error } = await supabase
+      .from("videos")
+      .select("id")
+      .order("id", { ascending: true })
+      .range(from, from + ID_PAGE_SIZE - 1);
+    if (error) throw error;
+    const batch = (data ?? []).map((row) => row.id as string);
+    ids.push(...batch);
+    if (batch.length < ID_PAGE_SIZE) break;
+  }
+  return shuffle(ids);
+}
+
+async function getFeedOrder(): Promise<string[]> {
+  if (feedOrder) return feedOrder;
+  if (!feedOrderPromise) {
+    feedOrderPromise = loadVideoIds()
+      .then((ids) => {
+        feedOrder = ids;
+        return ids;
+      })
+      .finally(() => {
+        feedOrderPromise = null;
+      });
+  }
+  return feedOrderPromise;
+}
+
+/** Forget the current shuffle so the next fetch builds a new random order. */
+export function resetFeedOrder() {
+  feedOrder = null;
+  feedOrderPromise = null;
+}
+
+export async function fetchVideos(page = 0, pageSize = 20) {
+  const PAGE_SIZE = Math.max(1, Math.min(50, pageSize));
+  const order = await getFeedOrder();
+  const from = page * PAGE_SIZE;
+  const ids = order.slice(from, from + PAGE_SIZE);
+  if (ids.length === 0) return [] as Video[];
+
+  // Select only the columns the feed renders (smaller payload, faster parse).
+  const { data, error } = await supabase
+    .from("videos")
+    .select("id, username, caption, video_url, likes_count, comments_count, shares_count, reposts_count, created_at")
+    .in("id", ids);
+
+  if (error) throw error;
+
+  // `.in()` does not preserve order, so re-apply the shuffled queue order.
+  const byId = new Map((data ?? []).map((v) => [v.id as string, v]));
+  return ids
+    .map((id) => byId.get(id))
+    .filter((v): v is NonNullable<typeof v> => !!v)
+    .map((v) => ({ ...v, reposts: v.reposts_count ?? 0 })) as Video[];
 }
 
 export async function fetchMyLikes() {

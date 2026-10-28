@@ -271,35 +271,6 @@ export async function checkIfBanned(username: string): Promise<boolean> {
   }
 }
 
-/**
- * Auto-bans are disabled — this always returns `{ ok: true, banned: false }`.
- * It is kept so existing callers keep compiling; banning is now manual, from
- * the buttons in /admin.
- */
-export async function autoBanIfNeeded(
-  userId: string | null,
-  username: string,
-): Promise<ModerationResult> {
-  const handle = username.replace(/^@+/, "").trim();
-  if (!handle) return { ok: false, error: "Unknown user" };
-  try {
-    const { data, error } = await supabase.rpc("auto_ban_if_needed", {
-      _user_id: userId,
-      _username: handle,
-    });
-    if (error) return { ok: false, error: error.message };
-    const row = unwrap<Record<string, unknown>>(data) ?? {};
-    return {
-      ok: true,
-      banned: Boolean(row["applied"]),
-      action: (row["action"] as string | undefined) ?? null,
-      expires_at: (row["expires_at"] as string | undefined) ?? null,
-    };
-  } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Failed" };
-  }
-}
-
 /** Same word list the database seeds into `banned_words`. */
 export function hasBannedWords(text: string | null | undefined): boolean {
   if (!text) return false;

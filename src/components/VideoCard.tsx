@@ -152,9 +152,6 @@ function VideoCardImpl({
       setReportDetails("");
       if (result.duplicate) {
         toast.success("You already reported this - thanks");
-      } else if (result.banned) {
-        toast.success(`Thanks - @${video.username} was automatically restricted`);
-        setIsBanned(true);
       } else {
         toast.success("Report sent. Thanks for keeping coolerup safe");
       }

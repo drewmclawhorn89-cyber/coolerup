@@ -622,7 +622,6 @@ export type Database = {
       is_muted: { Args: { _username: string }; Returns: boolean }
       contains_banned_word: { Args: { _text: string }; Returns: boolean }
       am_i_admin: { Args: never; Returns: boolean }
-      auto_ban_if_needed: { Args: { _user_id: string | null; _username: string }; Returns: Json }
       apply_moderation: {
         Args: {
           _user_id: string | null

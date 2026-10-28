@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useCall } from "@/lib/calls";
 import { Button } from "@/components/ui/button";
+import { notifyUser } from "@/lib/notify";
 
 export const Route = createFileRoute("/messages")({
   head: () => ({
@@ -71,6 +72,15 @@ function Messages() {
     }
     setText("");
     load();
+
+    // Push the DM to the recipient even if they have the app closed.
+    void notifyUser({
+      targetUserId: target.id,
+      actorUserId: auth.user.id,
+      type: "message",
+      text: `${me}: ${body.slice(0, 80)}`,
+      url: `/messages?user=${encodeURIComponent(me)}`,
+    });
   };
 
   const placeCall = async (withVideo: boolean) => {

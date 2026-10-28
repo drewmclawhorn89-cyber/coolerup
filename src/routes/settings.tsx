@@ -10,6 +10,12 @@ import { writePref } from "@/lib/prefs";
 import { MoreSettings } from "@/components/MoreSettings";
 import { hasOfflineAccess, offlinePlan, trialDaysLeft, useSubscription } from "@/lib/subscriptions";
 import { ThemePicker } from "@/components/ThemePicker"
+import {
+  announcePushPref,
+  disablePushSubscription,
+  ensurePushSubscription,
+  pushPermission,
+} from "@/lib/push-client"
 
 // Subscriptions moved out of the top tab row and into Settings. Lazy-loaded so
 // the payment sheet code isn't part of the settings bundle.
@@ -214,14 +220,30 @@ const toggleOffline = () => {
   };
 
   const toggleNotifications = async (v: boolean) => {
-    if (v && typeof Notification !== "undefined" && Notification.permission === "default") {
-      await Notification.requestPermission();
-    }
     setNotificationsEnabled(v);
     try {
       localStorage.setItem("settings:notifications", v ? "true" : "false");
     } catch {}
-    toast.success(v ? "Notifications enabled" : "Notifications disabled");
+
+    if (v) {
+      if (pushPermission() === "unsupported") {
+        toast.success("Notifications enabled in-app");
+        announcePushPref(true);
+        return;
+      }
+      const ok = await ensurePushSubscription();
+      if (ok) {
+        toast.success("Notifications enabled — you'll get alerts even when the app is closed");
+      } else if (pushPermission() === "denied") {
+        toast.error("Notifications are blocked in your browser settings");
+      } else {
+        toast.success("Notifications enabled in-app");
+      }
+    } else {
+      await disablePushSubscription();
+      toast.success("Notifications disabled");
+    }
+    announcePushPref(v);
   };
 const changeTheme = (t: string) => {
   setTheme(t);

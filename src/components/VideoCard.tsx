@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/dialog";
 import { REPORT_REASONS, checkIfBanned, reportContent, type ReportReason } from "@/lib/moderation";
 import { resolveAvatarUrl } from "./EditProfileDialog";
+import { notifyUser, profileIdForHandle } from "@/lib/notify";
 
 const Comments = lazy(() => import("./Comments").then((m) => ({ default: m.Comments })));
 const ShareMenu = lazy(() => import("./ShareMenu").then((m) => ({ default: m.ShareMenu })));
@@ -309,6 +310,17 @@ function VideoCardImpl({
       setIsFollowing(!next);
       onFollowChange?.(video.username, !next);
       toast.error("Couldn't update follow");
+    } else if (next) {
+      const ownerId = await profileIdForHandle(video.username);
+      if (ownerId) {
+        await notifyUser({
+          targetUserId: ownerId,
+          actorUserId: auth.user.id,
+          type: "follow",
+          text: `${myUsername} started following you`,
+          url: `/u/${myUsername}`,
+        });
+      }
     }
   }, [auth.user, auth.signIn, isFollowing, myUsername, onFollowChange, video.username]);
 
@@ -440,19 +452,16 @@ function VideoCardImpl({
       setLikes((n) => n + (next ? -1 : 1));
       toast.error("Couldn't save your like");
     } else if (next) {
-      // save notification to account
-      const { data: owner } = await supabase
-        .from("profiles")
-        .select("id")
-        .eq("handle", video.username)
-        .maybeSingle();
-      if (owner && owner.id !== authUser.id) {
-        await supabase.from("notifications").insert({
-          target_user_id: owner.id,
-          actor_user_id: authUser.id,
+      // Save the in-app notification and push it to the owner's devices.
+      const ownerId = await profileIdForHandle(video.username);
+      if (ownerId) {
+        await notifyUser({
+          targetUserId: ownerId,
+          actorUserId: authUser.id,
           type: "like",
-          video_id: video.id,
-          text: "liked your fit",
+          videoId: video.id,
+          text: `${myUsername ?? "Someone"} liked your video`,
+          url: "/",
         });
       }
     }
@@ -478,19 +487,15 @@ function VideoCardImpl({
           .insert({ video_id: video.id, user_id: authUser.id });
         // 23505 = already reposted, which is fine.
         if (error && error.code !== "23505") throw error;
-        const { data: owner } = await supabase
-          .from("profiles")
-          .select("id")
-          .eq("handle", video.username)
-          .maybeSingle();
-        if (owner && owner.id !== authUser.id) {
-          await supabase.from("notifications").insert({
-            target_user_id: owner.id,
-            actor_user_id: authUser.id,
-            video_id: video.id,
+        const ownerId = await profileIdForHandle(video.username);
+        if (ownerId) {
+          await notifyUser({
+            targetUserId: ownerId,
+            actorUserId: authUser.id,
             type: "repost",
+            videoId: video.id,
             text: `${myUsername ?? "Someone"} reposted your video`,
-            read: false,
+            url: "/",
           });
         }
       } else {

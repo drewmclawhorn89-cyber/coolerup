@@ -25,6 +25,7 @@ import {
   fetchGroup,
   fetchGroupMembers,
   fetchGroupPosts,
+  fetchGroupPostLikes,
   formatMembers,
   isActiveMember,
   isAdmin,
@@ -67,6 +68,7 @@ function GroupPage() {
   const [group, setGroup] = useState<Group | null>(null);
   const [members, setMembers] = useState<GroupMember[]>([]);
   const [posts, setPosts] = useState<GroupPost[]>([]);
+  const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set());
   const [tab, setTab] = useState<PageTab>("posts");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -89,6 +91,8 @@ function GroupPage() {
       setGroup(g);
       setMembers(m);
       setPosts(p);
+      // Which of these the viewer has already liked, so hearts survive a reload.
+      setLikedPosts((await fetchGroupPostLikes(p.map((post) => post.id))).mine);
     } catch (err: any) {
       toast.error(err?.message ?? "Couldn't load this group.");
     } finally {
@@ -250,6 +254,8 @@ function GroupPage() {
             group={group}
             posts={posts}
             setPosts={setPosts}
+            liked={likedPosts}
+            setLiked={setLikedPosts}
             member={member}
             admin={moderator}
             onJoin={handleJoin}
@@ -290,6 +296,8 @@ function PostsTab({
   group,
   posts,
   setPosts,
+  liked,
+  setLiked,
   member,
   admin,
   onJoin,
@@ -297,6 +305,8 @@ function PostsTab({
   group: Group;
   posts: GroupPost[];
   setPosts: (fn: (p: GroupPost[]) => GroupPost[]) => void;
+  liked: Set<string>;
+  setLiked: (fn: (s: Set<string>) => Set<string>) => void;
   member: boolean;
   admin: boolean;
   onJoin: () => void;
@@ -305,7 +315,6 @@ function PostsTab({
   const [caption, setCaption] = useState("");
   const [media, setMedia] = useState<{ url: string; previewUrl: string; kind: "image" | "video" } | null>(null);
   const [posting, setPosting] = useState(false);
-  const [liked, setLiked] = useState<Set<string>>(new Set());
   const fileRef = useRef<HTMLInputElement>(null);
 
   const attach = async (file: File | undefined) => {
@@ -344,18 +353,39 @@ function PostsTab({
   };
 
   const toggleLike = async (post: GroupPost) => {
+    if (!auth.user) {
+      toast.error("Sign in to like posts.");
+      return;
+    }
     const on = !liked.has(post.id);
+    const previousLikes = post.likes ?? 0;
+
+    // Optimistic paint, then reconcile with the count the server returns.
     setLiked((s) => {
       const n = new Set(s);
       if (on) n.add(post.id);
       else n.delete(post.id);
       return n;
     });
+    setPosts((list) =>
+      list.map((p) =>
+        p.id === post.id ? { ...p, likes: Math.max(0, previousLikes + (on ? 1 : -1)) } : p,
+      ),
+    );
+
     try {
       const likes = await likeGroupPost(post, on);
       setPosts((list) => list.map((p) => (p.id === post.id ? { ...p, likes } : p)));
-    } catch {
-      /* optimistic only */
+    } catch (err: any) {
+      // Put the heart back where it was — the like did not actually save.
+      setLiked((s) => {
+        const n = new Set(s);
+        if (on) n.delete(post.id);
+        else n.add(post.id);
+        return n;
+      });
+      setPosts((list) => list.map((p) => (p.id === post.id ? { ...p, likes: previousLikes } : p)));
+      toast.error(err?.message ?? "Couldn't save that like.");
     }
   };
 

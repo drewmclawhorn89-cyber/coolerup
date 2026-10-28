@@ -132,7 +132,13 @@ export async function fetchGroupPosts(groupId: string): Promise<GroupPost[]> {
     .order("created_at", { ascending: false })
     .limit(100);
   if (error) throw error;
-  return Promise.all(((data ?? []) as GroupPost[]).map(hydratePostMedia));
+  const rows = (data ?? []) as GroupPost[];
+
+  // The `likes` column is only a cache; the join table is the source of truth.
+  const { counts } = await fetchGroupPostLikes(rows.map((p) => p.id));
+  const withCounts = rows.map((p) => ({ ...p, likes: counts[p.id] ?? 0 }));
+
+  return Promise.all(withCounts.map(hydratePostMedia));
 }
 
 /* ------------------------------------------------------------------ */
@@ -255,11 +261,72 @@ export async function createGroupPost(input: {
   return hydratePostMedia(data as GroupPost);
 }
 
+/**
+ * Likes live in `group_post_likes` (one row per post + user). The old
+ * implementation bumped a `group_posts.likes` counter from the browser, which
+ * RLS rejected for anyone who wasn't the post author or a group admin, and
+ * which never recorded *who* liked a post.
+ */
 export async function likeGroupPost(post: GroupPost, liked: boolean): Promise<number> {
-  const next = Math.max(0, (post.likes ?? 0) + (liked ? 1 : -1));
-  const { error } = await db.from("group_posts").update({ likes: next }).eq("id", post.id);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Sign in to like posts.");
+
+  if (liked) {
+    // Idempotent: liking twice is a no-op instead of double counting.
+    const { error } = await db
+      .from("group_post_likes")
+      .upsert({ post_id: post.id, user_id: user.id }, { onConflict: "post_id,user_id", ignoreDuplicates: true });
+    if (error) throw error;
+  } else {
+    const { error } = await db
+      .from("group_post_likes")
+      .delete()
+      .eq("post_id", post.id)
+      .eq("user_id", user.id);
+    if (error) throw error;
+  }
+
+  return countGroupPostLikes(post.id);
+}
+
+/** Authoritative like count straight from the join table. */
+export async function countGroupPostLikes(postId: string): Promise<number> {
+  const { count, error } = await db
+    .from("group_post_likes")
+    .select("post_id", { count: "exact", head: true })
+    .eq("post_id", postId);
   if (error) throw error;
-  return next;
+  return count ?? 0;
+}
+
+/**
+ * Like counts for a batch of posts, plus the subset the signed-in viewer has
+ * liked — so the heart is correct on first paint instead of resetting on reload.
+ */
+export async function fetchGroupPostLikes(
+  postIds: string[],
+): Promise<{ counts: Record<string, number>; mine: Set<string> }> {
+  const counts: Record<string, number> = {};
+  const mine = new Set<string>();
+  if (postIds.length === 0) return { counts, mine };
+
+  const { data, error } = await db
+    .from("group_post_likes")
+    .select("post_id, user_id")
+    .in("post_id", postIds);
+  if (error) throw error;
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  for (const row of (data ?? []) as { post_id: string; user_id: string }[]) {
+    counts[row.post_id] = (counts[row.post_id] ?? 0) + 1;
+    if (user && row.user_id === user.id) mine.add(row.post_id);
+  }
+  return { counts, mine };
 }
 
 export async function deleteGroupPost(postId: string): Promise<void> {

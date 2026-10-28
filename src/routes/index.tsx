@@ -62,7 +62,7 @@ export const Route = createFileRoute("/")({
   component: Index,
 });
 
-type Tab = "foryou" | "explore" | "following" | "liked" | "saved" | "mine" | "inbox" | "shop" | "subscriptions";
+type Tab = "foryou" | "explore" | "following" | "liked" | "saved" | "inbox" | "shop" | "subscriptions";
 type FeedTab = "home" | "following" | "foryou" | "explore" | "marketplace" | "groups" | "live";
 type NotificationFilter = "all" | "unread";
 
@@ -83,7 +83,6 @@ const NAV: { id: Tab; label: string; icon: typeof Home }[] = [
   { id: "following", label: "Following", icon: Users },
   { id: "inbox", label: "Inbox", icon: Bell },
   { id: "shop", label: "Shop", icon: ShoppingBag },
-  { id: "mine", label: "You", icon: Users },
 ];
 
 const HEADERS: Record<Tab, [string, string]> = {
@@ -92,7 +91,6 @@ const HEADERS: Record<Tab, [string, string]> = {
   following: ["Following", "Creators you keep coming back to"],
   liked: ["Liked", "Everything you've hearted"],
   saved: ["Offline", "Watch anytime, even without a connection"],
-  mine: ["Profile", "Your loop"],
   inbox: ["Inbox", "All your notifications"],
   shop: ["Shop", "Unlock tops and names"],
   subscriptions: ["Subscriptions", "Paid plans and perks"],
@@ -425,17 +423,16 @@ function Index() {
     }
     if (activeTab === "foryou" && feedTab === "live") list = list.filter((v) => v.is_live);
     if (activeTab === "liked") list = list.filter((v) => liked.has(v.id));
-    if (activeTab === "mine") list = me ? list.filter((v) => v.username === me) : [];
-    if (activeTab !== "mine" && activeTab !== "saved") {
+    if (activeTab !== "saved") {
       list = list.filter((v) => v.username === me || !matchesKeyword(parseCaption(v.caption).text));
       if (readBool("restricted")) list = list.filter((v) => !/\b(nsfw|18\+|gore|explicit)\b/i.test(v.caption ?? ""));
     }
     return list;
   }, [videos, saved, query, activeTab, liked, me, followingList, feedTab, repostedFeed, notInterested, blocked]);
 
-  const showTopTabs = !offlineMode && (activeTab === "foryou" || activeTab === "following" || activeTab === "explore" || activeTab === "mine");
+  const showTopTabs = !offlineMode && (activeTab === "foryou" || activeTab === "following" || activeTab === "explore");
   const topTab =
-    activeTab === "shop" || activeTab === "subscriptions" || activeTab === "mine"
+    activeTab === "shop" || activeTab === "subscriptions"
       ? activeTab
       : activeTab === "following" || activeTab === "explore"
         ? activeTab
@@ -446,7 +443,7 @@ function Index() {
   };
 
   // One shared top tab bar (Home | Following | For You | Marketplace | Groups | LIVE).
-  // Shop / Mine stay on the end of the scrollable row so those screens are still
+  // Shop stays on the end of the scrollable row so that screen is still
   // reachable on phones. Subscriptions now lives in Settings (/?tab=subscriptions
   // deep links still resolve for upgrade prompts).
   const TopTabs = ({ className = "" }: { className?: string }) => (
@@ -462,7 +459,6 @@ function Index() {
       </button>
       <button onClick={() => pickFeedTab("explore")} className={tabClass("explore")}>Explore</button>
       <button onClick={() => setTab("shop")} className={tabClass("shop")}>Shop</button>
-      <button onClick={() => setTab("mine")} className={tabClass("mine")}>Mine</button>
     </div>
   );
   const topTabsClass =
@@ -904,7 +900,7 @@ function Index() {
             onClose={() => setUploading(false)}
             onDone={() => {
               setUploading(false);
-              setTab("mine");
+              setTab("foryou");
               load();
             }}
           />
@@ -916,7 +912,7 @@ function Index() {
         onOpenChange={setPhotoOpen}
         username={auth.handle}
         onPosted={() => {
-          setTab("mine");
+          setTab("foryou");
           load();
         }}
       /></Suspense>}
@@ -927,7 +923,7 @@ function Index() {
         username={auth.handle}
         onUploadInstead={() => setUploading(true)}
         onPosted={() => {
-          setTab("mine");
+          setTab("foryou");
           load();
         }}
       /></Suspense>}

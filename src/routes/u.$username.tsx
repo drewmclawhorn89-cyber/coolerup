@@ -6,8 +6,21 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ArrowLeft, Pencil, Plus, X } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { EditProfileDialog, LINK_FIELDS, normalizeLink, resolveAvatarUrl } from "@/components/EditProfileDialog";
-import { fetchSavedVideos, fetchRepostedVideos, fetchMyLikes, isImageUrl, parseCaption, resolveVideoUrl } from "@/lib/loop";
+import {
+  EditProfileDialog,
+  LINK_FIELDS,
+  normalizeLink,
+  resolveAvatarUrl,
+} from "@/components/EditProfileDialog";
+import {
+  fetchSavedVideos,
+  fetchRepostedVideos,
+  fetchLikedVideos,
+  fetchMyLikes,
+  isImageUrl,
+  parseCaption,
+  resolveVideoUrl,
+} from "@/lib/loop";
 import { VideoCard } from "@/components/VideoCard";
 import { StoryViewer } from "@/components/StoryViewer";
 import { fetchStories, postStory, type Story } from "@/lib/stories";
@@ -25,21 +38,41 @@ function Thumb({ url, caption }: { url: string; caption: string }) {
   useEffect(() => {
     const el = boxRef.current;
     if (!el) return;
-    const obs = new IntersectionObserver(([e]) => { if (e?.isIntersecting) { setNear(true); obs.disconnect(); } }, { rootMargin: "200px" });
+    const obs = new IntersectionObserver(
+      ([e]) => {
+        if (e?.isIntersecting) {
+          setNear(true);
+          obs.disconnect();
+        }
+      },
+      { rootMargin: "200px" },
+    );
     obs.observe(el);
     return () => obs.disconnect();
   }, []);
   useEffect(() => {
     if (!near) return;
     let alive = true;
-    resolveVideoUrl(url).then((u) => { if (alive) setSrc(u); });
-    return () => { alive = false; };
+    resolveVideoUrl(url).then((u) => {
+      if (alive) setSrc(u);
+    });
+    return () => {
+      alive = false;
+    };
   }, [url, near]);
   if (!src) return <div ref={boxRef} className="h-full w-full" />;
   const isImage = isImageUrl(url) || /\.(jpe?g|png|webp|gif|avif)$/i.test(url);
-  return isImage
-    ? <img src={src} alt={caption} className="h-full w-full object-cover" />
-    : <video src={`${src}#t=0.5`} muted playsInline preload="metadata" className="h-full w-full object-cover" />;
+  return isImage ? (
+    <img src={src} alt={caption} className="h-full w-full object-cover" />
+  ) : (
+    <video
+      src={`${src}#t=0.5`}
+      muted
+      playsInline
+      preload="metadata"
+      className="h-full w-full object-cover"
+    />
+  );
 }
 
 type FollowingUser = {
@@ -58,31 +91,38 @@ function Profile() {
   const [editing, setEditing] = useState(false);
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
   const [muted, setMuted] = useState(false);
-  const [tab, setTab] = useState<"videos" | "reposts" | "saved">("videos");
+  const [tab, setTab] = useState<"videos" | "liked" | "saved" | "reposts">("videos");
   const [saved, setSaved] = useState<any[]>([]);
   const [reposts, setReposts] = useState<any[]>([]);
+  const [likedVideos, setLikedVideos] = useState<any[]>([]);
   const viewer = useRef<HTMLDivElement>(null);
   const [stories, setStories] = useState<Story[]>([]);
   const [storyOpen, setStoryOpen] = useState(false);
   const [storyUploading, setStoryUploading] = useState(false);
   const storyFile = useRef<HTMLInputElement>(null);
-const [totalFollowers, setTotalFollowers] = useState(0);
+  const [totalFollowers, setTotalFollowers] = useState(0);
   const [totalFollowing, setTotalFollowing] = useState(0);
   const [followingOpen, setFollowingOpen] = useState(false);
   const [followingUsers, setFollowingUsers] = useState<FollowingUser[] | null>(null);
   const [followersOpen, setFollowersOpen] = useState(false);
   const [followersUsers, setFollowersUsers] = useState<FollowingUser[] | null>(null);
-  
-   const equipped = useEquipped(username);
+
+  const equipped = useEquipped(username);
   const isOwn = !!auth.handle && auth.handle === username;
 
-    useEffect(() => {
+  useEffect(() => {
     if (!username) return;
-    
+
     const loadStats = async () => {
       const [followers, following] = await Promise.all([
-        supabase.from("follows").select("id", { count: "exact", head: true }).eq("following_username", username),
-        supabase.from("follows").select("id", { count: "exact", head: true }).eq("follower_username", username),
+        supabase
+          .from("follows")
+          .select("id", { count: "exact", head: true })
+          .eq("following_username", username),
+        supabase
+          .from("follows")
+          .select("id", { count: "exact", head: true })
+          .eq("follower_username", username),
       ]);
       setTotalFollowers(followers.count ?? 0);
       setTotalFollowing(following.count ?? 0);
@@ -124,7 +164,9 @@ const [totalFollowers, setTotalFollowers] = useState(0);
       );
       if (alive) setFollowingUsers(list);
     })();
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
   }, [followingOpen, username]);
 
   useEffect(() => {
@@ -162,24 +204,38 @@ const [totalFollowers, setTotalFollowers] = useState(0);
       );
       if (alive) setFollowersUsers(list);
     })();
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
   }, [followersOpen, username]);
- 
+
   useEffect(() => {
     if (!username) return;
-    supabase.from("videos").select("*").eq("username", username).order("created_at", { ascending: false }).then(({ data }) => {
-      setVideos(data || []);
-    });
-    supabase.from("profiles").select("*").eq("handle", username).maybeSingle().then(({ data }) => {
-      const row = (data as ProfileRow | null) ?? null;
-      setProfile(row);
-      resolveAvatarUrl(row?.avatar_url).then(setAvatar);
-    });
+    supabase
+      .from("videos")
+      .select("*")
+      .eq("username", username)
+      .order("created_at", { ascending: false })
+      .then(({ data }) => {
+        setVideos(data || []);
+      });
+    supabase
+      .from("profiles")
+      .select("*")
+      .eq("handle", username)
+      .maybeSingle()
+      .then(({ data }) => {
+        const row = (data as ProfileRow | null) ?? null;
+        setProfile(row);
+        resolveAvatarUrl(row?.avatar_url).then(setAvatar);
+      });
   }, [username, auth.profile?.avatar_url, auth.profile?.display_name, auth.profile?.bio]);
 
   useEffect(() => {
     if (!username) return;
-    fetchStories(username).then(setStories).catch(() => setStories([]));
+    fetchStories(username)
+      .then(setStories)
+      .catch(() => setStories([]));
   }, [username]);
 
   async function addStory(file: File | null) {
@@ -203,13 +259,27 @@ const [totalFollowers, setTotalFollowers] = useState(0);
 
   useEffect(() => {
     if (!profile?.id) return;
-    fetchSavedVideos(profile.id).then(setSaved).catch(() => {});
+    fetchSavedVideos(profile.id)
+      .then(setSaved)
+      .catch(() => {});
   }, [profile?.id, tab]);
   useEffect(() => {
     if (!profile?.id) return;
-    fetchRepostedVideos(profile.id).then(setReposts).catch(() => {});
+    fetchRepostedVideos(profile.id)
+      .then(setReposts)
+      .catch(() => {});
   }, [profile?.id, tab]);
-  useEffect(() => { fetchMyLikes().then(setLikedIds).catch(() => {}); }, [open !== null]);
+  useEffect(() => {
+    if (!profile?.id) return;
+    fetchLikedVideos(profile.id)
+      .then(setLikedVideos)
+      .catch(() => {});
+  }, [profile?.id, tab]);
+  useEffect(() => {
+    fetchMyLikes()
+      .then(setLikedIds)
+      .catch(() => {});
+  }, [open !== null]);
   useEffect(() => {
     if (open === null) return;
     const el = viewer.current;
@@ -217,24 +287,32 @@ const [totalFollowers, setTotalFollowers] = useState(0);
   }, [open]);
 
   const totalLikes = (videos || []).reduce((a, v) => a + (v.likes_count || 0), 0);
-  const shownVideos = tab === "saved" ? saved : tab === "reposts" ? reposts : videos;
+  const shownVideos =
+    tab === "saved" ? saved : tab === "reposts" ? reposts : tab === "liked" ? likedVideos : videos;
   const displayName = profile?.display_name || username;
   const PAGE = 12;
   const [count, setCount] = useState(PAGE);
   const sentinel = useRef<HTMLDivElement>(null);
-  useEffect(() => { setCount(PAGE); }, [username, tab]);
+  useEffect(() => {
+    setCount(PAGE);
+  }, [username, tab]);
   const total = shownVideos?.length ?? 0;
   useEffect(() => {
     const el = sentinel.current;
     if (!el || count >= total) return;
-    const obs = new IntersectionObserver(([e]) => { if (e?.isIntersecting) setCount((c) => c + PAGE); }, { rootMargin: "400px" });
+    const obs = new IntersectionObserver(
+      ([e]) => {
+        if (e?.isIntersecting) setCount((c) => c + PAGE);
+      },
+      { rootMargin: "400px" },
+    );
     obs.observe(el);
     return () => obs.disconnect();
   }, [count, total]);
 
   return (
-    <div className="min-h-dvh bg-background">
-      <div className="mx-auto max-w-4xl px-4 pt-4">
+    <div className="min-h-dvh bg-black text-white">
+      <div className="mx-auto max-w-[430px] px-4 pb-[70px] pt-4">
         <Link to="/" className="inline-flex items-center gap-2 text-sm text-muted-foreground">
           <ArrowLeft className="h-4 w-4" /> Home
         </Link>
@@ -248,8 +326,14 @@ const [totalFollowers, setTotalFollowers] = useState(0);
               aria-label={stories.length ? "View story" : "Profile photo"}
               className={`rounded-full p-1 ${stories.length ? "bg-gradient-to-tr from-primary to-pink-500" : ""}`}
             >
-              <div className={`flex h-24 w-24 items-center justify-center overflow-hidden rounded-full bg-primary ${findItem(equipped.top)?.className ?? ""} text-4xl uppercase text-primary-foreground`}>
-                {avatar ? <img src={avatar} alt={displayName} className="h-full w-full object-cover" /> : username?.[0]}
+              <div
+                className={`flex h-24 w-24 items-center justify-center overflow-hidden rounded-full bg-primary ${findItem(equipped.top)?.className ?? ""} text-4xl uppercase text-primary-foreground`}
+              >
+                {avatar ? (
+                  <img src={avatar} alt={displayName} className="h-full w-full object-cover" />
+                ) : (
+                  username?.[0]
+                )}
               </div>
             </button>
             {isOwn && (
@@ -263,18 +347,28 @@ const [totalFollowers, setTotalFollowers] = useState(0);
                 >
                   <Plus className="h-4 w-4" />
                 </button>
-                <input ref={storyFile} type="file" accept="image/*,video/*" className="hidden" onChange={(e) => void addStory(e.target.files?.[0] ?? null)} />
+                <input
+                  ref={storyFile}
+                  type="file"
+                  accept="image/*,video/*"
+                  className="hidden"
+                  onChange={(e) => void addStory(e.target.files?.[0] ?? null)}
+                />
               </>
             )}
           </div>
           <div>
-            <h1 className={`text-2xl ${findItem(equipped.name)?.className ?? ""}`}>{findItem(equipped.top)?.emoji} {displayName}</h1>
+            <h1 className={`text-2xl ${findItem(equipped.name)?.className ?? ""}`}>
+              {findItem(equipped.top)?.emoji} {displayName}
+            </h1>
             <p className="text-sm text-muted-foreground">@{username}</p>
           </div>
           {profile?.bio && <p className="max-w-md text-sm text-muted-foreground">{profile.bio}</p>}
           {profile?.links && Object.keys(profile.links).length > 0 && (
             <div className="flex flex-wrap justify-center gap-2">
-              {LINK_FIELDS.filter((f) => profile.links?.[f.key] && normalizeLink(profile.links[f.key])).map((f) => (
+              {LINK_FIELDS.filter(
+                (f) => profile.links?.[f.key] && normalizeLink(profile.links[f.key]),
+              ).map((f) => (
                 <a
                   key={f.key}
                   href={normalizeLink(profile.links![f.key])!}
@@ -289,49 +383,68 @@ const [totalFollowers, setTotalFollowers] = useState(0);
           )}
           {isOwn && (
             <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
+              <button
+                type="button"
+                onClick={() => setEditing(true)}
+                className="inline-flex items-center rounded border border-[#333] px-4 py-1 text-[14px] font-semibold text-white transition hover:bg-white/10"
+              >
                 <Pencil className="mr-2 h-3.5 w-3.5" /> Edit profile
-              </Button>
-              <Link to="/settings" className="inline-flex items-center rounded-md border px-3 py-1 text-sm">
+              </button>
+              <Link
+                to="/settings"
+                className="inline-flex items-center rounded border border-[#333] px-4 py-1 text-[14px] font-semibold text-white transition hover:bg-white/10"
+              >
                 Settings
               </Link>
             </div>
           )}
-          <div className="flex gap-8 text-sm">
-          <span><b>{videos?.length ?? "-"}</b> videos</span>
-<span><b>{totalLikes ?? 0}</b> likes</span>
-<button
-  type="button"
-  onClick={() => setFollowersOpen(true)}
-  className="rounded transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-  aria-label={`View accounts following @${username}`}
->
-  <b>{totalFollowers}</b> followers
-</button>
-<button
-  type="button"
-  onClick={() => setFollowingOpen(true)}
-  className="rounded transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-  aria-label={`View accounts @${username} is following`}
->
-  <b>{totalFollowing}</b> following
-</button>
+          <div className="flex items-center justify-center gap-8">
+            <button
+              type="button"
+              onClick={() => setFollowingOpen(true)}
+              aria-label={`View accounts @${username} is following`}
+              className="flex flex-col items-center"
+            >
+              <span className="text-[17px] font-bold text-white">{totalFollowing}</span>
+              <span className="text-[13px] text-white/60">Following</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setFollowersOpen(true)}
+              aria-label={`View accounts following @${username}`}
+              className="flex flex-col items-center"
+            >
+              <span className="text-[17px] font-bold text-white">{totalFollowers}</span>
+              <span className="text-[13px] text-white/60">Followers</span>
+            </button>
+            <div className="flex flex-col items-center">
+              <span className="text-[17px] font-bold text-white">{totalLikes ?? 0}</span>
+              <span className="text-[13px] text-white/60">Likes</span>
+            </div>
           </div>
         </div>
 
-        {(
-          <div className="mb-3 flex border-b">
-            {(["videos", "reposts", "saved"] as const).map((t) => (
-              <button
-                key={t}
-                onClick={() => setTab(t)}
-                className={`flex-1 py-2 text-sm font-bold capitalize ${tab === t ? "border-b-2 border-primary text-primary" : "text-muted-foreground"}`}
-              >
-                {t === "saved" ? `Saved (${saved.length})` : t === "reposts" ? `Reposts (${reposts.length})` : "Videos"}
-              </button>
-            ))}
-          </div>
-        )}
+        <div className="mb-0 flex border-b border-[#222]">
+          {(["videos", "liked", "saved", "reposts"] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={`flex-1 py-2.5 text-[14px] capitalize transition-colors ${
+                tab === t
+                  ? "border-b-2 border-white font-bold text-white"
+                  : "text-white/60 hover:text-white"
+              }`}
+            >
+              {t === "saved"
+                ? `Saved (${saved.length})`
+                : t === "reposts"
+                  ? `Reposts (${reposts.length})`
+                  : t === "liked"
+                    ? `Liked (${likedVideos.length})`
+                    : "Videos"}
+            </button>
+          ))}
+        </div>
 
         {tab === "saved" && saved.length === 0 && (
           <p className="py-10 text-center text-sm text-muted-foreground">No saved videos yet.</p>
@@ -339,20 +452,31 @@ const [totalFollowers, setTotalFollowers] = useState(0);
         {tab === "reposts" && reposts.length === 0 && (
           <p className="py-10 text-center text-sm text-muted-foreground">No reposts yet.</p>
         )}
-        <div className="grid grid-cols-3 gap-1">
+        <div className="grid grid-cols-3 gap-[1px]">
           {shownVideos?.slice(0, count).map((v, i) => (
-            <button key={v.id} onClick={() => setOpen(i)} className="relative aspect-[9/16] overflow-hidden rounded-md bg-zinc-800">
+            <button
+              key={v.id}
+              onClick={() => setOpen(i)}
+              className="relative aspect-[9/16] overflow-hidden bg-zinc-800"
+            >
               <Thumb url={v.video_url} caption={parseCaption(v.caption || "").text} />
-              <div className="absolute bottom-1 left-1 text- text-white bg-black/50 px-1 rounded">♥ {v.likes_count || 0}</div>
+              <div className="absolute bottom-1 left-1 text- text-white bg-black/50 px-1 rounded">
+                ♥ {v.likes_count || 0}
+              </div>
             </button>
           ))}
         </div>
         {count < total && <div ref={sentinel} className="h-10" />}
       </div>
 
-      {open!== null && shownVideos && (
+      {open !== null && shownVideos && (
         <div className="fixed inset-0 z-40 bg-black">
-          <Button variant="ghost" size="icon" onClick={() => setOpen(null)} className="absolute left-3 top-3 z-50 text-white">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setOpen(null)}
+            className="absolute left-3 top-3 z-50 text-white"
+          >
             <X />
           </Button>
           <div ref={viewer} className="h-dvh snap-y snap-mandatory overflow-y-scroll">
@@ -363,7 +487,14 @@ const [totalFollowers, setTotalFollowers] = useState(0);
                   liked={likedIds.has(v.id)}
                   muted={muted}
                   onToggleMute={() => setMuted((m) => !m)}
-                  onLikeChange={(on) => setLikedIds((prev) => { const n = new Set(prev); if (on) n.add(v.id); else n.delete(v.id); return n; })}
+                  onLikeChange={(on) =>
+                    setLikedIds((prev) => {
+                      const n = new Set(prev);
+                      if (on) n.add(v.id);
+                      else n.delete(v.id);
+                      return n;
+                    })
+                  }
                 />
               </div>
             ))}
@@ -416,13 +547,19 @@ const [totalFollowers, setTotalFollowers] = useState(0);
                     >
                       <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary text-sm uppercase text-primary-foreground">
                         {u.avatar ? (
-                          <img src={u.avatar} alt={u.display_name || u.handle} className="h-full w-full object-cover" />
+                          <img
+                            src={u.avatar}
+                            alt={u.display_name || u.handle}
+                            className="h-full w-full object-cover"
+                          />
                         ) : (
                           u.handle[0]
                         )}
                       </div>
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold">{u.display_name || u.handle}</p>
+                        <p className="truncate text-sm font-semibold">
+                          {u.display_name || u.handle}
+                        </p>
                         <p className="truncate text-xs text-muted-foreground">@{u.handle}</p>
                       </div>
                     </Link>
@@ -465,13 +602,19 @@ const [totalFollowers, setTotalFollowers] = useState(0);
                     >
                       <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary text-sm uppercase text-primary-foreground">
                         {u.avatar ? (
-                          <img src={u.avatar} alt={u.display_name || u.handle} className="h-full w-full object-cover" />
+                          <img
+                            src={u.avatar}
+                            alt={u.display_name || u.handle}
+                            className="h-full w-full object-cover"
+                          />
                         ) : (
                           u.handle[0]
                         )}
                       </div>
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold">{u.display_name || u.handle}</p>
+                        <p className="truncate text-sm font-semibold">
+                          {u.display_name || u.handle}
+                        </p>
                         <p className="truncate text-xs text-muted-foreground">@{u.handle}</p>
                       </div>
                     </Link>

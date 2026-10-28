@@ -11,11 +11,9 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteImport } from './routes/admin'
-import { Route as GroupsRouteImport } from './routes/groups'
 import { Route as MessagesRouteImport } from './routes/messages'
 import { Route as OfflineRouteImport } from './routes/offline'
 import { Route as SettingsRouteImport } from './routes/settings'
-import { Route as GroupsGroupIdRouteImport } from './routes/groups_.$groupId'
 import { Route as UUsernameRouteImport } from './routes/u.$username'
 
 const IndexRoute = IndexRouteImport.update({
@@ -26,11 +24,6 @@ const IndexRoute = IndexRouteImport.update({
 const AdminRoute = AdminRouteImport.update({
   id: '/admin',
   path: '/admin',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const GroupsRoute = GroupsRouteImport.update({
-  id: '/groups',
-  path: '/groups',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MessagesRoute = MessagesRouteImport.update({
@@ -48,11 +41,6 @@ const SettingsRoute = SettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
-const GroupsGroupIdRoute = GroupsGroupIdRouteImport.update({
-  id: '/groups_/$groupId',
-  path: '/groups/$groupId',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const UUsernameRoute = UUsernameRouteImport.update({
   id: '/u/$username',
   path: '/u/$username',
@@ -62,75 +50,50 @@ const UUsernameRoute = UUsernameRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
-  '/groups': typeof GroupsRoute
   '/messages': typeof MessagesRoute
   '/offline': typeof OfflineRoute
   '/settings': typeof SettingsRoute
-  '/groups/$groupId': typeof GroupsGroupIdRoute
   '/u/$username': typeof UUsernameRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
-  '/groups': typeof GroupsRoute
   '/messages': typeof MessagesRoute
   '/offline': typeof OfflineRoute
   '/settings': typeof SettingsRoute
-  '/groups/$groupId': typeof GroupsGroupIdRoute
   '/u/$username': typeof UUsernameRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
-  '/groups': typeof GroupsRoute
   '/messages': typeof MessagesRoute
   '/offline': typeof OfflineRoute
   '/settings': typeof SettingsRoute
-  '/groups_/$groupId': typeof GroupsGroupIdRoute
   '/u/$username': typeof UUsernameRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    | '/'
-    | '/admin'
-    | '/groups'
-    | '/messages'
-    | '/offline'
-    | '/settings'
-    | '/groups/$groupId'
-    | '/u/$username'
+    '/' | '/admin' | '/messages' | '/offline' | '/settings' | '/u/$username'
   fileRoutesByTo: FileRoutesByTo
-  to:
-    | '/'
-    | '/admin'
-    | '/groups'
-    | '/messages'
-    | '/offline'
-    | '/settings'
-    | '/groups/$groupId'
-    | '/u/$username'
+  to: '/' | '/admin' | '/messages' | '/offline' | '/settings' | '/u/$username'
   id:
     | '__root__'
     | '/'
     | '/admin'
-    | '/groups'
     | '/messages'
     | '/offline'
     | '/settings'
-    | '/groups_/$groupId'
     | '/u/$username'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
-  GroupsRoute: typeof GroupsRoute
   MessagesRoute: typeof MessagesRoute
   OfflineRoute: typeof OfflineRoute
   SettingsRoute: typeof SettingsRoute
-  GroupsGroupIdRoute: typeof GroupsGroupIdRoute
   UUsernameRoute: typeof UUsernameRoute
 }
 
@@ -148,13 +111,6 @@ declare module '@tanstack/react-router' {
       path: '/admin'
       fullPath: '/admin'
       preLoaderRoute: typeof AdminRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/groups': {
-      id: '/groups'
-      path: '/groups'
-      fullPath: '/groups'
-      preLoaderRoute: typeof GroupsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/messages': {
@@ -178,13 +134,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/groups_/$groupId': {
-      id: '/groups_/$groupId'
-      path: '/groups/$groupId'
-      fullPath: '/groups/$groupId'
-      preLoaderRoute: typeof GroupsGroupIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/u/$username': {
       id: '/u/$username'
       path: '/u/$username'
@@ -198,11 +147,9 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
-  GroupsRoute: GroupsRoute,
   MessagesRoute: MessagesRoute,
   OfflineRoute: OfflineRoute,
   SettingsRoute: SettingsRoute,
-  GroupsGroupIdRoute: GroupsGroupIdRoute,
   UUsernameRoute: UUsernameRoute,
 }
 export const routeTree = rootRouteImport

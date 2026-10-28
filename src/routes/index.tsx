@@ -19,6 +19,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { VideoCard } from "@/components/VideoCard";
 import { GroupsPage } from "@/components/GroupsPage";
+import { TopTabs, type TopTabId } from "@/components/TopTabs";
 import { matchesKeyword, readBool } from "@/lib/prefs";
 // Heavy, interaction-only surfaces are split out so the initial feed bundle stays small.
 const UploadDialog = lazy(() =>
@@ -490,12 +491,12 @@ function Index() {
       activeTab === "following" ||
       activeTab === "explore" ||
       activeTab === "mine");
-  const topTab =
+  const topTab: TopTabId =
     activeTab === "shop" || activeTab === "subscriptions" || activeTab === "mine"
       ? activeTab
       : activeTab === "following" || activeTab === "explore"
         ? activeTab
-        : feedTab === "live" || feedTab === "marketplace"
+        : feedTab === "live" || feedTab === "marketplace" || feedTab === "groups"
           ? feedTab
           : "foryou";
   const pickFeedTab = (
@@ -505,8 +506,15 @@ function Index() {
     setFeedTab(next);
     setTab(next === "following" || next === "explore" ? next : "foryou");
   };
-  const tabClass = (t: string) =>
-    `flex items-center gap-1 border-b-2 pb-1 text-[15px] ${topTab === t ? "border-white font-bold text-white" : "border-transparent text-white/60"}`;
+  // One handler for the shared tab row: routes feed tabs through pickFeedTab and
+  // the sidebar-style tabs through setTab, so every bar behaves identically.
+  const pickTopTab = (t: TopTabId) => {
+    if (t === "shop" || t === "subscriptions" || t === "mine") {
+      setTab(t);
+      return;
+    }
+    pickFeedTab(t as "following" | "foryou" | "explore" | "marketplace" | "groups" | "live");
+  };
 
   const [title, sub] = query
     ? [`Results for "${query}"`, `${shown.length} videos`]
@@ -734,75 +742,15 @@ function Index() {
           </div>
         ) : activeTab === "foryou" && feedTab === "marketplace" && !offlineMode ? (
           <div className="relative flex min-h-0 flex-1 flex-col">
-            <div className="absolute left-0 right-0 top-6 z-50 flex gap-5 overflow-x-auto bg-black px-4 pb-2 pt-4 no-scrollbar [&>button]:shrink-0 [&>button]:whitespace-nowrap">
-              <button onClick={() => pickFeedTab("following")} className={tabClass("following")}>
-                Following
-              </button>
-              <button onClick={() => pickFeedTab("foryou")} className={tabClass("foryou")}>
-                For You
-              </button>
-              <button onClick={() => pickFeedTab("explore")} className={tabClass("explore")}>
-                Explore
-              </button>
-              <button
-                onClick={() => pickFeedTab("marketplace")}
-                className={tabClass("marketplace")}
-              >
-                Marketplace
-              </button>
-              <button onClick={() => pickFeedTab("live")} className={tabClass("live")}>
-                LIVE
-              </button>
-              <button onClick={() => pickFeedTab("groups")} className={tabClass("groups")}>
-                Groups
-              </button>
-              <button onClick={() => setTab("shop")} className={tabClass("shop")}>
-                Shop
-              </button>
-              <button onClick={() => setTab("subscriptions")} className={tabClass("subscriptions")}>
-                Subscriptions
-              </button>
-              <button onClick={() => setTab("mine")} className={tabClass("mine")}>
-                Mine
-              </button>
-            </div>
+            <TopTabs active={topTab} onPick={pickTopTab} variant="inline" />
             <Suspense fallback={null}>
               <Marketplace />
             </Suspense>
           </div>
         ) : activeTab === "shop" || activeTab === "subscriptions" ? (
           <div className="flex min-h-0 flex-1 flex-col">
-            <div className="flex shrink-0 gap-4 bg-black no-scrollbar overflow-x-auto px-4 [&>button]:shrink-0 [&>button]:whitespace-nowrap [&>button:first-child]:ml-auto [&>button:last-child]:mr-auto pb-2 pt-10 md:hidden">
-              <button onClick={() => pickFeedTab("following")} className={tabClass("following")}>
-                Following
-              </button>
-              <button onClick={() => pickFeedTab("foryou")} className={tabClass("foryou")}>
-                For You
-              </button>
-              <button onClick={() => pickFeedTab("explore")} className={tabClass("explore")}>
-                Explore
-              </button>
-              <button
-                onClick={() => pickFeedTab("marketplace")}
-                className={tabClass("marketplace")}
-              >
-                Marketplace
-              </button>
-              <button onClick={() => pickFeedTab("live")} className={tabClass("live")}>
-                LIVE
-              </button>
-              <button onClick={() => pickFeedTab("groups")} className={tabClass("groups")}>
-                Groups
-              </button>
-              <button onClick={() => setTab("shop")} className={tabClass("shop")}>
-                Shop
-              </button>
-              <button onClick={() => setTab("subscriptions")} className={tabClass("subscriptions")}>
-                Subscriptions
-              </button>
-              <button onClick={() => setTab("mine")} className={tabClass("mine")}>
-                Mine
-              </button>
+            <div className="md:hidden">
+              <TopTabs active={topTab} onPick={pickTopTab} variant="inline" />
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto">
               {activeTab === "subscriptions" ? (
@@ -886,44 +834,8 @@ function Index() {
 
             <div className="relative flex min-h-0 flex-1 flex-col">
               {showTopTabs && (
-                <div className="fixed left-1/2 top-6 z-50 flex w-full max-w-[430px] -translate-x-1/2 justify-center gap-3 overflow-x-auto bg-gradient-to-b from-black/80 to-transparent px-3 pb-2 pt-4 no-scrollbar [&>button]:shrink-0 [&>button]:whitespace-nowrap md:hidden">
-                  <button
-                    onClick={() => pickFeedTab("following")}
-                    className={tabClass("following")}
-                  >
-                    Following
-                  </button>
-                  <button onClick={() => pickFeedTab("foryou")} className={tabClass("foryou")}>
-                    For You
-                  </button>
-                  <button onClick={() => pickFeedTab("explore")} className={tabClass("explore")}>
-                    Explore
-                  </button>
-                  <button
-                    onClick={() => pickFeedTab("marketplace")}
-                    className={tabClass("marketplace")}
-                  >
-                    Marketplace
-                  </button>
-                  <button onClick={() => pickFeedTab("live")} className={tabClass("live")}>
-                    <span className="h-2 w-2 rounded-full bg-red-500" />
-                    LIVE
-                  </button>
-                  <button onClick={() => pickFeedTab("groups")} className={tabClass("groups")}>
-                    Groups
-                  </button>
-                  <button onClick={() => setTab("shop")} className={tabClass("shop")}>
-                    Shop
-                  </button>
-                  <button
-                    onClick={() => setTab("subscriptions")}
-                    className={tabClass("subscriptions")}
-                  >
-                    Subscriptions
-                  </button>
-                  <button onClick={() => setTab("mine")} className={tabClass("mine")}>
-                    Mine
-                  </button>
+                <div className="md:hidden">
+                  <TopTabs active={topTab} onPick={pickTopTab} />
                 </div>
               )}
               <div className="no-scrollbar min-h-0 flex-1 snap-y snap-mandatory overflow-y-scroll overscroll-contain scroll-smooth">

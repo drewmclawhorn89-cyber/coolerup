@@ -3,6 +3,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { ImagePlus, Lock, Plus, Search, Users, X } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
+import { TopTabs } from "@/components/TopTabs";
 import {
   createGroup,
   joinGroup,
@@ -15,15 +16,7 @@ import {
 
 export type FeedTab = "home" | "following" | "foryou" | "marketplace" | "groups" | "live";
 
-const TOP_TABS: { id: FeedTab; label: string; live?: boolean }[] = [
-  { id: "home", label: "Home" },
-  { id: "following", label: "Following" },
-  { id: "foryou", label: "For You" },
-  { id: "marketplace", label: "Marketplace" },
-  { id: "groups", label: "Groups" },
-  { id: "live", label: "LIVE", live: true },
-];
-
+/** Groups page top row — same shared, edge-to-edge TikTok-style tabs as the feed. */
 export function GroupsTopTabs({
   feedTab,
   onPick,
@@ -32,22 +25,10 @@ export function GroupsTopTabs({
   onPick: (tab: FeedTab) => void;
 }) {
   return (
-    <div className="fixed left-1/2 top-6 z-50 flex w-full max-w-[430px] -translate-x-1/2 justify-center gap-3 overflow-x-auto bg-gradient-to-b from-black/80 to-transparent px-3 pb-2 pt-4 no-scrollbar">
-      {TOP_TABS.map((t) => (
-        <button
-          key={t.id}
-          onClick={() => onPick(t.id)}
-          className={`flex shrink-0 items-center gap-1 whitespace-nowrap border-b-2 pb-1 text-[13px] ${
-            feedTab === t.id
-              ? "border-white font-bold text-white"
-              : "border-transparent text-white/60"
-          }`}
-        >
-          {t.live && <span className="h-2 w-2 rounded-full bg-red-500" />}
-          {t.label}
-        </button>
-      ))}
-    </div>
+    <TopTabs
+      active={feedTab === "home" ? "foryou" : feedTab}
+      onPick={(id) => onPick(id as FeedTab)}
+    />
   );
 }
 
@@ -206,7 +187,7 @@ export function GroupsPage({
     <div className="min-h-screen bg-black pb-24">
       <GroupsTopTabs feedTab={feedTab} onPick={pick} />
 
-      <div className="mx-auto max-w-[430px] p-2 pt-24">
+      <div className="mx-auto max-w-[430px] p-2 pt-[4.75rem]">
         <div className="mb-3 flex items-center justify-between">
           <h1 className="text-[20px] font-bold text-white">Groups</h1>
           <button

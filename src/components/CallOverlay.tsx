@@ -11,10 +11,22 @@ function formatDuration(ms: number) {
 }
 
 export function CallOverlay() {
-  const { call, muted, video, cameraOff, localStream, remoteStream, acceptCall, declineCall, endCall, toggleMute, toggleCamera } =
-    useCall();
+  const {
+    call,
+    muted,
+    video,
+    cameraOff,
+    localStream,
+    remoteStream,
+    acceptCall,
+    declineCall,
+    endCall,
+    toggleMute,
+    toggleCamera,
+  } = useCall();
   const localRef = useRef<HTMLVideoElement>(null);
   const remoteRef = useRef<HTMLVideoElement>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
 
   useEffect(() => {
     const el = localRef.current;
@@ -30,6 +42,15 @@ export function CallOverlay() {
       void el.play().catch(() => {});
     }
   }, [remoteStream, call.status, video]);
+  // Remote audio lives in a real, mounted element. A detached <audio> (the old
+  // approach) is silently ignored by iOS Safari, which made calls sound dead.
+  useEffect(() => {
+    const el = audioRef.current;
+    if (el) {
+      el.srcObject = remoteStream;
+      void el.play().catch(() => {});
+    }
+  }, [remoteStream, call.status]);
   const [, tick] = useState(0);
 
   // 1s tick for the call timer.
@@ -45,10 +66,23 @@ export function CallOverlay() {
 
   return (
     <div className="fixed inset-x-0 top-0 z-[100] flex h-[100dvh] flex-col items-center justify-center gap-6 bg-background/95 px-6 pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)] backdrop-blur">
+      <audio
+        ref={audioRef}
+        autoPlay
+        playsInline
+        className="pointer-events-none absolute h-px w-px opacity-0"
+        aria-hidden="true"
+      />
       {video && (
         <>
           {/* Remote video fills the screen; audio is played separately by the call provider. */}
-          <video ref={remoteRef} autoPlay playsInline muted className="absolute inset-0 h-full w-full bg-black object-cover" />
+          <video
+            ref={remoteRef}
+            autoPlay
+            playsInline
+            muted
+            className="absolute inset-0 h-full w-full bg-black object-cover"
+          />
           <video
             ref={localRef}
             autoPlay
@@ -58,7 +92,9 @@ export function CallOverlay() {
           />
         </>
       )}
-      <div className={`relative flex h-24 w-24 items-center justify-center rounded-full bg-primary font-display text-4xl uppercase text-primary-foreground ${video && call.status === "active" ? "hidden" : ""}`}>
+      <div
+        className={`relative flex h-24 w-24 items-center justify-center rounded-full bg-primary font-display text-4xl uppercase text-primary-foreground ${video && call.status === "active" ? "hidden" : ""}`}
+      >
         {initial}
       </div>
       <div className="relative text-center">
@@ -70,7 +106,9 @@ export function CallOverlay() {
         </p>
       </div>
 
-      <div className={`relative flex items-center gap-4 ${video && call.status === "active" ? "absolute bottom-[calc(env(safe-area-inset-bottom)+2rem)]" : ""}`}>
+      <div
+        className={`relative flex items-center gap-4 ${video && call.status === "active" ? "absolute bottom-[calc(env(safe-area-inset-bottom)+2rem)]" : ""}`}
+      >
         {call.status === "incoming" && (
           <>
             <Button

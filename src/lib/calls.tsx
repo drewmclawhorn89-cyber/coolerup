@@ -83,27 +83,83 @@ export function CallProvider({ children }: { children: ReactNode }) {
 
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
-  const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
   const pendingIceRef = useRef<RTCIceCandidateInit[]>([]);
   const ringTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const disconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const startingRef = useRef(false);
+  // ICE gathering starts as soon as the local description is set, which can be
+  // before the offer finishes sending. Hold candidates until the offer is out.
+  const offerGateRef = useRef<Promise<void> | null>(null);
+  const releaseOfferGateRef = useRef<(() => void) | null>(null);
+  // One persistent signalling channel per peer. See sendSignal() for why.
+  const signalBusRef = useRef(
+    new Map<string, { channel: ReturnType<typeof supabase.channel>; ready: Promise<void> }>(),
+  );
   // Ref mirror of call state so channel callbacks always see the latest.
   const callRef = useRef<CallState>(call);
   callRef.current = call;
+
+  /**
+   * Signals (offer / answer / ICE / end) travel over Supabase Realtime broadcast.
+   *
+   * The original implementation opened a brand-new channel for every single
+   * signal, sent, then immediately removed the channel. That tears the socket
+   * down before the queued broadcast flushes: in a burst of 8 signals only 1
+   * arrived, so the offer would land but the answer and every ICE candidate were
+   * dropped and the media path never formed.
+   *
+   * Instead we keep one channel per peer alive for the duration of the call and
+   * only send once the channel reports SUBSCRIBED.
+   */
+  const sendSignal = useCallback(async (peerId: string, signal: Signal) => {
+    const bus = signalBusRef.current;
+    let entry = bus.get(peerId);
+    if (!entry) {
+      const channel = supabase.channel(`loop-call-${peerId}`);
+      const ready = new Promise<void>((resolve) => {
+        channel.subscribe((status) => {
+          if (status === "SUBSCRIBED") resolve();
+          // A dead channel must never be reused, or every later send hangs.
+          if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+            if (bus.get(peerId)?.channel === channel) bus.delete(peerId);
+          }
+        });
+      });
+      entry = { channel, ready };
+      bus.set(peerId, entry);
+    }
+    try {
+      await entry.ready;
+      await entry.channel.send({ type: "broadcast", event: "call", payload: signal });
+    } catch {
+      // A dropped signal must not break the call flow.
+    }
+  }, []);
+
+  const teardownSignalBus = useCallback(() => {
+    const bus = signalBusRef.current;
+    for (const { channel } of bus.values()) void supabase.removeChannel(channel);
+    bus.clear();
+  }, []);
 
   const cleanup = useCallback(() => {
     if (ringTimerRef.current) {
       clearTimeout(ringTimerRef.current);
       ringTimerRef.current = null;
     }
+    if (disconnectTimerRef.current) {
+      clearTimeout(disconnectTimerRef.current);
+      disconnectTimerRef.current = null;
+    }
+    startingRef.current = false;
+    // Never leave ICE sends waiting on an offer that will not be sent.
+    releaseOfferGateRef.current?.();
+    releaseOfferGateRef.current = null;
+    offerGateRef.current = null;
     pcRef.current?.close();
     pcRef.current = null;
     localStreamRef.current?.getTracks().forEach((t) => t.stop());
     localStreamRef.current = null;
-    if (remoteAudioRef.current) {
-      remoteAudioRef.current.srcObject = null;
-      remoteAudioRef.current.remove();
-      remoteAudioRef.current = null;
-    }
     pendingIceRef.current = [];
     videoRef.current = false;
     setVideo(false);
@@ -112,7 +168,8 @@ export function CallProvider({ children }: { children: ReactNode }) {
     setRemoteStream(null);
     setMuted(false);
     setCall({ status: "idle" });
-  }, []);
+    teardownSignalBus();
+  }, [teardownSignalBus]);
 
   // Record call outcomes in the chat thread (caller side only, to avoid duplicates).
   const logCall = useCallback(
@@ -129,50 +186,53 @@ export function CallProvider({ children }: { children: ReactNode }) {
     [auth.user, auth.handle],
   );
 
-  const sendSignal = useCallback((peerId: string, signal: Signal) => {
-    const ch = supabase.channel(`loop-call-${peerId}`);
-    ch.subscribe((status) => {
-      if (status === "SUBSCRIBED") {
-        void ch.send({ type: "broadcast", event: "call", payload: signal }).then(() => {
-          void supabase.removeChannel(ch);
-        });
-      }
-    });
-  }, []);
-
   const createPeerConnection = useCallback(
     (peerId: string, peerUsername: string) => {
+      // Never leave a stale connection behind.
+      pcRef.current?.close();
       const pc = new RTCPeerConnection(RTC_CONFIG);
       pcRef.current = pc;
 
       pc.onicecandidate = (e) => {
-        if (e.candidate) {
-          sendSignal(peerId, { kind: "ice", from: auth.handle ?? "", candidate: e.candidate.toJSON() });
-        }
+        if (!e.candidate) return;
+        const candidate = e.candidate.toJSON();
+        void (async () => {
+          if (offerGateRef.current) await offerGateRef.current;
+          await sendSignal(peerId, { kind: "ice", from: auth.handle ?? "", candidate });
+        })();
       };
       const remote = new MediaStream();
       pc.ontrack = (e) => {
         if (!remote.getTracks().includes(e.track)) remote.addTrack(e.track);
-        if (!remoteAudioRef.current) {
-          const audio = document.createElement("audio");
-          audio.autoplay = true;
-          remoteAudioRef.current = audio;
-        }
-        remoteAudioRef.current.srcObject = remote;
-        void remoteAudioRef.current.play().catch(() => {});
         setRemoteStream(remote);
       };
       pc.onconnectionstatechange = () => {
-        if (pc.connectionState === "connected") {
+        const state = pc.connectionState;
+        if (state === "connected") {
+          if (disconnectTimerRef.current) {
+            clearTimeout(disconnectTimerRef.current);
+            disconnectTimerRef.current = null;
+          }
           setCall((c) =>
             c.status === "outgoing" || c.status === "incoming"
               ? { status: "active", peer: peerUsername, peerId, startedAt: Date.now() }
               : c,
           );
         }
-        if (pc.connectionState === "failed" || pc.connectionState === "disconnected") {
+        if (state === "failed") {
           toast.error("Call connection lost");
           cleanup();
+        }
+        if (state === "disconnected") {
+          // "disconnected" is usually a transient network blip that ICE recovers
+          // from. Only hang up if it doesn't come back.
+          if (disconnectTimerRef.current) clearTimeout(disconnectTimerRef.current);
+          disconnectTimerRef.current = setTimeout(() => {
+            if (pc.connectionState === "disconnected" || pc.connectionState === "failed") {
+              toast.error("Call connection lost");
+              cleanup();
+            }
+          }, 8000);
         }
       };
       return pc;
@@ -197,25 +257,40 @@ export function CallProvider({ children }: { children: ReactNode }) {
         void auth.signIn();
         return;
       }
-      if (callRef.current.status !== "idle") return;
+      if (callRef.current.status !== "idle" || startingRef.current) return;
+      startingRef.current = true;
       videoRef.current = withVideo;
       setVideo(withVideo);
+      // Paint the calling screen immediately — the mic/camera permission prompt
+      // can take seconds, and before this the user saw nothing at all.
+      setCall({ status: "outgoing", peer: peerUsername, peerId });
       try {
         const stream = await getMic();
         const pc = createPeerConnection(peerId, peerUsername);
         stream.getTracks().forEach((t) => pc.addTrack(t, stream));
         const offer = await pc.createOffer();
+        offerGateRef.current = new Promise<void>((resolve) => {
+          releaseOfferGateRef.current = resolve;
+        });
         await pc.setLocalDescription(offer);
-        setCall({ status: "outgoing", peer: peerUsername, peerId });
         // Wake the callee's installed app / background tab.
         void sendCallPush({ data: { peerId } }).catch(() => {});
-        sendSignal(peerId, { kind: "offer", from: auth.handle, fromId: auth.user.id, video: withVideo, sdp: offer });
+        await sendSignal(peerId, {
+          kind: "offer",
+          from: auth.handle,
+          fromId: auth.user.id,
+          video: withVideo,
+          sdp: offer,
+        });
+        // Offer is out — let the buffered ICE candidates through.
+        releaseOfferGateRef.current?.();
+        releaseOfferGateRef.current = null;
+        offerGateRef.current = null;
         ringTimerRef.current = setTimeout(() => {
           if (callRef.current.status === "outgoing") {
             toast.message(`@${peerUsername} didn't answer`);
             logCall(callRef.current, "📞 Missed call");
-            sendSignal(peerId, { kind: "end", from: auth.handle ?? "" });
-            cleanup();
+            void sendSignal(peerId, { kind: "end", from: auth.handle ?? "" }).finally(cleanup);
           }
         }, RING_TIMEOUT_MS);
       } catch {
@@ -231,7 +306,11 @@ export function CallProvider({ children }: { children: ReactNode }) {
     if (c.status !== "incoming" || !auth.handle) return;
     try {
       const stream = await getMic();
-      const pc = pcRef.current ?? createPeerConnection(c.peerId, c.peer);
+      const existing = pcRef.current;
+      const pc =
+        existing && existing.signalingState !== "closed"
+          ? existing
+          : createPeerConnection(c.peerId, c.peer);
       stream.getTracks().forEach((t) => pc.addTrack(t, stream));
       // The offer was applied when the call arrived; create the answer now.
       const answer = await pc.createAnswer();
@@ -240,19 +319,20 @@ export function CallProvider({ children }: { children: ReactNode }) {
         await pc.addIceCandidate(candidate).catch(() => {});
       }
       pendingIceRef.current = [];
-      sendSignal(c.peerId, { kind: "answer", from: auth.handle, sdp: answer });
+      await sendSignal(c.peerId, { kind: "answer", from: auth.handle, sdp: answer });
       setCall({ status: "active", peer: c.peer, peerId: c.peerId, startedAt: Date.now() });
     } catch {
       toast.error("Couldn't access your microphone or camera");
-      sendSignal(c.peerId, { kind: "decline", from: auth.handle });
-      cleanup();
+      void sendSignal(c.peerId, { kind: "decline", from: auth.handle }).finally(cleanup);
     }
   }, [auth.handle, createPeerConnection, sendSignal, cleanup]);
 
   const declineCall = useCallback(() => {
     const c = callRef.current;
     if (c.status === "incoming" && auth.handle) {
-      sendSignal(c.peerId, { kind: "decline", from: auth.handle });
+      // Wait for the decline to flush before closing the channel.
+      void sendSignal(c.peerId, { kind: "decline", from: auth.handle }).finally(cleanup);
+      return;
     }
     cleanup();
   }, [auth.handle, sendSignal, cleanup]);
@@ -260,9 +340,11 @@ export function CallProvider({ children }: { children: ReactNode }) {
   const endCall = useCallback(() => {
     const c = callRef.current;
     if ((c.status === "active" || c.status === "outgoing") && auth.handle) {
-      sendSignal(c.peerId, { kind: "end", from: auth.handle });
       if (c.status === "outgoing") logCall(c, "📞 Missed call");
       else logCall(c, `📞 Call ended · ${formatCallDuration(Date.now() - c.startedAt)}`);
+      // Let the hangup reach the other side before we close the channel.
+      void sendSignal(c.peerId, { kind: "end", from: auth.handle }).finally(cleanup);
+      return;
     }
     cleanup();
   }, [auth.handle, sendSignal, cleanup, logCall]);
@@ -296,22 +378,35 @@ export function CallProvider({ children }: { children: ReactNode }) {
         case "offer": {
           if (c.status !== "idle") {
             // Busy — tell the caller.
-            sendSignal(payload.fromId, { kind: "decline", from: myHandle });
+            void sendSignal(payload.fromId, { kind: "decline", from: myHandle });
             return;
           }
           videoRef.current = payload.video === true;
           setVideo(payload.video === true);
           const pc = createPeerConnection(payload.fromId, payload.from);
-          await pc.setRemoteDescription(payload.sdp).catch(() => {});
+          try {
+            await pc.setRemoteDescription(payload.sdp);
+          } catch {
+            toast.error("Couldn't receive that call");
+            void sendSignal(payload.fromId, { kind: "decline", from: myHandle });
+            cleanup();
+            return;
+          }
           setCall({ status: "incoming", peer: payload.from, peerId: payload.fromId });
           if (document.hidden) {
             navigator.vibrate?.([300, 150, 300, 150, 300]);
             if ("Notification" in window && Notification.permission === "granted") {
-              new Notification(`Incoming ${payload.video ? "video " : ""}call from @${payload.from}`, { tag: "loop-call", requireInteraction: true });
+              new Notification(
+                `Incoming ${payload.video ? "video " : ""}call from @${payload.from}`,
+                { tag: "loop-call", requireInteraction: true },
+              );
             }
           }
           ringTimerRef.current = setTimeout(() => {
-            if (callRef.current.status === "incoming") cleanup();
+            if (callRef.current.status === "incoming") {
+              // Tell the caller we never picked up instead of leaving them ringing.
+              void sendSignal(payload.fromId, { kind: "end", from: myHandle }).finally(cleanup);
+            }
           }, RING_TIMEOUT_MS);
           break;
         }
@@ -323,7 +418,10 @@ export function CallProvider({ children }: { children: ReactNode }) {
           }
           const pc = pcRef.current;
           if (pc) {
-            await pc.setRemoteDescription(payload.sdp).catch(() => {});
+            await pc.setRemoteDescription(payload.sdp).catch(() => {
+              toast.error("Couldn't connect that call");
+              cleanup();
+            });
             for (const candidate of pendingIceRef.current) {
               await pc.addIceCandidate(candidate).catch(() => {});
             }
@@ -397,7 +495,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
     const onUnload = () => {
       const c = callRef.current;
       if (c.status === "active" || c.status === "outgoing") {
-        sendSignal(c.peerId, { kind: "end", from: auth.handle ?? "" });
+        void sendSignal(c.peerId, { kind: "end", from: auth.handle ?? "" });
       }
     };
     window.addEventListener("beforeunload", onUnload);
@@ -405,7 +503,8 @@ export function CallProvider({ children }: { children: ReactNode }) {
   }, [auth.handle, sendSignal]);
 
   return (
-    <CallContext.Provider value={{
+    <CallContext.Provider
+      value={{
         call,
         muted,
         video,
@@ -418,7 +517,8 @@ export function CallProvider({ children }: { children: ReactNode }) {
         endCall,
         toggleMute,
         toggleCamera,
-      }}>
+      }}
+    >
       {children}
     </CallContext.Provider>
   );

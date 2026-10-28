@@ -26,6 +26,7 @@ const SubscriptionsPanel = lazy(() =>
   import("@/components/SubscriptionsPanel").then((m) => ({ default: m.SubscriptionsPanel })),
 );
 const Marketplace = lazy(() => import("@/components/Marketplace").then((m) => ({ default: m.Marketplace })));
+const GroupsPanel = lazy(() => import("@/components/GroupsPanel").then((m) => ({ default: m.GroupsPanel })));
 const LiveStreamDialog = lazy(() =>
   import("@/components/LiveStreamDialog").then((m) => ({ default: m.LiveStreamDialog })),
 );
@@ -55,6 +56,7 @@ export const Route = createFileRoute("/")({
 });
 
 type Tab = "foryou" | "explore" | "following" | "liked" | "saved" | "mine" | "inbox" | "shop" | "subscriptions";
+type FeedTab = "home" | "following" | "foryou" | "explore" | "marketplace" | "groups" | "live";
 type NotificationFilter = "all" | "unread";
 
 type NotificationRow = {
@@ -126,7 +128,24 @@ function Index() {
     }
     return "foryou";
   });
-  const [feedTab, setFeedTab] = useState<"foryou" | "following" | "explore" | "marketplace" | "live">("foryou");
+  const [feedTab, setFeedTab] = useState<FeedTab>(() => {
+    // Deep link support: /?feed=groups (and friends) lands on that top tab.
+    if (typeof window !== "undefined") {
+      const wanted = new URLSearchParams(window.location.search).get("feed");
+      if (
+        wanted === "home" ||
+        wanted === "following" ||
+        wanted === "foryou" ||
+        wanted === "explore" ||
+        wanted === "marketplace" ||
+        wanted === "groups" ||
+        wanted === "live"
+      ) {
+        return wanted;
+      }
+    }
+    return "foryou";
+  });
   const [followingList, setFollowingList] = useState<string[]>([]);
   const [repostedFeed, setRepostedFeed] = useState<Video[]>([]);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
@@ -398,11 +417,39 @@ function Index() {
   }, [videos, saved, query, activeTab, liked, me, followingList, feedTab, repostedFeed, notInterested, blocked]);
 
   const showTopTabs = !offlineMode && (activeTab === "foryou" || activeTab === "following" || activeTab === "explore" || activeTab === "mine");
-  const topTab = activeTab === "shop" || activeTab === "subscriptions" || activeTab === "mine" ? activeTab : activeTab === "following" || activeTab === "explore" ? activeTab : feedTab === "live" || feedTab === "marketplace" ? feedTab : "foryou";
-  const pickFeedTab = (t: "foryou" | "following" | "explore" | "marketplace" | "live") => {
+  const topTab =
+    activeTab === "shop" || activeTab === "subscriptions" || activeTab === "mine"
+      ? activeTab
+      : activeTab === "following" || activeTab === "explore"
+        ? activeTab
+        : feedTab;
+  const pickFeedTab = (t: FeedTab) => {
     setFeedTab(t);
     setTab(t === "following" || t === "explore" ? t : "foryou");
   };
+
+  // One shared top tab bar (Home | Following | For You | Marketplace | Groups | LIVE).
+  // Shop / Subscriptions / Mine stay on the end of the scrollable row so those
+  // screens are still reachable on phones.
+  const TopTabs = ({ className = "" }: { className?: string }) => (
+    <div className={className}>
+      <button onClick={() => pickFeedTab("home")} className={tabClass("home")}>Home</button>
+      <button onClick={() => pickFeedTab("following")} className={tabClass("following")}>Following</button>
+      <button onClick={() => pickFeedTab("foryou")} className={tabClass("foryou")}>For You</button>
+      <button onClick={() => pickFeedTab("marketplace")} className={tabClass("marketplace")}>Marketplace</button>
+      <button onClick={() => pickFeedTab("groups")} className={tabClass("groups")}>Groups</button>
+      <button onClick={() => pickFeedTab("live")} className={tabClass("live")}>
+        <span className="h-2 w-2 rounded-full bg-red-500" />
+        LIVE
+      </button>
+      <button onClick={() => pickFeedTab("explore")} className={tabClass("explore")}>Explore</button>
+      <button onClick={() => setTab("shop")} className={tabClass("shop")}>Shop</button>
+      <button onClick={() => setTab("subscriptions")} className={tabClass("subscriptions")}>Subscriptions</button>
+      <button onClick={() => setTab("mine")} className={tabClass("mine")}>Mine</button>
+    </div>
+  );
+  const topTabsClass =
+    "absolute inset-x-0 top-0 z-50 flex justify-center gap-3 overflow-x-auto bg-gradient-to-b from-black/80 to-transparent px-3 pb-2 pt-3 no-scrollbar [&>button]:shrink-0 [&>button]:whitespace-nowrap";
   const tabClass = (t: string) =>
     `flex items-center gap-1 border-b-2 pb-1 text-[15px] ${topTab === t ? "border-white font-bold text-white" : "border-transparent text-white/60"}`;
 
@@ -601,32 +648,14 @@ function Index() {
 
         {activeTab === "foryou" && feedTab === "marketplace" && !offlineMode ? (
           <div className="relative flex min-h-0 flex-1 flex-col">
-            <div className="absolute left-0 right-0 top-0 z-50 flex gap-5 overflow-x-auto bg-black px-4 pb-2 pt-3 no-scrollbar [&>button]:shrink-0 [&>button]:whitespace-nowrap">
-              <button onClick={() => pickFeedTab("following")} className={tabClass("following")}>Following</button>
-              <button onClick={() => pickFeedTab("foryou")} className={tabClass("foryou")}>For You</button>
-              <button onClick={() => pickFeedTab("explore")} className={tabClass("explore")}>Explore</button>
-              <button onClick={() => pickFeedTab("marketplace")} className={tabClass("marketplace")}>Marketplace</button>
-              <button onClick={() => pickFeedTab("live")} className={tabClass("live")}>LIVE</button>
-              <button onClick={() => setTab("shop")} className={tabClass("shop")}>Shop</button>
-              <button onClick={() => setTab("subscriptions")} className={tabClass("subscriptions")}>Subscriptions</button>
-              <button onClick={() => setTab("mine")} className={tabClass("mine")}>Mine</button>
-            </div>
+            <TopTabs className={topTabsClass} />
             <Suspense fallback={null}>
               <Marketplace />
             </Suspense>
           </div>
         ) : activeTab === "shop" || activeTab === "subscriptions" ? (
           <div className="flex min-h-0 flex-1 flex-col">
-            <div className="flex shrink-0 gap-4 bg-black no-scrollbar overflow-x-auto px-4 [&>button]:shrink-0 [&>button]:whitespace-nowrap [&>button:first-child]:ml-auto [&>button:last-child]:mr-auto pb-2 pt-3 md:hidden">
-              <button onClick={() => pickFeedTab("following")} className={tabClass("following")}>Following</button>
-              <button onClick={() => pickFeedTab("foryou")} className={tabClass("foryou")}>For You</button>
-              <button onClick={() => pickFeedTab("explore")} className={tabClass("explore")}>Explore</button>
-              <button onClick={() => pickFeedTab("marketplace")} className={tabClass("marketplace")}>Marketplace</button>
-              <button onClick={() => pickFeedTab("live")} className={tabClass("live")}>LIVE</button>
-              <button onClick={() => setTab("shop")} className={tabClass("shop")}>Shop</button>
-              <button onClick={() => setTab("subscriptions")} className={tabClass("subscriptions")}>Subscriptions</button>
-              <button onClick={() => setTab("mine")} className={tabClass("mine")}>Mine</button>
-            </div>
+            <TopTabs className="flex shrink-0 justify-center gap-3 overflow-x-auto bg-black px-3 pb-2 pt-3 no-scrollbar [&>button]:shrink-0 [&>button]:whitespace-nowrap md:hidden" />
             <div className="min-h-0 flex-1 overflow-y-auto">
             {activeTab === "subscriptions" ? (
               <Suspense fallback={null}>
@@ -637,6 +666,15 @@ function Index() {
                 <ShopPanel handle={me} posts={myPostCount} />
               </Suspense>
             )}
+            </div>
+          </div>
+        ) : activeTab === "foryou" && feedTab === "groups" && !offlineMode ? (
+          <div className="relative flex min-h-0 flex-1 flex-col bg-black">
+            <TopTabs className={topTabsClass} />
+            <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto pt-14">
+              <Suspense fallback={null}>
+                <GroupsPanel />
+              </Suspense>
             </div>
           </div>
         ) : activeTab === "inbox" ? (
@@ -702,19 +740,7 @@ function Index() {
 
             <div className="relative flex min-h-0 flex-1 flex-col">
             {showTopTabs && (
-              <div className="absolute inset-x-0 top-0 z-50 flex gap-4 bg-gradient no-scrollbar overflow-x-auto px-4 [&>button]:shrink-0 [&>button]:whitespace-nowrap [&>button:first-child]:ml-auto [&>button:last-child]:mr-auto-to-b from-black/60 to-transparent pb-2 pt-3 md:hidden">
-                <button onClick={() => pickFeedTab("following")} className={tabClass("following")}>Following</button>
-                <button onClick={() => pickFeedTab("foryou")} className={tabClass("foryou")}>For You</button>
-                <button onClick={() => pickFeedTab("explore")} className={tabClass("explore")}>Explore</button>
-                <button onClick={() => pickFeedTab("marketplace")} className={tabClass("marketplace")}>Marketplace</button>
-                <button onClick={() => pickFeedTab("live")} className={tabClass("live")}>
-                  <span className="h-2 w-2 rounded-full bg-red-500" />
-                  LIVE
-                </button>
-              <button onClick={() => setTab("shop")} className={tabClass("shop")}>Shop</button>
-                <button onClick={() => setTab("subscriptions")} className={tabClass("subscriptions")}>Subscriptions</button>
-                <button onClick={() => setTab("mine")} className={tabClass("mine")}>Mine</button>
-              </div>
+              <TopTabs className={`${topTabsClass} md:hidden`} />
             )}
             <div className="no-scrollbar min-h-0 flex-1 snap-y snap-mandatory overflow-y-scroll overscroll-contain scroll-smooth">
               {error && !offlineMode && !(videos && videos.length > 0) && (
@@ -759,7 +785,10 @@ function Index() {
             <Button
               key={id}
               variant="ghost"
-              onClick={() => setTab(id)}
+              onClick={() => {
+                setTab(id);
+                if (id === "foryou") setFeedTab("foryou");
+              }}
               aria-current={activeTab === id ? "page" : undefined}
               className={`h-14 min-w-0 flex-col gap-1 rounded-none px-0 text-[9px] ${
                 activeTab === id ? "text-primary" : "text-muted-foreground"

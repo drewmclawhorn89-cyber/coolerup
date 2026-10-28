@@ -350,13 +350,11 @@ function VideoCardImpl({
     setIsFollowing(next);
     onFollowChange?.(video.username, next);
     const { error } = next
-      ? await supabase
-          .from("follows")
-          .insert({
-            follower_id: auth.user.id,
-            follower_username: myUsername,
-            following_username: video.username,
-          })
+      ? await supabase.from("follows").insert({
+          follower_id: auth.user.id,
+          follower_username: myUsername,
+          following_username: video.username,
+        })
       : await supabase
           .from("follows")
           .delete()
@@ -786,73 +784,89 @@ function VideoCardImpl({
             <p className="text-sm text-muted-foreground">{captionText}</p>
           </div>
         </div>
-        <div className="absolute bottom-20 right-2 z-20 flex flex-col items-center gap-4 md:static md:mb-16 md:gap-5">
-          <Link
-            to="/u/$username"
-            params={{ username: video.username }}
-            aria-label={`View @${video.username}'s profile`}
-            className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-primary font-display text-lg uppercase text-primary-foreground md:h-12 md:w-12"
-          >
-            {authorAvatar ? (
-              <img
-                src={authorAvatar}
-                alt={`@${video.username}`}
-                className="h-full w-full object-cover"
-                loading="lazy"
-                decoding="async"
-              />
-            ) : (
-              video.username[0]
+        <div className="absolute bottom-28 right-2 z-20 flex flex-col items-center gap-6 md:static md:mb-16 md:gap-5">
+          {/* Avatar + follow badge — TikTok pins the + onto the avatar's chin. */}
+          <div className="flex flex-col items-center">
+            <Link
+              to="/u/$username"
+              params={{ username: video.username }}
+              aria-label={`View @${video.username}'s profile`}
+              className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full border-2 border-white bg-primary font-display text-lg uppercase text-primary-foreground"
+            >
+              {authorAvatar ? (
+                <img
+                  src={authorAvatar}
+                  alt={`@${video.username}`}
+                  className="h-full w-full object-cover"
+                  loading="lazy"
+                  decoding="async"
+                />
+              ) : (
+                video.username[0]
+              )}
+            </Link>
+            {video.username !== myUsername && (
+              <button
+                type="button"
+                onClick={toggleFollow}
+                aria-label={isFollowing ? "Unfollow" : "Follow"}
+                aria-pressed={isFollowing}
+                className={`-mt-3 flex h-6 w-6 items-center justify-center rounded-full text-[14px] font-bold leading-none transition ${
+                  isFollowing ? "bg-white text-black" : "bg-[#fe2c55] text-white"
+                }`}
+              >
+                {isFollowing ? "✓" : "+"}
+              </button>
             )}
-          </Link>
-          {video.username !== myUsername && (
-            <button
-              onClick={toggleFollow}
-              className={`-mt-3 rounded-full px-3 py-1 text-xs font-bold transition ${isFollowing ? "bg-secondary text-foreground" : "bg-primary text-primary-foreground"}`}
-            >
-              {isFollowing ? "Following" : "Follow"}
-            </button>
-          )}
+          </div>
 
-          <Action label={formatCount(likes)} onClick={toggleLike} active={liked}>
-            <Heart
-              className={`h-8 w-8 ${liked ? "fill-primary text-white" : ""} ${liked && burst ? "heart-pop-btn" : ""}`}
-            />
-          </Action>
-          <Action label={formatCount(comments)} onClick={() => setShowComments(true)}>
-            <MessageCircle className="h-8 w-8" />
-          </Action>
-          <button
-            type="button"
-            onClick={() => void toggleRepost()}
-            aria-label={reposted ? "Undo repost" : "Repost"}
-            aria-pressed={reposted}
-            className="flex flex-col items-center gap-1"
+          {/* LIKE */}
+          <RailButton
+            label={formatCount(likes)}
+            onClick={toggleLike}
+            pressed={liked}
+            activeClass="text-[#fe2c55]"
           >
-            <span className="flex h-11 w-11 items-center justify-center md:h-12 md:w-12">
-              <Repeat2
-                className={`h-8 w-8 transition ${reposted ? "fill-yellow-400 text-yellow-400" : "text-white"}`}
-              />
-            </span>
-            <span
-              className={`text-[12px] font-bold ${reposted ? "text-yellow-400" : "text-white"}`}
-            >
-              {formatCount(repostCount)}
-            </span>
-          </button>
-          <Action label={formatCount(shares)} onClick={() => setShowShare(true)}>
-            <Share2 className="h-8 w-8" />
-          </Action>
-          <button
-            type="button"
+            <Heart
+              className={`h-8 w-8 drop-shadow-lg ${
+                liked ? "fill-[#fe2c55] text-[#fe2c55]" : "text-white"
+              } ${liked && burst ? "heart-pop-btn" : ""}`}
+            />
+          </RailButton>
+
+          {/* COMMENT */}
+          <RailButton label={formatCount(comments)} onClick={() => setShowComments(true)}>
+            <MessageCircle className="h-8 w-8 fill-white text-white drop-shadow-lg" />
+          </RailButton>
+
+          {/* REPOST */}
+          <RailButton
+            label={formatCount(repostCount)}
+            onClick={() => void toggleRepost()}
+            pressed={reposted}
+            activeClass="text-yellow-400"
+          >
+            <Repeat2
+              className={`h-8 w-8 drop-shadow-lg ${reposted ? "text-yellow-400" : "text-white"}`}
+            />
+          </RailButton>
+
+          {/* BOOKMARK */}
+          <RailButton
+            label={isSaved ? "Saved" : ""}
             onClick={(e) => void toggleSave(e)}
-            className="flex flex-col items-center"
+            pressed={isSaved}
+            activeClass="text-white"
           >
             <Bookmark
-              className={`h-8 w-8 text-white ${isSaved ? "fill-yellow-400 text-yellow-400" : ""}`}
+              className={`h-8 w-8 drop-shadow-lg ${isSaved ? "fill-white text-white" : "text-white"}`}
             />
-            <span className="mt-1 text-[11px] text-white">Save</span>
-          </button>
+          </RailButton>
+
+          {/* SHARE */}
+          <RailButton label="Share" onClick={() => setShowShare(true)}>
+            <Share2 className="h-8 w-8 text-white drop-shadow-lg" />
+          </RailButton>
         </div>
       </div>
       {showComments && (
@@ -961,30 +975,36 @@ function VideoCardImpl({
  */
 export const VideoCard = memo(VideoCardImpl);
 
-function Action({
+function RailButton({
   children,
   label,
   onClick,
-  active,
+  pressed,
+  activeClass = "text-white",
 }: {
   children: React.ReactNode;
   label: string;
-  onClick: () => void;
-  active?: boolean;
+  onClick: (e: MouseEvent<HTMLButtonElement>) => void;
+  pressed?: boolean;
+  activeClass?: string;
 }) {
   return (
-    <Button
-      variant="ghost"
+    <button
+      type="button"
       onClick={onClick}
-      aria-label={typeof children === "object" && children ? undefined : label}
-      className="h-auto flex-col gap-1 p-0 text-xs font-semibold hover:bg-transparent [&_svg]:size-6"
+      aria-pressed={pressed}
+      className="flex flex-col items-center bg-transparent p-0 focus-visible:outline-none"
     >
+      <span className="flex items-center justify-center">{children}</span>
+      {/* Fixed height so an empty label (unsaved bookmark) keeps the same
+          rhythm as the others — TikTok spaces all six icons evenly. */}
       <span
-        className={`flex h-11 w-11 items-center justify-center rounded-full bg-overlay backdrop-blur-sm transition hover:bg-accent md:h-12 md:w-12 md:bg-secondary ${active ? "scale-110" : ""}`}
+        className={`mt-1 block h-[15px] text-[12px] font-bold leading-[15px] drop-shadow ${
+          pressed ? activeClass : "text-white"
+        }`}
       >
-        {children}
+        {label}
       </span>
-      {label}
-    </Button>
+    </button>
   );
 }

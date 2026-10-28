@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Fragment, Suspense, lazy, useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Bell,
   Download,
@@ -178,6 +178,7 @@ function Index() {
   const [followingList, setFollowingList] = useState<string[]>([]);
   const [repostedFeed, setRepostedFeed] = useState<Video[]>([]);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
+  const feedScroller = useRef<HTMLDivElement>(null);
 
   // Moderation: videos the user tapped "Not interested" on, plus blocked authors.
   const { blocked } = useBlocked();
@@ -331,10 +332,14 @@ function Index() {
     if (cached) setVideos((cur) => cur ?? cached);
     load(0, false);
 
-    setTimeout(() => {
-      const el = document.querySelector(".no-scrollbar") as HTMLElement | null;
-      if (el) el.scrollTop = 0;
-    }, 300);
+    // Always start at the top card. A single reset after mount is not enough:
+    // cards arrive asynchronously, so reset again once the first batch lands.
+    const resetTop = () => {
+      if (feedScroller.current) feedScroller.current.scrollTop = 0;
+    };
+    resetTop();
+    const t1 = setTimeout(resetTop, 300);
+    const t2 = setTimeout(resetTop, 900);
 
     fetchMyLikes()
       .then(setLiked)
@@ -353,6 +358,8 @@ function Index() {
     window.addEventListener("online", update);
     window.addEventListener("offline", update);
     return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
       off();
       window.removeEventListener("online", update);
       window.removeEventListener("offline", update);
@@ -634,7 +641,9 @@ function Index() {
       </aside>
 
       <main className="mx-auto flex h-[100dvh] w-full min-w-0 max-w-[430px] flex-1 flex-col bg-black md:h-auto md:max-w-none md:bg-transparent">
-        <div className="mobile-topbar grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b bg-sidebar px-4 md:hidden">
+        <div
+          className={`mobile-topbar grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b bg-sidebar px-4 md:hidden ${showTopTabs ? "hidden" : ""}`}
+        >
           <h1 className="min-w-0 font-display text-2xl">
             coolerup<span className="text-primary">.</span>
           </h1>
@@ -685,6 +694,17 @@ function Index() {
                 <X />
               </Button>
             )}
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Close search"
+              onClick={() => {
+                setSearchOpen(false);
+                setQuery("");
+              }}
+            >
+              <X />
+            </Button>
           </label>
         )}
 
@@ -695,7 +715,9 @@ function Index() {
         )}
 
         {!offlineMode && lite && (
-          <div className="flex shrink-0 items-center gap-2 bg-secondary px-4 py-1.5 text-xs font-bold text-muted-foreground md:px-10">
+          <div
+            className={`shrink-0 items-center gap-2 bg-secondary px-4 py-1.5 text-xs font-bold text-muted-foreground md:px-10 ${showTopTabs ? "hidden" : "flex"}`}
+          >
             <Wifi className="h-3.5 w-3.5" /> Lite mode — saving data on a slow connection
           </div>
         )}
@@ -737,18 +759,18 @@ function Index() {
         )}
 
         {activeTab === "foryou" && feedTab === "groups" && !offlineMode ? (
-          <div className="min-h-0 flex-1 overflow-y-auto bg-black no-scrollbar">
+          <div className="min-h-0 flex-1 overflow-y-auto bg-black pb-[70px] no-scrollbar">
             <GroupsPage feedTab={feedTab} onPick={pickFeedTab} />
           </div>
         ) : activeTab === "foryou" && feedTab === "marketplace" && !offlineMode ? (
-          <div className="relative flex min-h-0 flex-1 flex-col">
+          <div className="relative flex min-h-0 flex-1 flex-col pb-[70px]">
             <TopTabs active={topTab} onPick={pickTopTab} variant="inline" />
             <Suspense fallback={null}>
               <Marketplace />
             </Suspense>
           </div>
         ) : activeTab === "shop" || activeTab === "subscriptions" ? (
-          <div className="flex min-h-0 flex-1 flex-col">
+          <div className="flex min-h-0 flex-1 flex-col pb-[70px]">
             <div className="md:hidden">
               <TopTabs active={topTab} onPick={pickTopTab} variant="inline" />
             </div>
@@ -765,7 +787,7 @@ function Index() {
             </div>
           </div>
         ) : activeTab === "inbox" ? (
-          <div className="p-6">
+          <div className="p-6 pb-[90px]">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <h2 className="text-2xl font-display font-bold">Inbox</h2>
@@ -832,13 +854,24 @@ function Index() {
               <p className="hidden text-sm text-muted-foreground md:block">{sub}</p>
             </header>
 
-            <div className="relative flex min-h-0 flex-1 flex-col">
+            <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
               {showTopTabs && (
                 <div className="md:hidden">
                   <TopTabs active={topTab} onPick={pickTopTab} />
+                  <button
+                    type="button"
+                    aria-label="Search videos"
+                    onClick={() => setSearchOpen(true)}
+                    className="tiktok-icon-shadow absolute right-2 top-14 z-40 flex h-9 w-9 items-center justify-center rounded-full text-white/90"
+                  >
+                    <Search className="h-6 w-6" />
+                  </button>
                 </div>
               )}
-              <div className="no-scrollbar min-h-0 flex-1 snap-y snap-mandatory overflow-y-scroll overscroll-contain scroll-smooth">
+              <div
+                ref={feedScroller}
+                className="feed-scroller no-scrollbar h-full min-h-0 flex-1 snap-y snap-mandatory overflow-y-scroll overscroll-contain"
+              >
                 {error && !offlineMode && !(videos && videos.length > 0) && (
                   <Empty text="Couldn't load videos. Refresh to try again." />
                 )}
@@ -878,68 +911,105 @@ function Index() {
           </>
         )}
 
+        {/* TikTok bottom bar: 5 slots, flat black, white create button in the middle. */}
         <nav
           aria-label="Phone navigation"
-          className="mobile-top-nav grid shrink-0 grid-cols-5 place-items-center w-full gap-0 border-0 bg-black px-0 rounded-none md:hidden"
+          className="fixed bottom-0 left-1/2 z-50 flex h-[70px] w-full max-w-[430px] -translate-x-1/2 items-center justify-around border-t border-[#222] bg-black md:hidden"
         >
-          {NAV.filter((n) => n.id === "foryou" || n.id === "following").map(
-            ({ id, label, icon: Icon }) => (
-              <Button
-                key={id}
-                variant="ghost"
-                onClick={() => setTab(id)}
-                aria-current={activeTab === id ? "page" : undefined}
-                className={`h-14 min-w-0 flex-col gap-1 rounded-none px-0 text-[9px] ${
-                  activeTab === id ? "text-primary" : "text-muted-foreground"
-                }`}
-              >
-                <Icon className="h-5 w-5" />
-                {label}
-              </Button>
-            ),
-          )}
-          <Button
+          <button
+            type="button"
+            onClick={() => setTab("foryou")}
+            aria-current={activeTab === "foryou" ? "page" : undefined}
+            className="flex w-14 flex-col items-center justify-center"
+          >
+            <Home
+              className={`h-6 w-6 ${
+                activeTab === "foryou" ? "fill-white text-white" : "text-white/70"
+              }`}
+            />
+            <span
+              className={`mt-1 text-[10px] ${
+                activeTab === "foryou" ? "font-bold text-white" : "text-white/70"
+              }`}
+            >
+              Home
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setTab("explore")}
+            aria-current={activeTab === "explore" ? "page" : undefined}
+            className="flex w-14 flex-col items-center justify-center"
+          >
+            <Search
+              className={`h-6 w-6 ${activeTab === "explore" ? "text-white" : "text-white/70"}`}
+            />
+            <span
+              className={`mt-1 text-[10px] ${
+                activeTab === "explore" ? "font-bold text-white" : "text-white/70"
+              }`}
+            >
+              Explore
+            </span>
+          </button>
+
+          <button
+            type="button"
             aria-label="Create video or go live"
             onClick={() => (auth.user ? setCreateMenuOpen(true) : auth.signIn())}
-            className="m-auto h-9 w-10 rounded-lg px-0 [&_svg]:size-6"
+            className="flex w-14 items-center justify-center"
           >
-            <Plus />
-          </Button>
-          {NAV.filter((n) => n.id === "inbox").map(({ id, label, icon: Icon }) => (
-            <Fragment key={id}>
-              <Button
-                variant="ghost"
-                onClick={() => setTab(id)}
-                aria-current={activeTab === id ? "page" : undefined}
-                className={`h-14 min-w-0 flex-col gap-1 rounded-none px-0 text-[9px] ${
-                  activeTab === id ? "text-primary" : "text-muted-foreground"
-                }`}
-              >
-                <Icon className="h-5 w-5" />
-                {label}
-              </Button>
-            </Fragment>
-          ))}
+            <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-white">
+              <Plus className="h-6 w-6 text-black" />
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setTab("inbox")}
+            aria-current={activeTab === "inbox" ? "page" : undefined}
+            className="relative flex w-14 flex-col items-center justify-center"
+          >
+            <Bell
+              className={`h-6 w-6 ${
+                activeTab === "inbox" ? "fill-white text-white" : "text-white/70"
+              }`}
+            />
+            <span
+              className={`mt-1 text-[10px] ${
+                activeTab === "inbox" ? "font-bold text-white" : "text-white/70"
+              }`}
+            >
+              Inbox
+            </span>
+            {unreadCount > 0 && (
+              <span className="absolute right-2 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#fe2c55] px-1 text-[9px] font-bold text-white">
+                {unreadCount > 99 ? "99+" : unreadCount}
+              </span>
+            )}
+          </button>
+
           {auth.user && auth.handle ? (
             <Link
               to="/u/$username"
               params={{ username: auth.handle }}
               aria-label="Profile"
-              className="flex h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-none px-0 text-[9px] text-muted-foreground [&_svg]:size-5"
+              className="flex w-14 flex-col items-center justify-center"
             >
-              <User />
-              Profile
+              <User className="h-6 w-6 text-white/70" />
+              <span className="mt-1 text-[10px] text-white/70">Profile</span>
             </Link>
           ) : (
-            <Button
-              variant="ghost"
+            <button
+              type="button"
               aria-label="Profile"
               onClick={() => auth.signIn()}
-              className="h-14 min-w-0 flex-col gap-1 rounded-none px-0 text-[9px] text-muted-foreground [&_svg]:size-5"
+              className="flex w-14 flex-col items-center justify-center"
             >
-              <User />
-              Profile
-            </Button>
+              <User className="h-6 w-6 text-white/70" />
+              <span className="mt-1 text-[10px] text-white/70">Profile</span>
+            </button>
           )}
         </nav>
       </main>

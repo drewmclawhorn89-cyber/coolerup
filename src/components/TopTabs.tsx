@@ -1,4 +1,5 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { ChevronDown } from "lucide-react";
 
 export type TopTabId =
   | "following"
@@ -13,29 +14,32 @@ export type TopTabId =
 
 export type TopTab = { id: TopTabId; label: string; live?: boolean };
 
-/** Single source of truth for the top tab row, in display order. */
-export const TOP_TABS: TopTab[] = [
+/**
+ * The three tabs TikTok shows in the centred header row.
+ * Following is left, For You is centre (default), LIVE is right.
+ */
+export const PRIMARY_TABS: TopTab[] = [
   { id: "following", label: "Following" },
   { id: "foryou", label: "For You" },
+  { id: "live", label: "LIVE", live: true },
+];
+
+/**
+ * Everything else the app can show. Kept behind the chevron so the header row
+ * stays exactly three tabs wide and perfectly centred, like TikTok.
+ */
+export const MORE_TABS: TopTab[] = [
   { id: "explore", label: "Explore" },
   { id: "marketplace", label: "Marketplace" },
-  { id: "live", label: "LIVE", live: true },
   { id: "groups", label: "Groups" },
   { id: "shop", label: "Shop" },
   { id: "subscriptions", label: "Subscriptions" },
   { id: "mine", label: "Mine" },
 ];
 
-/**
- * TikTok-style top tab row.
- *
- * - Edge-to-edge: the row starts flush against the left screen edge (just the
- *   standard 16px gutter) and scrolls off the right edge, instead of being
- *   centred inside the column.
- * - Horizontally scrollable with hidden scrollbars and snap points.
- * - The active tab is auto-centred whenever it changes.
- * - Active tab is bold white with a short underline; the rest are dim.
- */
+/** Full list in display order (kept for callers that need every tab). */
+export const TOP_TABS: TopTab[] = [...PRIMARY_TABS, ...MORE_TABS];
+
 export function TopTabs({
   active,
   onPick,
@@ -43,31 +47,33 @@ export function TopTabs({
 }: {
   active: TopTabId;
   onPick: (id: TopTabId) => void;
-  /** "fixed" pins to the top of the viewport, "inline" sits in normal flow. */
   variant?: "fixed" | "inline";
 }) {
-  const scroller = useRef<HTMLDivElement>(null);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreRef = useRef<HTMLDivElement>(null);
 
-  // Keep the selected tab centred when the feed switches.
+  // Close the overflow menu on outside click or Escape.
   useEffect(() => {
-    const box = scroller.current;
-    const el = box?.querySelector<HTMLElement>('[data-active="true"]');
-    if (!box || !el) return;
-    const boxRect = box.getBoundingClientRect();
-    const elRect = el.getBoundingClientRect();
-    // Already fully visible — leave the row where the user put it.
-    if (elRect.left >= boxRect.left && elRect.right <= boxRect.right) return;
-    const delta = elRect.left - boxRect.left;
-    const target = box.scrollLeft + delta - (box.clientWidth - elRect.width) / 2;
-    box.scrollTo({ left: Math.max(0, target), behavior: "smooth" });
-  }, [active]);
+    if (!moreOpen) return;
+    const onDown = (e: globalThis.MouseEvent) => {
+      if (moreRef.current && !moreRef.current.contains(e.target as Node)) setMoreOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMoreOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [moreOpen]);
+
+  const activeIsMore = MORE_TABS.some((t) => t.id === active);
 
   const row = (
-    <div
-      ref={scroller}
-      className="no-scrollbar flex w-full items-end gap-5 overflow-x-auto overscroll-x-contain bg-gradient-to-b from-black/90 via-black/55 to-transparent px-4 pb-2 pt-3"
-    >
-      {TOP_TABS.map((t) => {
+    <div className="relative grid w-full grid-cols-3 items-end bg-gradient-to-b from-black/60 to-transparent px-4 pb-2 pt-3">
+      {PRIMARY_TABS.map((t) => {
         const isActive = active === t.id;
         return (
           <button
@@ -76,30 +82,62 @@ export function TopTabs({
             data-active={isActive}
             aria-current={isActive ? "page" : undefined}
             onClick={() => onPick(t.id)}
-            className={`relative flex shrink-0 items-center gap-1 whitespace-nowrap pb-1.5 text-[15px] leading-none transition-colors ${
-              isActive ? "font-bold text-white" : "font-medium text-white/60"
+            className={`flex items-center justify-self-center gap-1 whitespace-nowrap border-b-2 pb-1 text-[16px] leading-none transition-colors ${
+              isActive
+                ? "border-white font-bold text-white"
+                : "border-transparent font-medium text-white/60"
             }`}
           >
             {t.live && <span className="h-2 w-2 shrink-0 rounded-full bg-red-500" />}
             {t.label}
-            <span
-              aria-hidden="true"
-              className={`absolute inset-x-0 bottom-0 h-[2px] rounded-full bg-white transition-opacity duration-200 ${
-                isActive ? "opacity-100" : "opacity-0"
-              }`}
-            />
           </button>
         );
       })}
+
+      {/* Overflow: keeps Groups / Marketplace / Shop reachable without widening the row. */}
+      <div ref={moreRef} className="absolute right-1 top-1.5">
+        <button
+          type="button"
+          aria-label="More tabs"
+          aria-expanded={moreOpen}
+          onClick={() => setMoreOpen((v) => !v)}
+          className={`flex h-7 w-7 items-center justify-center rounded-full transition ${
+            activeIsMore ? "text-white" : "text-white/60"
+          } hover:text-white`}
+        >
+          <ChevronDown className="h-5 w-5" />
+        </button>
+        {moreOpen && (
+          <div
+            role="menu"
+            className="absolute right-0 top-8 z-50 w-44 overflow-hidden rounded-xl border border-[#222] bg-black/95 py-1 text-white shadow-xl backdrop-blur"
+          >
+            {MORE_TABS.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setMoreOpen(false);
+                  onPick(t.id);
+                }}
+                className={`flex w-full items-center px-3 py-2 text-left text-[14px] transition hover:bg-white/10 ${
+                  active === t.id ? "font-bold text-white" : "font-medium text-white/70"
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 
   if (variant === "inline") return <div className="w-full bg-black">{row}</div>;
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 top-0 z-50 flex justify-center">
-      <div className="pointer-events-auto w-full max-w-[430px]">{row}</div>
-    </div>
+    <div className="fixed left-1/2 top-0 z-50 w-full max-w-[430px] -translate-x-1/2">{row}</div>
   );
 }
 

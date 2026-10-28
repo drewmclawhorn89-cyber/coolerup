@@ -37,7 +37,11 @@ export function parseCaption(raw: string): { text: string; song: Song | null; fu
   const caption = full ? raw.replace(FULL_TAG, "") : raw;
   const m = caption.match(SONG_TAG);
   if (!m) return { text: caption, song: null, full };
-  return { text: caption.replace(SONG_TAG, ""), song: { id: m[1] ?? "", title: m[2] ?? "", artist: m[3] ?? "" }, full };
+  return {
+    text: caption.replace(SONG_TAG, ""),
+    song: { id: m[1] ?? "", title: m[2] ?? "", artist: m[3] ?? "" },
+    full,
+  };
 }
 
 const STORAGE_PREFIX = "storage:";
@@ -71,7 +75,9 @@ export async function fetchVideos(page = 0, pageSize = 20) {
   // Select only the columns the feed renders (smaller payload, faster parse).
   const { data, error } = await supabase
     .from("videos")
-    .select("id, username, caption, video_url, likes_count, comments_count, shares_count, reposts_count, created_at")
+    .select(
+      "id, username, caption, video_url, likes_count, comments_count, shares_count, reposts_count, created_at",
+    )
     .order("created_at", { ascending: false })
     .range(from, to);
 
@@ -89,13 +95,21 @@ export async function fetchVideos(page = 0, pageSize = 20) {
 }
 
 export async function fetchMyLikes() {
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) return new Set<string>();
   const { data } = await supabase.from("likes").select("video_id").eq("user_id", user.id);
   return new Set((data ?? []).map((l) => l.video_id));
 }
 
-export async function uploadVideo(file: File, username: string, caption: string, song?: Song | null, full = false) {
+export async function uploadVideo(
+  file: File,
+  username: string,
+  caption: string,
+  song?: Song | null,
+  full = false,
+) {
   const ext = file.name.split(".").pop() || "mp4";
   const path = `${crypto.randomUUID()}.${ext}`;
   const { error: upErr } = await supabase.storage
@@ -104,7 +118,13 @@ export async function uploadVideo(file: File, username: string, caption: string,
   if (upErr) throw upErr;
   const { error } = await supabase
     .from("videos")
-    .insert({ username, caption: withSong(caption, file.type.startsWith("image/") ? song : null) + (full && file.type.startsWith("video/") ? "[[full]]" : ""), video_url: STORAGE_PREFIX + path });
+    .insert({
+      username,
+      caption:
+        withSong(caption, file.type.startsWith("image/") ? song : null) +
+        (full && file.type.startsWith("video/") ? "[[full]]" : ""),
+      video_url: STORAGE_PREFIX + path,
+    });
   if (error) throw error;
 }
 
@@ -129,7 +149,9 @@ export function formatCount(n: number) {
 }
 
 export async function setVideoSaved(videoId: string, on: boolean) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) return;
   if (on) await supabase.from("saved_videos").insert({ user_id: user.id, video_id: videoId });
   else await supabase.from("saved_videos").delete().eq("user_id", user.id).eq("video_id", videoId);
@@ -142,6 +164,18 @@ export async function fetchSavedVideos(userId: string) {
     .eq("user_id", userId)
     .order("created_at", { ascending: false });
   return ((data ?? []) as any[]).map((r) => r.videos).filter(Boolean);
+}
+
+/** Videos a user has liked, newest like first (for the profile Liked tab). */
+export async function fetchLikedVideos(userId: string) {
+  const { data } = await supabase
+    .from("likes")
+    .select("created_at, videos(*)")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
+  return ((data ?? []) as unknown as { videos: Video | null }[])
+    .map((r) => r.videos)
+    .filter((v): v is Video => !!v);
 }
 
 /** Videos a user has reposted, newest repost first (for the profile Reposts tab). */

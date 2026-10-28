@@ -350,11 +350,13 @@ function VideoCardImpl({
     setIsFollowing(next);
     onFollowChange?.(video.username, next);
     const { error } = next
-      ? await supabase.from("follows").insert({
-          follower_id: auth.user.id,
-          follower_username: myUsername,
-          following_username: video.username,
-        })
+      ? await supabase
+          .from("follows")
+          .insert({
+            follower_id: auth.user.id,
+            follower_username: myUsername,
+            following_username: video.username,
+          })
       : await supabase
           .from("follows")
           .delete()
@@ -436,13 +438,11 @@ function VideoCardImpl({
     return observeIntersection(
       el,
       (e) => {
-        // 0.8 means a card must be almost fully on screen before it plays, so
-        // exactly one video is ever running as you swipe the feed.
-        if (e && e.isIntersecting && e.intersectionRatio >= 0.8) {
+        if (e && e.isIntersecting && e.intersectionRatio > 0.6) {
           if (autoplay) el.play().catch(() => {});
         } else el.pause();
       },
-      { threshold: [0, 0.8, 1] },
+      { threshold: [0, 0.6, 1] },
     );
   }, [src, isImage, autoplay]);
 
@@ -453,12 +453,12 @@ function VideoCardImpl({
     const stop = observeIntersection(
       el,
       (e) => {
-        if (e && e.isIntersecting && e.intersectionRatio >= 0.8) {
+        if (e && e.isIntersecting && e.intersectionRatio > 0.6) {
           a.currentTime = 0;
           a.play().catch(() => {});
         } else a.pause();
       },
-      { threshold: [0, 0.8, 1] },
+      { threshold: [0, 0.6, 1] },
     );
     return () => {
       stop();
@@ -581,7 +581,7 @@ function VideoCardImpl({
   if (deleted || isBanned || notInterested) return null;
 
   return (
-    <section className="feed-card relative h-[100dvh] w-full snap-start snap-always overflow-hidden bg-black md:flex md:items-center md:justify-center md:bg-transparent md:py-4">
+    <section className="feed-card relative h-full w-full snap-start snap-always bg-black md:flex md:items-center md:justify-center md:bg-transparent md:py-4">
       <div className="relative flex h-full w-full items-end md:h-auto md:w-auto md:gap-4">
         <div className="flex h-full min-w-0 flex-1 flex-col md:h-auto md:flex-none md:gap-3">
           <div
@@ -756,26 +756,16 @@ function VideoCardImpl({
               )}
             </div>
             <div
-              className={`video-caption absolute bottom-20 left-2 right-16 z-10 ${showCaptions ? "" : "md:hidden"}`}
+              className={`video-caption absolute inset-x-0 bottom-0 z-20 pb-20 pl-2 pr-20 pt-16 ${showCaptions ? "" : "md:hidden"}`}
             >
               <Link
                 to="/u/$username"
                 params={{ username: video.username }}
-                className="block break-words text-[15px] font-bold text-white"
+                className="break-words text-sm font-bold"
               >
                 @{video.username}
               </Link>
-              {captionText && (
-                <p className="mt-1 line-clamp-2 break-words text-[13px] text-white">
-                  {captionText}
-                </p>
-              )}
-              <p className="mt-1.5 flex items-center gap-1 text-[12px] text-white">
-                <span aria-hidden="true">♫</span>
-                <span className="truncate">
-                  {song ? `${song.title} · ${song.artist}` : `original sound - @${video.username}`}
-                </span>
-              </p>
+              <p className="mt-1 line-clamp-3 break-words text-sm">{captionText}</p>
             </div>
             {!isImage && (
               <div onClick={seek} className="absolute inset-x-0 bottom-0 h-3 cursor-pointer">
@@ -785,7 +775,7 @@ function VideoCardImpl({
               </div>
             )}
           </div>
-          <div className="hidden w-full md:block">
+          <div className="hidden max-w-[calc((100dvh-11rem)*9/16)] md:block">
             <Link
               to="/u/$username"
               params={{ username: video.username }}
@@ -796,81 +786,73 @@ function VideoCardImpl({
             <p className="text-sm text-muted-foreground">{captionText}</p>
           </div>
         </div>
-        {/* Right rail: avatar, then like / comment / repost / share / save.
-            No background circles — TikTok draws bare white icons over the video. */}
-        <div className="absolute bottom-28 right-2 z-20 flex flex-col items-center gap-6 md:static md:mb-16 md:gap-5">
-          <div className="relative mb-1">
-            <Link
-              to="/u/$username"
-              params={{ username: video.username }}
-              aria-label={`View @${video.username}'s profile`}
-              className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full border-2 border-white bg-primary font-display text-lg uppercase text-primary-foreground"
-            >
-              {authorAvatar ? (
-                <img
-                  src={authorAvatar}
-                  alt={`@${video.username}`}
-                  className="h-full w-full object-cover"
-                  loading="lazy"
-                  decoding="async"
-                />
-              ) : (
-                video.username[0]
-              )}
-            </Link>
-            {video.username !== myUsername && (
-              <button
-                type="button"
-                onClick={toggleFollow}
-                aria-label={
-                  isFollowing ? `Unfollow @${video.username}` : `Follow @${video.username}`
-                }
-                aria-pressed={isFollowing}
-                className={`absolute -bottom-2 left-1/2 flex h-5 w-5 -translate-x-1/2 items-center justify-center rounded-full text-[13px] font-bold leading-none transition ${
-                  isFollowing ? "bg-white text-black" : "bg-[#fe2c55] text-white"
-                }`}
-              >
-                {isFollowing ? "✓" : "+"}
-              </button>
-            )}
-          </div>
-
-          <RailButton label={formatCount(likes)} onClick={toggleLike} pressed={liked}>
-            <Heart
-              className={`h-8 w-8 transition ${liked ? "fill-[#fe2c55] text-[#fe2c55]" : "text-white"} ${
-                liked && burst ? "heart-pop-btn" : ""
-              }`}
-            />
-          </RailButton>
-
-          <RailButton label={formatCount(comments)} onClick={() => setShowComments(true)}>
-            <MessageCircle className="h-8 w-8 text-white" />
-          </RailButton>
-
-          <RailButton
-            label={formatCount(repostCount)}
-            onClick={() => void toggleRepost()}
-            pressed={reposted}
-            activeClass="text-yellow-400"
+        <div className="absolute bottom-20 right-2 z-20 flex flex-col items-center gap-4 md:static md:mb-16 md:gap-5">
+          <Link
+            to="/u/$username"
+            params={{ username: video.username }}
+            aria-label={`View @${video.username}'s profile`}
+            className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-primary font-display text-lg uppercase text-primary-foreground md:h-12 md:w-12"
           >
-            <Repeat2
-              className={`h-8 w-8 transition ${
-                reposted ? "fill-yellow-400 text-yellow-400" : "text-white"
-              }`}
+            {authorAvatar ? (
+              <img
+                src={authorAvatar}
+                alt={`@${video.username}`}
+                className="h-full w-full object-cover"
+                loading="lazy"
+                decoding="async"
+              />
+            ) : (
+              video.username[0]
+            )}
+          </Link>
+          {video.username !== myUsername && (
+            <button
+              onClick={toggleFollow}
+              className={`-mt-3 rounded-full px-3 py-1 text-xs font-bold transition ${isFollowing ? "bg-secondary text-foreground" : "bg-primary text-primary-foreground"}`}
+            >
+              {isFollowing ? "Following" : "Follow"}
+            </button>
+          )}
+
+          <Action label={formatCount(likes)} onClick={toggleLike} active={liked}>
+            <Heart
+              className={`h-8 w-8 ${liked ? "fill-primary text-white" : ""} ${liked && burst ? "heart-pop-btn" : ""}`}
             />
-          </RailButton>
-
-          <RailButton label={formatCount(shares)} onClick={() => setShowShare(true)}>
-            <Share2 className="h-8 w-8 text-white" />
-          </RailButton>
-
-          <RailButton label="Save" onClick={(e) => void toggleSave(e)} pressed={isSaved}>
+          </Action>
+          <Action label={formatCount(comments)} onClick={() => setShowComments(true)}>
+            <MessageCircle className="h-8 w-8" />
+          </Action>
+          <button
+            type="button"
+            onClick={() => void toggleRepost()}
+            aria-label={reposted ? "Undo repost" : "Repost"}
+            aria-pressed={reposted}
+            className="flex flex-col items-center gap-1"
+          >
+            <span className="flex h-11 w-11 items-center justify-center md:h-12 md:w-12">
+              <Repeat2
+                className={`h-8 w-8 transition ${reposted ? "fill-yellow-400 text-yellow-400" : "text-white"}`}
+              />
+            </span>
+            <span
+              className={`text-[12px] font-bold ${reposted ? "text-yellow-400" : "text-white"}`}
+            >
+              {formatCount(repostCount)}
+            </span>
+          </button>
+          <Action label={formatCount(shares)} onClick={() => setShowShare(true)}>
+            <Share2 className="h-8 w-8" />
+          </Action>
+          <button
+            type="button"
+            onClick={(e) => void toggleSave(e)}
+            className="flex flex-col items-center"
+          >
             <Bookmark
-              className={`h-8 w-8 transition ${
-                isSaved ? "fill-yellow-400 text-yellow-400" : "text-white"
-              }`}
+              className={`h-8 w-8 text-white ${isSaved ? "fill-yellow-400 text-yellow-400" : ""}`}
             />
-          </RailButton>
+            <span className="mt-1 text-[11px] text-white">Save</span>
+          </button>
         </div>
       </div>
       {showComments && (
@@ -979,32 +961,30 @@ function VideoCardImpl({
  */
 export const VideoCard = memo(VideoCardImpl);
 
-function RailButton({
+function Action({
   children,
   label,
   onClick,
-  pressed,
-  activeClass = "text-[#fe2c55]",
+  active,
 }: {
   children: React.ReactNode;
   label: string;
-  onClick: (e: React.MouseEvent<HTMLButtonElement>) => void;
-  pressed?: boolean;
-  activeClass?: string;
+  onClick: () => void;
+  active?: boolean;
 }) {
   return (
-    <button
-      type="button"
+    <Button
+      variant="ghost"
       onClick={onClick}
-      aria-pressed={pressed}
-      className="flex flex-col items-center focus-visible:outline-none"
+      aria-label={typeof children === "object" && children ? undefined : label}
+      className="h-auto flex-col gap-1 p-0 text-xs font-semibold hover:bg-transparent [&_svg]:size-6"
     >
-      <span className="tiktok-icon-shadow flex items-center justify-center">{children}</span>
       <span
-        className={`tiktok-shadow mt-1 text-[12px] font-bold ${pressed ? activeClass : "text-white"}`}
+        className={`flex h-11 w-11 items-center justify-center rounded-full bg-overlay backdrop-blur-sm transition hover:bg-accent md:h-12 md:w-12 md:bg-secondary ${active ? "scale-110" : ""}`}
       >
-        {label}
+        {children}
       </span>
-    </button>
+      {label}
+    </Button>
   );
 }

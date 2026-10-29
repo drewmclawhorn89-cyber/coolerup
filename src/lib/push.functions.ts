@@ -25,6 +25,56 @@ type PushPayload = {
   from?: string;
 };
 
+type VapidConfig = { subject: string; publicKey: string; privateKey: string };
+
+/**
+ * Resolves the VAPID credentials.
+ *
+ * Order matters: environment variables win, because they're the normal way to
+ * configure a deployment. If they're absent we fall back to a single row in
+ * `push_config`, which lets a project be configured from the Supabase SQL editor
+ * without touching the hosting provider's env settings.
+ *
+ * `push_config` has RLS enabled and *no* policies, so only the service-role
+ * client used here can read it — never the browser, never anon.
+ */
+async function loadVapidConfig(): Promise<VapidConfig | null> {
+  const subject = process.env["VAPID_SUBJECT"];
+  const publicKey = process.env["VAPID_SERVER_PUBLIC_KEY"];
+  const privateKey = process.env["VAPID_SERVER_PRIVATE_KEY"];
+  if (subject && publicKey && privateKey) return { subject, publicKey, privateKey };
+
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data } = await (supabaseAdmin as unknown as {
+      from: (t: string) => {
+        select: (c: string) => {
+          eq: (col: string, v: string) => {
+            maybeSingle: () => PromiseLike<{
+              data: { subject?: string | null; public_key?: string | null; private_key?: string | null } | null;
+            }>;
+          };
+        };
+      };
+    })
+      .from("push_config")
+      .select("subject, public_key, private_key")
+      .eq("id", "default")
+      .maybeSingle();
+
+    if (data?.subject && data.public_key && data.private_key) {
+      return {
+        subject: data.subject,
+        publicKey: data.public_key,
+        privateKey: data.private_key,
+      };
+    }
+  } catch {
+    // Table missing or unreachable — treat as unconfigured.
+  }
+  return null;
+}
+
 /**
  * Low-level fan-out: encrypts and delivers one payload to every device the
  * target user has registered. Dead endpoints (404/410) are pruned. Returns
@@ -39,10 +89,9 @@ async function sendPushToUser(
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { buildPushPayload } = await import("@block65/webcrypto-web-push");
 
-  const subject = process.env["VAPID_SUBJECT"];
-  const publicKey = process.env["VAPID_SERVER_PUBLIC_KEY"];
-  const privateKey = process.env["VAPID_SERVER_PRIVATE_KEY"];
-  if (!subject || !publicKey || !privateKey) return { sent: 0, configured: false };
+  const config = await loadVapidConfig();
+  if (!config) return { sent: 0, configured: false };
+  const { subject, publicKey, privateKey } = config;
 
   const { data: subs } = await pushTable(supabaseAdmin)
     .select("endpoint, p256dh, auth")
@@ -182,7 +231,8 @@ export const getPushStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const configured = Boolean(
+    const config = await loadVapidConfig();
+    const fromEnv = Boolean(
       process.env["VAPID_SUBJECT"] &&
         process.env["VAPID_SERVER_PUBLIC_KEY"] &&
         process.env["VAPID_SERVER_PRIVATE_KEY"],
@@ -196,7 +246,12 @@ export const getPushStatus = createServerFn({ method: "POST" })
     } catch {
       // Table missing or unreachable — report zero devices rather than throwing.
     }
-    return { configured, devices };
+    return {
+      configured: Boolean(config),
+      devices,
+      // Where the credentials came from, so a misconfiguration is diagnosable.
+      source: config ? (fromEnv ? "env" : "database") : "none",
+    };
   });
 
 /** Fires a test notification at the signed-in user's own devices. */

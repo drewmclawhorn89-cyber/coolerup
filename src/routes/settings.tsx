@@ -88,7 +88,7 @@ const [offlineMode, setOfflineMode] = useState(false);
     }
   });
   // Live push diagnostics so a misconfiguration is visible instead of silent.
-  const [pushState, setPushState] = useState<{ configured: boolean; devices: number } | null>(null);
+  const [pushState, setPushState] = useState<{ configured: boolean; devices: number; source?: string } | null>(null);
   const [testingPush, setTestingPush] = useState(false);
   const [deviceHint, setDeviceHint] = useState<string | null>(null);
   const [lastTest, setLastTest] = useState<string | null>(null);
@@ -155,7 +155,7 @@ const toggleOffline = () => {
     let cancelled = false;
     pushStatus()
       .then((s) => { if (!cancelled) setPushState(s); })
-      .catch(() => { if (!cancelled) setPushState({ configured: false, devices: 0 }); });
+      .catch(() => { if (!cancelled) setPushState({ configured: false, devices: 0, source: "none" }); });
     pushDiagnostics()
       .then((d) => { if (!cancelled) setDeviceHint(d.hint); })
       .catch(() => undefined);
@@ -295,7 +295,7 @@ const toggleOffline = () => {
       }
       const res = await sendTestPush();
       setLastTest(
-        `configured=${res.configured} devices=${status.devices} sent=${res.sent} endpoint=${diag?.endpointHost ?? "none"}`,
+        `configured=${res.configured} devices=${status.devices} sent=${res.sent} source=${status.source} endpoint=${diag?.endpointHost ?? "none"}`,
       );
       if (res.sent > 0) {
         toast.success(`Test sent to ${res.sent} device${res.sent === 1 ? "" : "s"} — check your tray`);
@@ -471,7 +471,7 @@ const changeTheme = (t: string) => {
             {!pushState.configured
               ? "Out-of-app push is not configured on the server (missing VAPID keys)."
               : pushState.devices > 0
-                ? `Out-of-app push ready — ${pushState.devices} device${pushState.devices === 1 ? "" : "s"} registered.`
+                ? `Out-of-app push ready — ${pushState.devices} device${pushState.devices === 1 ? "" : "s"} registered (keys from ${pushState.source ?? "unknown"}).`
                 : "Push is configured, but this device isn't registered yet. Tap Enable."}
           </p>
         )}

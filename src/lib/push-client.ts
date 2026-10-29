@@ -25,7 +25,9 @@ export function pushConfigured(): boolean {
 }
 
 /** Ask the server whether it can send push and how many devices we have. */
-export async function pushStatus(): Promise<{ configured: boolean; devices: number }> {
+export type PushStatus = { configured: boolean; devices: number; source: string };
+
+export async function pushStatus(): Promise<PushStatus> {
   return getPushStatusFn();
 }
 

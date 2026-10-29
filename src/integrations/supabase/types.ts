@@ -519,6 +519,44 @@ export type Database = {
           },
         ]
       }
+      sounds: {
+        Row: {
+          audio_url: string
+          created_at: string
+          creator_username: string
+          id: string
+          original_video_id: string
+          title: string
+          uses_count: number
+        }
+        Insert: {
+          audio_url: string
+          created_at?: string
+          creator_username: string
+          id?: string
+          original_video_id: string
+          title: string
+          uses_count?: number
+        }
+        Update: {
+          audio_url?: string
+          created_at?: string
+          creator_username?: string
+          id?: string
+          original_video_id?: string
+          title?: string
+          uses_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sounds_original_video_id_fkey"
+            columns: ["original_video_id"]
+            isOneToOne: true
+            referencedRelation: "videos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           id: string
@@ -548,6 +586,7 @@ export type Database = {
           likes_count: number
           reposts_count: number
           shares_count: number
+          sound_id: string | null
           user_id: string | null
           username: string
           video_url: string
@@ -562,6 +601,7 @@ export type Database = {
           likes_count?: number
           reposts_count?: number
           shares_count?: number
+          sound_id?: string | null
           user_id?: string | null
           username: string
           video_url: string
@@ -576,11 +616,20 @@ export type Database = {
           likes_count?: number
           reposts_count?: number
           shares_count?: number
+          sound_id?: string | null
           user_id?: string | null
           username?: string
           video_url?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "videos_sound_id_fkey"
+            columns: ["sound_id"]
+            isOneToOne: false
+            referencedRelation: "sounds"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       moderation_log: {
         Row: {
@@ -652,6 +701,12 @@ export type Database = {
         Returns: boolean
       }
       increment_share: { Args: { _video_id: string }; Returns: undefined }
+      create_sound_from_video: { Args: { _video_id: string }; Returns: string | null }
+      set_video_sound: {
+        Args: { _video_id: string; _sound_id: string | null }
+        Returns: undefined
+      }
+      increment_sound_use: { Args: { _sound_id: string }; Returns: undefined }
       is_banned: { Args: { _username: string }; Returns: boolean }
       is_banned_uid: { Args: { _uid: string }; Returns: boolean }
       ban_status_for_handle: {

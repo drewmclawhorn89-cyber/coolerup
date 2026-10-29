@@ -14,6 +14,20 @@ export type Video = {
   reposts?: number;
   /** Raw column name returned by `select("*")` on the videos table. */
   reposts_count?: number;
+  /** Sound this video plays (null/undefined = its own original audio). */
+  sound_id?: string | null;
+  /** Embedded sound row when the feed joins `sounds`. */
+  sound?: SoundSummary | null;
+};
+
+/** Minimal sound shape embedded in feed rows. */
+export type SoundSummary = {
+  id: string;
+  original_video_id: string;
+  audio_url: string;
+  title: string;
+  creator_username: string;
+  uses_count: number;
 };
 
 export type Song = { id: string; title: string; artist: string };
@@ -37,7 +51,11 @@ export function parseCaption(raw: string): { text: string; song: Song | null; fu
   const caption = full ? raw.replace(FULL_TAG, "") : raw;
   const m = caption.match(SONG_TAG);
   if (!m) return { text: caption, song: null, full };
-  return { text: caption.replace(SONG_TAG, ""), song: { id: m[1] ?? "", title: m[2] ?? "", artist: m[3] ?? "" }, full };
+  return {
+    text: caption.replace(SONG_TAG, ""),
+    song: { id: m[1] ?? "", title: m[2] ?? "", artist: m[3] ?? "" },
+    full,
+  };
 }
 
 const STORAGE_PREFIX = "storage:";
@@ -136,7 +154,9 @@ export async function fetchVideos(page = 0, pageSize = 20) {
   // Select only the columns the feed renders (smaller payload, faster parse).
   const { data, error } = await supabase
     .from("videos")
-    .select("id, username, caption, video_url, likes_count, comments_count, shares_count, reposts_count, created_at")
+    .select(
+      "id, username, caption, video_url, likes_count, comments_count, shares_count, reposts_count, created_at, sound_id, sounds(id, original_video_id, audio_url, title, creator_username, uses_count)",
+    )
     .in("id", ids);
 
   if (error) throw error;
@@ -146,30 +166,67 @@ export async function fetchVideos(page = 0, pageSize = 20) {
   return ids
     .map((id) => byId.get(id))
     .filter((v): v is NonNullable<typeof v> => !!v)
-    .map((v) => ({ ...v, reposts: v.reposts_count ?? 0 })) as Video[];
+    .map((v) => ({
+      ...v,
+      reposts: v.reposts_count ?? 0,
+      sound: ((v as { sounds?: SoundSummary | null }).sounds ?? null) as SoundSummary | null,
+    })) as Video[];
 }
 
 export async function fetchMyLikes() {
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) return new Set<string>();
   const { data } = await supabase.from("likes").select("video_id").eq("user_id", user.id);
   return new Set((data ?? []).map((l) => l.video_id));
 }
 
-export async function uploadVideo(file: File, username: string, caption: string, song?: Song | null, full = false) {
+/**
+ * Persist an uploaded video/photo. Returns the new video id.
+ *
+ * `soundId` attaches a borrowed original sound ("Use this sound"). Every video
+ * also gets its own original-sound row via `create_sound_from_video`.
+ */
+export async function uploadVideo(
+  file: File,
+  username: string,
+  caption: string,
+  song?: Song | null,
+  full = false,
+  soundId?: string | null,
+): Promise<string | null> {
   const ext = file.name.split(".").pop() || "mp4";
   const path = `${crypto.randomUUID()}.${ext}`;
   const { error: upErr } = await supabase.storage
     .from("videos")
     .upload(path, file, { contentType: file.type });
   if (upErr) throw upErr;
-  const { error } = await supabase
+  const isVideo = file.type.startsWith("video/");
+  const { data, error } = await supabase
     .from("videos")
-    .insert({ username, caption: withSong(caption, file.type.startsWith("image/") ? song : null) + (full && file.type.startsWith("video/") ? "[[full]]" : ""), video_url: STORAGE_PREFIX + path });
+    .insert({
+      username,
+      caption:
+        withSong(caption, file.type.startsWith("image/") ? song : null) +
+        (full && isVideo ? "[[full]]" : ""),
+      video_url: STORAGE_PREFIX + path,
+      sound_id: isVideo ? (soundId ?? null) : null,
+    })
+    .select("id")
+    .single();
   if (error) throw error;
+  const id = (data as { id?: string } | null)?.id ?? null;
+  if (id && isVideo) await ensureOriginalSound(id);
+  return id;
 }
 
-export async function uploadRecording(blob: Blob, username: string, caption: string) {
+export async function uploadRecording(
+  blob: Blob,
+  username: string,
+  caption: string,
+  soundId?: string | null,
+): Promise<string | null> {
   const contentType = blob.type || "video/webm";
   const ext = contentType.includes("mp4") ? "mp4" : "webm";
   const path = `recorded-${Date.now()}.${ext}`;
@@ -177,10 +234,24 @@ export async function uploadRecording(blob: Blob, username: string, caption: str
     .from("videos")
     .upload(path, blob, { contentType });
   if (upErr) throw upErr;
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("videos")
-    .insert({ username, caption, video_url: STORAGE_PREFIX + path });
+    .insert({ username, caption, video_url: STORAGE_PREFIX + path, sound_id: soundId ?? null })
+    .select("id")
+    .single();
   if (error) throw error;
+  const id = (data as { id?: string } | null)?.id ?? null;
+  if (id) await ensureOriginalSound(id);
+  return id;
+}
+
+/** Ask the database to create this video's own "Original sound" row. */
+async function ensureOriginalSound(videoId: string) {
+  try {
+    await supabase.rpc("create_sound_from_video", { _video_id: videoId });
+  } catch {
+    // Non-fatal: the INSERT trigger also creates the sound.
+  }
 }
 
 export function formatCount(n: number) {
@@ -190,7 +261,9 @@ export function formatCount(n: number) {
 }
 
 export async function setVideoSaved(videoId: string, on: boolean) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) return;
   if (on) await supabase.from("saved_videos").insert({ user_id: user.id, video_id: videoId });
   else await supabase.from("saved_videos").delete().eq("user_id", user.id).eq("video_id", videoId);

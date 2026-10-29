@@ -230,11 +230,19 @@ function Index() {
   const [uploadFull, setUploadFull] = useState(false);
   const [recordingOpen, setRecordingOpen] = useState(false);
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
+  // Keep the create menu mounted after its first open. "Go live" closes the
+  // menu before switching to the broadcast view, so unmounting here would
+  // throw away the live-stream state and the broadcast screen would never show.
+  const [createMenuMounted, setCreateMenuMounted] = useState(false);
   const [error, setError] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [userResults, setUserResults] = useState<
     { id: string; handle: string | null; display_name: string | null; avatar_url: string | null }[]
   >([]);
+
+  useEffect(() => {
+    if (createMenuOpen) setCreateMenuMounted(true);
+  }, [createMenuOpen]);
 
   useEffect(() => {
     const q = query.trim().replace(/^@/, "").replace(/[%,()]/g, "");
@@ -875,7 +883,7 @@ function Index() {
         </div>
       </aside>
 
-      {createMenuOpen && (
+      {createMenuMounted && (
         <Suspense fallback={null}>
           <LiveStreamDialog
             open={createMenuOpen}

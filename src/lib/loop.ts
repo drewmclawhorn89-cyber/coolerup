@@ -152,12 +152,24 @@ export async function fetchVideos(page = 0, pageSize = 20) {
   if (ids.length === 0) return [] as Video[];
 
   // Select only the columns the feed renders (smaller payload, faster parse).
-  const { data, error } = await supabase
-    .from("videos")
-    .select(
-      "id, username, caption, video_url, likes_count, comments_count, shares_count, reposts_count, created_at, sound_id, sounds(id, original_video_id, audio_url, title, creator_username, uses_count)",
-    )
-    .in("id", ids);
+  // The relationship must be named explicitly: `sounds` has two foreign keys to
+  // `videos` (videos.sound_id and sounds.original_video_id), so a bare
+  // `sounds(...)` embed is ambiguous and PostgREST rejects the whole query with
+  // PGRST201 — which surfaced to users as "Couldn't load videos".
+  const withSound =
+    "id, username, caption, video_url, likes_count, comments_count, shares_count, reposts_count, created_at, sound_id, sounds!videos_sound_id_fkey(id, original_video_id, audio_url, title, creator_username, uses_count)";
+  const withoutSound =
+    "id, username, caption, video_url, likes_count, comments_count, shares_count, reposts_count, created_at, sound_id";
+
+  let { data, error } = await supabase.from("videos").select(withSound).in("id", ids);
+
+  // A broken/ambiguous embed must never blank the feed. Retry with the plain
+  // columns; the sound is then resolved lazily by the card.
+  if (error) {
+    const retry = await supabase.from("videos").select(withoutSound).in("id", ids);
+    data = retry.data as typeof data;
+    error = retry.error;
+  }
 
   if (error) throw error;
 

@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>coolerup — Paid Ads Kit</title>
+<style>
+  :root{
+    --pink:#ff2d55;
+    --bg:#000;
+    --card:#0d0d0f;
+    --line:#232326;
+    --muted:#8b8b93;
+    --text:#f5f5f7;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    background:var(--bg);color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Helvetica,Arial,sans-serif;
+    line-height:1.6;-webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1180px;margin:0 auto;padding:0 24px}
+
+  /* ---------- header ---------- */
+  header{
+    padding:80px 0 56px;border-bottom:1px solid var(--line);
+    background:radial-gradient(ellipse 70% 100% at 50% 0%,rgba(255,45,85,.13),transparent 70%);
+  }
+  .logo{font-size:34px;font-weight:800;letter-spacing:-1.5px}
+  .logo span{color:var(--pink)}
+  .tag{color:var(--muted);font-size:13px;letter-spacing:.22em;text-transform:uppercase;margin-top:8px}
+  h1{font-size:clamp(38px,6vw,68px);line-height:.95;letter-spacing:-2.5px;font-weight:800;margin-top:34px}
+  h1 em{color:var(--pink);font-style:normal;display:block}
+  .sub{color:var(--muted);font-size:17px;max-width:600px;margin-top:20px}
+  .meta{display:flex;flex-wrap:wrap;gap:10px;margin-top:28px}
+  .pill{border:1px solid var(--line);border-radius:100px;padding:6px 14px;font-size:12px;color:var(--muted)}
+  .pill b{color:var(--text);font-weight:600}
+
+  /* ---------- sections ---------- */
+  section{padding:64px 0;border-bottom:1px solid var(--line)}
+  .eyebrow{color:var(--pink);font-size:11px;font-weight:700;letter-spacing:.24em;text-transform:uppercase}
+  h2{font-size:clamp(26px,3.4vw,38px);letter-spacing:-1.2px;font-weight:800;margin:10px 0 8px}
+  .lede{color:var(--muted);max-width:720px;margin-bottom:32px}
+
+  /* ---------- alert ---------- */
+  .alert{
+    border:1px solid rgba(255,45,85,.4);background:rgba(255,45,85,.07);
+    border-radius:16px;padding:24px 26px;margin-bottom:18px;
+  }
+  .alert h3{font-size:16px;font-weight:700;margin-bottom:8px;display:flex;gap:10px;align-items:center}
+  .alert h3::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--pink);flex:0 0 auto}
+  .alert p{color:#c9c9d1;font-size:14.5px}
+  .alert code{background:#1a1a1d;padding:2px 6px;border-radius:5px;font-size:13px;color:var(--pink)}
+
+  /* ---------- creatives ---------- */
+  .grid{display:grid;gap:22px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+  .creative{background:var(--card);border:1px solid var(--line);border-radius:18px;overflow:hidden}
+  .creative img{width:100%;display:block;background:#111}
+  .creative .cap{padding:16px 18px}
+  .creative .cap strong{display:block;font-size:14px;margin-bottom:3px}
+  .creative .cap span{font-size:12px;color:var(--muted)}
+  .ratio{display:inline-block;margin-top:10px;font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--pink);border:1px solid rgba(255,45,85,.35);border-radius:4px;padding:2px 7px}
+
+  /* ---------- copy blocks ---------- */
+  .copygrid{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+  .copybox{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px 22px}
+  .copybox .plat{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--pink);font-weight:700;margin-bottom:12px}
+  .copybox p{font-size:15px;color:#e8e8ee;margin-bottom:12px}
+  .copybox p:last-child{margin-bottom:0}
+  .copybox small{color:var(--muted);font-size:11.5px;font-variant-numeric:tabular-nums}
+
+  /* ---------- table ---------- */
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th{text-align:left;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);
+    font-weight:600;padding:0 14px 12px;border-bottom:1px solid var(--line)}
+  td{padding:14px;border-bottom:1px solid #17171a;color:#dcdce3}
+  td:first-child{color:var(--text);font-weight:600}
+  tr:last-child td{border-bottom:none}
+  .num{font-variant-numeric:tabular-nums;color:var(--pink);font-weight:700}
+
+  /* ---------- checklist ---------- */
+  .check{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:8px 24px}
+  .check li{list-style:none;padding:13px 0;border-bottom:1px solid #17171a;display:flex;gap:13px;align-items:flex-start;font-size:14.5px}
+  .check li:last-child{border-bottom:none}
+  .box{width:16px;height:16px;border:1.5px solid #3a3a40;border-radius:4px;flex:0 0 auto;margin-top:4px}
+  .check li b{color:var(--pink);font-weight:700;margin-right:2px}
+
+  /* ---------- funnel ---------- */
+  .funnel{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:28px}
+  .step{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:11px 16px;font-size:13px}
+  .step.hot{border-color:rgba(255,45,85,.5);color:var(--pink);font-weight:600}
+  .arrow{color:#3a3a40}
+
+  footer{padding:56px 0 80px;color:var(--muted);font-size:13px}
+  footer b{color:var(--text)}
+  @media print{
+    body{background:#fff;color:#000}
+    section{border-color:#ddd;page-break-inside:avoid}
+    .alert{background:#fff5f7}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <div class="logo">coolerup<span>.</span></div>
+    <div class="tag">A little more you</div>
+    <h1>Less perfect.<em>More real.</em></h1>
+    <p class="sub">Paid acquisition kit — creatives, copy, targeting, budgets and launch sequence for TikTok, Meta and YouTube.</p>
+    <div class="meta">
+      <span class="pill">Destination <b>coolerup.lovable.app</b></span>
+      <span class="pill">Budget <b>$1,500/mo</b></span>
+      <span class="pill">Platforms <b>3 + tests</b></span>
+      <span class="pill">Creatives <b>4</b></span>
+    </div>
+  </div>
+</header>
+
+<section>
+  <div class="wrap">
+    <div class="eyebrow">Before anything else</div>
+    <h2>Two blockers to clear first</h2>
+    <p class="lede">Neither is a creative problem. Both will stop a campaign dead.</p>
+
+    <div class="alert">
+      <h3>No ads account is connected</h3>
+      <p>Only GitHub is connected to this session, so I can't launch campaigns or spend budget. This kit is built to be executed by you or your media buyer — every step is spelled out. Connect an ads account and I can take it further.</p>
+    </div>
+
+    <div class="alert">
+      <h3>No privacy policy page = automatic rejection</h3>
+      <p>Meta and TikTok both require a reachable privacy policy URL at ad review. The app has no <code>/privacy</code> route and nothing in <code>public/</code>. Every campaign here gets rejected until that exists. It's a 20-minute fix — ask me and I'll build <code>/privacy</code> and <code>/terms</code> covering phone, email, Apple ID and uploaded video.</p>
+    </div>
+
+    <div class="alert">
+      <h3>Web app, not a store app</h3>
+      <p>There's no App Store or Play listing, so <b>app-install campaigns aren't available</b>. Everything below is website traffic / conversion, pointing at <code>coolerup.lovable.app</code>.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="eyebrow">Strategy</div>
+    <h2>Don't out-TikTok TikTok</h2>
+    <p class="lede">You can't win on content volume. You win on positioning: TikTok is where people perform, coolerup is where they post the thing they'd normally delete. So the ads must never look like TikTok ads — no dancing, no trending audio, no polish. The moment the ad looks like a TikTok ad, the positioning collapses. Every ad should make someone think: <b>that's the video I didn't post.</b></p>
+
+    <div class="funnel">
+      <span class="step">Impression</span><span class="arrow">→</span>
+      <span class="step">Landing view</span><span class="arrow">→</span>
+      <span class="step hot">Sign-up</span><span class="arrow">→</span>
+      <span class="step">First watch</span><span class="arrow">→</span>
+      <span class="step hot">First upload</span>
+    </div>
+    <p class="lede" style="margin-bottom:0">Optimise for <b>CompleteRegistration</b>, never for clicks. Clicks are cheap and meaningless; you want people who finish the phone or Apple flow. Fire the event inside <code>handleSuccess()</code> in <code>PhoneAuthDialog.tsx</code> and <code>onSuccess</code> in <code>EmailAuthForm.tsx</code> — those are the exact hook points.</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="eyebrow">Assets</div>
+    <h2>Four creatives, ready to upload</h2>
+    <p class="lede">Full-bleed brand, no clutter, text burned in for sound-off autoplay.</p>
+    <div class="grid">
+      <div class="creative">
+        <img src="creatives/01-less-perfect-more-real-9x16.png" alt="LESS PERFECT. MORE REAL. phone in hand showing vertical feed" />
+        <div class="cap"><strong>LESS PERFECT. MORE REAL.</strong><span>TikTok · Reels · Stories</span><div class="ratio">9:16</div></div>
+      </div>
+      <div class="creative">
+        <img src="creatives/02-point-of-view-9x16.png" alt="The world wants your point of view, split portrait" />
+        <div class="cap"><strong>The world wants your point of view</strong><span>TikTok · Reels</span><div class="ratio">9:16</div></div>
+      </div>
+      <div class="creative">
+        <img src="creatives/03-a-little-more-you-1x1.png" alt="A little more you, nine thumbnail grid" />
+        <div class="cap"><strong>A little more you</strong><span>Meta Feed · Instagram</span><div class="ratio">1:1</div></div>
+      </div>
+      <div class="creative">
+        <img src="creatives/04-stop-scrolling-16x9.png" alt="Stop scrolling, start watching real" />
+        <div class="cap"><strong>Stop scrolling. Start watching real.</strong><span>YouTube · Facebook link</span><div class="ratio">16:9</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="eyebrow">Copy</div>
+    <h2>Lines that are ready to paste</h2>
+    <p class="lede">Character counts verified. Full bank in <b>ad-copy.md</b>.</p>
+    <div class="copygrid">
+      <div class="copybox">
+        <div class="plat">TikTok ad text</div>
+        <p>No filters. No polish. Just your point of view.</p>
+        <small>47 chars</small>
+        <p style="margin-top:14px">Post the video you'd normally delete.</p>
+        <small>37 chars</small>
+      </div>
+      <div class="copybox">
+        <div class="plat">Meta primary text</div>
+        <p>Less perfect. More real. The short-video app for people tired of performing. Free.</p>
+        <small>82 chars</small>
+        <p style="margin-top:14px">No filters. No ring lights. Just real people posting real things.</p>
+        <small>65 chars</small>
+      </div>
+      <div class="copybox">
+        <div class="plat">Headlines</div>
+        <p>A little more you</p><small>17 chars</small>
+        <p style="margin-top:10px">Less perfect. More real.</p><small>24 chars</small>
+        <p style="margin-top:10px">The anti-perfection feed</p><small>24 chars</small>
+      </div>
+      <div class="copybox">
+        <div class="plat">Hooks — first 1.5 seconds</div>
+        <p>This app has no filters. On purpose.</p><small>36 chars</small>
+        <p style="margin-top:10px">Your feed is 9 people doing the same dance. Ours isn't.</p><small>55 chars</small>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="eyebrow">Budget</div>
+    <h2>$50/day, split three ways</h2>
+    <p class="lede">Don't spread thinner — $5/day per platform learns nothing. Run 7 days minimum before judging; the first 3 are the algorithm calibrating.</p>
+    <table>
+      <thead><tr><th>Platform</th><th>Daily</th><th>Monthly</th><th>Share</th><th>Job</th></tr></thead>
+      <tbody>
+        <tr><td>TikTok</td><td class="num">$20</td><td>$600</td><td>40%</td><td>Cheapest reach, best hook testing</td></tr>
+        <tr><td>Meta (FB + IG)</td><td class="num">$18</td><td>$540</td><td>36%</td><td>Best conversion signal once pixel matures</td></tr>
+        <tr><td>YouTube</td><td class="num">$12</td><td>$360</td><td>24%</td><td>Intent capture — people already searching</td></tr>
+      </tbody>
+    </table>
+    <p class="lede" style="margin-top:24px;margin-bottom:0">Only enough for one platform? <b>TikTok.</b> Cheapest creative testing and the audience is already primed for the format.</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="eyebrow">Targeting</div>
+    <h2>Where to point it</h2>
+    <table>
+      <thead><tr><th>Platform</th><th>Structure</th><th>Targeting</th><th>Kill rule</th></tr></thead>
+      <tbody>
+        <tr><td>TikTok</td><td>1 campaign · 3 ad groups · 12 ads</td><td>US 18–34 broad / interest stack / short-video viewers</td><td>CTR &lt;0.5% at 1k impressions</td></tr>
+        <tr><td>Meta</td><td>1 campaign · 2 ad sets · 6 ads</td><td>Broad 18–34 (no interests) + retargeting from day 8</td><td>CPA &gt;2× target at $30</td></tr>
+        <tr><td>YouTube</td><td>1 campaign · 2 ad groups</td><td>Custom intent: <i>app like tiktok, tiktok alternative</i></td><td>No sign-ups at $25</td></tr>
+      </tbody>
+    </table>
+    <p class="lede" style="margin-top:24px;margin-bottom:0"><b>Turn off Pangle and Global App Bundle</b> on TikTok and <b>exclude Audience Network</b> on Meta. Both burn budget on accidental taps that never convert.</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="eyebrow">Execution</div>
+    <h2>Launch sequence</h2>
+    <p class="lede">Ten days from zero to scaling. Don't skip day 0.</p>
+    <ul class="check">
+      <li><span class="box"></span><span><b>Day 0</b> — publish /privacy and /terms · create ad accounts · add payment methods</span></li>
+      <li><span class="box"></span><span><b>Day 1</b> — install Meta, TikTok and Google pixels · verify CompleteRegistration fires on phone, email and Apple</span></li>
+      <li><span class="box"></span><span><b>Day 2</b> — build campaigns: 12 TikTok ads, 6 Meta ads, 2 YouTube ad groups</span></li>
+      <li><span class="box"></span><span><b>Day 3</b> — go live at 50% budget · touch nothing for 72 hours</span></li>
+      <li><span class="box"></span><span><b>Day 6</b> — first read · kill losers · double winners</span></li>
+      <li><span class="box"></span><span><b>Day 10</b> — full budget · retargeting live · lookalike at 100+ events</span></li>
+      <li><span class="box"></span><span><b>Day 30</b> — cut worst platform · concentrate spend · commission 3 new hooks</span></li>
+    </ul>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="eyebrow">Reality check</div>
+    <h2>What working looks like</h2>
+    <p class="lede">Honest ranges for consumer social apps — not guarantees.</p>
+    <table>
+      <thead><tr><th>Metric</th><th>Acceptable</th><th>Good</th></tr></thead>
+      <tbody>
+        <tr><td>CTR — TikTok</td><td>0.5–1%</td><td class="num">&gt;1.5%</td></tr>
+        <tr><td>CTR — Meta</td><td>1–2%</td><td class="num">&gt;2.5%</td></tr>
+        <tr><td>Landing → sign-up</td><td>3–8%</td><td class="num">&gt;10%</td></tr>
+        <tr><td>Cost per sign-up</td><td>$2–6</td><td class="num">&lt;$1.50</td></tr>
+        <tr><td>Sign-up → first upload</td><td>10–20%</td><td class="num">&gt;30%</td></tr>
+      </tbody>
+    </table>
+    <p class="lede" style="margin-top:24px;margin-bottom:0">If cost per sign-up stays above $6 after two weeks and three creative rounds, the problem is almost always the <b>landing page</b>, not the ads. A cold visitor needs to understand the product in under three seconds.</p>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <b>coolerup</b> — paid acquisition kit · creatives, copy and plan in <b>ads/</b><br />
+    Compliance: no fake social proof · no unlicensed audio · disclose Apple sign-in and Twilio/Supabase as processors · don't imply TikTok affiliation.
+  </div>
+</footer>
+
+</body>
+</html>

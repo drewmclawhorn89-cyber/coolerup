@@ -122,6 +122,23 @@ function VideoCardImpl({
   const [authorAvatar, setAuthorAvatar] = useState<string | null>(null);
   const progressRef = useRef<HTMLDivElement>(null);
 
+  // The feed paints from a cached snapshot first, then swaps in fresh rows. The
+  // card instance survives that swap (same React key), so `useState` keeps the
+  // stale cached numbers — a video you liked could show a filled heart with a
+  // "0" next to it. Re-sync whenever the incoming row's counters change.
+  useEffect(() => {
+    setLikes(video.likes_count ?? 0);
+  }, [video.id, video.likes_count]);
+  useEffect(() => {
+    setComments(video.comments_count ?? 0);
+  }, [video.id, video.comments_count]);
+  useEffect(() => {
+    setShares(video.shares_count ?? 0);
+  }, [video.id, video.shares_count]);
+  useEffect(() => {
+    setRepostCount(video.reposts ?? video.reposts_count ?? 0);
+  }, [video.id, video.reposts, video.reposts_count]);
+
   // --- sound ("Use this sound") --------------------------------------------
   const [sound, setSound] = useState<Sound | null>(
     () => (video.sound as Sound | undefined) ?? getCachedSound(video.sound_id),
@@ -871,7 +888,7 @@ function VideoCardImpl({
 
           {/* LIKE */}
           <RailButton
-            label={formatCount(likes)}
+            label={formatCount(Math.max(likes ?? 0, liked ? 1 : 0))}
             onClick={toggleLike}
             pressed={liked}
             activeClass="text-[#fe2c55]"
@@ -890,7 +907,7 @@ function VideoCardImpl({
 
           {/* REPOST */}
           <RailButton
-            label={formatCount(repostCount)}
+            label={formatCount(Math.max(repostCount ?? 0, reposted ? 1 : 0))}
             onClick={() => void toggleRepost()}
             pressed={reposted}
             activeClass="text-yellow-400"

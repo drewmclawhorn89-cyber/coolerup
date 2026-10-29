@@ -35,6 +35,7 @@ const PhotoDialog = lazy(() => import("@/components/PhotoDialog").then((m) => ({
 import {
   fetchMyLikes,
   fetchRepostsByHandles,
+  fetchVideoCounts,
   fetchVideos,
   parseCaption,
   resetFeedOrder,
@@ -326,7 +327,26 @@ function Index() {
     }, 300);
 
     fetchMyLikes().then(setLiked).catch(() => {});
-    const refresh = () => listSaved().then((s) => setSaved(s.map((x) => x.video))).catch(() => {});
+    const refresh = () =>
+      listSaved()
+        .then((s) => {
+          const vids = s.map((x) => x.video);
+          setSaved(vids);
+          // Saved rows are snapshots; pull live counters so a video liked or
+          // reposted after saving doesn't keep showing 0 in the saved tab.
+          if (!navigator.onLine || vids.length === 0) return;
+          return fetchVideoCounts(vids.map((v) => v.id))
+            .then((counts) =>
+              setSaved((prev) =>
+                prev.map((v) => {
+                  const c = counts.get(v.id);
+                  return c ? { ...v, ...c, reposts: c.reposts_count } : v;
+                }),
+              ),
+            )
+            .catch(() => {});
+        })
+        .catch(() => {});
     refresh();
     const off = onOfflineChange(refresh);
     const update = () => {

@@ -173,6 +173,35 @@ export async function fetchVideos(page = 0, pageSize = 20) {
     })) as Video[];
 }
 
+/**
+ * Fresh engagement counters for a set of videos.
+ *
+ * Offline-saved videos keep a snapshot of the row they were saved from, so
+ * their like/repost counts freeze at save time. The saved tab uses this to
+ * reconcile those snapshots with the live numbers.
+ */
+export async function fetchVideoCounts(ids: string[]) {
+  const unique = [...new Set(ids)].filter(Boolean);
+  const counts = new Map<
+    string,
+    { likes_count: number; comments_count: number; shares_count: number; reposts_count: number }
+  >();
+  if (unique.length === 0) return counts;
+  const { data } = await supabase
+    .from("videos")
+    .select("id, likes_count, comments_count, shares_count, reposts_count")
+    .in("id", unique);
+  for (const row of data ?? []) {
+    counts.set(row.id, {
+      likes_count: row.likes_count ?? 0,
+      comments_count: row.comments_count ?? 0,
+      shares_count: row.shares_count ?? 0,
+      reposts_count: row.reposts_count ?? 0,
+    });
+  }
+  return counts;
+}
+
 export async function fetchMyLikes() {
   const {
     data: { user },

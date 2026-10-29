@@ -106,41 +106,77 @@ self.addEventListener("push", (event) => {
     data.url || (isCall ? `/messages?user=${encodeURIComponent(from)}` : "/");
 
   event.waitUntil(
-    self.registration.showNotification(title, {
-      body,
-      tag: data.tag || (isCall ? "loop-call" : kind),
-      renotify: isCall,
-      requireInteraction: isCall,
-      silent: false,
-      vibrate: isCall ? [300, 150, 300, 150, 300] : [120, 80, 120],
-      icon: "/icon-192-coolerup.png",
-      badge: "/icon-192-coolerup.png",
-      data: { url, kind },
-    }),
+    (async () => {
+      // Always show the OS notification. This is required for userVisibleOnly
+      // subscriptions: a push that doesn't display one can get the subscription
+      // revoked by the browser.
+      await self.registration.showNotification(title, {
+        body,
+        tag: data.tag || (isCall ? "loop-call" : kind),
+        renotify: isCall,
+        requireInteraction: isCall,
+        silent: false,
+        vibrate: isCall ? [300, 150, 300, 150, 300] : [120, 80, 120],
+        icon: "/icon-192-coolerup.png",
+        badge: "/icon-192-coolerup.png",
+        data: { url, kind },
+      });
+
+      // iOS never renders a banner while the web app is in the foreground, and
+      // some Android builds suppress it too. Tell any visible tab so the app can
+      // show an in-app banner instead of the alert silently vanishing.
+      try {
+        const list = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+        for (const c of list) {
+          c.postMessage({
+            type: "coolerup:push-received",
+            payload: { title, body, url, kind },
+          });
+        }
+      } catch {
+        // No clients to notify.
+      }
+    })(),
   );
 });
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const url = (event.notification.data && event.notification.data.url) || "/";
+
   event.waitUntil(
     (async () => {
       const list = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
-      for (const c of list) {
-        if ("focus" in c) {
-          await c.focus();
-          // Reuse the open tab but send it to the notification's target.
-          if ("navigate" in c) {
-            try {
-              await c.navigate(url);
-            } catch {
-              // Cross-origin or unsupported: leave the focused tab as-is.
-            }
+
+      // Prefer an already-open tab that is on the target page, so tapping a
+      // notification doesn't reload the app for no reason.
+      let target = list.find((c) => c.url === url) || list[0];
+
+      if (target) {
+        try {
+          await target.focus();
+        } catch {
+          // Some mobile clients refuse focus(); fall through to navigate.
+        }
+        // Only navigate when we're actually changing page. client.navigate() is
+        // unreliable on Android and can leave the app on a blank screen.
+        if (target.url !== url) {
+          try {
+            const navigated = await target.navigate(url);
+            if (navigated) return;
+          } catch {
+            // Fall through to openWindow below.
           }
+        } else {
           return;
         }
       }
-      await self.clients.openWindow(url);
+
+      try {
+        await self.clients.openWindow(url);
+      } catch {
+        // Nothing else we can do from the worker.
+      }
     })(),
   );
 });

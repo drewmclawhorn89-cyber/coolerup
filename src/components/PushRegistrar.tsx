@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import {
   PUSH_PREF_EVENT,
@@ -46,10 +47,20 @@ export function PushRegistrar() {
     document.addEventListener("visibilitychange", onVisible);
 
     // The service worker pings us when the browser rotates the push
-    // subscription; re-register so we don't go silently stale.
+    // subscription; re-register so we don't go silently stale. It also forwards
+    // pushes it received, so we can show an in-app banner when the OS won't.
     const onSwMessage = (e: MessageEvent) => {
-      if (e.data && e.data.type === "coolerup:resubscribe-push") {
+      const msg = e.data;
+      if (!msg) return;
+      if (msg.type === "coolerup:resubscribe-push") {
         void ensurePushSubscription();
+        return;
+      }
+      if (msg.type === "coolerup:push-received" && document.visibilityState === "visible") {
+        // iOS (and some Android builds) suppress the system banner while the app
+        // is open, so surface it here instead of letting it disappear.
+        const p = msg.payload || {};
+        toast(p.title || "Coolerup", { description: p.body || undefined });
       }
     };
     if ("serviceWorker" in navigator) {

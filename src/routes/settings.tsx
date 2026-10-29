@@ -15,6 +15,7 @@ import {
   disablePushSubscription,
   ensurePushSubscription,
   pushConfigured,
+  pushDiagnostics,
   pushPermission,
   pushStatus,
   sendTestPush,
@@ -89,6 +90,7 @@ const [offlineMode, setOfflineMode] = useState(false);
   // Live push diagnostics so a misconfiguration is visible instead of silent.
   const [pushState, setPushState] = useState<{ configured: boolean; devices: number } | null>(null);
   const [testingPush, setTestingPush] = useState(false);
+  const [deviceHint, setDeviceHint] = useState<string | null>(null);
 const [messagePrivacy, setMessagePrivacy] = useState(localStorage.getItem("messagePrivacy") || "everyone");
 const [messageFilter, setMessageFilter] = useState(localStorage.getItem("messageFilter") || "all");
 const [allowDM, setAllowDM] = useState(localStorage.getItem("allowDM") !== "false");
@@ -153,6 +155,9 @@ const toggleOffline = () => {
     pushStatus()
       .then((s) => { if (!cancelled) setPushState(s); })
       .catch(() => { if (!cancelled) setPushState({ configured: false, devices: 0 }); });
+    pushDiagnostics()
+      .then((d) => { if (!cancelled) setDeviceHint(d.hint); })
+      .catch(() => undefined);
     return () => { cancelled = true; };
   }, [auth.user?.id]);
 
@@ -281,6 +286,8 @@ const toggleOffline = () => {
       }
       const res = await sendTestPush();
       if (res.sent > 0) {
+        const d = await pushDiagnostics().catch(() => null);
+        if (d) setDeviceHint(d.hint);
         toast.success(`Test sent to ${res.sent} device${res.sent === 1 ? "" : "s"} — check your tray`);
       } else {
         toast.error("Test couldn't be delivered. The saved subscription may be stale — tap Enable again.");
@@ -456,6 +463,9 @@ const changeTheme = (t: string) => {
                 ? `Out-of-app push ready — ${pushState.devices} device${pushState.devices === 1 ? "" : "s"} registered.`
                 : "Push is configured, but this device isn't registered yet. Tap Enable."}
           </p>
+        )}
+        {deviceHint && (
+          <p className="mt-1 text-xs text-amber-500">{deviceHint}</p>
         )}
       </div>
              <div className="rounded-lg border bg-card p-6">

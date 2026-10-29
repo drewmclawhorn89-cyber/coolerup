@@ -138,3 +138,72 @@ export function announcePushPref(enabled: boolean): void {
     // ignore
   }
 }
+
+/**
+ * Human-readable device diagnostics. "Push sends fine but nothing appears" is
+ * almost always one of: iOS running in a Safari tab instead of an installed
+ * Home Screen app, permission not granted, or no live subscription on this
+ * device. This reports all three so the cause is obvious.
+ */
+export type PushDiagnostics = {
+  platform: string;
+  standalone: boolean;
+  ios: boolean;
+  permission: string;
+  supported: boolean;
+  configured: boolean;
+  subscribed: boolean;
+  hint: string;
+};
+
+export async function pushDiagnostics(): Promise<PushDiagnostics> {
+  const ua = typeof navigator === "undefined" ? "" : navigator.userAgent;
+  const ios =
+    /iPad|iPhone|iPod/.test(ua) ||
+    // iPadOS 13+ reports as Macintosh but has touch points.
+    (/Macintosh/.test(ua) && typeof navigator !== "undefined" && navigator.maxTouchPoints > 1);
+
+  const standalone =
+    typeof window !== "undefined" &&
+    (window.matchMedia?.("(display-mode: standalone)").matches ||
+      (navigator as unknown as { standalone?: boolean }).standalone === true);
+
+  let subscribed = false;
+  try {
+    const reg = await navigator.serviceWorker.getRegistration("/sw.js");
+    subscribed = Boolean(await reg?.pushManager.getSubscription());
+  } catch {
+    subscribed = false;
+  }
+
+  const permission =
+    typeof Notification === "undefined" ? "unsupported" : Notification.permission;
+
+  let hint = "";
+  if (ios && !standalone) {
+    hint =
+      "On iPhone/iPad, notifications only work after adding Coolerup to your Home Screen (Share → Add to Home Screen) and enabling them inside that installed app.";
+  } else if (permission === "denied") {
+    hint = "Notifications are blocked for this site in your browser settings.";
+  } else if (permission === "default") {
+    hint = "Notification permission hasn't been granted yet. Tap Enable and allow it.";
+  } else if (!subscribed) {
+    hint = "This device isn't subscribed. Tap Enable to register it.";
+  } else if (ios) {
+    hint =
+      "iPhone shows banners only when Coolerup is in the background. Close the app (or lock the screen) before sending a test.";
+  } else {
+    hint = "Everything looks correct on this device.";
+  }
+
+  return {
+    platform: ua,
+    standalone,
+    ios,
+    permission,
+    supported: pushSupported(),
+    configured: pushConfigured(),
+    subscribed,
+    hint,
+  };
+}

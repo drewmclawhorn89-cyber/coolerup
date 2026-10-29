@@ -172,3 +172,46 @@ export const deleteMyAccount = createServerFn({ method: "POST" })
     if (error) throw new Error("Couldn't delete account");
     return { ok: true };
   });
+
+/**
+ * Diagnostics for Settings: is the server actually able to send push (VAPID
+ * keys present) and how many devices has this user registered? Without this,
+ * a missing key silently turns every notification into a no-op.
+ */
+export const getPushStatus = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const configured = Boolean(
+      process.env["VAPID_SUBJECT"] &&
+        process.env["VAPID_SERVER_PUBLIC_KEY"] &&
+        process.env["VAPID_SERVER_PRIVATE_KEY"],
+    );
+    let devices = 0;
+    try {
+      const { data } = await pushTable(supabaseAdmin)
+        .select("endpoint")
+        .eq("user_id", context.userId);
+      devices = data?.length ?? 0;
+    } catch {
+      // Table missing or unreachable — report zero devices rather than throwing.
+    }
+    return { configured, devices };
+  });
+
+/** Fires a test notification at the signed-in user's own devices. */
+export const sendTestPush = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    return sendPushToUser(
+      context.userId,
+      {
+        kind: "test",
+        title: "Coolerup test notification",
+        body: "If you can see this, out-of-app notifications are working.",
+        url: "/settings",
+        tag: "test",
+      },
+      { ttl: 60, urgency: "normal" },
+    );
+  });

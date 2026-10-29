@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { Switch } from "@/components/ui/switch";
 
@@ -48,11 +49,24 @@ function Choice({ id, label, options, def }: { id: string; label: string; option
   );
 }
 
-function Row({ label, desc, onClick, danger }: { label: string; desc?: string; onClick: () => void; danger?: boolean }) {
-  return (
-    <button onClick={onClick} className={`flex w-full items-center justify-between border-t py-3 text-left first:border-t-0 ${danger ? "text-destructive" : ""}`}>
+function Row({ label, desc, onClick, danger, to }: { label: string; desc?: string; onClick?: () => void; danger?: boolean; to?: string }) {
+  const cls = `flex w-full items-center justify-between border-t py-3 text-left first:border-t-0 ${danger ? "text-destructive" : ""}`;
+  const inner = (
+    <>
       <span><span className="block font-medium">{label}</span>{desc && <span className="block text-sm text-muted-foreground">{desc}</span>}</span>
       <span className="text-muted-foreground">›</span>
+    </>
+  );
+  if (to) {
+    return (
+      <Link to={to} className={cls}>
+        {inner}
+      </Link>
+    );
+  }
+  return (
+    <button onClick={onClick} className={cls}>
+      {inner}
     </button>
   );
 }
@@ -264,7 +278,7 @@ export function MoreSettings() {
         <Row label="Help center" onClick={open("Help center")} />
         <Row label="Community guidelines" onClick={open("Community guidelines")} />
         <Row label="Terms of service" onClick={open("Terms of service")} />
-        <Row label="Privacy policy" onClick={open("Privacy policy")} />
+        <Row label="Privacy policy" to="/privacy" />
       </Card>
       <Card title="Account control">
         <Row label="Deactivate account" onClick={() => !needAuth() && setConfirm("deactivate")} danger />

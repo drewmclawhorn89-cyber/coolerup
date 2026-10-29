@@ -791,7 +791,7 @@ function VideoCardImpl({
               </div>
             )}
 
-            <div className="video-caption absolute inset-x-0 bottom-0 z-20 pb-20 pl-2 pr-20 pt-16">
+            <div className="video-caption absolute inset-x-0 bottom-0 z-20 pb-14 pl-2 pr-16 pt-16">
               {soundId && (
                 <SoundBar
                   soundId={soundId}
@@ -833,14 +833,14 @@ function VideoCardImpl({
             <p className="text-sm text-muted-foreground">{captionText}</p>
           </div>
         </div>
-        <div className="absolute bottom-20 right-2 z-20 flex flex-col items-center gap-5 md:static md:mb-16 md:gap-5">
+        <div className="absolute bottom-14 right-1.5 z-20 flex flex-col items-center gap-3.5 md:static md:mb-10 md:gap-3.5">
           {/* Avatar + follow badge — TikTok pins the + onto the avatar's chin. */}
           <div className="flex flex-col items-center">
             <Link
               to="/u/$username"
               params={{ username: video.username }}
               aria-label={`View @${video.username}'s profile`}
-              className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full border-2 border-white bg-primary font-display text-lg uppercase text-primary-foreground"
+              className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border-2 border-white bg-primary font-display text-base uppercase text-primary-foreground"
             >
               {authorAvatar ? (
                 <img
@@ -860,7 +860,7 @@ function VideoCardImpl({
                 onClick={toggleFollow}
                 aria-label={isFollowing ? "Unfollow" : "Follow"}
                 aria-pressed={isFollowing}
-                className={`-mt-3 flex h-6 w-6 items-center justify-center rounded-full text-[14px] font-bold leading-none transition ${
+                className={`-mt-2.5 flex h-5 w-5 items-center justify-center rounded-full text-[12px] font-bold leading-none transition ${
                   isFollowing ? "bg-white text-black" : "bg-[#fe2c55] text-white"
                 }`}
               >
@@ -877,7 +877,7 @@ function VideoCardImpl({
             activeClass="text-[#fe2c55]"
           >
             <Heart
-              className={`h-8 w-8 drop-shadow-lg ${
+              className={`h-7 w-7 drop-shadow-lg ${
                 liked ? "fill-[#fe2c55] text-[#fe2c55]" : "text-white"
               } ${liked && burst ? "heart-pop-btn" : ""}`}
             />
@@ -885,7 +885,7 @@ function VideoCardImpl({
 
           {/* COMMENT */}
           <RailButton label={formatCount(comments)} onClick={() => setShowComments(true)}>
-            <MessageCircle className="h-8 w-8 fill-white text-white drop-shadow-lg" />
+            <MessageCircle className="h-7 w-7 fill-white text-white drop-shadow-lg" />
           </RailButton>
 
           {/* REPOST */}
@@ -896,7 +896,7 @@ function VideoCardImpl({
             activeClass="text-yellow-400"
           >
             <Repeat2
-              className={`h-8 w-8 drop-shadow-lg ${reposted ? "text-yellow-400" : "text-white"}`}
+              className={`h-7 w-7 drop-shadow-lg ${reposted ? "text-yellow-400" : "text-white"}`}
             />
           </RailButton>
 
@@ -908,7 +908,7 @@ function VideoCardImpl({
             activeClass="text-white"
           >
             <Bookmark
-              className={`h-8 w-8 drop-shadow-lg ${isSaved ? "fill-white text-white" : "text-white"}`}
+              className={`h-7 w-7 drop-shadow-lg ${isSaved ? "fill-white text-white" : "text-white"}`}
             />
           </RailButton>
 
@@ -922,7 +922,7 @@ function VideoCardImpl({
               className="flex flex-col items-center"
             >
               <SoundDisc spinning={playing} />
-              <span className="mt-1 block h-[15px] text-[12px] font-bold leading-[15px] text-white drop-shadow">
+              <span className="mt-0.5 block h-[13px] text-[11px] font-bold leading-[13px] text-white drop-shadow">
                 Sound
               </span>
             </Link>
@@ -936,7 +936,7 @@ function VideoCardImpl({
               className="flex flex-col items-center bg-transparent p-0 focus-visible:outline-none"
             >
               <SoundDisc spinning={playing} busy={soundBusy} />
-              <span className="mt-1 block h-[15px] text-[12px] font-bold leading-[15px] text-white drop-shadow">
+              <span className="mt-0.5 block h-[13px] text-[11px] font-bold leading-[13px] text-white drop-shadow">
                 Sound
               </span>
             </button>
@@ -944,7 +944,7 @@ function VideoCardImpl({
 
           {/* SHARE */}
           <RailButton label="Share" onClick={() => setShowShare(true)}>
-            <Share2 className="h-8 w-8 text-white drop-shadow-lg" />
+            <Share2 className="h-7 w-7 text-white drop-shadow-lg" />
           </RailButton>
         </div>
       </div>
@@ -1058,14 +1058,14 @@ export const VideoCard = memo(VideoCardImpl);
 function SoundDisc({ spinning, busy }: { spinning?: boolean; busy?: boolean }) {
   return (
     <span
-      className={`relative flex h-11 w-11 items-center justify-center rounded-full border border-white/25 bg-gradient-to-br from-zinc-600 via-zinc-900 to-black shadow-[0_4px_16px_rgba(0,0,0,0.55)] ${
+      className={`relative flex h-9 w-9 items-center justify-center rounded-full border border-white/25 bg-gradient-to-br from-zinc-600 via-zinc-900 to-black shadow-[0_4px_16px_rgba(0,0,0,0.55)] ${
         busy ? "animate-pulse opacity-70" : ""
       }`}
     >
       <span className="absolute inset-1 rounded-full border border-white/15" />
       <span className="absolute inset-[42%] rounded-full bg-white/80" />
       <Music
-        className={`relative h-6 w-6 text-white drop-shadow ${spinning ? "animate-spin-slow" : ""}`}
+        className={`relative h-5 w-5 text-white drop-shadow ${spinning ? "animate-spin-slow" : ""}`}
       />
     </span>
   );
@@ -1095,7 +1095,7 @@ function RailButton({
       {/* Fixed height so an empty label (unsaved bookmark) keeps the same
           rhythm as the others — TikTok spaces all six icons evenly. */}
       <span
-        className={`mt-1 block h-[15px] text-[12px] font-bold leading-[15px] drop-shadow ${
+        className={`mt-0.5 block h-[13px] text-[11px] font-bold leading-[13px] drop-shadow ${
           pressed ? activeClass : "text-white"
         }`}
       >

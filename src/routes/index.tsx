@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Fragment, Suspense, lazy, useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Bell,
   Download,
@@ -268,28 +268,43 @@ function Index() {
   const [notifications, setNotifications] = useState<NotificationRow[]>([]);
   const [notificationFilter, setNotificationFilter] = useState<NotificationFilter>("all");
 
-  const load = (pageNum = 0, append = false) => {
-    if (loadingMore) return;
-    setLoadingMore(true);
-    fetchVideos(pageNum, feedPageSize())
-      .then((v: any) => {
-        if (!v || v.length === 0) setHasMore(false);
-        else {
-          if (append) setVideos((prev: any) => [...(prev || []), ...v]);
+  // Ref guard (not just state) so two loads can never overlap: a stale
+  // `loadingMore` closure used to let the sentinel append a page while the
+  // first page was still in flight, which left the previous session's cached
+  // order on screen instead of the fresh shuffle.
+  const loadingRef = useRef(false);
+
+  const load = useCallback(
+    (pageNum = 0, append = false) => {
+      if (loadingRef.current) return;
+      loadingRef.current = true;
+      setLoadingMore(true);
+      fetchVideos(pageNum, feedPageSize())
+        .then((v: any) => {
+          if (!v || v.length === 0) setHasMore(false);
           else {
-            setVideos(v);
-            writeFeedCache(v);
+            if (append) setVideos((prev: any) => [...(prev || []), ...v]);
+            else {
+              setVideos(v);
+              writeFeedCache(v);
+            }
+            setPage(pageNum + 1);
           }
-          setPage(pageNum + 1);
-        }
-        setError(false);
-      })
-      .catch(() => setError(true))
-      .finally(() => setLoadingMore(false));
-  };
+          setError(false);
+        })
+        .catch(() => setError(true))
+        .finally(() => {
+          loadingRef.current = false;
+          setLoadingMore(false);
+        });
+    },
+    [],
+  );
 
   const loadMore = () => {
-    if (!hasMore || loadingMore) return;
+    // `page === 0` means the first page has not landed yet — never append
+    // before it does or the cached order survives the refresh.
+    if (!hasMore || loadingRef.current || page === 0) return;
     load(page, true);
   };
 
@@ -308,9 +323,10 @@ function Index() {
   useEffect(() => {
     // Every visit gets a fresh mix: drop the previous shuffle before loading.
     resetFeedOrder();
-    // Show the last feed instantly on slow links, then refresh in the background.
-    // Shuffle the cached page too so even the first paint feels different.
-    const cached = readFeedCache();
+    // Show the last feed instantly only when the network is slow or we're
+    // offline. On a normal connection the cache would put the *same* videos
+    // first on every launch, which is exactly what made the feed feel static.
+    const cached = !navigator.onLine || lite ? readFeedCache() : null;
     if (cached) {
       const mixed = [...cached];
       for (let i = mixed.length - 1; i > 0; i--) {
@@ -362,6 +378,31 @@ function Index() {
       window.removeEventListener("offline", update);
     };
   }, []);
+
+  // "Every time you go in the app" — an installed PWA can stay mounted for
+  // days, so a mount-only shuffle isn't enough. When the app comes back to the
+  // foreground after being away for a while, drop the old order and re-mix the
+  // whole library. Short tab hops are ignored so watching isn't interrupted.
+  useEffect(() => {
+    let hiddenAt = 0;
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        hiddenAt = Date.now();
+        return;
+      }
+      if (!hiddenAt || Date.now() - hiddenAt < 60_000) return;
+      hiddenAt = 0;
+      if (!navigator.onLine) return;
+      resetFeedOrder();
+      setHasMore(true);
+      setPage(0);
+      load(0, false);
+      const el = document.querySelector(".no-scrollbar") as HTMLElement | null;
+      if (el) el.scrollTop = 0;
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, [load]);
 
   useEffect(() => {
     if (!auth.user) return;

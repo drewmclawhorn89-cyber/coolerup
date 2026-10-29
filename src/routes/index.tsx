@@ -699,33 +699,41 @@ function Index() {
             </div>
           </div>
         ) : activeTab === "inbox" ? (
-          <div className="p-6">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <h2 className="text-2xl font-display font-bold">Inbox</h2>
-                <p className="mt-1 text-sm text-muted-foreground">All your notifications in one place</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant={notificationFilter === "unread" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setNotificationFilter((f) => (f === "all" ? "unread" : "all"))}
-                >
-                  {notificationFilter === "all" ? "Unread only" : "Show all"}
-                </Button>
-                {unreadCount > 0 && (
-                  <Button variant="ghost" size="sm" onClick={markAllRead}>
-                    Mark all read
+          <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain">
+            <div className="sticky top-0 z-10 border-b bg-black/85 px-6 py-4 backdrop-blur">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-2xl font-display font-bold">Inbox</h2>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {notifications.length === 0
+                      ? "All your notifications in one place"
+                      : `${notifications.length} notification${notifications.length === 1 ? "" : "s"}${
+                          unreadCount > 0 ? ` \u00b7 ${unreadCount} unread` : ""
+                        }`}
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    variant={notificationFilter === "unread" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setNotificationFilter((f) => (f === "all" ? "unread" : "all"))}
+                  >
+                    {notificationFilter === "all" ? "Unread only" : "Show all"}
                   </Button>
-                )}
-                <Link to="/messages" className="flex items-center gap-3 rounded-xl px-4 py-3 font-bold transition hover:bg-secondary">
-                  <MessageCircle className="h-5 w-5" />
-                  Messages
-                </Link>
+                  {unreadCount > 0 && (
+                    <Button variant="ghost" size="sm" onClick={markAllRead}>
+                      Mark all read
+                    </Button>
+                  )}
+                  <Link to="/messages" className="flex items-center gap-3 rounded-xl px-4 py-3 font-bold transition hover:bg-secondary">
+                    <MessageCircle className="h-5 w-5" />
+                    Messages
+                  </Link>
+                </div>
               </div>
             </div>
 
-            <div className="mt-6 max-w-2xl space-y-3">
+            <div className="mx-auto w-full max-w-2xl space-y-3 px-6 pb-28 pt-6">
               {filteredNotifications.length === 0 ? (
                 <div className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">
                   {notificationFilter === "unread" ? "No unread notifications" : "No notifications"}

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Camera, Circle, Eye, Loader2, Radio, Signal, Video, X } from "lucide-react";
+import { Camera, Circle, Eye, Loader2, MessageCircle, Radio, Send, Signal, Video, X } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { MusicPlayer, useMusicPlayer } from "@/components/MusicPlayer";
@@ -7,6 +7,8 @@ import { supabase } from "@/integrations/supabase/client";
 
 type Mode = "host" | "viewer" | null;
 type LiveHost = { userId: string; username: string; title: string; since: number };
+type ChatMessage = { id: string; username: string; body: string; at: number; self?: boolean };
+const CHAT_LIMIT = 200;
 type Presence = { userId?: string; username?: string; title?: string; since?: number; live?: boolean };
 
 type Props = {
@@ -34,6 +36,11 @@ export function LiveStreamDialog({ open, onOpenChange, userId, username, onRecor
   const [viewers, setViewers] = useState(0);
   const [connecting, setConnecting] = useState(false);
   const [ended, setEnded] = useState(false);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [draft, setDraft] = useState("");
+  const [chatOpen, setChatOpen] = useState(true);
+  const [unread, setUnread] = useState(0);
+  const chatEnd = useRef<HTMLDivElement>(null);
   const localVideo = useRef<HTMLVideoElement>(null);
   const remoteVideo = useRef<HTMLVideoElement>(null);
   const localStream = useRef<MediaStream | null>(null);
@@ -107,6 +114,34 @@ export function LiveStreamDialog({ open, onOpenChange, userId, username, onRecor
     if (room.current) void room.current.send({ type: "broadcast", event, payload });
   }
 
+  function pushMessage(message: ChatMessage) {
+    setMessages((current) => {
+      if (current.some((entry) => entry.id === message.id)) return current;
+      return [...current, message].slice(-CHAT_LIMIT);
+    });
+    if (!chatOpen) setUnread((count) => count + 1);
+  }
+
+  function sendChat() {
+    const body = draft.trim().slice(0, 240);
+    if (!body) return;
+    const message: ChatMessage = {
+      id: `${viewerToken.current}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      username: username || "you",
+      body,
+      at: Date.now(),
+      self: true,
+    };
+    pushMessage(message);
+    broadcast("chat-message", { id: message.id, username: message.username, body, at: message.at });
+    setDraft("");
+  }
+
+  // Keep the newest message in view.
+  useEffect(() => {
+    if (chatOpen) chatEnd.current?.scrollIntoView({ block: "end" });
+  }, [messages, chatOpen]);
+
   function closePeers() {
     peers.current.forEach((peer) => peer.close());
     peers.current.clear();
@@ -179,6 +214,10 @@ export function LiveStreamDialog({ open, onOpenChange, userId, username, onRecor
       viewerSet.current.delete(payload.viewerId);
       setViewers(viewerSet.current.size);
     });
+    channel.on("broadcast", { event: "chat-message" }, ({ payload }: { payload: ChatMessage }) => {
+      if (!payload?.id || !payload.body) return;
+      pushMessage({ id: payload.id, username: payload.username || "guest", body: String(payload.body).slice(0, 240), at: payload.at || Date.now() });
+    });
     room.current = channel;
     channel.subscribe((status: string) => {
       if (status !== "SUBSCRIBED") return;
@@ -216,6 +255,10 @@ export function LiveStreamDialog({ open, onOpenChange, userId, username, onRecor
       setEnded(true);
       setConnecting(false);
       setRemoteStream(null);
+    });
+    channel.on("broadcast", { event: "chat-message" }, ({ payload }: { payload: ChatMessage }) => {
+      if (!payload?.id || !payload.body) return;
+      pushMessage({ id: payload.id, username: payload.username || "guest", body: String(payload.body).slice(0, 240), at: payload.at || Date.now() });
     });
     room.current = channel;
     channel.subscribe((status: string) => {
@@ -295,17 +338,101 @@ export function LiveStreamDialog({ open, onOpenChange, userId, username, onRecor
             <div className="absolute inset-x-0 top-0 flex items-center justify-between bg-gradient-to-b from-black/70 to-transparent p-4 pt-[max(1rem,env(safe-area-inset-top))]">
               <button onClick={finish} aria-label="Close live stream" className="flex h-10 w-10 items-center justify-center rounded-full bg-black/40"><X className="h-5 w-5" /></button>
               {mode === "host" && broadcasting ? <span className="flex items-center gap-2 rounded-full bg-red-600 px-3 py-1.5 text-xs font-extrabold tracking-wider"><Circle className="h-2 w-2 fill-white" /> LIVE <span className="ml-1 flex items-center gap-1 font-medium"><Eye className="h-3.5 w-3.5" />{viewers}</span></span> : mode === "viewer" ? <span className="rounded-full bg-red-600 px-3 py-1.5 text-xs font-extrabold tracking-wider">LIVE</span> : <span className="h-10 w-10" />}
+              <button
+                onClick={() => {
+                  setChatOpen((value) => !value);
+                  setUnread(0);
+                }}
+                aria-label={chatOpen ? "Hide live chat" : "Show live chat"}
+                aria-pressed={chatOpen}
+                className="relative flex h-10 w-10 items-center justify-center rounded-full bg-black/40"
+              >
+                <MessageCircle className="h-5 w-5" />
+                {unread > 0 && !chatOpen && (
+                  <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-extrabold">
+                    {unread > 9 ? "9+" : unread}
+                  </span>
+                )}
+              </button>
             </div>
             {mode === "host" ? (
-              <div className="absolute inset-x-0 bottom-0 space-y-3 bg-gradient-to-t from-black/80 to-transparent px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-14">
+              <div className="absolute inset-x-0 bottom-0 space-y-3 bg-gradient-to-t from-black/85 via-black/50 to-transparent px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-10">
+                {broadcasting && (
+                  <div className="space-y-2">
+                    <div className="max-h-40 space-y-1.5 overflow-y-auto overscroll-contain pr-1 text-sm">
+                      {messages.length === 0 ? (
+                        <p className="text-xs text-white/50">Live chat will appear here.</p>
+                      ) : (
+                        messages.map((message) => (
+                          <p key={message.id} className="break-words rounded-2xl bg-black/45 px-3 py-1.5 text-white/90">
+                            <span className="font-bold text-primary">@{message.username}</span>{" "}
+                            <span>{message.body}</span>
+                          </p>
+                        ))
+                      )}
+                      <div ref={chatEnd} />
+                    </div>
+                    <form
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        sendChat();
+                      }}
+                      className="flex items-center gap-2"
+                    >
+                      <input
+                        value={draft}
+                        onChange={(event) => setDraft(event.target.value.slice(0, 240))}
+                        placeholder="Say something to your viewers…"
+                        aria-label="Chat message"
+                        className="min-w-0 flex-1 rounded-full bg-white/15 px-4 py-2.5 text-sm text-white outline-none placeholder:text-white/60"
+                      />
+                      <button type="submit" aria-label="Send chat message" disabled={!draft.trim()} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-white disabled:opacity-40">
+                        <Send className="h-4 w-4" />
+                      </button>
+                    </form>
+                  </div>
+                )}
                 <input value={title} onChange={(event) => setTitle(event.target.value.slice(0, 80))} disabled={broadcasting} placeholder="What are you going live about?" className="w-full rounded-full bg-white/15 px-4 py-3 text-base text-white outline-none placeholder:text-white/65 disabled:opacity-70" />
                 {!broadcasting ? <button onClick={() => void startBroadcast()} disabled={!cameraReady || Boolean(cameraError)} className="w-full rounded-full bg-primary py-3.5 font-extrabold disabled:opacity-50">{cameraReady ? "Start live stream" : "Camera required"}</button> : <button onClick={finish} className="w-full rounded-full bg-white py-3.5 font-extrabold text-black">End live</button>}
                 <p className="text-center text-xs text-white/65">Peer-to-peer beta · connection quality depends on viewers&apos; networks.</p>
               </div>
             ) : (
-              <div className="absolute inset-x-0 bottom-0 flex items-center justify-between bg-gradient-to-t from-black/80 to-transparent px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-16">
-                <p className="font-bold">{remoteStream ? "You&apos;re watching live" : "Joining stream"}</p>
-                <button onClick={finish} className="rounded-full bg-white/15 px-4 py-2 text-sm font-bold">Leave</button>
+              <div className="absolute inset-x-0 bottom-0 space-y-2 bg-gradient-to-t from-black/85 via-black/50 to-transparent px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-10">
+                <div className="max-h-44 space-y-1.5 overflow-y-auto overscroll-contain pr-1 text-sm">
+                  {messages.length === 0 ? (
+                    <p className="text-xs text-white/50">Be the first to say hi.</p>
+                  ) : (
+                    messages.map((message) => (
+                      <p key={message.id} className="break-words rounded-2xl bg-black/45 px-3 py-1.5 text-white/90">
+                        <span className="font-bold text-primary">@{message.username}</span>{" "}
+                        <span>{message.body}</span>
+                      </p>
+                    ))
+                  )}
+                  <div ref={chatEnd} />
+                </div>
+                <form
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    sendChat();
+                  }}
+                  className="flex items-center gap-2"
+                >
+                  <input
+                    value={draft}
+                    onChange={(event) => setDraft(event.target.value.slice(0, 240))}
+                    placeholder="Add a comment…"
+                    aria-label="Chat message"
+                    className="min-w-0 flex-1 rounded-full bg-white/15 px-4 py-2.5 text-sm text-white outline-none placeholder:text-white/60"
+                  />
+                  <button type="submit" aria-label="Send chat message" disabled={!draft.trim()} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-white disabled:opacity-40">
+                    <Send className="h-4 w-4" />
+                  </button>
+                </form>
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-bold">{remoteStream ? "You're watching live" : "Joining stream"}</p>
+                  <button onClick={finish} className="rounded-full bg-white/15 px-4 py-2 text-sm font-bold">Leave</button>
+                </div>
               </div>
             )}
           </div>

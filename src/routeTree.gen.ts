@@ -18,6 +18,7 @@ import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as GroupsIndexRouteImport } from './routes/groups.index'
 import { Route as GroupsGroupIdRouteImport } from './routes/groups.$groupId'
+import { Route as SoundSoundIdRouteImport } from './routes/sound.$soundId'
 import { Route as UUsernameRouteImport } from './routes/u.$username'
 
 const IndexRoute = IndexRouteImport.update({
@@ -65,6 +66,11 @@ const GroupsGroupIdRoute = GroupsGroupIdRouteImport.update({
   path: '/$groupId',
   getParentRoute: () => GroupsRoute,
 } as any)
+const SoundSoundIdRoute = SoundSoundIdRouteImport.update({
+  id: '/sound/$soundId',
+  path: '/sound/$soundId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const UUsernameRoute = UUsernameRouteImport.update({
   id: '/u/$username',
   path: '/u/$username',
@@ -80,6 +86,7 @@ export interface FileRoutesByFullPath {
   '/privacy': typeof PrivacyRoute
   '/settings': typeof SettingsRoute
   '/groups/$groupId': typeof GroupsGroupIdRoute
+  '/sound/$soundId': typeof SoundSoundIdRoute
   '/u/$username': typeof UUsernameRoute
   '/groups/': typeof GroupsIndexRoute
 }
@@ -91,6 +98,7 @@ export interface FileRoutesByTo {
   '/privacy': typeof PrivacyRoute
   '/settings': typeof SettingsRoute
   '/groups/$groupId': typeof GroupsGroupIdRoute
+  '/sound/$soundId': typeof SoundSoundIdRoute
   '/u/$username': typeof UUsernameRoute
   '/groups': typeof GroupsIndexRoute
 }
@@ -104,6 +112,7 @@ export interface FileRoutesById {
   '/privacy': typeof PrivacyRoute
   '/settings': typeof SettingsRoute
   '/groups/$groupId': typeof GroupsGroupIdRoute
+  '/sound/$soundId': typeof SoundSoundIdRoute
   '/u/$username': typeof UUsernameRoute
   '/groups/': typeof GroupsIndexRoute
 }
@@ -118,6 +127,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/settings'
     | '/groups/$groupId'
+    | '/sound/$soundId'
     | '/u/$username'
     | '/groups/'
   fileRoutesByTo: FileRoutesByTo
@@ -129,6 +139,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/settings'
     | '/groups/$groupId'
+    | '/sound/$soundId'
     | '/u/$username'
     | '/groups'
   id:
@@ -141,6 +152,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/settings'
     | '/groups/$groupId'
+    | '/sound/$soundId'
     | '/u/$username'
     | '/groups/'
   fileRoutesById: FileRoutesById
@@ -153,6 +165,7 @@ export interface RootRouteChildren {
   OfflineRoute: typeof OfflineRoute
   PrivacyRoute: typeof PrivacyRoute
   SettingsRoute: typeof SettingsRoute
+  SoundSoundIdRoute: typeof SoundSoundIdRoute
   UUsernameRoute: typeof UUsernameRoute
 }
 
@@ -221,6 +234,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GroupsGroupIdRouteImport
       parentRoute: typeof GroupsRoute
     }
+    '/sound/$soundId': {
+      id: '/sound/$soundId'
+      path: '/sound/$soundId'
+      fullPath: '/sound/$soundId'
+      preLoaderRoute: typeof SoundSoundIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/u/$username': {
       id: '/u/$username'
       path: '/u/$username'
@@ -252,6 +272,7 @@ const rootRouteChildren: RootRouteChildren = {
   OfflineRoute: OfflineRoute,
   PrivacyRoute: PrivacyRoute,
   SettingsRoute: SettingsRoute,
+  SoundSoundIdRoute: SoundSoundIdRoute,
   UUsernameRoute: UUsernameRoute,
 }
 export const routeTree = rootRouteImport

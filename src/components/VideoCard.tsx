@@ -9,7 +9,7 @@ import {
   type MouseEvent,
 } from "react";
 import { Link } from "@tanstack/react-router";
-import { Bookmark, Heart, MessageCircle, Play, Repeat2, Share2 } from "lucide-react";
+import { Bookmark, Heart, MessageCircle, Music, Play, Repeat2, Share2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -21,6 +21,8 @@ import {
   type Video,
 } from "@/lib/loop";
 import { getSaved } from "@/lib/offline";
+import { SoundBar } from "@/components/SoundBar";
+import { cacheSound, getCachedSound, getSound, soundAudioUrl, type Sound } from "@/lib/sounds";
 import { useAuth } from "@/hooks/useAuth";
 import { haptic, readBool } from "@/lib/prefs";
 import { isLiteMode, useNetwork } from "@/lib/network";
@@ -113,6 +115,18 @@ function VideoCardImpl({
   const [authorAvatar, setAuthorAvatar] = useState<string | null>(null);
   const progressRef = useRef<HTMLDivElement>(null);
 
+  // --- sound ("Use this sound") --------------------------------------------
+  const [sound, setSound] = useState<Sound | null>(
+    () => (video.sound as Sound | undefined) ?? getCachedSound(video.sound_id),
+  );
+  const [soundSrc, setSoundSrc] = useState("");
+  const soundAudioRef = useRef<HTMLAudioElement>(null);
+  const [originalAudio, setOriginalAudio] = useState(false);
+  const soundId = video.sound_id ?? sound?.id ?? null;
+  // A borrowed sound is overlaid on top of the video. The video's own original
+  // sound is already in the file, so it doesn't need a second audio element.
+  const hasBorrowedSound = !!sound && sound.original_video_id !== video.id;
+
   // --- moderation -----------------------------------------------------------
   const [isBanned, setIsBanned] = useState(false);
   const [notInterested, setNotInterested] = useState(false);
@@ -182,6 +196,91 @@ function VideoCardImpl({
       active = false;
     };
   }, [video.username, myUsername, auth.avatar]);
+
+  // Load the sound row (feed rows embed it; profile grids don't).
+  useEffect(() => {
+    if (!video.sound_id) {
+      setSound(null);
+      return;
+    }
+    if (video.sound) {
+      const embedded = video.sound as Sound;
+      cacheSound(embedded);
+      setSound(embedded);
+      return;
+    }
+    const cached = getCachedSound(video.sound_id);
+    if (cached) setSound(cached);
+    let active = true;
+    void getSound(video.sound_id).then((row) => {
+      if (active) setSound(row);
+    });
+    return () => {
+      active = false;
+    };
+  }, [video.sound_id, video.sound]);
+
+  // Resolve the audio source for a borrowed sound (handles storage: URLs).
+  useEffect(() => {
+    if (!sound?.audio_url) {
+      setSoundSrc("");
+      return;
+    }
+    let active = true;
+    void soundAudioUrl(sound).then((url) => {
+      if (active) setSoundSrc(url);
+    });
+    return () => {
+      active = false;
+    };
+  }, [sound?.id, sound?.audio_url]);
+
+  // Keep the overlay audio in step with the video.
+  const syncSound = useCallback(
+    (playing: boolean) => {
+      const a = soundAudioRef.current;
+      const v = ref.current;
+      if (!a || !v || !hasBorrowedSound) return;
+      if (!playing) {
+        a.pause();
+        return;
+      }
+      try {
+        if (a.readyState > 0) {
+          const duration = Number.isFinite(a.duration) && a.duration > 0 ? a.duration : 0;
+          const target = duration ? v.currentTime % duration : v.currentTime;
+          if (Math.abs(a.currentTime - target) > 0.35) a.currentTime = target;
+        }
+        a.muted = muted;
+        void a.play().catch(() => {});
+      } catch {
+        /* audio element not ready yet */
+      }
+    },
+    [hasBorrowedSound, muted],
+  );
+
+  // Start/stop the overlay as the card enters and leaves the viewport.
+  useEffect(() => {
+    const el = cardRef.current;
+    const a = soundAudioRef.current;
+    if (!el || !a || !hasBorrowedSound) return;
+    return observeIntersection(
+      el,
+      (e) => {
+        if (e && e.isIntersecting && e.intersectionRatio > 0.6) {
+          if (ref.current && !ref.current.paused) syncSound(true);
+        } else {
+          a.pause();
+        }
+      },
+      { threshold: [0, 0.6, 1] },
+    );
+  }, [hasBorrowedSound, soundSrc, syncSound]);
+
+  useEffect(() => {
+    if (soundAudioRef.current) soundAudioRef.current.muted = muted;
+  }, [muted]);
 
   // Keep batched props in sync when the parent learns the state later.
   useEffect(() => {
@@ -565,7 +664,7 @@ function VideoCardImpl({
                 src={src}
                 loop={!full}
                 controls={full}
-                muted={muted}
+                muted={muted || (hasBorrowedSound && !originalAudio)}
                 playsInline
                 preload={lite ? "none" : "metadata"}
                 disableRemotePlayback
@@ -573,13 +672,34 @@ function VideoCardImpl({
                 onDoubleClick={() => !liked && toggleLike()}
                 onLoadedData={() => setLoadState("ready")}
                 onError={() => setLoadState("error")}
+                onPlay={() => syncSound(true)}
+                onPause={() => syncSound(false)}
+                onSeeking={() => syncSound(true)}
+                onSeeked={() => syncSound(true)}
                 onTimeUpdate={(e) => {
                   const v = e.currentTarget;
                   if (v.duration && progressRef.current) {
                     progressRef.current.style.width = `${(v.currentTime / v.duration) * 100}%`;
                   }
+                  const a = soundAudioRef.current;
+                  if (a && !a.paused && a.readyState > 0) {
+                    const duration = Number.isFinite(a.duration) && a.duration > 0 ? a.duration : 0;
+                    const target = duration ? v.currentTime % duration : v.currentTime;
+                    if (Math.abs(a.currentTime - target) > 0.45) a.currentTime = target;
+                  }
                 }}
                 className={`h-full w-full cursor-pointer ${full ? "object-contain" : "object-cover"}`}
+              />
+            )}
+
+            {hasBorrowedSound && soundSrc && (
+              <audio
+                ref={soundAudioRef}
+                src={soundSrc}
+                loop
+                muted={muted}
+                preload="none"
+                aria-hidden
               />
             )}
 
@@ -637,17 +757,28 @@ function VideoCardImpl({
               </div>
             )}
 
-            <div
-              className={`video-caption absolute inset-x-0 bottom-0 z-20 pb-20 pl-2 pr-20 pt-16 ${showCaptions ? "" : "md:hidden"}`}
-            >
-              <Link
-                to="/u/$username"
-                params={{ username: video.username }}
-                className="break-words text-sm font-bold"
-              >
-                @{video.username}
-              </Link>
-              <p className="mt-1 line-clamp-3 break-words text-sm">{captionText}</p>
+            <div className="video-caption absolute inset-x-0 bottom-0 z-20 pb-20 pl-2 pr-20 pt-16">
+              {soundId && (
+                <SoundBar
+                  soundId={soundId}
+                  title={sound?.title ?? `Original sound - @${video.username}`}
+                  creatorUsername={sound?.creator_username ?? video.username}
+                  originalAudio={originalAudio}
+                  onToggleOriginalAudio={() => setOriginalAudio((on) => !on)}
+                  showOriginalToggle={hasBorrowedSound}
+                  className="mb-2"
+                />
+              )}
+              <div className={showCaptions ? "" : "md:hidden"}>
+                <Link
+                  to="/u/$username"
+                  params={{ username: video.username }}
+                  className="break-words text-sm font-bold"
+                >
+                  @{video.username}
+                </Link>
+                <p className="mt-1 line-clamp-3 break-words text-sm">{captionText}</p>
+              </div>
             </div>
             {!isImage && (
               <div onClick={seek} className="absolute inset-x-0 bottom-0 h-3 cursor-pointer">
@@ -746,6 +877,26 @@ function VideoCardImpl({
               className={`h-8 w-8 drop-shadow-lg ${isSaved ? "fill-white text-white" : "text-white"}`}
             />
           </RailButton>
+
+          {/* SOUND — spinning record, above Share (TikTok placement) */}
+          {soundId && (
+            <Link
+              to="/sound/$soundId"
+              params={{ soundId }}
+              aria-label={`Open sound: ${sound?.title ?? `Original sound - @${video.username}`}`}
+              title={sound?.title ?? `Original sound - @${video.username}`}
+              className="flex flex-col items-center"
+            >
+              <span className="relative flex h-12 w-12 items-center justify-center rounded-full border border-white/25 bg-gradient-to-br from-zinc-600 via-zinc-900 to-black shadow-[0_4px_16px_rgba(0,0,0,0.55)]">
+                <span className="absolute inset-1 rounded-full border border-white/15" />
+                <span className="absolute inset-[42%] rounded-full bg-white/80" />
+                <Music className="relative h-7 w-7 text-white animate-spin-slow drop-shadow" />
+              </span>
+              <span className="mt-1 block h-[15px] text-[12px] font-bold leading-[15px] text-white drop-shadow">
+                Sound
+              </span>
+            </Link>
+          )}
 
           {/* SHARE */}
           <RailButton label="Share" onClick={() => setShowShare(true)}>

@@ -153,6 +153,8 @@ export type PushDiagnostics = {
   supported: boolean;
   configured: boolean;
   subscribed: boolean;
+  /** Host of this device's push endpoint, e.g. web.push.apple.com / fcm.googleapis.com */
+  endpointHost: string | null;
   hint: string;
 };
 
@@ -169,9 +171,18 @@ export async function pushDiagnostics(): Promise<PushDiagnostics> {
       (navigator as unknown as { standalone?: boolean }).standalone === true);
 
   let subscribed = false;
+  let endpointHost: string | null = null;
   try {
     const reg = await navigator.serviceWorker.getRegistration("/sw.js");
-    subscribed = Boolean(await reg?.pushManager.getSubscription());
+    const sub = await reg?.pushManager.getSubscription();
+    subscribed = Boolean(sub);
+    if (sub?.endpoint) {
+      try {
+        endpointHost = new URL(sub.endpoint).host;
+      } catch {
+        endpointHost = null;
+      }
+    }
   } catch {
     subscribed = false;
   }
@@ -204,6 +215,7 @@ export async function pushDiagnostics(): Promise<PushDiagnostics> {
     supported: pushSupported(),
     configured: pushConfigured(),
     subscribed,
+    endpointHost,
     hint,
   };
 }

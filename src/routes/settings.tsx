@@ -91,6 +91,7 @@ const [offlineMode, setOfflineMode] = useState(false);
   const [pushState, setPushState] = useState<{ configured: boolean; devices: number } | null>(null);
   const [testingPush, setTestingPush] = useState(false);
   const [deviceHint, setDeviceHint] = useState<string | null>(null);
+  const [lastTest, setLastTest] = useState<string | null>(null);
 const [messagePrivacy, setMessagePrivacy] = useState(localStorage.getItem("messagePrivacy") || "everyone");
 const [messageFilter, setMessageFilter] = useState(localStorage.getItem("messageFilter") || "all");
 const [allowDM, setAllowDM] = useState(localStorage.getItem("allowDM") !== "false");
@@ -273,26 +274,36 @@ const toggleOffline = () => {
   };
   const runPushTest = async () => {
     setTestingPush(true);
+    setLastTest(null);
     try {
       const status = await pushStatus().catch(() => null);
       if (status) setPushState(status);
+      const diag = await pushDiagnostics().catch(() => null);
+      if (diag) setDeviceHint(diag.hint);
+
       if (!status?.configured) {
+        setLastTest(
+          `configured=false devices=${status?.devices ?? "?"} endpoint=${diag?.endpointHost ?? "none"}`,
+        );
         toast.error("Server push isn't configured (missing VAPID keys). Add them and redeploy.");
         return;
       }
       if (!status.devices) {
+        setLastTest(`configured=true devices=0 endpoint=${diag?.endpointHost ?? "none"}`);
         toast.error("No device registered yet — tap Enable above and allow notifications.");
         return;
       }
       const res = await sendTestPush();
+      setLastTest(
+        `configured=${res.configured} devices=${status.devices} sent=${res.sent} endpoint=${diag?.endpointHost ?? "none"}`,
+      );
       if (res.sent > 0) {
-        const d = await pushDiagnostics().catch(() => null);
-        if (d) setDeviceHint(d.hint);
         toast.success(`Test sent to ${res.sent} device${res.sent === 1 ? "" : "s"} — check your tray`);
       } else {
         toast.error("Test couldn't be delivered. The saved subscription may be stale — tap Enable again.");
       }
-    } catch {
+    } catch (e) {
+      setLastTest(`error: ${e instanceof Error ? e.message : "unknown"}`);
       toast.error("Test notification failed to send");
     } finally {
       setTestingPush(false);
@@ -466,6 +477,11 @@ const changeTheme = (t: string) => {
         )}
         {deviceHint && (
           <p className="mt-1 text-xs text-amber-500">{deviceHint}</p>
+        )}
+        {lastTest && (
+          <p className="mt-1 break-words font-mono text-[11px] text-muted-foreground">
+            {lastTest}
+          </p>
         )}
       </div>
              <div className="rounded-lg border bg-card p-6">

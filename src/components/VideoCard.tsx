@@ -668,7 +668,7 @@ function VideoCardImpl({
             <p className="text-sm text-muted-foreground">{captionText}</p>
           </div>
         </div>
-        <div className="absolute bottom-28 right-2 z-20 flex flex-col items-center gap-6 md:static md:mb-16 md:gap-5">
+        <div className="absolute bottom-20 right-2 z-20 flex flex-col items-center gap-5 md:static md:mb-16 md:gap-5">
           {/* Avatar + follow badge — TikTok pins the + onto the avatar's chin. */}
           <div className="flex flex-col items-center">
             <Link

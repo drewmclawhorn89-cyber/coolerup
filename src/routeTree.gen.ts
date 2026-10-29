@@ -14,6 +14,7 @@ import { Route as AdminRouteImport } from './routes/admin'
 import { Route as GroupsRouteImport } from './routes/groups'
 import { Route as MessagesRouteImport } from './routes/messages'
 import { Route as OfflineRouteImport } from './routes/offline'
+import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as GroupsIndexRouteImport } from './routes/groups.index'
 import { Route as GroupsGroupIdRouteImport } from './routes/groups.$groupId'
@@ -44,6 +45,11 @@ const OfflineRoute = OfflineRouteImport.update({
   path: '/offline',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -71,6 +77,7 @@ export interface FileRoutesByFullPath {
   '/groups': typeof GroupsRouteWithChildren
   '/messages': typeof MessagesRoute
   '/offline': typeof OfflineRoute
+  '/privacy': typeof PrivacyRoute
   '/settings': typeof SettingsRoute
   '/groups/$groupId': typeof GroupsGroupIdRoute
   '/u/$username': typeof UUsernameRoute
@@ -81,6 +88,7 @@ export interface FileRoutesByTo {
   '/admin': typeof AdminRoute
   '/messages': typeof MessagesRoute
   '/offline': typeof OfflineRoute
+  '/privacy': typeof PrivacyRoute
   '/settings': typeof SettingsRoute
   '/groups/$groupId': typeof GroupsGroupIdRoute
   '/u/$username': typeof UUsernameRoute
@@ -93,6 +101,7 @@ export interface FileRoutesById {
   '/groups': typeof GroupsRouteWithChildren
   '/messages': typeof MessagesRoute
   '/offline': typeof OfflineRoute
+  '/privacy': typeof PrivacyRoute
   '/settings': typeof SettingsRoute
   '/groups/$groupId': typeof GroupsGroupIdRoute
   '/u/$username': typeof UUsernameRoute
@@ -106,6 +115,7 @@ export interface FileRouteTypes {
     | '/groups'
     | '/messages'
     | '/offline'
+    | '/privacy'
     | '/settings'
     | '/groups/$groupId'
     | '/u/$username'
@@ -116,6 +126,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/messages'
     | '/offline'
+    | '/privacy'
     | '/settings'
     | '/groups/$groupId'
     | '/u/$username'
@@ -127,6 +138,7 @@ export interface FileRouteTypes {
     | '/groups'
     | '/messages'
     | '/offline'
+    | '/privacy'
     | '/settings'
     | '/groups/$groupId'
     | '/u/$username'
@@ -139,6 +151,7 @@ export interface RootRouteChildren {
   GroupsRoute: typeof GroupsRouteWithChildren
   MessagesRoute: typeof MessagesRoute
   OfflineRoute: typeof OfflineRoute
+  PrivacyRoute: typeof PrivacyRoute
   SettingsRoute: typeof SettingsRoute
   UUsernameRoute: typeof UUsernameRoute
 }
@@ -178,6 +191,13 @@ declare module '@tanstack/react-router' {
       path: '/offline'
       fullPath: '/offline'
       preLoaderRoute: typeof OfflineRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/settings': {
@@ -230,6 +250,7 @@ const rootRouteChildren: RootRouteChildren = {
   GroupsRoute: GroupsRouteWithChildren,
   MessagesRoute: MessagesRoute,
   OfflineRoute: OfflineRoute,
+  PrivacyRoute: PrivacyRoute,
   SettingsRoute: SettingsRoute,
   UUsernameRoute: UUsernameRoute,
 }

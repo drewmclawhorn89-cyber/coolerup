@@ -75,6 +75,25 @@ export async function getTrendingSounds(limit = 20, query = ""): Promise<Sound[]
   return sounds;
 }
 
+/**
+ * Every original sound in the library, most-used first. Used by the in-app
+ * music player so users can listen to (and later reuse) sounds without opening
+ * a video.
+ */
+export async function getAllSounds(limit = 200): Promise<Sound[]> {
+  const { data, error } = await supabase
+    .from("sounds")
+    .select("*")
+    .order("uses_count", { ascending: false })
+    .order("created_at", { ascending: false })
+    .limit(Math.max(1, Math.min(500, limit)));
+
+  if (error) throw error;
+  const sounds = (data ?? []) as Sound[];
+  sounds.forEach(cacheSound);
+  return sounds;
+}
+
 /** Every video that used this sound, newest first (the sound page grid). */
 export async function getSoundVideos(soundId: string): Promise<Video[]> {
   const { data, error } = await supabase

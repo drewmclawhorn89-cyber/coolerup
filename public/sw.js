@@ -145,16 +145,19 @@ self.addEventListener("notificationclick", (event) => {
   );
 });
 
-// If the browser rotates the subscription, drop the stale one so the next app
-// open re-registers a fresh endpoint instead of silently missing pushes.
+// If the browser rotates the subscription, ask any open tab to re-register a
+// fresh endpoint instead of silently missing pushes. (The worker has no VAPID
+// key or auth token of its own, so the page does the actual re-subscribe.)
 self.addEventListener("pushsubscriptionchange", (event) => {
   event.waitUntil(
     (async () => {
       try {
-        const sub = await self.registration.pushManager.getSubscription();
-        if (!sub) return;
+        const list = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+        for (const c of list) {
+          c.postMessage({ type: "coolerup:resubscribe-push" });
+        }
       } catch {
-        // Nothing to do without the VAPID key in the worker scope.
+        // No clients to notify; the next app open will re-register.
       }
     })(),
   );

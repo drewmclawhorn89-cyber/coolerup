@@ -6,9 +6,33 @@
  * subscription reusable so *any* notification (likes, comments, follows,
  * reposts, story likes, DMs) can reach the device even when Coolerup is closed.
  */
-import { savePushSubscription, removePushSubscription } from "@/lib/push.functions";
+import {
+  savePushSubscription,
+  removePushSubscription,
+  sendTestPush as sendTestPushFn,
+  getPushStatus as getPushStatusFn,
+} from "@/lib/push.functions";
 
 const VAPID_PUBLIC_KEY = import.meta.env["VITE_VAPID_PUBLIC_KEY"] as string | undefined;
+
+/**
+ * True when this build was given a VAPID public key. If it's false, the browser
+ * cannot create a subscription at all, so out-of-app notifications are
+ * impossible until the key is configured and the app is redeployed.
+ */
+export function pushConfigured(): boolean {
+  return Boolean(VAPID_PUBLIC_KEY);
+}
+
+/** Ask the server whether it can send push and how many devices we have. */
+export async function pushStatus(): Promise<{ configured: boolean; devices: number }> {
+  return getPushStatusFn();
+}
+
+/** Send a test notification to this user's registered devices. */
+export async function sendTestPush(): Promise<{ sent: number; configured: boolean }> {
+  return sendTestPushFn();
+}
 
 /** True when the browser exposes everything we need for Web Push. */
 export function pushSupported(): boolean {

@@ -14,7 +14,10 @@ import {
   announcePushPref,
   disablePushSubscription,
   ensurePushSubscription,
+  pushConfigured,
   pushPermission,
+  pushStatus,
+  sendTestPush,
 } from "@/lib/push-client"
 
 // Subscriptions moved out of the top tab row and into Settings. Lazy-loaded so
@@ -83,6 +86,9 @@ const [offlineMode, setOfflineMode] = useState(false);
       return true;
     }
   });
+  // Live push diagnostics so a misconfiguration is visible instead of silent.
+  const [pushState, setPushState] = useState<{ configured: boolean; devices: number } | null>(null);
+  const [testingPush, setTestingPush] = useState(false);
 const [messagePrivacy, setMessagePrivacy] = useState(localStorage.getItem("messagePrivacy") || "everyone");
 const [messageFilter, setMessageFilter] = useState(localStorage.getItem("messageFilter") || "all");
 const [allowDM, setAllowDM] = useState(localStorage.getItem("allowDM") !== "false");
@@ -140,6 +146,15 @@ const toggleOffline = () => {
   useEffect(() => {
     setNewHandle(auth.handle ?? "");
   }, [auth.handle]);
+
+  useEffect(() => {
+    if (!auth.user) return;
+    let cancelled = false;
+    pushStatus()
+      .then((s) => { if (!cancelled) setPushState(s); })
+      .catch(() => { if (!cancelled) setPushState({ configured: false, devices: 0 }); });
+    return () => { cancelled = true; };
+  }, [auth.user?.id]);
 
   useEffect(() => {
     if (!auth.user) return;
@@ -231,19 +246,50 @@ const toggleOffline = () => {
         announcePushPref(true);
         return;
       }
+      if (!pushConfigured()) {
+        toast.error("Out-of-app push isn't configured yet (missing VAPID key). In-app alerts only.");
+        announcePushPref(true);
+        return;
+      }
       const ok = await ensurePushSubscription();
       if (ok) {
         toast.success("Notifications enabled — you'll get alerts even when the app is closed");
+        pushStatus().then(setPushState).catch(() => undefined);
       } else if (pushPermission() === "denied") {
         toast.error("Notifications are blocked in your browser settings");
       } else {
-        toast.success("Notifications enabled in-app");
+        toast.error("Couldn't register this device for push. Try again.");
       }
     } else {
       await disablePushSubscription();
       toast.success("Notifications disabled");
     }
     announcePushPref(v);
+  };
+  const runPushTest = async () => {
+    setTestingPush(true);
+    try {
+      const status = await pushStatus().catch(() => null);
+      if (status) setPushState(status);
+      if (!status?.configured) {
+        toast.error("Server push isn't configured (missing VAPID keys). Add them and redeploy.");
+        return;
+      }
+      if (!status.devices) {
+        toast.error("No device registered yet — tap Enable above and allow notifications.");
+        return;
+      }
+      const res = await sendTestPush();
+      if (res.sent > 0) {
+        toast.success(`Test sent to ${res.sent} device${res.sent === 1 ? "" : "s"} — check your tray`);
+      } else {
+        toast.error("Test couldn't be delivered. The saved subscription may be stale — tap Enable again.");
+      }
+    } catch {
+      toast.error("Test notification failed to send");
+    } finally {
+      setTestingPush(false);
+    }
   };
 const changeTheme = (t: string) => {
   setTheme(t);
@@ -398,7 +444,19 @@ const changeTheme = (t: string) => {
           <button onClick={() => toggleNotifications(false)} className={`rounded-md px-3 py-2 ${!notificationsEnabled ? "bg-primary text-primary-foreground" : "border bg-background"}`}>
             Disable
           </button>
+          <button onClick={runPushTest} disabled={testingPush} className="rounded-md border bg-background px-3 py-2 disabled:opacity-50">
+            {testingPush ? "Sending…" : "Send test"}
+          </button>
         </div>
+        {pushState && (
+          <p className="mt-2 text-xs text-muted-foreground">
+            {!pushState.configured
+              ? "Out-of-app push is not configured on the server (missing VAPID keys)."
+              : pushState.devices > 0
+                ? `Out-of-app push ready — ${pushState.devices} device${pushState.devices === 1 ? "" : "s"} registered.`
+                : "Push is configured, but this device isn't registered yet. Tap Enable."}
+          </p>
+        )}
       </div>
              <div className="rounded-lg border bg-card p-6">
           <h2 className="font-semibold">Social Links - Add to Your Profile</h2>

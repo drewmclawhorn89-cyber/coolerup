@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Coolerup</string>
+    <string name="title_activity_main">Coolerup</string>
+    <string name="package_name">com.coolerup.app</string>
+    <string name="custom_url_scheme">com.coolerup.app</string>
+</resources>

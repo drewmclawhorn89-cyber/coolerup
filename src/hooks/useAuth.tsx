@@ -10,6 +10,8 @@ export type Profile = {
   bio: string | null;
   avatar_url: string | null;
   links?: Record<string, string> | null;
+  /** Whether the user's liked videos are visible on their profile. */
+  show_liked?: boolean | null;
 };
 
 const PROFILE_EVENT = "loop-profile-changed";
@@ -63,9 +65,15 @@ function useAuthState(): AuthValue {
   }, []);
 
   const googleName: string | null =
-    user?.user_metadata?.["full_name"] || user?.user_metadata?.["name"] || user?.email?.split("@")[0] || null;
+    user?.user_metadata?.["full_name"] ||
+    user?.user_metadata?.["name"] ||
+    user?.email?.split("@")[0] ||
+    null;
   const derivedHandle = googleName
-    ? googleName.toLowerCase().replace(/[^a-z0-9._]/g, "").slice(0, 40) || "user"
+    ? googleName
+        .toLowerCase()
+        .replace(/[^a-z0-9._]/g, "")
+        .slice(0, 40) || "user"
     : user?.phone
       ? `user${user.phone.replace(/\D/g, "").slice(-4)}`
       : null;
@@ -88,7 +96,8 @@ function useAuthState(): AuthValue {
           .insert({ id: user.id, handle: derivedHandle })
           .select("*")
           .single();
-        if (res.error?.code === "23505") toast.error(`@${derivedHandle} is taken — pick a username in Settings`);
+        if (res.error?.code === "23505")
+          toast.error(`@${derivedHandle} is taken — pick a username in Settings`);
         row = (res.data as Profile | null) ?? null;
       }
       const { data: role } = await supabase

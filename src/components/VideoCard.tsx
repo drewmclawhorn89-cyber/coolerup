@@ -170,7 +170,10 @@ function VideoCardImpl({
   }, [soundId, video.id, navigate]);
   // A borrowed sound is overlaid on top of the video. The video's own original
   // sound is already in the file, so it doesn't need a second audio element.
-  const hasBorrowedSound = !!sound && sound.original_video_id !== video.id;
+  // Recordings made with a sound have it baked into the file ([[baked]]), so
+  // they must not overlay it again.
+  const soundBakedIn = parseCaption(video.caption).baked;
+  const hasBorrowedSound = !!sound && sound.original_video_id !== video.id && !soundBakedIn;
 
   // --- moderation -----------------------------------------------------------
   const [isBanned, setIsBanned] = useState(false);
@@ -939,9 +942,7 @@ function VideoCardImpl({
               className="flex flex-col items-center"
             >
               <SoundDisc spinning={playing} />
-              <span className="mt-0.5 block h-[13px] text-[11px] font-bold leading-[13px] text-white drop-shadow">
-                Sound
-              </span>
+              <SoundRailLabel title={soundTitle} />
             </Link>
           ) : (
             <button
@@ -953,9 +954,7 @@ function VideoCardImpl({
               className="flex flex-col items-center bg-transparent p-0 focus-visible:outline-none"
             >
               <SoundDisc spinning={playing} busy={soundBusy} />
-              <span className="mt-0.5 block h-[13px] text-[11px] font-bold leading-[13px] text-white drop-shadow">
-                Sound
-              </span>
+              <SoundRailLabel title={soundTitle} />
             </button>
           )}
 
@@ -1084,6 +1083,24 @@ function SoundDisc({ spinning, busy }: { spinning?: boolean; busy?: boolean }) {
       <Music
         className={`relative h-5 w-5 text-white drop-shadow ${spinning ? "animate-spin-slow" : ""}`}
       />
+    </span>
+  );
+}
+
+/**
+ * TikTok shows the song name under the spinning record. The label scrolls so
+ * long titles stay readable without widening the rail.
+ */
+function SoundRailLabel({ title }: { title: string }) {
+  return (
+    <span
+      className="mt-0.5 block h-[13px] w-[72px] overflow-hidden text-[10px] font-bold leading-[13px] text-white drop-shadow"
+      aria-hidden
+    >
+      <span className="animate-marquee flex w-max">
+        <span className="whitespace-nowrap pr-4">{title}</span>
+        <span className="whitespace-nowrap pr-4">{title}</span>
+      </span>
     </span>
   );
 }

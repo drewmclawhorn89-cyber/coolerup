@@ -45,16 +45,27 @@ export function withSong(caption: string, song?: Song | null) {
 }
 
 const FULL_TAG = /\s*\[\[full\]\]\s*$/;
+/** Marks a recording whose audio already contains the chosen sound. */
+const BAKED_TAG = /\s*\[\[baked\]\]\s*$/;
 
-export function parseCaption(raw: string): { text: string; song: Song | null; full: boolean } {
-  const full = FULL_TAG.test(raw);
-  const caption = full ? raw.replace(FULL_TAG, "") : raw;
+export function parseCaption(raw: string): {
+  text: string;
+  song: Song | null;
+  full: boolean;
+  baked: boolean;
+} {
+  let caption = raw ?? "";
+  const full = FULL_TAG.test(caption);
+  if (full) caption = caption.replace(FULL_TAG, "");
+  const baked = BAKED_TAG.test(caption);
+  if (baked) caption = caption.replace(BAKED_TAG, "");
   const m = caption.match(SONG_TAG);
-  if (!m) return { text: caption, song: null, full };
+  if (!m) return { text: caption, song: null, full, baked };
   return {
     text: caption.replace(SONG_TAG, ""),
     song: { id: m[1] ?? "", title: m[2] ?? "", artist: m[3] ?? "" },
     full,
+    baked,
   };
 }
 
@@ -267,6 +278,7 @@ export async function uploadRecording(
   username: string,
   caption: string,
   soundId?: string | null,
+  soundBaked = false,
 ): Promise<string | null> {
   const contentType = blob.type || "video/webm";
   const ext = contentType.includes("mp4") ? "mp4" : "webm";
@@ -277,7 +289,12 @@ export async function uploadRecording(
   if (upErr) throw upErr;
   const { data, error } = await supabase
     .from("videos")
-    .insert({ username, caption, video_url: STORAGE_PREFIX + path, sound_id: soundId ?? null })
+    .insert({
+      username,
+      caption: `${caption}${soundBaked ? "[[baked]]" : ""}`,
+      video_url: STORAGE_PREFIX + path,
+      sound_id: soundId ?? null,
+    })
     .select("id")
     .single();
   if (error) throw error;

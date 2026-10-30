@@ -378,6 +378,7 @@ export type Database = {
           handle: string
           id: string
           links: Json
+          show_liked: boolean
         }
         Insert: {
           avatar_url?: string | null
@@ -387,6 +388,7 @@ export type Database = {
           handle: string
           id: string
           links?: Json
+          show_liked?: boolean
         }
         Update: {
           avatar_url?: string | null
@@ -396,6 +398,7 @@ export type Database = {
           handle?: string
           id?: string
           links?: Json
+          show_liked?: boolean
         }
         Relationships: []
       }

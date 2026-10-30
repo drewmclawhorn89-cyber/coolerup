@@ -235,6 +235,37 @@ export async function fetchMyLikes() {
 }
 
 /**
+ * Videos a user has liked, most recently liked first (the profile Liked tab).
+ *
+ * `likes` has a single FK to `videos`, so the embed is unambiguous. Rows whose
+ * video was deleted are skipped instead of leaving holes in the grid.
+ */
+export async function fetchLikedVideos(userId: string, limit = 500): Promise<Video[]> {
+  const { data, error } = await supabase
+    .from("likes")
+    .select("created_at, videos(*)")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(Math.max(1, Math.min(1000, limit)));
+
+  if (error) throw error;
+  return ((data ?? []) as unknown as { videos: Video | null }[])
+    .map((row) => row.videos)
+    .filter((v): v is Video => !!v)
+    .map((v) => ({ ...v, reposts: v.reposts_count ?? 0 }));
+}
+
+/** How many videos a user has liked (cheap head count for the tab label). */
+export async function fetchLikedCount(userId: string): Promise<number> {
+  const { count, error } = await supabase
+    .from("likes")
+    .select("video_id", { count: "exact", head: true })
+    .eq("user_id", userId);
+  if (error) return 0;
+  return count ?? 0;
+}
+
+/**
  * Persist an uploaded video/photo. Returns the new video id.
  *
  * `soundId` attaches a borrowed original sound ("Use this sound"). Every video

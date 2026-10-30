@@ -19,6 +19,8 @@ export function SoundPickerDialog({
   selectedSound,
   onSelect,
   originalLabel,
+  title = "Add sound?",
+  description = "Keep your voice, or use an original sound from another Coolerup video.",
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -26,6 +28,8 @@ export function SoundPickerDialog({
   onSelect: (sound: Sound | null) => void;
   /** e.g. "Your voice" or "Original sound - @you" */
   originalLabel?: string;
+  title?: string;
+  description?: string;
 }) {
   const [mode, setMode] = useState<Mode>("choose");
   const [query, setQuery] = useState("");
@@ -105,10 +109,8 @@ export function SoundPickerDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[88dvh] overflow-y-auto sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Add sound?</DialogTitle>
-          <DialogDescription>
-            Keep your voice, or use an original sound from another Coolerup video.
-          </DialogDescription>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-2">

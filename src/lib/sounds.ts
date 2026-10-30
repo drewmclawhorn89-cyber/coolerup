@@ -161,6 +161,6 @@ export function formatUses(count: number): string {
 
 /** Client-side fallback title, matching the SQL helper. */
 export function soundTitleForVideo(caption: string, username: string): string {
-  const clean = (caption ?? "").replace(/\s*\[\[(song:[^\]]*|full)\]\]\s*/gi, "").trim();
+  const clean = (caption ?? "").replace(/\s*\[\[(song:[^\]]*|full|baked)\]\]\s*/gi, "").trim();
   return clean || `Original sound - @${username}`;
 }

@@ -1,5 +1,16 @@
 import { useEffect, useRef, useState } from "react";
-import { Camera, Loader2, Music, RefreshCw, RotateCcw, Send, Upload, X } from "lucide-react";
+import {
+  Camera,
+  Loader2,
+  Music,
+  RefreshCw,
+  RotateCcw,
+  Send,
+  Upload,
+  Volume2,
+  VolumeX,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { uploadRecording } from "@/lib/loop";
@@ -9,7 +20,8 @@ import { getAnimal, drawAnimal } from "@/lib/animals";
 import { useFaceTracker } from "@/lib/face";
 import { CAMERA_FILTERS, canBakeFilters } from "@/lib/filters";
 import { SoundPickerDialog } from "@/components/SoundPickerDialog";
-import type { Sound } from "@/lib/sounds";
+import { canMixSound, createSoundTrack, type SoundTrack } from "@/lib/sound-mixer";
+import { soundAudioUrl, type Sound } from "@/lib/sounds";
 
 const MAX_SECONDS = 60;
 const MIME_CANDIDATES = [
@@ -71,6 +83,10 @@ export function RecordDialog({
   const [chosenSound, setChosenSound] = useState<Sound | null>(sound ?? null);
   const [soundPickerOpen, setSoundPickerOpen] = useState(false);
   const autoOpenedSound = useRef(false);
+  const soundTrackRef = useRef<SoundTrack | null>(null);
+  const releaseMixRef = useRef<(() => void) | null>(null);
+  const bakedRef = useRef(false);
+  const [soundMuted, setSoundMuted] = useState(false);
 
   // A sound page can open the recorder with a sound already selected.
   useEffect(() => {
@@ -78,11 +94,48 @@ export function RecordDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, sound?.id]);
 
-  // After recording, ask "Add sound?" once (TikTok's post-record step).
+  // Load the chosen sound into a mixable, looping audio track. It plays through
+  // the speakers while the camera preview is open (like TikTok), and the same
+  // track is folded into the recording when the user hits record.
   useEffect(() => {
-    if (!open || !recordedBlob || autoOpenedSound.current) return;
+    if (!open || !chosenSound) return;
+    let disposed = false;
+    let track: SoundTrack | null = null;
+
+    void soundAudioUrl(chosenSound).then((url) => {
+      if (disposed || !url) return;
+      track = createSoundTrack(url);
+      if (!track) return;
+      soundTrackRef.current = track;
+      track.setMuted(soundMuted);
+      if (recordedBlob) track.pause();
+      else void track.play();
+    });
+
+    return () => {
+      disposed = true;
+      track?.dispose();
+      if (soundTrackRef.current === track) soundTrackRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, chosenSound?.id]);
+
+  // Never loop the sound under the post-record preview: the recorded file
+  // already has it baked in.
+  useEffect(() => {
+    const track = soundTrackRef.current;
+    if (!track) return;
+    if (recordedBlob) track.pause();
+    else void track.play();
+  }, [recordedBlob]);
+
+  // After recording, ask "Add sound?" once (TikTok's post-record step) — but
+  // skip it when the video was already recorded with a sound.
+  useEffect(() => {
+    if (!open || !recordedBlob || autoOpenedSound.current || chosenSound) return;
     autoOpenedSound.current = true;
     setSoundPickerOpen(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, recordedBlob]);
 
   useEffect(() => {
@@ -146,12 +199,33 @@ export function RecordDialog({
     return () => window.clearInterval(id);
   }, [recording]);
 
-  function startRecording() {
+  async function startRecording() {
     const stream = streamRef.current;
     if (!stream || cameraState !== "ready") return;
 
     const mimeType = pickMimeType();
     let recordStream: MediaStream = stream;
+    bakedRef.current = false;
+
+    // Mix the chosen sound with the microphone so the song ends up inside the
+    // recorded file. If the browser can't mix it, we still record the mic and
+    // attach the sound as metadata (the feed plays it over the video).
+    const soundTrack = soundTrackRef.current;
+    if (chosenSound && soundTrack && !soundTrack.failed && canMixSound()) {
+      try {
+        const mix = soundTrack.createRecordingMix(stream);
+        recordStream = mix.stream;
+        releaseMixRef.current = mix.release;
+        bakedRef.current = true;
+        soundTrack.seekToStart();
+        void soundTrack.play();
+      } catch {
+        releaseMixRef.current = null;
+        recordStream = stream;
+        bakedRef.current = false;
+      }
+    }
+
     const videoEl = videoRef.current;
     const canvas = document.createElement("canvas");
     if (
@@ -174,7 +248,7 @@ export function RecordDialog({
         draw();
         recordStream = new MediaStream([
           ...canvas.captureStream(30).getVideoTracks(),
-          ...stream.getAudioTracks(),
+          ...recordStream.getAudioTracks(),
         ]);
       }
     }
@@ -185,6 +259,9 @@ export function RecordDialog({
         : new MediaRecorder(recordStream);
     } catch {
       cancelAnimationFrame(drawRef.current);
+      releaseMixRef.current?.();
+      releaseMixRef.current = null;
+      bakedRef.current = false;
       toast.error("Recording isn't supported on this device");
       return;
     }
@@ -197,6 +274,8 @@ export function RecordDialog({
     recorder.onstop = () => {
       recorderRef.current = null;
       cancelAnimationFrame(drawRef.current);
+      releaseMixRef.current?.();
+      releaseMixRef.current = null;
       setRecording(false);
       if (discardRef.current || chunks.length === 0) return;
       setRecordedBlob(new Blob(chunks, { type: recorder.mimeType || mimeType || "video/webm" }));
@@ -217,6 +296,9 @@ export function RecordDialog({
   function reset() {
     discardRef.current = true;
     stopRecording();
+    releaseMixRef.current?.();
+    releaseMixRef.current = null;
+    bakedRef.current = false;
     setRecording(false);
     setRecordedBlob(null);
     setElapsed(0);
@@ -240,6 +322,7 @@ export function RecordDialog({
   function retake() {
     setRecordedBlob(null);
     setElapsed(0);
+    bakedRef.current = false;
     autoOpenedSound.current = false;
   }
 
@@ -256,6 +339,7 @@ export function RecordDialog({
         username,
         caption.trim().slice(0, 500),
         chosenSound?.id ?? null,
+        bakedRef.current,
       );
       toast.success("Your video is posted!");
       reset();
@@ -368,6 +452,57 @@ export function RecordDialog({
             <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-12">
               {showCamera ? (
                 <>
+                  {recording && chosenSound && (
+                    <div className="mb-2 flex justify-center">
+                      <div className="flex max-w-full items-center gap-2 rounded-full bg-black/55 px-3 py-1.5 backdrop-blur">
+                        <Music className="h-3.5 w-3.5 shrink-0 text-white" aria-hidden />
+                        <span className="relative block w-[min(58vw,220px)] overflow-hidden">
+                          <span className="animate-marquee flex w-max text-[12px] font-semibold text-white">
+                            <span className="whitespace-nowrap pr-8">{chosenSound.title}</span>
+                            <span aria-hidden className="whitespace-nowrap pr-8">
+                              {chosenSound.title}
+                            </span>
+                          </span>
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                  <div className="mb-2 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSoundPickerOpen(true)}
+                      disabled={recording}
+                      aria-label={chosenSound ? `Sound: ${chosenSound.title}` : "Add a sound"}
+                      className="flex min-w-0 items-center gap-2 rounded-full bg-white/15 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/25 disabled:opacity-60"
+                    >
+                      <Music className="h-4 w-4 shrink-0" aria-hidden />
+                      <span className="min-w-0 max-w-[52vw] truncate">
+                        {chosenSound ? chosenSound.title : "Add sound"}
+                      </span>
+                      <span className="shrink-0 text-white/60">
+                        {chosenSound ? "\u00b7 Change" : "\u00b7 Browse"}
+                      </span>
+                    </button>
+                    {chosenSound && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const next = !soundMuted;
+                          setSoundMuted(next);
+                          soundTrackRef.current?.setMuted(next);
+                        }}
+                        aria-label={soundMuted ? "Unmute sound" : "Mute sound"}
+                        aria-pressed={soundMuted}
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/15 text-white transition hover:bg-white/25"
+                      >
+                        {soundMuted ? (
+                          <VolumeX className="h-4 w-4" />
+                        ) : (
+                          <Volume2 className="h-4 w-4" />
+                        )}
+                      </button>
+                    )}
+                  </div>
                   {!canBakeFilters() && (filterId !== "none" || !!animal) && (
                     <p className="pb-2 text-center text-xs text-white/70">
                       Filters can't be saved on this browser, so the video will post unfiltered.
@@ -478,6 +613,12 @@ export function RecordDialog({
         selectedSound={chosenSound}
         onSelect={setChosenSound}
         originalLabel={username ? `Original sound - @${username}` : "Your voice"}
+        title={recordedBlob ? "Add sound?" : "Add a sound"}
+        description={
+          recordedBlob
+            ? "Keep your voice, or use an original sound from another Coolerup video."
+            : "Pick a sound to play while you record. It's mixed into your video and the song name is attached to the post."
+        }
       />
     </>
   );

@@ -531,7 +531,7 @@ function Index() {
     </div>
   );
   const topTabsClass =
-    "absolute inset-x-0 top-0 z-50 flex justify-center gap-3 overflow-x-auto bg-gradient-to-b from-black/80 to-transparent px-3 pb-2 pt-3 no-scrollbar [&>button]:shrink-0 [&>button]:whitespace-nowrap";
+    "absolute inset-x-0 top-[calc(env(safe-area-inset-top)+3.25rem)] z-40 flex justify-center gap-3 overflow-x-auto bg-gradient-to-b from-black/80 to-transparent px-3 pb-2 pt-1 no-scrollbar [&>button]:shrink-0 [&>button]:whitespace-nowrap";
   const tabClass = (t: string) =>
     `flex items-center gap-1 border-b-2 pb-1 text-[15px] ${topTab === t ? "border-white font-bold text-white" : "border-transparent text-white/60"}`;
 
@@ -638,39 +638,37 @@ function Index() {
         )}
       </aside>
 
-      <main className="mx-auto flex h-[100dvh] w-full min-w-0 max-w-[430px] flex-1 flex-col bg-black md:h-auto md:max-w-none md:bg-transparent">
-        <div className="mobile-topbar grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b bg-sidebar px-4 md:hidden">
-          <h1 className="min-w-0 font-display text-2xl">
-            coolerup<span className="text-primary">.</span>
-          </h1>
-          <div className="flex shrink-0 items-center gap-2">
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label={searchOpen ? "Close search" : "Search videos"}
-              onClick={() => setSearchOpen((open) => !open)}
-            >
-              {searchOpen ? <X /> : <Search />}
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label={auth.user ? "Sign out" : "Sign in"}
-              onClick={auth.user ? auth.signOut : auth.signIn}
-            >
-              {auth.avatar ? (
-                <img src={auth.avatar} alt="" className="h-8 w-8 rounded-full object-cover" />
-              ) : auth.user ? (
-                <LogOut />
-              ) : (
-                <User />
-              )}
-            </Button>
-          </div>
+      <main className="relative mx-auto flex h-[100dvh] w-full min-w-0 max-w-[430px] flex-1 flex-col bg-black md:h-auto md:max-w-none md:bg-transparent">
+        {/* Floating controls: no bar and no logo, just search + profile over the video. */}
+        <div className="mobile-topbar pointer-events-none absolute inset-x-0 top-0 z-50 flex items-center justify-end gap-2 px-3 md:hidden">
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={searchOpen ? "Close search" : "Search videos"}
+            onClick={() => setSearchOpen((open) => !open)}
+            className="pointer-events-auto rounded-full bg-black/35 text-white backdrop-blur-sm hover:bg-black/55 hover:text-white"
+          >
+            {searchOpen ? <X /> : <Search />}
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={auth.user ? "Sign out" : "Sign in"}
+            onClick={auth.user ? auth.signOut : auth.signIn}
+            className="pointer-events-auto rounded-full bg-black/35 text-white backdrop-blur-sm hover:bg-black/55 hover:text-white"
+          >
+            {auth.avatar ? (
+              <img src={auth.avatar} alt="" className="h-8 w-8 rounded-full object-cover" />
+            ) : auth.user ? (
+              <LogOut />
+            ) : (
+              <User />
+            )}
+          </Button>
         </div>
 
         {searchOpen && (
-          <label className="flex shrink-0 items-center gap-3 border-b bg-sidebar px-4 py-3 md:hidden">
+          <label className="absolute inset-x-3 top-[calc(env(safe-area-inset-top)+3.5rem)] z-50 flex items-center gap-3 rounded-full border border-white/15 bg-black/70 px-4 py-2 backdrop-blur md:hidden">
             <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
             <input
               autoFocus
@@ -737,7 +735,7 @@ function Index() {
           </div>
         ) : activeTab === "shop" || activeTab === "subscriptions" ? (
           <div className="flex min-h-0 flex-1 flex-col">
-            <TopTabs className="flex shrink-0 justify-center gap-3 overflow-x-auto bg-black px-3 pb-2 pt-3 no-scrollbar [&>button]:shrink-0 [&>button]:whitespace-nowrap md:hidden" />
+            <TopTabs className="flex shrink-0 justify-center gap-3 overflow-x-auto bg-black px-3 pb-2 pt-[calc(env(safe-area-inset-top)+3.75rem)] no-scrollbar [&>button]:shrink-0 [&>button]:whitespace-nowrap md:hidden" />
             <div className="min-h-0 flex-1 overflow-y-auto">
             {activeTab === "subscriptions" ? (
               <Suspense fallback={null}>
@@ -753,7 +751,7 @@ function Index() {
         ) : activeTab === "foryou" && feedTab === "groups" && !offlineMode ? (
           <div className="relative flex min-h-0 flex-1 flex-col bg-black">
             <TopTabs className={topTabsClass} />
-            <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto pt-14">
+            <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto pt-[calc(env(safe-area-inset-top)+5.5rem)]">
               <Suspense fallback={null}>
                 <GroupsPanel />
               </Suspense>
@@ -761,7 +759,7 @@ function Index() {
           </div>
         ) : activeTab === "inbox" ? (
           <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain">
-            <div className="sticky top-0 z-10 border-b bg-black/85 px-6 py-4 backdrop-blur">
+            <div className="sticky top-0 z-10 border-b bg-black/85 px-6 pb-4 pt-[calc(env(safe-area-inset-top)+3.75rem)] backdrop-blur">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h2 className="text-2xl font-display font-bold">Inbox</h2>
@@ -823,7 +821,7 @@ function Index() {
           </div>
         ) : (
           <>
-            <header className={`shrink-0 px-4 py-2 md:px-10 md:pb-2 md:pt-6 ${showTopTabs ? "hidden md:block" : ""}`}>
+            <header className={`shrink-0 px-4 pb-2 pt-[calc(env(safe-area-inset-top)+3.5rem)] md:px-10 md:pb-2 md:pt-6 ${showTopTabs ? "hidden md:block" : ""}`}>
               <h2 className="break-words font-display text-base md:text-3xl">{title}</h2>
               <p className="hidden text-sm text-muted-foreground md:block">{sub}</p>
             </header>

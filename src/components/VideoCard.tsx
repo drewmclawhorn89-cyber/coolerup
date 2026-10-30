@@ -699,7 +699,7 @@ function VideoCardImpl({
               <audio ref={songRef} src={songStreamUrl(song.id)} loop muted={muted} preload="none" />
             )}
             {song && isImage && (
-              <div className="absolute left-3 top-3 flex max-w-[70%] items-center gap-2 rounded-full bg-black/50 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur">
+              <div className="absolute left-3 top-[calc(env(safe-area-inset-top)+5.5rem)] flex max-w-[70%] items-center gap-2 rounded-full bg-black/50 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur md:top-3">
                 <span aria-hidden>♫</span>
                 <span className="truncate">
                   {song.title} · {song.artist}

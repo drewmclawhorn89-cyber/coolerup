@@ -145,7 +145,6 @@ function VideoCardImpl({
   );
   const [soundSrc, setSoundSrc] = useState("");
   const soundAudioRef = useRef<HTMLAudioElement>(null);
-  const [originalAudio, setOriginalAudio] = useState(false);
   const soundId = video.sound_id ?? sound?.id ?? null;
   const navigate = useNavigate();
   const [soundBusy, setSoundBusy] = useState(false);
@@ -712,7 +711,7 @@ function VideoCardImpl({
                 src={src}
                 loop={!full}
                 controls={full}
-                muted={muted || (hasBorrowedSound && !originalAudio)}
+                muted={muted || hasBorrowedSound}
                 playsInline
                 preload={lite ? "none" : "metadata"}
                 disableRemotePlayback
@@ -817,9 +816,6 @@ function VideoCardImpl({
                   soundId={soundId}
                   title={sound?.title ?? `Original sound - @${video.username}`}
                   creatorUsername={sound?.creator_username ?? video.username}
-                  originalAudio={originalAudio}
-                  onToggleOriginalAudio={() => setOriginalAudio((on) => !on)}
-                  showOriginalToggle={hasBorrowedSound}
                   className="mb-2"
                 />
               )}

@@ -7,25 +7,18 @@ export type SoundBarProps = {
   title: string;
   creatorUsername?: string | null;
   className?: string;
-  /** Whether the video's own audio is still audible under a borrowed sound. */
-  originalAudio?: boolean;
-  onToggleOriginalAudio?: () => void;
-  showOriginalToggle?: boolean;
 };
 
 /**
  * TikTok-style sound bar that sits above the caption on a video card.
  * Tapping the marquee opens the sound page.
+ *
+ * Note: there is deliberately no "Original audio" toggle here. Once a post is
+ * published with a different sound, that sound is the only audio a viewer
+ * hears — the video/pic itself never shows a button to switch back to the
+ * original audio.
  */
-export function SoundBar({
-  soundId,
-  title,
-  creatorUsername,
-  className = "",
-  originalAudio = false,
-  onToggleOriginalAudio,
-  showOriginalToggle = false,
-}: SoundBarProps) {
+export function SoundBar({ soundId, title, creatorUsername, className = "" }: SoundBarProps) {
   const label = title?.trim() || `Original sound - @${creatorUsername ?? "creator"}`;
 
   return (
@@ -46,36 +39,6 @@ export function SoundBar({
           </span>
         </span>
       </Link>
-
-      {showOriginalToggle && onToggleOriginalAudio && (
-        <button
-          type="button"
-          onClick={onToggleOriginalAudio}
-          aria-pressed={originalAudio}
-          title="Keep the video's original audio under the sound"
-          className="flex shrink-0 items-center gap-1 rounded-full bg-black/35 px-2 py-1 text-[11px] font-semibold text-white backdrop-blur-sm transition hover:bg-black/50"
-        >
-          <span
-            className={`flex h-3.5 w-3.5 items-center justify-center rounded-[3px] border ${
-              originalAudio ? "border-white bg-white text-black" : "border-white/70"
-            }`}
-          >
-            {originalAudio ? (
-              <svg viewBox="0 0 12 12" className="h-2.5 w-2.5" aria-hidden>
-                <path
-                  d="M2 6.2 4.6 8.8 10 3.4"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            ) : null}
-          </span>
-          Original audio
-        </button>
-      )}
     </div>
   );
 }

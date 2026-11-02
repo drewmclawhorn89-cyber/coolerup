@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { createQualityVersions, qualityColumns } from "./videoQuality";
 
 export type Video = {
   id: string;
@@ -18,6 +19,13 @@ export type Video = {
   sound_id?: string | null;
   /** Embedded sound row when the feed joins `sounds`. */
   sound?: SoundSummary | null;
+  /** Quality renditions. All four point at the original until transcoding lands. */
+  video_1080_url?: string | null;
+  video_720_url?: string | null;
+  video_480_url?: string | null;
+  video_360_url?: string | null;
+  /** Default playback quality stored on the row ("auto" unless set). */
+  quality?: string | null;
 };
 
 /** Minimal sound shape embedded in feed rows. */
@@ -287,6 +295,9 @@ export async function uploadVideo(
     .upload(path, file, { contentType: file.type });
   if (upErr) throw upErr;
   const isVideo = file.type.startsWith("video/");
+  // The upload is the 1080p rendition. Lower qualities reuse it until the
+  // transcode-video Edge Function exists, so the selector works today.
+  const renditions = isVideo ? await createQualityVersions(STORAGE_PREFIX + path) : null;
   const { data, error } = await supabase
     .from("videos")
     .insert({
@@ -296,6 +307,7 @@ export async function uploadVideo(
         (full && isVideo ? "[[full]]" : ""),
       video_url: STORAGE_PREFIX + path,
       sound_id: isVideo ? (soundId ?? null) : null,
+      ...(renditions ? qualityColumns(renditions) : {}),
     })
     .select("id")
     .single();
@@ -326,6 +338,7 @@ export async function uploadRecording(
       caption: `${caption}${soundBaked ? "[[baked]]" : ""}`,
       video_url: STORAGE_PREFIX + path,
       sound_id: soundId ?? null,
+      ...qualityColumns(await createQualityVersions(STORAGE_PREFIX + path)),
     })
     .select("id")
     .single();

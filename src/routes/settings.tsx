@@ -10,6 +10,7 @@ import { writePref } from "@/lib/prefs";
 import { MoreSettings } from "@/components/MoreSettings";
 import { hasOfflineAccess, offlinePlan, trialDaysLeft, useSubscription } from "@/lib/subscriptions";
 import { ThemePicker } from "@/components/ThemePicker"
+import { QUALITY_OPTIONS, useVideoQuality } from "@/lib/videoQuality"
 import {
   announcePushPref,
   disablePushSubscription,
@@ -42,6 +43,8 @@ export const Route = createFileRoute("/settings")({
 
 function Settings() {
   const auth = useAuth();
+  // Playback quality is a device preference (localStorage `video_quality`).
+  const { quality: videoQuality, setQuality: setVideoQuality } = useVideoQuality();
   // Offline mode is a paid perk — re-read the plan whenever it changes.
   const subscription = useSubscription(auth.handle);
   const offlineUnlocked = hasOfflineAccess(auth.handle);
@@ -639,6 +642,44 @@ const changeTheme = (t: string) => {
     </>
   )}
 </div>
+   {/* Video quality */}
+<div className="rounded-2xl border bg-card p-4">
+  <h2 className="font-semibold">Video Quality</h2>
+  <p className="mt-1 text-sm text-muted-foreground">
+    Auto adjusts based on your connection — like TikTok.
+  </p>
+  <div className="mt-3 space-y-1.5">
+    {QUALITY_OPTIONS.map((option) => {
+      const active = videoQuality === option.id;
+      return (
+        <button
+          key={option.id}
+          type="button"
+          onClick={() => {
+            setVideoQuality(option.id);
+            toast.success(`Video quality set to ${option.label}`);
+          }}
+          aria-pressed={active}
+          className={`flex w-full items-center justify-between gap-3 rounded-md border px-3 py-2 text-left transition ${
+            active ? "border-primary bg-primary/10" : "bg-background hover:bg-accent"
+          }`}
+        >
+          <span className="min-w-0">
+            <span className="block text-sm font-medium">
+              {option.label}
+              {option.id === "auto" ? " (recommended)" : ""}
+            </span>
+            {option.hint && (
+              <span className="block text-xs text-muted-foreground">{option.hint}</span>
+            )}
+          </span>
+          {active && <span className="shrink-0 text-primary">✓</span>}
+        </button>
+      );
+    })}
+  </div>
+</div>
+
    {/* Appearance */}
 <div className="rounded-2xl border bg-card p-4">
   <h2 className="font-semibold">Appearance</h2>

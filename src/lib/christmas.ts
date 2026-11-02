@@ -36,6 +36,15 @@ export const isChristmasMode = () => {
   return now >= start && now <= end;
 };
 
+/**
+ * True while the pre-launch countdown banner should be visible: any time before
+ * the update opens, and never after Jan 1 2027. The countdown itself hides on
+ * Nov 15, so this is really just "are we still waiting?".
+ */
+export function isChristmasCountdownVisible(now: Date = new Date()): boolean {
+  return now < CHRISTMAS_START && now <= new Date("2027-01-01T23:59:59");
+}
+
 /** Whole days until the update starts (0 once it's live). Handy for banners. */
 export function daysUntilChristmas(from: Date = new Date()): number {
   if (from >= CHRISTMAS_START) return 0;

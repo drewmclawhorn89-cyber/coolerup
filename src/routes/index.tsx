@@ -20,7 +20,8 @@ import { Button } from "@/components/ui/button";
 import { VideoCard } from "@/components/VideoCard";
 import { SantaHat } from "@/components/SantaHat";
 import { ChristmasLights } from "@/components/ChristmasLights";
-import { useChristmasMode } from "@/lib/christmas";
+import { ChristmasCountdown } from "@/components/ChristmasCountdown";
+import { isChristmasCountdownVisible, useChristmasMode } from "@/lib/christmas";
 import { matchesKeyword, readBool } from "@/lib/prefs";
 // Heavy, interaction-only surfaces are split out so the initial feed bundle stays small.
 const UploadDialog = lazy(() => import("@/components/UploadDialog").then((m) => ({ default: m.UploadDialog })));
@@ -108,6 +109,10 @@ function Index() {
   // Nov 15 2026 -> Jan 1 2027 only. False today (Nov 1 2026), true on its own
   // once the window opens, and false again after it closes.
   const christmas = useChristmasMode();
+  // Pre-launch banner: only until Nov 15 2026, then it hides itself for good.
+  // `!christmas` makes the wrapper disappear the moment the update goes live,
+  // even if this component hasn't re-rendered for another reason.
+  const showCountdown = isChristmasCountdownVisible() && !christmas;
 
   // Ban enforcement now lives in <BanGate /> (mounted in __root.tsx), which
   // covers every route and shows a proper blocked screen instead of an alert.
@@ -660,7 +665,13 @@ function Index() {
 
       <main className="relative mx-auto flex h-[100dvh] w-full min-w-0 max-w-[430px] flex-1 flex-col bg-black md:h-auto md:max-w-none md:bg-transparent">
         {/* Floating controls: no bar and no logo, just search + profile over the video. */}
-        <div className="pointer-events-none absolute inset-x-0 top-[calc(env(safe-area-inset-top)+2.75rem)] z-50 flex items-center justify-end gap-2 px-3 md:hidden">
+        <div
+          className={`pointer-events-none absolute inset-x-0 z-50 flex items-center justify-end gap-2 px-3 md:hidden ${
+            showCountdown
+              ? "top-[calc(env(safe-area-inset-top)+5rem)]"
+              : "top-[calc(env(safe-area-inset-top)+2.75rem)]"
+          }`}
+        >
           <Button
             variant="ghost"
             size="icon"
@@ -715,6 +726,13 @@ function Index() {
         {!offlineMode && lite && (
           <div className="flex shrink-0 items-center gap-2 bg-secondary px-4 py-1.5 text-xs font-bold text-muted-foreground md:px-10">
             <Wifi className="h-3.5 w-3.5" /> Lite mode — saving data on a slow connection
+          </div>
+        )}
+
+        {/* Countdown to the Christmas update — sits above the top tabs. */}
+        {!offlineMode && showCountdown && (
+          <div className="shrink-0 bg-red-600 pt-[env(safe-area-inset-top)]">
+            <ChristmasCountdown />
           </div>
         )}
 

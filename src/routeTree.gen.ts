@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as GroupsRouteImport } from './routes/groups'
+import { Route as LiveRouteImport } from './routes/live'
 import { Route as MessagesRouteImport } from './routes/messages'
 import { Route as OfflineRouteImport } from './routes/offline'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
@@ -37,6 +38,11 @@ const AdminRoute = AdminRouteImport.update({
 const GroupsRoute = GroupsRouteImport.update({
   id: '/groups',
   path: '/groups',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LiveRoute = LiveRouteImport.update({
+  id: '/live',
+  path: '/live',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MessagesRoute = MessagesRouteImport.update({
@@ -80,9 +86,9 @@ const GroupsGroupIdRoute = GroupsGroupIdRouteImport.update({
   getParentRoute: () => GroupsRoute,
 } as any)
 const LiveDashboardRoute = LiveDashboardRouteImport.update({
-  id: '/live/dashboard',
-  path: '/live/dashboard',
-  getParentRoute: () => rootRouteImport,
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => LiveRoute,
 } as any)
 const SoundSoundIdRoute = SoundSoundIdRouteImport.update({
   id: '/sound/$soundId',
@@ -99,6 +105,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/groups': typeof GroupsRouteWithChildren
+  '/live': typeof LiveRouteWithChildren
   '/messages': typeof MessagesRoute
   '/offline': typeof OfflineRoute
   '/onboarding': typeof OnboardingRoute
@@ -114,6 +121,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/live': typeof LiveRouteWithChildren
   '/messages': typeof MessagesRoute
   '/offline': typeof OfflineRoute
   '/onboarding': typeof OnboardingRoute
@@ -131,6 +139,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/groups': typeof GroupsRouteWithChildren
+  '/live': typeof LiveRouteWithChildren
   '/messages': typeof MessagesRoute
   '/offline': typeof OfflineRoute
   '/onboarding': typeof OnboardingRoute
@@ -149,6 +158,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/groups'
+    | '/live'
     | '/messages'
     | '/offline'
     | '/onboarding'
@@ -164,6 +174,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/admin'
+    | '/live'
     | '/messages'
     | '/offline'
     | '/onboarding'
@@ -180,6 +191,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/groups'
+    | '/live'
     | '/messages'
     | '/offline'
     | '/onboarding'
@@ -197,13 +209,13 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
   GroupsRoute: typeof GroupsRouteWithChildren
+  LiveRoute: typeof LiveRouteWithChildren
   MessagesRoute: typeof MessagesRoute
   OfflineRoute: typeof OfflineRoute
   OnboardingRoute: typeof OnboardingRoute
   PrivacyRoute: typeof PrivacyRoute
   SettingsRoute: typeof SettingsRoute
   CoinsRechargeRoute: typeof CoinsRechargeRoute
-  LiveDashboardRoute: typeof LiveDashboardRoute
   SoundSoundIdRoute: typeof SoundSoundIdRoute
   UUsernameRoute: typeof UUsernameRoute
 }
@@ -229,6 +241,13 @@ declare module '@tanstack/react-router' {
       path: '/groups'
       fullPath: '/groups'
       preLoaderRoute: typeof GroupsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/live': {
+      id: '/live'
+      path: '/live'
+      fullPath: '/live'
+      preLoaderRoute: typeof LiveRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/messages': {
@@ -289,10 +308,10 @@ declare module '@tanstack/react-router' {
     }
     '/live/dashboard': {
       id: '/live/dashboard'
-      path: '/live/dashboard'
+      path: '/dashboard'
       fullPath: '/live/dashboard'
       preLoaderRoute: typeof LiveDashboardRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof LiveRoute
     }
     '/sound/$soundId': {
       id: '/sound/$soundId'
@@ -324,17 +343,27 @@ const GroupsRouteChildren: GroupsRouteChildren = {
 const GroupsRouteWithChildren =
   GroupsRoute._addFileChildren(GroupsRouteChildren)
 
+interface LiveRouteChildren {
+  LiveDashboardRoute: typeof LiveDashboardRoute
+}
+
+const LiveRouteChildren: LiveRouteChildren = {
+  LiveDashboardRoute: LiveDashboardRoute,
+}
+
+const LiveRouteWithChildren = LiveRoute._addFileChildren(LiveRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
   GroupsRoute: GroupsRouteWithChildren,
+  LiveRoute: LiveRouteWithChildren,
   MessagesRoute: MessagesRoute,
   OfflineRoute: OfflineRoute,
   OnboardingRoute: OnboardingRoute,
   PrivacyRoute: PrivacyRoute,
   SettingsRoute: SettingsRoute,
   CoinsRechargeRoute: CoinsRechargeRoute,
-  LiveDashboardRoute: LiveDashboardRoute,
   SoundSoundIdRoute: SoundSoundIdRoute,
   UUsernameRoute: UUsernameRoute,
 }

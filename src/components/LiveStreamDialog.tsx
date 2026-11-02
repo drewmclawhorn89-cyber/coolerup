@@ -8,9 +8,16 @@ import {
   Gift,
   Loader2,
   MessageCircle,
+  MessageSquareOff,
+  Pin,
+  PinOff,
   Radio,
   Send,
+  Shield,
+  ShieldCheck,
   Signal,
+  UserPlus,
+  Users,
   Video,
   X,
 } from "lucide-react";
@@ -19,10 +26,47 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/compone
 import { MusicPlayer, useMusicPlayer } from "@/components/MusicPlayer";
 import { GiftAnimation, type GiftAnimationEvent } from "@/components/GiftAnimation";
 import { LiveGiftPanel } from "@/components/LiveGiftPanel";
+import { LiveModPanel } from "@/components/LiveModPanel";
+import { LiveJoinBanner, LiveJoinRequestSheet } from "@/components/LiveJoinRequest";
+import { LiveMultiGuest } from "@/components/LiveMultiGuest";
+import type { RealtimeChannel } from "@supabase/supabase-js";
+
 import { supabase } from "@/integrations/supabase/client";
 import { openAuthDialog } from "@/hooks/useAuth";
 import { useChristmasMode } from "@/lib/christmas";
 import { isLiteMode, useNetwork } from "@/lib/network";
+import {
+  MUTE_OPTIONS,
+  addModerator,
+  blockAnnouncement,
+  canModerate,
+  displayName,
+  endLiveSession,
+  modAnnouncement,
+  muteAnnouncement,
+  muteUser,
+  pinMessage,
+  removeModerator,
+  roleFor,
+  setCommentsOff,
+  unmodAnnouncement,
+  unmuteUser,
+  useLiveModeration,
+  type LiveMod,
+  type LiveMute,
+  type PinnedMessage,
+} from "@/lib/liveMods";
+import {
+  JOIN_STATUS_COPY,
+  leaveGuestStage,
+  liveWithLine,
+  requestName,
+  respondToJoinRequest,
+  useJoinRequests,
+  useMyJoinRequest,
+  type JoinRequest,
+  type LiveGuest,
+} from "@/lib/liveJoin";
 import {
   giftById,
   giftMessage,
@@ -48,6 +92,10 @@ type ChatMessage = {
   self?: boolean;
   /** Gift lines get the pink treatment in the chat list. */
   gift?: boolean;
+  /** System lines (mod promotions, mutes) render muted and centred. */
+  system?: boolean;
+  /** Author id, so tapping a name can open the right moderation menu. */
+  userId?: string;
 };
 
 /** What travels over the realtime channel when someone sends a gift. */
@@ -74,6 +122,8 @@ type Props = {
   onOpenChange: (open: boolean) => void;
   userId?: string;
   username?: string | null;
+  /** Deep link: open straight into watching this host. */
+  initialHost?: { userId: string; username: string };
   onRecord: () => void;
   onPhoto: () => void;
   onUpload: () => void;
@@ -102,6 +152,7 @@ export function LiveStreamDialog({
   onOpenChange,
   userId,
   username,
+  initialHost,
   onRecord,
   onPhoto,
   onUpload,
@@ -126,11 +177,30 @@ export function LiveStreamDialog({
   const localVideo = useRef<HTMLVideoElement>(null);
   const remoteVideo = useRef<HTMLVideoElement>(null);
   const localStream = useRef<MediaStream | null>(null);
-  const directory = useRef<any>(null);
-  const room = useRef<any>(null);
+  const directory = useRef<RealtimeChannel | null>(null);
+  const room = useRef<RealtimeChannel | null>(null);
   const peers = useRef<Map<string, RTCPeerConnection>>(new Map());
   const viewerToken = useRef(viewerId());
   const viewerSet = useRef<Set<string>>(new Set());
+
+  // --- mods / guests ---------------------------------------------------------
+  const [modOpen, setModOpen] = useState(false);
+  const [joinSheetOpen, setJoinSheetOpen] = useState(false);
+  const [nameMenu, setNameMenu] = useState<{
+    username: string;
+    userId: string | null;
+    message?: ChatMessage;
+  } | null>(null);
+  const [joinPrompt, setJoinPrompt] = useState(false);
+  const [busyMod, setBusyMod] = useState(false);
+
+  const liveId = mode === "host" ? (userId ?? null) : hostId;
+  const moderation = useLiveModeration(liveId);
+  const joinState = useJoinRequests(liveId, Boolean(liveId));
+  const myJoin = useMyJoinRequest(liveId, userId);
+  const role = roleFor({ hostId: liveId, userId: userId ?? null, mods: moderation.mods });
+  const isMod = canModerate(role);
+  const isHost = role === "host";
 
   // --- gifts -----------------------------------------------------------------
   const navigate = useNavigate();
@@ -148,6 +218,23 @@ export function LiveStreamDialog({
   const giftCoins = giftFeed.reduce((sum, row) => sum + row.coins, 0);
   const topGifter = topGifterLine(giftFeed);
   const tickerRows = giftFeed.slice(-6);
+
+  const hostUsername =
+    mode === "host"
+      ? (username ?? "you")
+      : (initialHost?.username ??
+        liveNow.find((host) => host.userId === hostId)?.username ??
+        "host");
+
+  const stageActive = mode === "host" ? joinState.guests.length > 0 : myJoin.status === "accepted";
+
+  const isModName = useCallback(
+    (name: string, uid?: string) =>
+      moderation.mods.some(
+        (mod) => (uid && mod.user_id === uid) || displayName(mod.profile ?? {}) === name,
+      ),
+    [moderation.mods],
+  );
 
   const pushGift = useCallback(
     (payload: GiftPayload) => {
@@ -193,13 +280,13 @@ export function LiveStreamDialog({
   }, []);
 
   /** Loads the gifts already sent in this stream so the board isn't empty. */
-  const loadGiftHistory = useCallback(async (liveId: string) => {
+  const loadGiftHistory = useCallback(async (id: string) => {
     const { data, error } = await supabase
       .from("live_gifts")
       .select(
         "id, gift_type, coins, quantity, sender_id, created_at, sender:profiles!live_gifts_sender_id_fkey(handle, username, avatar_url)",
       )
-      .eq("live_id", liveId)
+      .eq("live_id", id)
       .order("created_at", { ascending: false })
       .limit(60);
     if (error || !data) return;
@@ -314,6 +401,31 @@ export function LiveStreamDialog({
     };
   }, [mode]);
 
+  // A viewer whose request was accepted needs their own camera for the stage.
+  useEffect(() => {
+    if (mode !== "viewer" || myJoin.status !== "accepted") return;
+    if (localStream.current) return;
+    let cancelled = false;
+    setCameraError("");
+    navigator.mediaDevices
+      ?.getUserMedia({
+        video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: true,
+      })
+      .then((stream) => {
+        if (cancelled) {
+          stream.getTracks().forEach((track) => track.stop());
+          return;
+        }
+        localStream.current = stream;
+        setCameraReady(true);
+      })
+      .catch(() => setCameraError("Camera and microphone access is needed to join the stage."));
+    return () => {
+      cancelled = true;
+    };
+  }, [mode, myJoin.status]);
+
   useEffect(() => {
     if (localVideo.current && localStream.current)
       localVideo.current.srcObject = localStream.current;
@@ -335,18 +447,48 @@ export function LiveStreamDialog({
     if (!chatOpen) setUnread((count) => count + 1);
   }
 
+  /** Drops a system line into chat and mirrors it to every viewer. */
+  function announce(body: string) {
+    const message: ChatMessage = {
+      id: `sys-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      username: "Coolerup",
+      body,
+      at: Date.now(),
+      system: true,
+    };
+    pushMessage(message);
+    broadcast("chat-message", {
+      id: message.id,
+      username: message.username,
+      body,
+      at: message.at,
+      system: true,
+    });
+  }
+
   function sendChat() {
     const body = draft.trim().slice(0, 240);
     if (!body) return;
+    if (moderation.commentsOff && !isMod) {
+      toast.error("Comments are off in this LIVE");
+      return;
+    }
     const message: ChatMessage = {
       id: `${viewerToken.current}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       username: username || "you",
       body,
       at: Date.now(),
       self: true,
+      ...(userId ? { userId } : {}),
     };
     pushMessage(message);
-    broadcast("chat-message", { id: message.id, username: message.username, body, at: message.at });
+    broadcast("chat-message", {
+      id: message.id,
+      username: message.username,
+      body,
+      at: message.at,
+      ...(userId ? { userId } : {}),
+    });
     setDraft("");
   }
 
@@ -366,6 +508,7 @@ export function LiveStreamDialog({
     if (mode === "host") {
       broadcast("stream-ended", { hostId: userId });
       void directory.current?.untrack();
+      if (userId) void endLiveSession(userId);
     } else if (mode === "viewer" && room.current) {
       broadcast("viewer-leave", { viewerId: viewerToken.current });
     }
@@ -384,6 +527,10 @@ export function LiveStreamDialog({
     setGiftOpen(false);
     setConnecting(false);
     setEnded(false);
+    setModOpen(false);
+    setJoinSheetOpen(false);
+    setNameMenu(null);
+    setJoinPrompt(false);
   }
 
   async function createHostPeer(id: string) {
@@ -458,6 +605,8 @@ export function LiveStreamDialog({
         username: payload.username || "guest",
         body: String(payload.body).slice(0, 240),
         at: payload.at || Date.now(),
+        ...(payload.system ? { system: true } : {}),
+        ...(payload.userId ? { userId: payload.userId } : {}),
       });
     });
     channel.on("broadcast", { event: "gift-sent" }, ({ payload }: { payload: GiftPayload }) => {
@@ -539,6 +688,8 @@ export function LiveStreamDialog({
         username: payload.username || "guest",
         body: String(payload.body).slice(0, 240),
         at: payload.at || Date.now(),
+        ...(payload.system ? { system: true } : {}),
+        ...(payload.userId ? { userId: payload.userId } : {}),
       });
     });
     channel.on("broadcast", { event: "gift-sent" }, ({ payload }: { payload: GiftPayload }) => {
@@ -551,6 +702,18 @@ export function LiveStreamDialog({
     });
   }
 
+  // Deep link: `?host=` opens straight into that stream.
+  useEffect(() => {
+    if (!open || !initialHost || mode) return;
+    void joinLive({
+      userId: initialHost.userId,
+      username: initialHost.username,
+      title: "Live now",
+      since: Date.now(),
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, initialHost]);
+
   const startHost = async () => {
     if (!userId || !username) {
       toast.error("Sign in to start a live stream.");
@@ -560,6 +723,248 @@ export function LiveStreamDialog({
   };
 
   const closeMenu = () => onOpenChange(false);
+
+  /* ---------------------------------------------------------------------- */
+  /*  Moderation actions                                                    */
+  /* ---------------------------------------------------------------------- */
+
+  async function resolveUserId(name: string): Promise<string | null> {
+    const clean = name.replace(/^@/, "").trim();
+    if (!clean) return null;
+    const byHandle = await supabase.from("profiles").select("id").eq("handle", clean).maybeSingle();
+    if (byHandle.data) return (byHandle.data as { id: string }).id;
+    const byName = await supabase.from("profiles").select("id").eq("username", clean).maybeSingle();
+    return byName.data ? (byName.data as { id: string }).id : null;
+  }
+
+  async function openNameMenu(message: ChatMessage) {
+    if (message.gift || message.system || message.self) return;
+    let uid = message.userId ?? null;
+    if (!uid) uid = await resolveUserId(message.username);
+    setNameMenu({ username: message.username, userId: uid, message });
+  }
+
+  async function doAddMod(targetId: string, name: string) {
+    if (!liveId || !isHost) return;
+    setBusyMod(true);
+    const result = await addModerator(liveId, targetId);
+    setBusyMod(false);
+    if (!result.ok) {
+      toast.error(result.message);
+      return;
+    }
+    await moderation.refresh();
+    announce(modAnnouncement(name));
+    toast.success(`@${name} is now a moderator`);
+    setNameMenu(null);
+  }
+
+  async function doRemoveMod(mod: LiveMod) {
+    if (!liveId || !isHost) return;
+    setBusyMod(true);
+    const result = await removeModerator(liveId, mod.user_id);
+    setBusyMod(false);
+    if (!result.ok) {
+      toast.error(result.message);
+      return;
+    }
+    await moderation.refresh();
+    announce(unmodAnnouncement(displayName(mod.profile ?? {})));
+  }
+
+  async function doMute(targetId: string, name: string, minutes: number | null) {
+    if (!liveId || !isMod) return;
+    setBusyMod(true);
+    const result = await muteUser(liveId, targetId, minutes);
+    setBusyMod(false);
+    if (!result.ok) {
+      toast.error(result.message);
+      return;
+    }
+    await moderation.refresh();
+    announce(
+      muteAnnouncement(name, {
+        until: minutes ? new Date(Date.now() + minutes * 60000).toISOString() : null,
+      }),
+    );
+    toast.success(`@${name} was muted`);
+    setNameMenu(null);
+  }
+
+  async function doBlock(targetId: string, name: string) {
+    if (!liveId || !isMod) return;
+    setBusyMod(true);
+    await muteUser(liveId, targetId, null);
+    await leaveGuestStage(liveId, targetId);
+    setBusyMod(false);
+    await moderation.refresh();
+    await joinState.refresh();
+    announce(blockAnnouncement(name));
+    toast.success(`@${name} was removed from this LIVE`);
+    setNameMenu(null);
+  }
+
+  async function doPin(message: ChatMessage) {
+    if (!liveId || !isMod) return;
+    const pinned: PinnedMessage = {
+      id: message.id,
+      username: message.username,
+      body: message.body,
+      at: message.at,
+    };
+    const result = await pinMessage(liveId, pinned);
+    if (!result.ok) {
+      toast.error(result.message);
+      return;
+    }
+    moderation.setPinned(pinned);
+    toast.success("Comment pinned");
+    setNameMenu(null);
+  }
+
+  async function doUnpin() {
+    if (!liveId || !isMod) return;
+    await pinMessage(liveId, null);
+    moderation.setPinned(null);
+  }
+
+  async function toggleComments(off: boolean) {
+    if (!liveId || !isMod) return;
+    const result = await setCommentsOff(liveId, off);
+    if (!result.ok) {
+      toast.error(result.message);
+      return;
+    }
+    moderation.setCommentsOffLocal(off);
+    toast.success(off ? "Comments turned off" : "Comments turned on");
+  }
+
+  async function doUnmute(mute: LiveMute) {
+    if (!liveId || !isMod) return;
+    const result = await unmuteUser(liveId, mute.user_id);
+    if (!result.ok) {
+      toast.error(result.message);
+      return;
+    }
+    await moderation.refresh();
+  }
+
+  /* ---------------------------------------------------------------------- */
+  /*  Join-request actions                                                  */
+  /* ---------------------------------------------------------------------- */
+
+  async function askToJoin() {
+    if (!userId) {
+      openAuthDialog();
+      return;
+    }
+    setJoinPrompt(false);
+    const result = await myJoin.request();
+    if (result.ok) toast.success("Request sent — waiting for the host");
+    else toast.error(result.message);
+  }
+
+  async function acceptRequest(request: JoinRequest) {
+    setBusyMod(true);
+    const result = await respondToJoinRequest(request.id, true);
+    setBusyMod(false);
+    if (!result.ok) {
+      toast.error(result.message);
+      return;
+    }
+    await joinState.refresh();
+    announce(`@${requestName(request)} joined the LIVE 🎉`);
+  }
+
+  async function rejectRequest(request: JoinRequest) {
+    setBusyMod(true);
+    const result = await respondToJoinRequest(request.id, false);
+    setBusyMod(false);
+    if (!result.ok) {
+      toast.error(result.message);
+      return;
+    }
+    await joinState.refresh();
+  }
+
+  async function removeGuest(guest: LiveGuest) {
+    if (!liveId) return;
+    setBusyMod(true);
+    await leaveGuestStage(liveId, guest.user_id);
+    setBusyMod(false);
+    await joinState.refresh();
+  }
+
+  async function leaveStage() {
+    if (!liveId) return;
+    await leaveGuestStage(liveId);
+    localStream.current?.getTracks().forEach((track) => track.stop());
+    localStream.current = null;
+    setCameraReady(false);
+    await myJoin.refresh();
+  }
+
+  /* ---------------------------------------------------------------------- */
+  /*  Chat line                                                             */
+  /* ---------------------------------------------------------------------- */
+
+  const renderChatLine = (message: ChatMessage) => {
+    if (message.system) {
+      return (
+        <p
+          key={message.id}
+          className="break-words rounded-2xl bg-white/10 px-3 py-1.5 text-center text-[11px] font-semibold text-white/70"
+        >
+          {message.body}
+        </p>
+      );
+    }
+    if (message.gift) {
+      return (
+        <p
+          key={message.id}
+          className="break-words rounded-2xl bg-[#fe2c55]/25 px-3 py-1.5 font-bold text-white ring-1 ring-[#fe2c55]/50"
+        >
+          {message.body}
+        </p>
+      );
+    }
+    const mod = isModName(message.username, message.userId);
+    return (
+      <p key={message.id} className="break-words rounded-2xl bg-black/45 px-3 py-1.5 text-white/90">
+        <button
+          type="button"
+          onClick={() => void openNameMenu(message)}
+          className={`inline-flex items-center gap-0.5 font-bold ${
+            mod ? "text-sky-300" : "text-primary"
+          }`}
+        >
+          {mod && <Shield className="h-3 w-3 shrink-0" />}@{message.username}
+        </button>{" "}
+        <span>{message.body}</span>
+      </p>
+    );
+  };
+
+  const pinnedBar = moderation.pinned ? (
+    <div className="flex items-start gap-2 rounded-2xl border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-[11px] text-amber-100">
+      <Pin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-300" />
+      <p className="min-w-0 flex-1 break-words">
+        <span className="font-extrabold">@{moderation.pinned.username}:</span>{" "}
+        {moderation.pinned.body}
+      </p>
+      {isMod && (
+        <button
+          type="button"
+          onClick={() => void doUnpin()}
+          aria-label="Unpin comment"
+          className="shrink-0 text-amber-200/80"
+        >
+          <PinOff className="h-3.5 w-3.5" />
+        </button>
+      )}
+    </div>
+  ) : null;
 
   return (
     <>
@@ -683,7 +1088,27 @@ export function LiveStreamDialog({
             Live video broadcast and viewing.
           </DialogDescription>
           <div className="relative h-full w-full bg-black">
-            {mode === "host" ? (
+            {stageActive ? (
+              <div className="absolute inset-0 px-1.5 pb-44 pt-[calc(env(safe-area-inset-top)+3.75rem)]">
+                <LiveMultiGuest
+                  liveId={liveId ?? ""}
+                  selfId={userId ?? viewerToken.current}
+                  selfName={username ?? "you"}
+                  role={mode === "host" ? "host" : "guest"}
+                  localStream={localStream.current}
+                  guests={joinState.guests}
+                  {...(mode === "host"
+                    ? {
+                        onRemoveGuest: (uid: string) => {
+                          const guest = joinState.guests.find((row) => row.user_id === uid);
+                          if (guest) void removeGuest(guest);
+                        },
+                      }
+                    : {})}
+                  {...(mode === "viewer" ? { onLeaveStage: () => void leaveStage() } : {})}
+                />
+              </div>
+            ) : mode === "host" ? (
               <video
                 ref={localVideo}
                 autoPlay
@@ -702,7 +1127,7 @@ export function LiveStreamDialog({
             {giftEvents.map((event) => (
               <GiftAnimation key={event.id} event={event} lowData={lite} onDone={dismissGift} />
             ))}
-            {mode === "host" && !cameraReady && (
+            {mode === "host" && !cameraReady && !stageActive && (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-8 text-center">
                 {cameraError ? (
                   <>
@@ -717,13 +1142,11 @@ export function LiveStreamDialog({
                 )}
               </div>
             )}
-            {mode === "viewer" && !remoteStream && (
+            {mode === "viewer" && !remoteStream && !stageActive && (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-8 text-center">
                 <Radio className="h-10 w-10 text-primary" />
                 <p className="font-display text-2xl">
-                  {ended
-                    ? "Stream ended"
-                    : `@${liveNow.find((host) => host.userId === room.current?.topic?.split("-").pop())?.username ?? "creator"} is live`}
+                  {ended ? "Stream ended" : `@${hostUsername} is live`}
                 </p>
                 <p className="text-sm text-white/65">
                   {ended
@@ -734,6 +1157,8 @@ export function LiveStreamDialog({
                 </p>
               </div>
             )}
+
+            {/* Top bar */}
             <div className="absolute inset-x-0 top-0 flex items-center justify-between bg-gradient-to-b from-black/70 to-transparent p-4 pt-[max(1rem,env(safe-area-inset-top))]">
               <button
                 onClick={finish}
@@ -774,6 +1199,29 @@ export function LiveStreamDialog({
                 )}
               </button>
             </div>
+
+            {/* "LIVE with @host + @guests" line when the stage is on */}
+            {stageActive && (
+              <div className="pointer-events-none absolute inset-x-0 top-[calc(env(safe-area-inset-top)+3.75rem)] px-4 text-center">
+                <span className="rounded-full bg-black/55 px-3 py-1 text-[11px] font-bold text-white/85 backdrop-blur">
+                  {liveWithLine(hostUsername, joinState.guests)}
+                </span>
+              </div>
+            )}
+
+            {/* Host: incoming join banner */}
+            {mode === "host" && broadcasting && joinState.pending.length > 0 && (
+              <div className="absolute inset-x-0 top-[calc(env(safe-area-inset-top)+6.5rem)]">
+                <LiveJoinBanner
+                  requests={joinState.pending}
+                  busy={busyMod}
+                  onAccept={(request) => void acceptRequest(request)}
+                  onReject={(request) => void rejectRequest(request)}
+                  onOpenAll={() => setJoinSheetOpen(true)}
+                />
+              </div>
+            )}
+
             {(topGifter || giftCoins > 0) && (
               <div className="pointer-events-none absolute inset-x-0 top-[calc(env(safe-area-inset-top)+4.25rem)] flex flex-col items-center gap-1 px-4">
                 {topGifter && (
@@ -788,34 +1236,18 @@ export function LiveStreamDialog({
                 )}
               </div>
             )}
+
             {mode === "host" ? (
               <div className="absolute inset-x-0 bottom-0 space-y-3 bg-gradient-to-t from-black/85 via-black/50 to-transparent px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-10">
                 {broadcasting && (
                   <div className="space-y-2">
+                    {pinnedBar}
                     <GiftTicker rows={tickerRows} />
                     <div className="max-h-40 space-y-1.5 overflow-y-auto overscroll-contain pr-1 text-sm">
                       {messages.length === 0 ? (
                         <p className="text-xs text-white/50">Live chat will appear here.</p>
                       ) : (
-                        messages.map((message) => (
-                          <p
-                            key={message.id}
-                            className={`break-words rounded-2xl px-3 py-1.5 ${
-                              message.gift
-                                ? "bg-[#fe2c55]/25 font-bold text-white ring-1 ring-[#fe2c55]/50"
-                                : "bg-black/45 text-white/90"
-                            }`}
-                          >
-                            {message.gift ? (
-                              <span>{message.body}</span>
-                            ) : (
-                              <>
-                                <span className="font-bold text-primary">@{message.username}</span>{" "}
-                                <span>{message.body}</span>
-                              </>
-                            )}
-                          </p>
-                        ))
+                        messages.map(renderChatLine)
                       )}
                       <div ref={chatEnd} />
                     </div>
@@ -844,6 +1276,43 @@ export function LiveStreamDialog({
                     </form>
                   </div>
                 )}
+
+                {/* Host tool row: guests + moderators + comments */}
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setJoinSheetOpen(true)}
+                    className="relative flex flex-1 items-center justify-center gap-1.5 rounded-full bg-white/10 px-3 py-2 text-[11px] font-extrabold"
+                  >
+                    <Users className="h-4 w-4" /> Guests
+                    {joinState.pending.length > 0 && (
+                      <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#fe2c55] px-1 text-[10px] font-extrabold text-white">
+                        {joinState.pending.length}
+                      </span>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setModOpen(true)}
+                    className="flex flex-1 items-center justify-center gap-1.5 rounded-full bg-white/10 px-3 py-2 text-[11px] font-extrabold"
+                  >
+                    <ShieldCheck className="h-4 w-4 text-sky-400" /> Mods
+                    {moderation.mods.length > 0 && (
+                      <span className="text-white/60">{moderation.mods.length}</span>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void toggleComments(!moderation.commentsOff)}
+                    aria-label={moderation.commentsOff ? "Turn comments on" : "Turn comments off"}
+                    className={`flex h-9 w-9 items-center justify-center rounded-full ${
+                      moderation.commentsOff ? "bg-rose-600" : "bg-white/10"
+                    }`}
+                  >
+                    <MessageSquareOff className="h-4 w-4" />
+                  </button>
+                </div>
+
                 <div className="flex items-center justify-between gap-2 rounded-full bg-white/10 px-3 py-2 text-[11px] font-bold">
                   <span className="flex min-w-0 items-center gap-1.5 truncate">
                     <Coins className="h-3.5 w-3.5 shrink-0 text-yellow-400" />
@@ -889,33 +1358,51 @@ export function LiveStreamDialog({
               </div>
             ) : (
               <div className="absolute inset-x-0 bottom-0 space-y-2 bg-gradient-to-t from-black/85 via-black/50 to-transparent px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-10">
+                {pinnedBar}
                 <GiftTicker rows={tickerRows} />
                 <div className="max-h-44 space-y-1.5 overflow-y-auto overscroll-contain pr-1 text-sm">
                   {messages.length === 0 ? (
                     <p className="text-xs text-white/50">Be the first to say hi.</p>
                   ) : (
-                    messages.map((message) => (
-                      <p
-                        key={message.id}
-                        className={`break-words rounded-2xl px-3 py-1.5 ${
-                          message.gift
-                            ? "bg-[#fe2c55]/25 font-bold text-white ring-1 ring-[#fe2c55]/50"
-                            : "bg-black/45 text-white/90"
-                        }`}
-                      >
-                        {message.gift ? (
-                          <span>{message.body}</span>
-                        ) : (
-                          <>
-                            <span className="font-bold text-primary">@{message.username}</span>{" "}
-                            <span>{message.body}</span>
-                          </>
-                        )}
-                      </p>
-                    ))
+                    messages.map(renderChatLine)
                   )}
                   <div ref={chatEnd} />
                 </div>
+
+                {/* Join the stage */}
+                {myJoin.status === "accepted" ? (
+                  <div className="flex items-center justify-between rounded-full bg-emerald-500/15 px-3 py-2 text-[11px] font-bold text-emerald-200">
+                    <span className="flex items-center gap-1.5">
+                      <UserPlus className="h-3.5 w-3.5" /> You're on LIVE
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => void leaveStage()}
+                      className="rounded-full bg-white/15 px-3 py-1 text-white"
+                    >
+                      Leave stage
+                    </button>
+                  </div>
+                ) : myJoin.status === "pending" ? (
+                  <div className="flex items-center justify-center gap-1.5 rounded-full bg-white/10 px-3 py-2 text-[11px] font-bold text-white/70">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Request sent — waiting for the
+                    host
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => (userId ? setJoinPrompt(true) : openAuthDialog())}
+                    className="flex w-full items-center justify-center gap-1.5 rounded-full bg-white/15 py-2.5 text-[11px] font-extrabold text-white transition active:scale-[0.99]"
+                  >
+                    <UserPlus className="h-4 w-4" /> Request to join LIVE
+                  </button>
+                )}
+                {myJoin.status === "rejected" && (
+                  <p className="text-center text-[10px] text-white/50">
+                    {JOIN_STATUS_COPY.rejected}
+                  </p>
+                )}
+
                 <form
                   onSubmit={(event) => {
                     event.preventDefault();
@@ -923,13 +1410,19 @@ export function LiveStreamDialog({
                   }}
                   className="flex items-center gap-2"
                 >
-                  <input
-                    value={draft}
-                    onChange={(event) => setDraft(event.target.value.slice(0, 240))}
-                    placeholder="Add a comment…"
-                    aria-label="Chat message"
-                    className="min-w-0 flex-1 rounded-full bg-white/15 px-4 py-2.5 text-sm text-white outline-none placeholder:text-white/60"
-                  />
+                  {moderation.commentsOff && !isMod ? (
+                    <p className="flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-full bg-white/10 px-4 py-2.5 text-xs font-semibold text-white/60">
+                      <MessageSquareOff className="h-3.5 w-3.5" /> Comments are off
+                    </p>
+                  ) : (
+                    <input
+                      value={draft}
+                      onChange={(event) => setDraft(event.target.value.slice(0, 240))}
+                      placeholder="Add a comment…"
+                      aria-label="Chat message"
+                      className="min-w-0 flex-1 rounded-full bg-white/15 px-4 py-2.5 text-sm text-white outline-none placeholder:text-white/60"
+                    />
+                  )}
                   <button
                     type="button"
                     onClick={() => (userId ? setGiftOpen(true) : openAuthDialog())}
@@ -946,7 +1439,7 @@ export function LiveStreamDialog({
                   <button
                     type="submit"
                     aria-label="Send chat message"
-                    disabled={!draft.trim()}
+                    disabled={!draft.trim() || (moderation.commentsOff && !isMod)}
                     className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-white disabled:opacity-40"
                   >
                     <Send className="h-4 w-4" />
@@ -954,7 +1447,7 @@ export function LiveStreamDialog({
                 </form>
                 <div className="flex items-center justify-between">
                   <p className="text-sm font-bold">
-                    {remoteStream ? "You're watching live" : "Joining stream"}
+                    {remoteStream || stageActive ? "You're watching live" : "Joining stream"}
                   </p>
                   <button
                     onClick={finish}
@@ -966,6 +1459,132 @@ export function LiveStreamDialog({
               </div>
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Host: moderators sheet */}
+      <LiveModPanel
+        open={modOpen}
+        onOpenChange={setModOpen}
+        hostHandle={username ?? ""}
+        mods={moderation.mods}
+        mutes={moderation.mutes}
+        commentsOff={moderation.commentsOff}
+        loading={moderation.loading}
+        busy={busyMod}
+        onAdd={(row) => void doAddMod(row.id, row.handle)}
+        onRemove={(mod) => void doRemoveMod(mod)}
+        onUnmute={(mute) => void doUnmute(mute)}
+        onToggleComments={(off) => void toggleComments(off)}
+      />
+
+      {/* Host: join requests sheet */}
+      <LiveJoinRequestSheet
+        open={joinSheetOpen}
+        onOpenChange={setJoinSheetOpen}
+        requests={joinState.pending}
+        guests={joinState.guests}
+        busy={busyMod}
+        onAccept={(request) => void acceptRequest(request)}
+        onReject={(request) => void rejectRequest(request)}
+        onRemoveGuest={(guest) => void removeGuest(guest)}
+      />
+
+      {/* Viewer: "Request to join?" confirm */}
+      <Dialog open={joinPrompt} onOpenChange={setJoinPrompt}>
+        <DialogContent className="max-w-xs rounded-3xl border-white/10 bg-zinc-950 p-6 text-white">
+          <DialogTitle className="text-lg font-extrabold">Request to join?</DialogTitle>
+          <DialogDescription className="text-sm text-zinc-400">
+            The host will see your request and can bring you on screen. Your camera and mic turn on
+            only if they accept.
+          </DialogDescription>
+          <div className="mt-4 flex gap-2">
+            <button
+              type="button"
+              onClick={() => setJoinPrompt(false)}
+              className="flex-1 rounded-full bg-white/10 py-2.5 text-sm font-bold"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => void askToJoin()}
+              className="flex-1 rounded-full bg-[#fe2c55] py-2.5 text-sm font-extrabold"
+            >
+              Request
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Moderation menu for a tapped chat name */}
+      <Dialog open={nameMenu !== null} onOpenChange={(next) => !next && setNameMenu(null)}>
+        <DialogContent className="max-w-xs rounded-3xl border-white/10 bg-zinc-950 p-5 text-white">
+          <DialogTitle className="text-base font-extrabold">
+            @{nameMenu?.username ?? ""}
+          </DialogTitle>
+          <DialogDescription className="text-xs text-zinc-400">
+            {isMod ? "Moderate this viewer." : "Viewer actions."}
+          </DialogDescription>
+
+          {!isMod ? (
+            <p className="mt-4 rounded-xl bg-white/5 px-3 py-3 text-xs text-white/60">
+              Only the host or a moderator can take action on chat.
+            </p>
+          ) : !nameMenu?.userId ? (
+            <p className="mt-4 rounded-xl bg-white/5 px-3 py-3 text-xs text-white/60">
+              Couldn't find this viewer's profile.
+            </p>
+          ) : (
+            <div className="mt-4 space-y-2">
+              {isHost && (
+                <button
+                  type="button"
+                  disabled={busyMod || isModName(nameMenu.username, nameMenu.userId)}
+                  onClick={() => void doAddMod(nameMenu.userId!, nameMenu.username)}
+                  className="flex w-full items-center gap-2 rounded-full bg-sky-500/15 px-4 py-2.5 text-sm font-bold text-sky-200 disabled:opacity-40"
+                >
+                  <ShieldCheck className="h-4 w-4" />
+                  {isModName(nameMenu.username, nameMenu.userId)
+                    ? "Already a moderator"
+                    : "Add as Moderator"}
+                </button>
+              )}
+              {nameMenu.message && (
+                <button
+                  type="button"
+                  onClick={() => void doPin(nameMenu.message!)}
+                  className="flex w-full items-center gap-2 rounded-full bg-amber-400/15 px-4 py-2.5 text-sm font-bold text-amber-200"
+                >
+                  <Pin className="h-4 w-4" /> Pin comment
+                </button>
+              )}
+              <p className="pt-1 text-[11px] font-extrabold uppercase tracking-wide text-white/40">
+                Mute
+              </p>
+              <div className="flex gap-2">
+                {MUTE_OPTIONS.map((option) => (
+                  <button
+                    key={option.id}
+                    type="button"
+                    disabled={busyMod}
+                    onClick={() => void doMute(nameMenu.userId!, nameMenu.username, option.minutes)}
+                    className="flex-1 rounded-full bg-white/10 px-2 py-2 text-[11px] font-bold text-white/80 disabled:opacity-40"
+                  >
+                    {option.minutes ? `${option.minutes} min` : "Permanent"}
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                disabled={busyMod}
+                onClick={() => void doBlock(nameMenu.userId!, nameMenu.username)}
+                className="flex w-full items-center justify-center gap-2 rounded-full bg-rose-600/90 px-4 py-2.5 text-sm font-extrabold text-white disabled:opacity-40"
+              >
+                <X className="h-4 w-4" /> Block & remove
+              </button>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 

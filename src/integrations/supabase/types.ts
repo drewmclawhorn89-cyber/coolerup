@@ -811,6 +811,129 @@ export type Database = {
         };
         Relationships: [];
       };
+      live_mods: {
+        Row: {
+          added_by: string;
+          created_at: string;
+          id: string;
+          live_id: string;
+          user_id: string;
+        };
+        Insert: {
+          added_by: string;
+          created_at?: string;
+          id?: string;
+          live_id: string;
+          user_id: string;
+        };
+        Update: {
+          added_by?: string;
+          created_at?: string;
+          id?: string;
+          live_id?: string;
+          user_id?: string;
+        };
+        Relationships: [];
+      };
+      live_mutes: {
+        Row: {
+          created_at: string;
+          id: string;
+          live_id: string;
+          muted_by: string;
+          until: string | null;
+          user_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          id?: string;
+          live_id: string;
+          muted_by: string;
+          until?: string | null;
+          user_id: string;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          live_id?: string;
+          muted_by?: string;
+          until?: string | null;
+          user_id?: string;
+        };
+        Relationships: [];
+      };
+      live_join_requests: {
+        Row: {
+          created_at: string;
+          id: string;
+          live_id: string;
+          requester_id: string;
+          responded_at: string | null;
+          status: string;
+        };
+        Insert: {
+          created_at?: string;
+          id?: string;
+          live_id: string;
+          requester_id: string;
+          responded_at?: string | null;
+          status?: string;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          live_id?: string;
+          requester_id?: string;
+          responded_at?: string | null;
+          status?: string;
+        };
+        Relationships: [];
+      };
+      live_guests: {
+        Row: {
+          id: string;
+          is_active: boolean;
+          joined_at: string;
+          live_id: string;
+          user_id: string;
+        };
+        Insert: {
+          id?: string;
+          is_active?: boolean;
+          joined_at?: string;
+          live_id: string;
+          user_id: string;
+        };
+        Update: {
+          id?: string;
+          is_active?: boolean;
+          joined_at?: string;
+          live_id?: string;
+          user_id?: string;
+        };
+        Relationships: [];
+      };
+      live_room_state: {
+        Row: {
+          comments_off: boolean;
+          live_id: string;
+          pinned: Json | null;
+          updated_at: string;
+        };
+        Insert: {
+          comments_off?: boolean;
+          live_id: string;
+          pinned?: Json | null;
+          updated_at?: string;
+        };
+        Update: {
+          comments_off?: boolean;
+          live_id?: string;
+          pinned?: Json | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       user_coins: {
         Row: {
           balance: number;
@@ -977,6 +1100,50 @@ export type Database = {
       admin_unban: { Args: { _username: string }; Returns: Json };
       admin_dismiss_report: { Args: { _report_id: string }; Returns: Json };
       admin_unhide_video: { Args: { _video_id: string }; Returns: Json };
+      is_live_mod: {
+        Args: { p_live_id: string; p_user_id: string };
+        Returns: boolean;
+      };
+      add_live_mod: {
+        Args: { p_live_id: string; p_user_id: string };
+        Returns: number;
+      };
+      remove_live_mod: {
+        Args: { p_live_id: string; p_user_id: string };
+        Returns: number;
+      };
+      mute_live_user: {
+        Args: { p_live_id: string; p_user_id: string; p_minutes?: number | null };
+        Returns: string | null;
+      };
+      unmute_live_user: {
+        Args: { p_live_id: string; p_user_id: string };
+        Returns: undefined;
+      };
+      set_live_comments: {
+        Args: { p_live_id: string; p_off: boolean };
+        Returns: boolean;
+      };
+      pin_live_message: {
+        Args: { p_live_id: string; p_message: Json };
+        Returns: Json;
+      };
+      request_join_live: {
+        Args: { p_live_id: string };
+        Returns: string;
+      };
+      respond_join_request: {
+        Args: { p_request_id: string; p_accept: boolean };
+        Returns: string;
+      };
+      leave_live_guest: {
+        Args: { p_live_id: string; p_user_id?: string | null };
+        Returns: undefined;
+      };
+      end_live_session: {
+        Args: { p_live_id: string };
+        Returns: undefined;
+      };
       my_ban_status: {
         Args: never;
         Returns: {

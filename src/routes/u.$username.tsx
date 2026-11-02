@@ -37,6 +37,7 @@ import {
 import { VideoCard } from "@/components/VideoCard";
 import { StoryViewer } from "@/components/StoryViewer";
 import { fetchStories, postStory, type Story } from "@/lib/stories";
+import { useChristmasMode } from "@/lib/christmas";
 import { toast } from "sonner";
 import type { Profile as ProfileRow } from "@/hooks/useAuth";
 
@@ -105,6 +106,8 @@ const TABS = [
 function Profile() {
   const { username } = Route.useParams();
   const auth = useAuth();
+  // Red/green ring instead of the usual pink gradient, Nov 15 2026 -> Jan 1 2027.
+  const christmas = useChristmasMode();
   const [videos, setVideos] = useState<any[] | null>(null);
   const [open, setOpen] = useState<number | null>(null);
   const [profile, setProfile] = useState<ProfileRow | null>(null);
@@ -380,7 +383,13 @@ function Profile() {
               disabled={stories.length === 0}
               onClick={() => setStoryOpen(true)}
               aria-label={stories.length ? "View story" : "Profile photo"}
-              className={`rounded-full p-1 ${stories.length ? "bg-gradient-to-tr from-primary to-pink-500" : ""}`}
+              className={`rounded-full p-1 ${
+                christmas
+                  ? "christmas-ring"
+                  : stories.length
+                    ? "bg-gradient-to-tr from-primary to-pink-500"
+                    : ""
+              }`}
             >
               <div
                 className={`flex h-24 w-24 items-center justify-center overflow-hidden rounded-full bg-primary ${findItem(equipped.top)?.className ?? ""} text-4xl uppercase text-primary-foreground`}

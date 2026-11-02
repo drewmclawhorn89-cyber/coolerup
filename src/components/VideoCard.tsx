@@ -45,9 +45,13 @@ import {
 import { REPORT_REASONS, checkIfBanned, reportContent, type ReportReason } from "@/lib/moderation";
 import { resolveAvatarUrl } from "./EditProfileDialog";
 import { notifyUser, profileIdForHandle } from "@/lib/notify";
+import { useChristmasMode } from "@/lib/christmas";
 
 const Comments = lazy(() => import("./Comments").then((m) => ({ default: m.Comments })));
 const ShareMenu = lazy(() => import("./ShareMenu").then((m) => ({ default: m.ShareMenu })));
+const ChristmasGiftSheet = lazy(() =>
+  import("./ChristmasGiftSheet").then((m) => ({ default: m.ChristmasGiftSheet })),
+);
 
 /** Cache resolved avatar URLs per handle so feed scrolling doesn't refetch. */
 const avatarCache = new Map<string, string | null>();
@@ -113,6 +117,9 @@ function VideoCardImpl({
   const [repostCount, setRepostCount] = useState(video.reposts ?? video.reposts_count ?? 0);
   const [showComments, setShowComments] = useState(false);
   const [showShare, setShowShare] = useState(false);
+  const [showGift, setShowGift] = useState(false);
+  // Nov 15 2026 -> Jan 1 2027: Christmas heart + 🎁 gift button.
+  const christmas = useChristmasMode();
   const [deleted, setDeleted] = useState(false);
   const [isSaved, setIsSaved] = useState(isSavedProp ?? false);
   const [burst, setBurst] = useState(false);
@@ -806,7 +813,13 @@ function VideoCardImpl({
                 aria-hidden
                 className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center"
               >
-                <Heart className="heart-pop h-28 w-28 fill-primary text-primary drop-shadow-[0_0_24px_rgba(255,45,85,0.8)]" />
+                {christmas ? (
+                  <span className="christmas-tree-pop text-[7rem] leading-none drop-shadow-[0_0_24px_rgba(46,204,85,0.8)]">
+                    🎄
+                  </span>
+                ) : (
+                  <Heart className="heart-pop h-28 w-28 fill-primary text-primary drop-shadow-[0_0_24px_rgba(255,45,85,0.8)]" />
+                )}
               </div>
             )}
 
@@ -890,13 +903,30 @@ function VideoCardImpl({
             label={formatCount(Math.max(likes ?? 0, liked ? 1 : 0))}
             onClick={toggleLike}
             pressed={liked}
-            activeClass="text-[#fe2c55]"
+            activeClass={christmas ? "christmas-heart" : "text-[#fe2c55]"}
           >
-            <Heart
-              className={`h-7 w-7 drop-shadow-lg ${
-                liked ? "fill-[#fe2c55] text-[#fe2c55]" : "text-white"
-              } ${liked && burst ? "heart-pop-btn" : ""}`}
-            />
+            {christmas && liked ? (
+              <span
+                className={`christmas-tree-pop text-[26px] leading-none drop-shadow-lg ${
+                  burst ? "heart-pop-btn" : ""
+                }`}
+                aria-hidden
+              >
+                🎄
+              </span>
+            ) : (
+              <Heart
+                className={`h-7 w-7 drop-shadow-lg ${
+                  liked
+                    ? christmas
+                      ? "fill-[#2ecc55] text-[#2ecc55]"
+                      : "fill-[#fe2c55] text-[#fe2c55]"
+                    : christmas
+                      ? "christmas-heart"
+                      : "text-white"
+                } ${liked && burst ? "heart-pop-btn" : ""}`}
+              />
+            )}
           </RailButton>
 
           {/* COMMENT */}
@@ -958,6 +988,15 @@ function VideoCardImpl({
           <RailButton label="Share" onClick={() => setShowShare(true)}>
             <Share2 className="h-7 w-7 text-white drop-shadow-lg" />
           </RailButton>
+
+          {/* CHRISTMAS GIFT — Nov 15 2026 -> Jan 1 2027 only */}
+          {christmas && (
+            <RailButton label="Gift" onClick={() => setShowGift(true)}>
+              <span className="text-[26px] leading-none drop-shadow-lg" aria-hidden>
+                🎁
+              </span>
+            </RailButton>
+          )}
         </div>
       </div>
       {showComments && (
@@ -966,6 +1005,16 @@ function VideoCardImpl({
             videoId={video.id}
             onClose={() => setShowComments(false)}
             onAdded={() => setComments((n) => n + 1)}
+          />
+        </Suspense>
+      )}
+      {showGift && (
+        <Suspense fallback={null}>
+          <ChristmasGiftSheet
+            open={showGift}
+            onOpenChange={setShowGift}
+            videoId={video.id}
+            recipientHandle={video.username}
           />
         </Suspense>
       )}

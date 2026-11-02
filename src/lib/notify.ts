@@ -14,7 +14,8 @@ export type NotifyKind =
   | "story_like"
   | "message"
   | "mention"
-  | "live";
+  | "live"
+  | "gift";
 
 const TITLES: Record<string, string> = {
   like: "New like",
@@ -25,6 +26,7 @@ const TITLES: Record<string, string> = {
   message: "New message",
   mention: "You were mentioned",
   live: "LIVE now",
+  gift: "Christmas gift 🎁",
 };
 
 export type NotifyInput = {

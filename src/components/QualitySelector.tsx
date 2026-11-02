@@ -1,4 +1,4 @@
-import { Check, ChevronRight, Gauge } from "lucide-react";
+import { Check } from "lucide-react";
 import { useEffect } from "react";
 import { QUALITY_OPTIONS, resolveRendition, type QualityId } from "@/lib/videoQuality";
 import type { EffectiveType } from "@/lib/network";
@@ -6,7 +6,7 @@ import type { EffectiveType } from "@/lib/network";
 /**
  * TikTok-style quality picker.
  *
- * Opens from the "..." menu on a video (or a long press on the video itself).
+ * Opens from the Quality tile in the Share sheet (or a long press on the video).
  * White text on a translucent black panel, rounded corners, a checkmark on the
  * active row, and a short hint under each label.
  */
@@ -89,65 +89,6 @@ export function QualitySelector({
         <p className="px-2 pt-1 text-[10px] leading-tight text-white/35">
           Auto adjusts based on your connection — like TikTok.
         </p>
-      </div>
-    </div>
-  );
-}
-
-/**
- * The "..." sheet that sits between the video and the quality picker. TikTok
- * puts Quality behind the same overflow menu as everything else, so this keeps
- * the rail uncluttered.
- */
-export function VideoMoreMenu({
-  open,
-  qualityLabel,
-  onOpenQuality,
-  onClose,
-}: {
-  open: boolean;
-  /** e.g. "Auto", "720p", "Data Saver" — shown on the right of the Quality row. */
-  qualityLabel: string;
-  onOpenQuality: () => void;
-  onClose: () => void;
-}) {
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
-
-  if (!open) return null;
-
-  return (
-    <div className="fixed inset-0 z-40" onClick={onClose}>
-      <div
-        role="menu"
-        aria-label="Video options"
-        onClick={(e) => e.stopPropagation()}
-        className="absolute bottom-20 right-2 w-52 overflow-hidden rounded-xl border border-white/10 bg-black/85 p-1.5 text-white shadow-2xl backdrop-blur"
-      >
-        <button
-          type="button"
-          role="menuitem"
-          onClick={() => {
-            onClose();
-            onOpenQuality();
-          }}
-          className="flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left transition hover:bg-white/10"
-        >
-          <span className="flex items-center gap-2 text-sm font-semibold">
-            <Gauge className="h-4 w-4 text-white/70" />
-            Quality
-          </span>
-          <span className="flex items-center gap-1 text-xs text-white/50">
-            {qualityLabel}
-            <ChevronRight className="h-3.5 w-3.5" />
-          </span>
-        </button>
       </div>
     </div>
   );

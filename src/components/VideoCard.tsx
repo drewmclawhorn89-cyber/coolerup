@@ -13,7 +13,6 @@ import {
   Bookmark,
   Heart,
   MessageCircle,
-  MoreHorizontal,
   Music,
   Play,
   Repeat2,
@@ -60,7 +59,7 @@ import {
   resolveQualitySource,
   useVideoQuality,
 } from "@/lib/videoQuality";
-import { QualitySelector, VideoMoreMenu } from "@/components/QualitySelector";
+import { QualitySelector } from "@/components/QualitySelector";
 
 const Comments = lazy(() => import("./Comments").then((m) => ({ default: m.Comments })));
 const ShareMenu = lazy(() => import("./ShareMenu").then((m) => ({ default: m.ShareMenu })));
@@ -136,7 +135,6 @@ function VideoCardImpl({
   // Quality: shared preference (localStorage `video_quality`), plus the "..."
   // menu and the picker it opens.
   const { quality, setQuality } = useVideoQuality();
-  const [showMore, setShowMore] = useState(false);
   const [showQuality, setShowQuality] = useState(false);
   const longPressRef = useRef<number | null>(null);
   const suppressClickRef = useRef(false);
@@ -727,12 +725,12 @@ function VideoCardImpl({
           <div
             ref={cardRef}
             onPointerDown={(e) => {
-              // Long press anywhere on the video opens the "..." menu, TikTok-style.
+              // Long press anywhere on the video opens the quality picker, TikTok-style.
               if (e.pointerType === "mouse" && e.button !== 0) return;
               if (longPressRef.current) window.clearTimeout(longPressRef.current);
               longPressRef.current = window.setTimeout(() => {
                 suppressClickRef.current = true;
-                setShowMore(true);
+                setShowQuality(true);
                 haptic();
               }, 500);
             }}
@@ -1058,12 +1056,7 @@ function VideoCardImpl({
             </button>
           )}
 
-          {/* MORE — TikTok's "..." opens Quality */}
-          <RailButton label="" onClick={() => setShowMore(true)}>
-            <MoreHorizontal className="h-7 w-7 text-white drop-shadow-lg" />
-          </RailButton>
-
-          {/* SHARE */}
+          {/* SHARE — Quality lives inside this sheet */}
           <RailButton label="Share" onClick={() => setShowShare(true)}>
             <Share2 className="h-7 w-7 text-white drop-shadow-lg" />
           </RailButton>
@@ -1097,12 +1090,6 @@ function VideoCardImpl({
           />
         </Suspense>
       )}
-      <VideoMoreMenu
-        open={showMore}
-        qualityLabel={qualityLabel}
-        onOpenQuality={() => setShowQuality(true)}
-        onClose={() => setShowMore(false)}
-      />
       <QualitySelector
         open={showQuality}
         quality={quality}
@@ -1121,6 +1108,11 @@ function VideoCardImpl({
         <Suspense fallback={null}>
           <ShareMenu
             video={video}
+            qualityLabel={qualityLabel}
+            onOpenQuality={() => {
+              setShowShare(false);
+              setShowQuality(true);
+            }}
             onClose={() => setShowShare(false)}
             onShared={onShared}
             onDeleted={() => setDeleted(true)}

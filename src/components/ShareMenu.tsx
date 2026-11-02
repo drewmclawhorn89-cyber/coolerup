@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Check, Download, Link2, Lock, Share2, Trash2, X } from "lucide-react";
+import { Check, Download, Gauge, Link2, Lock, Share2, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
@@ -7,7 +7,21 @@ import { deleteVideo, resolveVideoUrl, type Video } from "@/lib/loop";
 import { formatBytes, getSaved, removeOffline, saveOffline } from "@/lib/offline";
 import { hasOfflineAccess, offlinePlan } from "@/lib/subscriptions";
 
-export function ShareMenu({ video, onClose, onShared, onDeleted }: { video: Video; onClose: () => void; onShared: () => void; onDeleted?: () => void }) {
+export function ShareMenu({
+  video,
+  onClose,
+  onShared,
+  onDeleted,
+  qualityLabel,
+  onOpenQuality,
+}: {
+  video: Video;
+  onClose: () => void;
+  onShared: () => void;
+  onDeleted?: () => void;
+  qualityLabel?: string;
+  onOpenQuality?: () => void;
+}) {
   const [savedSize, setSavedSize] = useState<number | null>(null);
   const [progress, setProgress] = useState<number | null>(null);
   const auth = useAuth();
@@ -182,6 +196,17 @@ export function ShareMenu({ video, onClose, onShared, onDeleted }: { video: Vide
               {savedSize ? `Remove (${formatBytes(savedSize)})` : offlineUnlocked ? "Save offline" : "Plus only"}
             </span>
           </button>
+
+          {onOpenQuality && (
+            <button className="flex flex-col items-center gap-2" onClick={onOpenQuality}>
+              <div className="w-14 h-14 rounded-full bg-zinc-800 flex items-center justify-center">
+                <Gauge size={22} />
+              </div>
+              <span className="text-xs text-zinc-300">
+                Quality{qualityLabel ? ` · ${qualityLabel}` : ""}
+              </span>
+            </button>
+          )}
 
           {isOwner && (
             <button className="flex flex-col items-center gap-2" onClick={deleteMine}>

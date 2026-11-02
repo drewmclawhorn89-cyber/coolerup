@@ -163,13 +163,20 @@ begin
 
   -- Deduct first, guarded by the balance check, so two rapid taps can never
   -- push a wallet negative.
-  update public.user_coins
-     set balance = balance - p_coins,
-         total_spent = total_spent + p_coins,
+  --
+  -- NOTE: the `uc.` qualification is required. This function is declared
+  -- `returns table (gift_id uuid, balance integer)`, so the OUT parameter
+  -- named `balance` is a PL/pgSQL variable that shadows the `balance` column
+  -- of user_coins. Without the alias Postgres raises
+  --   ERROR: column reference "balance" is ambiguous
+  -- on every single gift send.
+  update public.user_coins as uc
+     set balance = uc.balance - p_coins,
+         total_spent = uc.total_spent + p_coins,
          updated_at = now()
-   where user_id = v_sender
-     and balance >= p_coins
-  returning balance into v_balance;
+   where uc.user_id = v_sender
+     and uc.balance >= p_coins
+  returning uc.balance into v_balance;
 
   if v_balance is null then
     raise exception 'insufficient_coins' using errcode = 'P0001';
@@ -182,11 +189,11 @@ begin
   -- Streamer earns diamonds at 100 coins = 50 diamonds.
   v_diamonds := p_coins / 2;
 
-  insert into public.user_coins (user_id, balance, total_earned, diamonds)
+  insert into public.user_coins as uc (user_id, balance, total_earned, diamonds)
   values (p_receiver_id, 0, p_coins, v_diamonds)
   on conflict (user_id) do update
-    set total_earned = public.user_coins.total_earned + excluded.total_earned,
-        diamonds = public.user_coins.diamonds + excluded.diamonds,
+    set total_earned = uc.total_earned + excluded.total_earned,
+        diamonds = uc.diamonds + excluded.diamonds,
         updated_at = now();
 
   return query select v_gift_id, v_balance;

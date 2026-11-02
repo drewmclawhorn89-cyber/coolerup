@@ -778,6 +778,57 @@ export type Database = {
         };
         Relationships: [];
       };
+      coin_venmo_orders: {
+        Row: {
+          admin_note: string | null;
+          amount_cents: number;
+          coins: number;
+          created_at: string;
+          id: string;
+          pack_id: string;
+          payer_handle: string | null;
+          reference_code: string;
+          reviewed_at: string | null;
+          reviewed_by: string | null;
+          status: string;
+          updated_at: string;
+          user_id: string;
+          venmo_note: string | null;
+        };
+        Insert: {
+          admin_note?: string | null;
+          amount_cents: number;
+          coins: number;
+          created_at?: string;
+          id?: string;
+          pack_id: string;
+          payer_handle?: string | null;
+          reference_code: string;
+          reviewed_at?: string | null;
+          reviewed_by?: string | null;
+          status?: string;
+          updated_at?: string;
+          user_id: string;
+          venmo_note?: string | null;
+        };
+        Update: {
+          admin_note?: string | null;
+          amount_cents?: number;
+          coins?: number;
+          created_at?: string;
+          id?: string;
+          pack_id?: string;
+          payer_handle?: string | null;
+          reference_code?: string;
+          reviewed_at?: string | null;
+          reviewed_by?: string | null;
+          status?: string;
+          updated_at?: string;
+          user_id?: string;
+          venmo_note?: string | null;
+        };
+        Relationships: [];
+      };
       live_gifts: {
         Row: {
           coins: number;
@@ -1020,6 +1071,17 @@ export type Database = {
       is_muted: { Args: { _username: string }; Returns: boolean };
       contains_banned_word: { Args: { _text: string }; Returns: boolean };
       am_i_admin: { Args: never; Returns: boolean };
+      admin_coin_venmo_orders: { Args: { _limit?: number }; Returns: Json };
+      admin_review_coin_venmo_order: {
+        Args: { _order_id: string; _action: string; _note?: string | null };
+        Returns: Json;
+      };
+      coin_admin_ok: { Args: never; Returns: boolean };
+      my_coin_venmo_orders: { Args: never; Returns: Json };
+      submit_coin_venmo_payment: {
+        Args: { _order_id: string; _payer_handle: string; _venmo_note?: string | null };
+        Returns: Json;
+      };
       apply_moderation: {
         Args: {
           _user_id: string | null;

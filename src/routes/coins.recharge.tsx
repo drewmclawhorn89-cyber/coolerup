@@ -1,11 +1,30 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, Check, Coins, Loader2, Lock, Sparkles } from "lucide-react";
+import { ArrowLeft, Check, Coins, CreditCard, Loader2, Lock, Sparkles, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { CoinVenmoSheet } from "@/components/CoinVenmoSheet";
 import { useAuth } from "@/hooks/useAuth";
 import { COIN_PACKS, notifyCoinsChanged, usdFromCents, useCoins } from "@/lib/coins";
-import { coinPaymentStatus, confirmCoinPurchase, createCoinCheckout } from "@/lib/coins.functions";
+import {
+  coinPaymentStatus,
+  confirmCoinPurchase,
+  createCoinCheckout,
+  createCoinVenmoOrder,
+  myCoinVenmoOrders,
+  type CoinPaymentStatus,
+  type CoinVenmoOrderResult,
+  type VenmoOrderRow,
+} from "@/lib/coins.functions";
+import {
+  amountString,
+  buildVenmoNote,
+  isVenmoOrderOpen,
+  venmoAppUrl,
+  venmoPayUrl,
+  venmoStatusLabel,
+  venmoStatusTone,
+} from "@/lib/venmo";
 
 export const Route = createFileRoute("/coins/recharge")({
   head: () => ({
@@ -17,20 +36,53 @@ export const Route = createFileRoute("/coins/recharge")({
   component: RechargePage,
 });
 
+type ReadyOrder = Extract<CoinVenmoOrderResult, { ok: true }>;
+
+/** Rebuild a sheet payload from a stored order so "try again" works. */
+function orderFromRow(row: VenmoOrderRow, recipient: string): ReadyOrder {
+  const link = {
+    handle: recipient,
+    cents: row.amount_cents,
+    referenceCode: row.reference_code,
+  };
+  return {
+    ok: true,
+    orderId: row.id,
+    referenceCode: row.reference_code,
+    amountCents: row.amount_cents,
+    amountUsd: amountString(row.amount_cents),
+    note: buildVenmoNote(row.reference_code),
+    recipient,
+    venmoUrl: venmoPayUrl(link),
+    appUrl: venmoAppUrl(link),
+  };
+}
+
+const TONE_CLASS: Record<string, string> = {
+  pending: "bg-yellow-500/15 text-yellow-700 dark:text-yellow-300",
+  good: "bg-green-500/15 text-green-700 dark:text-green-300",
+  bad: "bg-destructive/15 text-destructive",
+  muted: "bg-muted text-muted-foreground",
+};
+
 /**
- * Real coin purchases through Stripe Checkout.
+ * Coin purchases.
  *
- * Stripe hosts the card form, so Coolerup never sees a card number. When Stripe
- * redirects back with ?session_id=..., the server verifies the session with
- * Stripe before any coins are credited.
+ * Venmo is the primary rail: the buyer gets an order code, sends money to the
+ * Coolerup Venmo account with that code in the note, and an admin approves the
+ * order. Card checkout stays available when STRIPE_SECRET_KEY is configured.
  */
 function RechargePage() {
   const auth = useAuth();
   const navigate = useNavigate();
   const wallet = useCoins(auth.user?.id);
-  const [stripeReady, setStripeReady] = useState<boolean | null>(null);
+  const [payStatus, setPayStatus] = useState<CoinPaymentStatus | null>(null);
   const [buying, setBuying] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
+  const [orders, setOrders] = useState<VenmoOrderRow[]>([]);
+  const [activeOrder, setActiveOrder] = useState<ReadyOrder | null>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const seenPaid = useRef<Set<string>>(new Set());
 
   const params = useMemo(
     () =>
@@ -42,14 +94,19 @@ function RechargePage() {
   const sessionId = params.get("session_id");
   const canceled = params.get("canceled");
 
+  const userId = auth.user?.id;
+  const recipient = payStatus?.venmoRecipient ?? null;
+  const venmoReady = Boolean(payStatus?.venmoConfigured && recipient);
+  const cardReady = Boolean(payStatus?.stripeConfigured);
+
   useEffect(() => {
     let alive = true;
     coinPaymentStatus()
       .then((status) => {
-        if (alive) setStripeReady(status.stripeConfigured);
+        if (alive) setPayStatus(status);
       })
       .catch(() => {
-        if (alive) setStripeReady(false);
+        if (alive) setPayStatus(null);
       });
     return () => {
       alive = false;
@@ -60,8 +117,48 @@ function RechargePage() {
     if (canceled) toast.message("Checkout canceled — no coins were bought");
   }, [canceled]);
 
+  const refreshOrders = useCallback(async () => {
+    if (!userId) {
+      setOrders([]);
+      return;
+    }
+    try {
+      const rows = await myCoinVenmoOrders();
+      setOrders(rows);
+    } catch {
+      // A failed poll shouldn't wipe the list or shout at the user.
+    }
+  }, [userId]);
+
+  useEffect(() => {
+    void refreshOrders();
+  }, [refreshOrders]);
+
+  // Announce a freshly approved order once, then refresh the wallet.
+  useEffect(() => {
+    let gained = false;
+    for (const order of orders) {
+      if (order.status !== "paid") continue;
+      if (seenPaid.current.has(order.id)) continue;
+      seenPaid.current.add(order.id);
+      gained = true;
+      toast.success(`+${order.coins.toLocaleString()} coins added`);
+    }
+    if (gained) {
+      notifyCoinsChanged();
+      void wallet.refresh();
+    }
+  }, [orders, wallet]);
+
+  const hasOpenOrder = orders.some((o) => isVenmoOrderOpen(o.status));
+
+  useEffect(() => {
+    if (!userId || !hasOpenOrder) return;
+    const timer = setInterval(() => void refreshOrders(), 8000);
+    return () => clearInterval(timer);
+  }, [userId, hasOpenOrder, refreshOrders]);
+
   const setWalletBalance = wallet.setBalance;
-  const userId = auth.user?.id;
 
   useEffect(() => {
     if (!sessionId || !userId) return;
@@ -94,11 +191,33 @@ function RechargePage() {
     };
   }, [sessionId, userId, navigate, setWalletBalance]);
 
-  async function buy(packId: string) {
-    if (!auth.user) {
-      auth.signIn();
-      return;
+  function requireSignIn(): boolean {
+    if (auth.user) return true;
+    auth.signIn();
+    return false;
+  }
+
+  async function startVenmo(packId: string) {
+    if (!requireSignIn()) return;
+    setBuying(packId);
+    try {
+      const result = await createCoinVenmoOrder({ data: { packId } });
+      if (!result.ok) {
+        toast.error(result.message);
+        return;
+      }
+      setActiveOrder(result);
+      setSheetOpen(true);
+      void refreshOrders();
+    } catch {
+      toast.error("Couldn't start that order");
+    } finally {
+      setBuying(null);
     }
+  }
+
+  async function buyWithCard(packId: string) {
+    if (!requireSignIn()) return;
     setBuying(packId);
     try {
       const result = await createCoinCheckout({ data: { packId } });
@@ -113,6 +232,14 @@ function RechargePage() {
       setBuying(null);
     }
   }
+
+  function resumeOrder(row: VenmoOrderRow) {
+    if (!recipient) return;
+    setActiveOrder(orderFromRow(row, recipient));
+    setSheetOpen(true);
+  }
+
+  const visibleOrders = orders.filter((o) => o.status !== "canceled").slice(0, 5);
 
   return (
     <div className="mx-auto min-h-dvh w-full max-w-lg bg-background pb-24">
@@ -150,10 +277,11 @@ function RechargePage() {
           </div>
         )}
 
-        {stripeReady === false && (
+        {payStatus && !venmoReady && !cardReady && (
           <div className="rounded-2xl border border-yellow-500/40 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-900 dark:text-yellow-200">
-            Card payments aren&apos;t configured on this deployment yet. Add{" "}
-            <code className="font-mono text-xs">STRIPE_SECRET_KEY</code> to enable real charging.
+            Payments aren&apos;t configured on this deployment yet. Add{" "}
+            <code className="font-mono text-xs">VENMO_RECIPIENT</code> (the Coolerup Venmo username)
+            to turn on coin purchases.
           </div>
         )}
 
@@ -163,7 +291,7 @@ function RechargePage() {
               key={pack.id}
               type="button"
               disabled={buying !== null}
-              onClick={() => void buy(pack.id)}
+              onClick={() => void (venmoReady ? startVenmo(pack.id) : buyWithCard(pack.id))}
               className="flex w-full items-center gap-4 rounded-2xl border bg-card p-4 text-left transition hover:border-[#fe2c55]/60 hover:bg-secondary disabled:opacity-60"
             >
               <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-yellow-400/15 text-yellow-500">
@@ -193,18 +321,96 @@ function RechargePage() {
           ))}
         </section>
 
+        {venmoReady && recipient && (
+          <p className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
+            <Wallet className="h-3.5 w-3.5 text-[#3d95ce]" /> Paid with Venmo to{" "}
+            <span className="font-bold text-foreground">@{recipient}</span>
+          </p>
+        )}
+
+        {cardReady && (
+          <section className="rounded-2xl border border-dashed p-4">
+            <p className="flex items-center gap-2 text-sm font-bold">
+              <CreditCard className="h-4 w-4" /> Prefer a card?
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Card checkout is live on this deployment.
+            </p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {COIN_PACKS.map((pack) => (
+                <Button
+                  key={pack.id}
+                  size="sm"
+                  variant="secondary"
+                  disabled={buying !== null}
+                  onClick={() => void buyWithCard(pack.id)}
+                >
+                  {pack.coins.toLocaleString()} · {usdFromCents(pack.cents)}
+                </Button>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {visibleOrders.length > 0 && (
+          <section className="space-y-2">
+            <h2 className="text-sm font-extrabold">Your orders</h2>
+            {visibleOrders.map((order) => {
+              const tone = venmoStatusTone(order.status);
+              const canRetry = order.status === "rejected" && venmoReady;
+              return (
+                <article key={order.id} className="rounded-xl border border-border bg-card p-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <code className="font-mono text-sm font-bold">{order.reference_code}</code>
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${
+                        TONE_CLASS[tone] ?? TONE_CLASS["muted"]
+                      }`}
+                    >
+                      {venmoStatusLabel(order.status)}
+                    </span>
+                    <span className="ml-auto text-xs text-muted-foreground">
+                      {order.coins.toLocaleString()} coins · {usdFromCents(order.amount_cents)}
+                    </span>
+                  </div>
+                  {order.admin_note && (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Admin: “{order.admin_note}”
+                    </p>
+                  )}
+                  {canRetry && (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="mt-2"
+                      onClick={() => resumeOrder(order)}
+                    >
+                      Send payment details again
+                    </Button>
+                  )}
+                </article>
+              );
+            })}
+            {hasOpenOrder && (
+              <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                <Loader2 className="h-3 w-3 animate-spin" /> Checking for your payment…
+              </p>
+            )}
+          </section>
+        )}
+
         <section className="rounded-2xl bg-secondary p-4 text-sm text-muted-foreground">
           <p className="mb-2 flex items-center gap-2 font-bold text-foreground">
-            <Lock className="h-4 w-4" /> Secure checkout
+            <Lock className="h-4 w-4" /> How buying works
           </p>
           <ul className="space-y-1.5">
             <li className="flex gap-2">
-              <Check className="mt-0.5 h-4 w-4 shrink-0 text-green-500" /> Payments are handled by
-              Stripe — card details never touch Coolerup.
+              <Check className="mt-0.5 h-4 w-4 shrink-0 text-green-500" /> Pay with Venmo — you send
+              the exact amount and an order code, so nothing is guessed.
             </li>
             <li className="flex gap-2">
-              <Check className="mt-0.5 h-4 w-4 shrink-0 text-green-500" /> Coins are added the
-              moment Stripe confirms the payment.
+              <Check className="mt-0.5 h-4 w-4 shrink-0 text-green-500" /> Coins are added once the
+              payment is matched, usually within a few hours.
             </li>
             <li className="flex gap-2">
               <Check className="mt-0.5 h-4 w-4 shrink-0 text-green-500" /> You must be 13+ to buy
@@ -223,6 +429,13 @@ function RechargePage() {
           </p>
         </section>
       </div>
+
+      <CoinVenmoSheet
+        order={activeOrder}
+        open={sheetOpen}
+        onOpenChange={setSheetOpen}
+        onSubmitted={() => void refreshOrders()}
+      />
     </div>
   );
 }

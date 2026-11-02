@@ -2,7 +2,9 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   ArrowLeft,
   Ban,
+  Check,
   Clock,
+  Coins,
   Flag,
   Power,
   RefreshCw,
@@ -10,10 +12,18 @@ import {
   ShieldOff,
   Trash2,
   Undo2,
+  X,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import {
+  adminCoinVenmoOrders,
+  adminReviewCoinVenmoOrder,
+  type AdminVenmoOrder,
+} from "@/lib/coins.functions";
+import { usdFromCents } from "@/lib/coins";
+import { venmoStatusLabel } from "@/lib/venmo";
 import {
   REPORT_REASONS,
   adminBan,
@@ -48,7 +58,7 @@ export const Route = createFileRoute("/admin")({
   component: AdminPage,
 });
 
-type Tab = "reports" | "bans" | "log" | "update";
+type Tab = "reports" | "bans" | "log" | "coins" | "update";
 
 const reasonLabel = (id: string) => REPORT_REASONS.find((r) => r.id === id)?.label ?? id;
 
@@ -75,6 +85,7 @@ function AdminPage() {
   const [reports, setReports] = useState<AdminReport[]>([]);
   const [bans, setBans] = useState<AdminBan[]>([]);
   const [log, setLog] = useState<ModerationLogRow[]>([]);
+  const [coinOrders, setCoinOrders] = useState<AdminVenmoOrder[]>([]);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [status, setStatus] = useState<AppStatus | null>(null);
@@ -92,6 +103,12 @@ function AdminPage() {
       setReports(r);
       setBans(b);
       setLog(l);
+      try {
+        setCoinOrders(await adminCoinVenmoOrders());
+      } catch {
+        // Coin orders are optional; a failure here shouldn't blank moderation.
+        setCoinOrders([]);
+      }
       const s = await fetchAppStatus();
       setStatus(s);
       if (s?.message) setStatusMsg(s.message);
@@ -182,6 +199,7 @@ function AdminPage() {
   const pending = reports.filter((r) => r.status === "pending");
   const activeBans = bans.filter((b) => b.active && b.kind === "ban");
   const activeMutes = bans.filter((b) => b.active && b.kind === "mute");
+  const pendingCoins = coinOrders.filter((o) => o.status === "submitted").length;
 
   return (
     <main className="mx-auto min-h-dvh w-full max-w-4xl bg-background px-4 pb-24 pt-4">
@@ -218,6 +236,7 @@ function AdminPage() {
             ["reports", `Reports (${pending.length})`],
             ["bans", `Bans (${activeBans.length + activeMutes.length})`],
             ["log", "Auto-ban log"],
+            ["coins", `Coins (${pendingCoins})`],
           ] as const
         ).map(([id, label]) => (
           <button
@@ -484,11 +503,26 @@ function AdminPage() {
         </section>
       )}
 
+      {tab === "coins" && (
+        <section className="space-y-3">
+          <p className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
+            Open Venmo, find the payment whose note matches the order code, then approve it.
+            Approving credits the coins once — double-clicking is safe.
+          </p>
+          {coinOrders.length === 0 && <Empty text="No Venmo orders yet." />}
+          {coinOrders.map((order) => (
+            <CoinOrderCard key={order.id} order={order} onReviewed={() => void refresh()} />
+          ))}
+        </section>
+      )}
+
       {tab === "update" && (
         <section className="space-y-4">
           <article
             className={`rounded-xl border p-4 ${
-              status?.maintenance ? "border-destructive/40 bg-destructive/5" : "border-border bg-card"
+              status?.maintenance
+                ? "border-destructive/40 bg-destructive/5"
+                : "border-border bg-card"
             }`}
           >
             <div className="flex items-start gap-3">
@@ -558,6 +592,116 @@ function AdminPage() {
         </section>
       )}
     </main>
+  );
+}
+
+function CoinOrderCard({ order, onReviewed }: { order: AdminVenmoOrder; onReviewed: () => void }) {
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState<"approve" | "reject" | null>(null);
+
+  const reviewable = order.status === "submitted" || order.status === "awaiting_payment";
+
+  async function review(action: "approve" | "reject") {
+    setBusy(action);
+    try {
+      const payload: { orderId: string; action: "approve" | "reject"; note?: string } = {
+        orderId: order.id,
+        action,
+      };
+      const trimmed = note.trim();
+      if (trimmed) payload.note = trimmed;
+
+      const result = await adminReviewCoinVenmoOrder({ data: payload });
+      if (!result.ok) {
+        toast.error(result.message);
+        return;
+      }
+      toast.success(
+        action === "approve"
+          ? result.alreadyPaid
+            ? "Already credited"
+            : `+${result.coins.toLocaleString()} coins credited`
+          : "Order rejected",
+      );
+      setNote("");
+      onReviewed();
+    } catch {
+      toast.error("Couldn't review that order");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <article className="rounded-xl border border-border bg-card p-3">
+      <div className="flex flex-wrap items-center gap-2 text-sm font-semibold">
+        <Coins className="h-4 w-4 text-yellow-500" />
+        <code className="font-mono">{order.reference_code}</code>
+        <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+          {venmoStatusLabel(order.status)}
+        </span>
+        <span className="ml-auto text-xs font-normal text-muted-foreground">
+          {usdFromCents(order.amount_cents)} · {order.coins.toLocaleString()} coins
+        </span>
+      </div>
+
+      <p className="mt-1 text-sm">
+        <Link
+          to="/u/$username"
+          params={{ username: order.username ?? "" }}
+          className="font-semibold hover:text-primary"
+        >
+          @{order.username ?? "unknown"}
+        </Link>
+        {order.payer_handle && (
+          <span className="text-muted-foreground">
+            {" "}
+            paid from <span className="font-semibold text-foreground">@{order.payer_handle}</span>
+          </span>
+        )}
+      </p>
+
+      {order.venmo_note && (
+        <p className="mt-1 line-clamp-3 text-sm text-muted-foreground">“{order.venmo_note}”</p>
+      )}
+      {order.admin_note && (
+        <p className="mt-1 text-xs text-muted-foreground">Note: {order.admin_note}</p>
+      )}
+      <p className="mt-1 text-[11px] text-muted-foreground">
+        {when(order.created_at)}
+        {order.reviewed_at ? ` · reviewed ${when(order.reviewed_at)}` : ""}
+      </p>
+
+      {reviewable && (
+        <>
+          <input
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="Optional note (shown to the buyer)"
+            className="mt-2 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
+          />
+          <div className="mt-2 flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              disabled={busy !== null}
+              className="gap-1.5"
+              onClick={() => void review("approve")}
+            >
+              <Check className="h-3.5 w-3.5" /> Approve &amp; credit
+            </Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              disabled={busy !== null}
+              className="gap-1.5"
+              onClick={() => void review("reject")}
+            >
+              <X className="h-3.5 w-3.5" /> Reject
+            </Button>
+          </div>
+        </>
+      )}
+    </article>
   );
 }
 

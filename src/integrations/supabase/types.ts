@@ -373,32 +373,56 @@ export type Database = {
         Row: {
           avatar_url: string | null
           bio: string | null
+          birthday: string | null
           created_at: string
           display_name: string | null
           handle: string
           id: string
           links: Json
+          onboarding_complete: boolean
           show_liked: boolean
+          username: string | null
         }
         Insert: {
           avatar_url?: string | null
           bio?: string | null
+          birthday?: string | null
           created_at?: string
           display_name?: string | null
           handle: string
           id: string
           links?: Json
+          onboarding_complete?: boolean
           show_liked?: boolean
+          username?: string | null
         }
         Update: {
           avatar_url?: string | null
           bio?: string | null
+          birthday?: string | null
           created_at?: string
           display_name?: string | null
           handle?: string
           id?: string
           links?: Json
+          onboarding_complete?: boolean
           show_liked?: boolean
+          username?: string | null
+        }
+        Relationships: []
+      }
+      reserved_usernames: {
+        Row: {
+          username: string
+          reason: string | null
+        }
+        Insert: {
+          username: string
+          reason?: string | null
+        }
+        Update: {
+          username?: string
+          reason?: string | null
         }
         Relationships: []
       }

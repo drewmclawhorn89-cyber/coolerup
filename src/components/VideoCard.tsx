@@ -39,6 +39,7 @@ import {
   type Sound,
 } from "@/lib/sounds";
 import { useAuth } from "@/hooks/useAuth";
+import { requireOnboarding } from "@/lib/auth";
 import { haptic, readBool } from "@/lib/prefs";
 import { isLiteMode, useNetwork } from "@/lib/network";
 import { observeIntersection } from "@/lib/observer";
@@ -619,6 +620,11 @@ function VideoCardImpl({
   };
 
   const toggleLike = useCallback(async () => {
+    // Incomplete profiles can browse, but liking requires username + birthday.
+    if (auth.user && auth.onboarding.needsOnboarding) {
+      requireOnboarding();
+      return;
+    }
     const next = !liked;
     haptic();
     onLikeChange(video.id, next);
@@ -655,7 +661,7 @@ function VideoCardImpl({
         });
       }
     }
-  }, [auth.user, liked, onLikeChange, video.id, video.username]);
+  }, [auth.user, auth.onboarding.needsOnboarding, liked, onLikeChange, video.id, video.username]);
 
   const toggleRepost = useCallback(async () => {
     const authUser = auth.user;

@@ -21,6 +21,7 @@ import { VideoCard } from "@/components/VideoCard";
 import { SantaHat } from "@/components/SantaHat";
 import { ChristmasLights } from "@/components/ChristmasLights";
 import { ChristmasCountdown } from "@/components/ChristmasCountdown";
+import { OnboardingBanner, useOnboardingGuard } from "@/components/OnboardingBanner";
 import { isChristmasCountdownVisible, useChristmasMode } from "@/lib/christmas";
 import { matchesKeyword, readBool } from "@/lib/prefs";
 // Heavy, interaction-only surfaces are split out so the initial feed bundle stays small.
@@ -106,6 +107,10 @@ function Index() {
   const me = auth.handle;
   const net = useNetwork();
   const lite = isLiteMode(net);
+  // Incomplete accounts can still browse, but posting/liking opens a modal.
+  const guardOnboarding = useOnboardingGuard();
+  const showOnboardingBanner =
+    !!auth.user && auth.onboarding.ready && auth.onboarding.needsOnboarding;
   // Nov 15 2026 -> Jan 1 2027 only. False today (Nov 1 2026), true on its own
   // once the window opens, and false again after it closes.
   const christmas = useChristmasMode();
@@ -630,7 +635,7 @@ function Index() {
         </nav>
 
         <button
-          onClick={() => (auth.user ? setCreateMenuOpen(true) : auth.signIn())}
+          onClick={() => guardOnboarding(() => (auth.user ? setCreateMenuOpen(true) : auth.signIn()))}
           className="flex items-center justify-center gap-2 rounded-full bg-primary py-3.5 font-bold text-primary-foreground shadow-[0_10px_30px_-10px_var(--primary)] transition hover:brightness-95"
         >
           <Plus className="h-5 w-5" /> Create
@@ -728,6 +733,9 @@ function Index() {
             <Wifi className="h-3.5 w-3.5" /> Lite mode — saving data on a slow connection
           </div>
         )}
+
+        {/* Yellow onboarding banner — never blocks watching or Lite mode. */}
+        {!offlineMode && <OnboardingBanner />}
 
         {/* Countdown to the Christmas update — sits above the top tabs. */}
         {!offlineMode && showCountdown && (
@@ -883,7 +891,7 @@ function Index() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => (auth.user ? setRecordingOpen(true) : auth.signIn())}
+                  onClick={() => guardOnboarding(() => (auth.user ? setRecordingOpen(true) : auth.signIn()))}
                   className="shrink-0 rounded-full bg-white px-3 py-1.5 text-[11px] font-bold text-black transition hover:bg-white/90"
                 >
                   Post
@@ -968,7 +976,7 @@ function Index() {
           ))}
           <Button
             aria-label="Create video or go live"
-            onClick={() => (auth.user ? setCreateMenuOpen(true) : auth.signIn())}
+            onClick={() => guardOnboarding(() => (auth.user ? setCreateMenuOpen(true) : auth.signIn()))}
             className="m-auto h-9 w-10 rounded-lg px-0 [&_svg]:size-6"
           >
             <Plus />
@@ -1022,7 +1030,9 @@ function Index() {
           </p>
           <p className="mt-6 text-muted-foreground">The world wants your point of view</p>
           <button
-            onClick={() => (auth.user ? setRecordingOpen(true) : auth.signIn())}
+            onClick={() =>
+              guardOnboarding(() => (auth.user ? setRecordingOpen(true) : auth.signIn()))
+            }
             className="mt-8 w-full rounded-full border border-primary py-3 font-bold text-primary transition hover:bg-primary hover:text-primary-foreground"
           >
             Share yours
@@ -1039,10 +1049,12 @@ function Index() {
             username={auth.handle}
             onRecord={() => setRecordingOpen(true)}
             onPhoto={() => setPhotoOpen(true)}
-            onUpload={() => {
-              setUploadFull(false);
-              setUploading(true);
-            }}
+            onUpload={() =>
+              guardOnboarding(() => {
+                setUploadFull(false);
+                setUploading(true);
+              })
+            }
           />
         </Suspense>
       )}

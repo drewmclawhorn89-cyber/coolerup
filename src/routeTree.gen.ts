@@ -14,6 +14,7 @@ import { Route as AdminRouteImport } from './routes/admin'
 import { Route as GroupsRouteImport } from './routes/groups'
 import { Route as MessagesRouteImport } from './routes/messages'
 import { Route as OfflineRouteImport } from './routes/offline'
+import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as GroupsIndexRouteImport } from './routes/groups.index'
@@ -44,6 +45,11 @@ const MessagesRoute = MessagesRouteImport.update({
 const OfflineRoute = OfflineRouteImport.update({
   id: '/offline',
   path: '/offline',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OnboardingRoute = OnboardingRouteImport.update({
+  id: '/onboarding',
+  path: '/onboarding',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PrivacyRoute = PrivacyRouteImport.update({
@@ -83,6 +89,7 @@ export interface FileRoutesByFullPath {
   '/groups': typeof GroupsRouteWithChildren
   '/messages': typeof MessagesRoute
   '/offline': typeof OfflineRoute
+  '/onboarding': typeof OnboardingRoute
   '/privacy': typeof PrivacyRoute
   '/settings': typeof SettingsRoute
   '/groups/$groupId': typeof GroupsGroupIdRoute
@@ -95,6 +102,7 @@ export interface FileRoutesByTo {
   '/admin': typeof AdminRoute
   '/messages': typeof MessagesRoute
   '/offline': typeof OfflineRoute
+  '/onboarding': typeof OnboardingRoute
   '/privacy': typeof PrivacyRoute
   '/settings': typeof SettingsRoute
   '/groups/$groupId': typeof GroupsGroupIdRoute
@@ -109,6 +117,7 @@ export interface FileRoutesById {
   '/groups': typeof GroupsRouteWithChildren
   '/messages': typeof MessagesRoute
   '/offline': typeof OfflineRoute
+  '/onboarding': typeof OnboardingRoute
   '/privacy': typeof PrivacyRoute
   '/settings': typeof SettingsRoute
   '/groups/$groupId': typeof GroupsGroupIdRoute
@@ -124,6 +133,7 @@ export interface FileRouteTypes {
     | '/groups'
     | '/messages'
     | '/offline'
+    | '/onboarding'
     | '/privacy'
     | '/settings'
     | '/groups/$groupId'
@@ -136,6 +146,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/messages'
     | '/offline'
+    | '/onboarding'
     | '/privacy'
     | '/settings'
     | '/groups/$groupId'
@@ -149,6 +160,7 @@ export interface FileRouteTypes {
     | '/groups'
     | '/messages'
     | '/offline'
+    | '/onboarding'
     | '/privacy'
     | '/settings'
     | '/groups/$groupId'
@@ -163,6 +175,7 @@ export interface RootRouteChildren {
   GroupsRoute: typeof GroupsRouteWithChildren
   MessagesRoute: typeof MessagesRoute
   OfflineRoute: typeof OfflineRoute
+  OnboardingRoute: typeof OnboardingRoute
   PrivacyRoute: typeof PrivacyRoute
   SettingsRoute: typeof SettingsRoute
   SoundSoundIdRoute: typeof SoundSoundIdRoute
@@ -204,6 +217,13 @@ declare module '@tanstack/react-router' {
       path: '/offline'
       fullPath: '/offline'
       preLoaderRoute: typeof OfflineRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/onboarding': {
+      id: '/onboarding'
+      path: '/onboarding'
+      fullPath: '/onboarding'
+      preLoaderRoute: typeof OnboardingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/privacy': {
@@ -270,6 +290,7 @@ const rootRouteChildren: RootRouteChildren = {
   GroupsRoute: GroupsRouteWithChildren,
   MessagesRoute: MessagesRoute,
   OfflineRoute: OfflineRoute,
+  OnboardingRoute: OnboardingRoute,
   PrivacyRoute: PrivacyRoute,
   SettingsRoute: SettingsRoute,
   SoundSoundIdRoute: SoundSoundIdRoute,

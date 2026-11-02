@@ -12,7 +12,25 @@ export type Profile = {
   links?: Record<string, string> | null;
   /** Whether the user's liked videos are visible on their profile. */
   show_liked?: boolean | null;
+  /** Onboarding fields — nullable so pre-onboarding accounts keep working. */
+  username?: string | null;
+  birthday?: string | null;
+  onboarding_complete?: boolean | null;
 };
+
+export type OnboardingStatus = {
+  /** Profile row is loaded (or confirmed missing). */
+  ready: boolean;
+  complete: boolean;
+  needsOnboarding: boolean;
+  /** Account was created moments ago, so send it straight to /onboarding. */
+  isNewUser: boolean;
+  username: string | null;
+  birthday: string | null;
+};
+
+/** How long after signup we treat an account as "new" and force onboarding. */
+const NEW_USER_WINDOW_MS = 30 * 60 * 1000;
 
 const PROFILE_EVENT = "loop-profile-changed";
 /** Tell every screen to reload the signed-in profile (after editing it). */
@@ -30,6 +48,7 @@ export type AuthValue = {
   avatar: string | null;
   profile: Profile | null;
   isAdmin: boolean;
+  onboarding: OnboardingStatus;
   signIn: () => Promise<void>;
   signOut: () => Promise<void>;
 };
@@ -45,6 +64,7 @@ function useAuthState(): AuthValue {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [resolvedAvatar, setResolvedAvatar] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [profileLoaded, setProfileLoaded] = useState(false);
   const [version, setVersion] = useState(0);
 
   useEffect(() => {
@@ -84,9 +104,11 @@ function useAuthState(): AuthValue {
       setProfile(null);
       setIsAdmin(false);
       setResolvedAvatar(null);
+      setProfileLoaded(false);
       return;
     }
     let alive = true;
+    setProfileLoaded(false);
     (async () => {
       const { data } = await supabase.from("profiles").select("*").eq("id", user.id).maybeSingle();
       let row = data as Profile | null;
@@ -119,6 +141,7 @@ function useAuthState(): AuthValue {
       setProfile(row);
       setResolvedAvatar(avatarUrl);
       setIsAdmin(!!role);
+      setProfileLoaded(true);
     })();
     return () => {
       alive = false;
@@ -129,6 +152,23 @@ function useAuthState(): AuthValue {
   const name: string | null = profile?.display_name || googleName;
   const avatar: string | null = resolvedAvatar || user?.user_metadata?.["avatar_url"] || null;
 
+  // Onboarding is derived from the profile row so it updates the moment the
+  // user finishes /onboarding (refreshProfile bumps `version`).
+  const onboarding = useMemo<OnboardingStatus>(() => {
+    const complete =
+      !!profile?.username && !!profile?.birthday && profile.onboarding_complete === true;
+    const createdMs = user?.created_at ? new Date(user.created_at).getTime() : 0;
+    const isNewUser = !!user && createdMs > 0 && Date.now() - createdMs < NEW_USER_WINDOW_MS;
+    return {
+      ready: !!user && profileLoaded,
+      complete,
+      needsOnboarding: !!user && profileLoaded && !complete,
+      isNewUser,
+      username: profile?.username ?? null,
+      birthday: profile?.birthday ?? null,
+    };
+  }, [user, profile, profileLoaded]);
+
   const signIn = async () => {
     openAuthDialog();
   };
@@ -137,8 +177,8 @@ function useAuthState(): AuthValue {
   };
 
   return useMemo(
-    () => ({ user, ready, name, handle, avatar, profile, isAdmin, signIn, signOut }),
-    [user, ready, name, handle, avatar, profile, isAdmin],
+    () => ({ user, ready, name, handle, avatar, profile, isAdmin, onboarding, signIn, signOut }),
+    [user, ready, name, handle, avatar, profile, isAdmin, onboarding],
   );
 }
 

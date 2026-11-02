@@ -4,6 +4,7 @@ import {
   Link,
   createRootRouteWithContext,
   useRouter,
+  useRouterState,
   HeadContent,
   Scripts,
   type ErrorComponentProps,
@@ -15,13 +16,14 @@ import { reportLovableError } from "../lib/lovable-error-reporting";
 import { CallProvider } from "../lib/calls";
 import { CallOverlay } from "../components/CallOverlay";
 import { PhoneAuthDialog } from "../components/PhoneAuthDialog";
+import { OnboardingRequiredDialog } from "../components/OnboardingBanner";
 import { Toaster } from "sonner";
 import { WellbeingWatcher } from "../components/MoreSettings";
 import { PushRegistrar } from "../components/PushRegistrar";
 import { BanGate } from "../components/BanGate";
 import { UpdateGate } from "../components/UpdateGate";
 import { applyPrefs } from "../lib/prefs";
-import { AuthProvider } from "../hooks/useAuth";
+import { AuthProvider, useAuth } from "../hooks/useAuth";
 import { SnowEffect } from "../components/SnowEffect";
 function NotFoundComponent() {
   return (
@@ -142,6 +144,44 @@ function RootShell({ children }: { children: ReactNode }) {
   );
 }
 
+/**
+ * After a fresh Google/Apple/email signup the account is seconds old, so send
+ * it to /onboarding instead of For You. Old accounts are never redirected —
+ * they keep browsing and just see the yellow banner.
+ */
+function OnboardingGate() {
+  const auth = useAuth();
+  const router = useRouter();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+
+  useEffect(() => {
+    if (!auth.ready || !auth.user || !auth.onboarding.ready) return;
+    if (!auth.onboarding.needsOnboarding || !auth.onboarding.isNewUser) return;
+    if (pathname === "/onboarding") return;
+    // Redirect at most once per account per session. Without this, the moment
+    // right after "Finish" (before the refreshed profile lands) could bounce
+    // the user back to /onboarding.
+    try {
+      const key = `loop-onboarding-redirected:${auth.user.id}`;
+      if (window.sessionStorage.getItem(key)) return;
+      window.sessionStorage.setItem(key, "1");
+    } catch {
+      /* private mode — still redirect */
+    }
+    void router.navigate({ to: "/onboarding" });
+  }, [
+    auth.ready,
+    auth.user,
+    auth.onboarding.ready,
+    auth.onboarding.needsOnboarding,
+    auth.onboarding.isNewUser,
+    pathname,
+    router,
+  ]);
+
+  return null;
+}
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
@@ -164,6 +204,7 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <CallProvider>
+          <OnboardingGate />
           {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
           {/* UpdateGate sits outermost: when a deploy is in progress, or a newer
               build has shipped, it unmounts the entire app — BanGate included. */}
@@ -177,6 +218,7 @@ function RootComponent() {
           <PushRegistrar />
         </CallProvider>
         <PhoneAuthDialog />
+        <OnboardingRequiredDialog />
         <Toaster theme="dark" position="top-center" />
         {/* 50 falling white dots, Nov 15 2026 -> Jan 1 2027 only. */}
         <SnowEffect />

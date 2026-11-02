@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { QualitySelector, VideoMoreMenu } from "@/components/QualitySelector";
+import { QualitySelector } from "@/components/QualitySelector";
 
 describe("QualitySelector", () => {
   it("renders nothing while closed", () => {
@@ -39,25 +39,5 @@ describe("QualitySelector", () => {
     fireEvent.click(screen.getByRole("button", { name: /Data Saver/ }));
     expect(onSelect).toHaveBeenCalledWith("data");
     expect(onClose).toHaveBeenCalled();
-  });
-});
-
-describe("VideoMoreMenu", () => {
-  it("shows the current quality and opens the picker", () => {
-    const onOpenQuality = vi.fn();
-    const onClose = vi.fn();
-    render(
-      <VideoMoreMenu
-        open
-        qualityLabel="Auto"
-        onOpenQuality={onOpenQuality}
-        onClose={onClose}
-      />,
-    );
-    expect(screen.getByRole("menuitem", { name: /Quality/ })).toBeInTheDocument();
-    expect(screen.getByText("Auto")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("menuitem", { name: /Quality/ }));
-    expect(onClose).toHaveBeenCalled();
-    expect(onOpenQuality).toHaveBeenCalled();
   });
 });

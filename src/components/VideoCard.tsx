@@ -9,7 +9,16 @@ import {
   type MouseEvent,
 } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { Bookmark, Heart, MessageCircle, Music, Play, Repeat2, Share2 } from "lucide-react";
+import {
+  Bookmark,
+  Heart,
+  MessageCircle,
+  MoreHorizontal,
+  Music,
+  Play,
+  Repeat2,
+  Share2,
+} from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -46,6 +55,12 @@ import { REPORT_REASONS, checkIfBanned, reportContent, type ReportReason } from 
 import { resolveAvatarUrl } from "./EditProfileDialog";
 import { notifyUser, profileIdForHandle } from "@/lib/notify";
 import { useChristmasMode } from "@/lib/christmas";
+import {
+  QUALITY_OPTIONS,
+  resolveQualitySource,
+  useVideoQuality,
+} from "@/lib/videoQuality";
+import { QualitySelector, VideoMoreMenu } from "@/components/QualitySelector";
 
 const Comments = lazy(() => import("./Comments").then((m) => ({ default: m.Comments })));
 const ShareMenu = lazy(() => import("./ShareMenu").then((m) => ({ default: m.ShareMenu })));
@@ -118,6 +133,13 @@ function VideoCardImpl({
   const [showComments, setShowComments] = useState(false);
   const [showShare, setShowShare] = useState(false);
   const [showGift, setShowGift] = useState(false);
+  // Quality: shared preference (localStorage `video_quality`), plus the "..."
+  // menu and the picker it opens.
+  const { quality, setQuality } = useVideoQuality();
+  const [showMore, setShowMore] = useState(false);
+  const [showQuality, setShowQuality] = useState(false);
+  const longPressRef = useRef<number | null>(null);
+  const suppressClickRef = useRef(false);
   // Nov 15 2026 -> Jan 1 2027: Christmas heart + 🎁 gift button.
   const christmas = useChristmasMode();
   const [deleted, setDeleted] = useState(false);
@@ -128,6 +150,11 @@ function VideoCardImpl({
   const myUsername = auth.handle;
   const [authorAvatar, setAuthorAvatar] = useState<string | null>(null);
   const progressRef = useRef<HTMLDivElement>(null);
+  // Playback position, so switching quality doesn't jump back to the start.
+  const resumeRef = useRef(0);
+  useEffect(() => {
+    resumeRef.current = 0;
+  }, [video.id]);
 
   // The feed paints from a cached snapshot first, then swaps in fresh rows. The
   // card instance survives that swap (same React key), so `useState` keeps the
@@ -232,6 +259,13 @@ function VideoCardImpl({
   // Read prefs once per mount instead of on every render.
   const net = useNetwork();
   const lite = isLiteMode(net);
+  // What actually plays for the current selection, with a fallback to the
+  // original upload when the row has no rendition for that quality.
+  const qualitySource = resolveQualitySource(video, quality, net.effectiveType);
+  const qualityLabel =
+    quality === "auto"
+      ? "Auto"
+      : (QUALITY_OPTIONS.find((o) => o.id === quality)?.label ?? "Auto");
   const [showCaptions] = useState(() => readBool("captions"));
   const [autoplay] = useState(() => readBool("autoplay", true));
 
@@ -517,7 +551,7 @@ function VideoCardImpl({
           blobUrl = URL.createObjectURL(saved.blob);
           setSrc(blobUrl);
         } else {
-          const u = await resolveVideoUrl(video.video_url);
+          const u = await resolveVideoUrl(qualitySource.url);
           if (!alive) return;
           setSrc(u);
           if (!u) setLoadState("error");
@@ -530,7 +564,7 @@ function VideoCardImpl({
       alive = false;
       if (blobUrl) URL.revokeObjectURL(blobUrl);
     };
-  }, [video.id, video.video_url, shouldLoad, retry]);
+  }, [video.id, qualitySource.url, shouldLoad, retry]);
 
   // If the user tapped "play" on a card that wasn't auto-loading, start it once
   // the source is ready.
@@ -575,6 +609,11 @@ function VideoCardImpl({
   }, [song?.id]);
 
   const togglePlay = () => {
+    // A long press opens the "..." menu; don't also pause/play the video.
+    if (suppressClickRef.current) {
+      suppressClickRef.current = false;
+      return;
+    }
     const el = ref.current;
     if (!el) return;
     if (el.paused) el.play();
@@ -687,6 +726,28 @@ function VideoCardImpl({
         <div className="flex h-full min-w-0 flex-1 flex-col md:h-auto md:flex-none md:gap-3">
           <div
             ref={cardRef}
+            onPointerDown={(e) => {
+              // Long press anywhere on the video opens the "..." menu, TikTok-style.
+              if (e.pointerType === "mouse" && e.button !== 0) return;
+              if (longPressRef.current) window.clearTimeout(longPressRef.current);
+              longPressRef.current = window.setTimeout(() => {
+                suppressClickRef.current = true;
+                setShowMore(true);
+                haptic();
+              }, 500);
+            }}
+            onPointerUp={() => {
+              if (longPressRef.current) window.clearTimeout(longPressRef.current);
+              longPressRef.current = null;
+            }}
+            onPointerLeave={() => {
+              if (longPressRef.current) window.clearTimeout(longPressRef.current);
+              longPressRef.current = null;
+            }}
+            onPointerCancel={() => {
+              if (longPressRef.current) window.clearTimeout(longPressRef.current);
+              longPressRef.current = null;
+            }}
             className="relative h-full w-full overflow-hidden bg-black md:aspect-[9/16] md:h-[calc(100dvh-11rem)] md:max-h-[760px] md:w-auto md:rounded-2xl md:bg-card"
           >
             {src && isImage && (
@@ -724,7 +785,13 @@ function VideoCardImpl({
                 disableRemotePlayback
                 onClick={togglePlay}
                 onDoubleClick={() => !liked && toggleLike()}
-                onLoadedData={() => setLoadState("ready")}
+                onLoadedData={(e) => {
+                  setLoadState("ready");
+                  const v = e.currentTarget;
+                  if (resumeRef.current > 0.5 && Number.isFinite(v.duration)) {
+                    v.currentTime = Math.min(resumeRef.current, v.duration - 0.25);
+                  }
+                }}
                 onError={() => setLoadState("error")}
                 onPlay={() => {
                   setPlaying(true);
@@ -738,6 +805,7 @@ function VideoCardImpl({
                 onSeeked={() => syncSound(true)}
                 onTimeUpdate={(e) => {
                   const v = e.currentTarget;
+                  resumeRef.current = v.currentTime;
                   if (v.duration && progressRef.current) {
                     progressRef.current.style.width = `${(v.currentTime / v.duration) * 100}%`;
                   }
@@ -849,6 +917,12 @@ function VideoCardImpl({
                   <div ref={progressRef} className="h-full bg-primary" style={{ width: "0%" }} />
                 </div>
               </div>
+            )}
+            {/* Quality badge — only when the user picked a quality by hand. */}
+            {!isImage && qualitySource.badge && (
+              <span className="pointer-events-none absolute bottom-3 right-3 z-20 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-bold leading-tight text-white backdrop-blur">
+                {qualitySource.badge}
+              </span>
             )}
           </div>
           <div className="hidden max-w-[calc((100dvh-11rem)*9/16)] md:block">
@@ -984,6 +1058,11 @@ function VideoCardImpl({
             </button>
           )}
 
+          {/* MORE — TikTok's "..." opens Quality */}
+          <RailButton label="" onClick={() => setShowMore(true)}>
+            <MoreHorizontal className="h-7 w-7 text-white drop-shadow-lg" />
+          </RailButton>
+
           {/* SHARE */}
           <RailButton label="Share" onClick={() => setShowShare(true)}>
             <Share2 className="h-7 w-7 text-white drop-shadow-lg" />
@@ -1018,6 +1097,26 @@ function VideoCardImpl({
           />
         </Suspense>
       )}
+      <VideoMoreMenu
+        open={showMore}
+        qualityLabel={qualityLabel}
+        onOpenQuality={() => setShowQuality(true)}
+        onClose={() => setShowMore(false)}
+      />
+      <QualitySelector
+        open={showQuality}
+        quality={quality}
+        effectiveType={net.effectiveType}
+        onSelect={(next) => {
+          setQuality(next);
+          toast.success(
+            next === "auto"
+              ? "Quality set to Auto"
+              : `Quality set to ${QUALITY_OPTIONS.find((o) => o.id === next)?.label ?? next}`,
+          );
+        }}
+        onClose={() => setShowQuality(false)}
+      />
       {showShare && (
         <Suspense fallback={null}>
           <ShareMenu

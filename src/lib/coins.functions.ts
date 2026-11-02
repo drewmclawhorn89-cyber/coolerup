@@ -8,6 +8,14 @@ import {
   coinsFromDiamonds,
   packById,
 } from "@/lib/coins";
+import {
+  amountString,
+  buildVenmoNote,
+  makeReferenceCode,
+  normalizeVenmoHandle,
+  venmoAppUrl,
+  venmoPayUrl,
+} from "@/lib/venmo";
 
 /**
  * Coin purchasing and streamer cashouts.
@@ -87,12 +95,21 @@ function appOrigin(): string {
 
 export type CoinPaymentStatus = {
   stripeConfigured: boolean;
+  venmoConfigured: boolean;
+  venmoRecipient: string | null;
   packs: { id: string; coins: number; cents: number; label: string; badge?: string }[];
 };
+
+/** The Coolerup Venmo account buyers send money to, e.g. `@coolerup`. */
+function venmoRecipient(): string | null {
+  return normalizeVenmoHandle(process.env["VENMO_RECIPIENT"]);
+}
 
 export const coinPaymentStatus = createServerFn({ method: "GET" }).handler(
   async (): Promise<CoinPaymentStatus> => ({
     stripeConfigured: Boolean(stripeKey()),
+    venmoConfigured: Boolean(venmoRecipient()),
+    venmoRecipient: venmoRecipient(),
     packs: COIN_PACKS.map(({ id, coins, cents, label, badge }) => ({
       id,
       coins,
@@ -120,7 +137,7 @@ export const createCoinCheckout = createServerFn({ method: "POST" })
     const pack = packById(data.packId);
     if (!pack) return { ok: false, message: "That coin pack isn't available" };
     if (!stripeKey()) {
-      return { ok: false, message: "Coin purchases aren't configured yet" };
+      return { ok: false, message: "Card payments aren't set up yet — pay with Venmo instead" };
     }
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -200,7 +217,7 @@ export const confirmCoinPurchase = createServerFn({ method: "POST" })
     return d;
   })
   .handler(async ({ data, context }): Promise<CoinConfirmResult> => {
-    if (!stripeKey()) return { ok: false, message: "Coin purchases aren't configured yet" };
+    if (!stripeKey()) return { ok: false, message: "Card payments aren't set up yet" };
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
@@ -286,6 +303,202 @@ export const confirmCoinPurchase = createServerFn({ method: "POST" })
     }
 
     return { ok: true, coins: purchase.coins, balance: nextBalance, alreadyCredited: false };
+  });
+
+/* -------------------------------------------------------------------------- */
+/*  Buy coins with Venmo                                                      */
+/* -------------------------------------------------------------------------- */
+
+export type VenmoOrderRow = {
+  id: string;
+  pack_id: string;
+  coins: number;
+  amount_cents: number;
+  reference_code: string;
+  status: string;
+  payer_handle: string | null;
+  venmo_note: string | null;
+  admin_note: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AdminVenmoOrder = VenmoOrderRow & {
+  user_id: string;
+  username: string | null;
+  reviewed_at: string | null;
+};
+
+export type CoinVenmoOrderResult =
+  | {
+      ok: true;
+      orderId: string;
+      referenceCode: string;
+      amountCents: number;
+      amountUsd: string;
+      note: string;
+      recipient: string;
+      venmoUrl: string;
+      appUrl: string;
+    }
+  | { ok: false; message: string };
+
+function asArray<T>(value: unknown): T[] {
+  return Array.isArray(value) ? (value as T[]) : [];
+}
+
+/**
+ * Start a Venmo order. The price always comes from the server-side catalogue,
+ * never from the client, and the reference code is generated here so two buyers
+ * can never share one.
+ */
+export const createCoinVenmoOrder = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { packId: string }) => {
+    if (!d?.packId || typeof d.packId !== "string") throw new Error("Choose a coin pack");
+    return d;
+  })
+  .handler(async ({ data, context }): Promise<CoinVenmoOrderResult> => {
+    const recipient = venmoRecipient();
+    if (!recipient) {
+      return {
+        ok: false,
+        message: "Venmo isn't set up yet. An admin needs to add VENMO_RECIPIENT.",
+      };
+    }
+
+    const pack = packById(data.packId);
+    if (!pack) return { ok: false, message: "That coin pack isn't available" };
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    let created: { id: string; reference_code: string } | null = null;
+    for (let attempt = 0; attempt < 5 && !created; attempt += 1) {
+      const referenceCode = makeReferenceCode();
+      const { data: row, error } = await supabaseAdmin
+        .from("coin_venmo_orders")
+        .insert({
+          user_id: context.userId,
+          pack_id: pack.id,
+          coins: pack.coins,
+          amount_cents: pack.cents,
+          reference_code: referenceCode,
+          status: "awaiting_payment",
+        })
+        .select("id, reference_code")
+        .single();
+
+      if (!error && row) {
+        created = row;
+        break;
+      }
+      // 23505 = duplicate reference code, just draw another one.
+      if (error && error.code !== "23505") {
+        return { ok: false, message: "Couldn't start that order. Try again." };
+      }
+    }
+
+    if (!created) return { ok: false, message: "Couldn't start that order. Try again." };
+
+    const link = { handle: recipient, cents: pack.cents, referenceCode: created.reference_code };
+
+    return {
+      ok: true,
+      orderId: created.id,
+      referenceCode: created.reference_code,
+      amountCents: pack.cents,
+      amountUsd: amountString(pack.cents),
+      note: buildVenmoNote(created.reference_code),
+      recipient,
+      venmoUrl: venmoPayUrl(link),
+      appUrl: venmoAppUrl(link),
+    };
+  });
+
+export type VenmoSubmitResult = { ok: true; status: string } | { ok: false; message: string };
+
+/** The buyer says "I sent it" — moves the order into the admin review queue. */
+export const submitCoinVenmoPayment = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { orderId: string; payerHandle: string; venmoNote?: string }) => {
+    if (!d?.orderId || typeof d.orderId !== "string") throw new Error("Missing order");
+    if (!d?.payerHandle || typeof d.payerHandle !== "string") {
+      throw new Error("Enter the Venmo username you paid from");
+    }
+    return d;
+  })
+  .handler(async ({ data, context }): Promise<VenmoSubmitResult> => {
+    const note = data.venmoNote?.trim();
+    const { data: result, error } = await context.supabase.rpc("submit_coin_venmo_payment", {
+      _order_id: data.orderId,
+      _payer_handle: data.payerHandle,
+      _venmo_note: note ? note : null,
+    });
+
+    if (error) return { ok: false, message: error.message };
+
+    const row = (result ?? {}) as { ok?: boolean; error?: string; status?: string };
+    if (!row.ok) return { ok: false, message: row.error ?? "Couldn't record that payment" };
+    return { ok: true, status: String(row.status ?? "submitted") };
+  });
+
+/** My own orders, newest first, so the recharge page can show status. */
+export const myCoinVenmoOrders = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<VenmoOrderRow[]> => {
+    const { data, error } = await context.supabase.rpc("my_coin_venmo_orders");
+    if (error) return [];
+    return asArray<VenmoOrderRow>(data);
+  });
+
+/* -------------------------------------------------------------------------- */
+/*  Admin: review Venmo orders                                                */
+/* -------------------------------------------------------------------------- */
+
+export const adminCoinVenmoOrders = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<AdminVenmoOrder[]> => {
+    const { data, error } = await context.supabase.rpc("admin_coin_venmo_orders", { _limit: 200 });
+    if (error) throw new Error(error.message);
+    return asArray<AdminVenmoOrder>(data);
+  });
+
+export type VenmoReviewResult =
+  | { ok: true; coins: number; balance: number; alreadyPaid: boolean }
+  | { ok: false; message: string };
+
+export const adminReviewCoinVenmoOrder = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { orderId: string; action: "approve" | "reject"; note?: string }) => {
+    if (!d?.orderId || typeof d.orderId !== "string") throw new Error("Missing order");
+    if (d.action !== "approve" && d.action !== "reject") throw new Error("Unknown action");
+    return d;
+  })
+  .handler(async ({ data, context }): Promise<VenmoReviewResult> => {
+    const note = data.note?.trim();
+    const { data: result, error } = await context.supabase.rpc("admin_review_coin_venmo_order", {
+      _order_id: data.orderId,
+      _action: data.action,
+      _note: note ? note : null,
+    });
+
+    if (error) return { ok: false, message: error.message };
+
+    const row = (result ?? {}) as {
+      ok?: boolean;
+      error?: string;
+      coins?: number;
+      balance?: number;
+      alreadyPaid?: boolean;
+    };
+    if (!row.ok) return { ok: false, message: row.error ?? "Couldn't review that order" };
+
+    return {
+      ok: true,
+      coins: Number(row.coins ?? 0),
+      balance: Number(row.balance ?? 0),
+      alreadyPaid: Boolean(row.alreadyPaid),
+    };
   });
 
 /* -------------------------------------------------------------------------- */

@@ -17,8 +17,10 @@ import { Route as OfflineRouteImport } from './routes/offline'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as CoinsRechargeRouteImport } from './routes/coins.recharge'
 import { Route as GroupsIndexRouteImport } from './routes/groups.index'
 import { Route as GroupsGroupIdRouteImport } from './routes/groups.$groupId'
+import { Route as LiveDashboardRouteImport } from './routes/live.dashboard'
 import { Route as SoundSoundIdRouteImport } from './routes/sound.$soundId'
 import { Route as UUsernameRouteImport } from './routes/u.$username'
 
@@ -62,6 +64,11 @@ const SettingsRoute = SettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CoinsRechargeRoute = CoinsRechargeRouteImport.update({
+  id: '/coins/recharge',
+  path: '/coins/recharge',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const GroupsIndexRoute = GroupsIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -71,6 +78,11 @@ const GroupsGroupIdRoute = GroupsGroupIdRouteImport.update({
   id: '/$groupId',
   path: '/$groupId',
   getParentRoute: () => GroupsRoute,
+} as any)
+const LiveDashboardRoute = LiveDashboardRouteImport.update({
+  id: '/live/dashboard',
+  path: '/live/dashboard',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const SoundSoundIdRoute = SoundSoundIdRouteImport.update({
   id: '/sound/$soundId',
@@ -92,7 +104,9 @@ export interface FileRoutesByFullPath {
   '/onboarding': typeof OnboardingRoute
   '/privacy': typeof PrivacyRoute
   '/settings': typeof SettingsRoute
+  '/coins/recharge': typeof CoinsRechargeRoute
   '/groups/$groupId': typeof GroupsGroupIdRoute
+  '/live/dashboard': typeof LiveDashboardRoute
   '/sound/$soundId': typeof SoundSoundIdRoute
   '/u/$username': typeof UUsernameRoute
   '/groups/': typeof GroupsIndexRoute
@@ -105,7 +119,9 @@ export interface FileRoutesByTo {
   '/onboarding': typeof OnboardingRoute
   '/privacy': typeof PrivacyRoute
   '/settings': typeof SettingsRoute
+  '/coins/recharge': typeof CoinsRechargeRoute
   '/groups/$groupId': typeof GroupsGroupIdRoute
+  '/live/dashboard': typeof LiveDashboardRoute
   '/sound/$soundId': typeof SoundSoundIdRoute
   '/u/$username': typeof UUsernameRoute
   '/groups': typeof GroupsIndexRoute
@@ -120,7 +136,9 @@ export interface FileRoutesById {
   '/onboarding': typeof OnboardingRoute
   '/privacy': typeof PrivacyRoute
   '/settings': typeof SettingsRoute
+  '/coins/recharge': typeof CoinsRechargeRoute
   '/groups/$groupId': typeof GroupsGroupIdRoute
+  '/live/dashboard': typeof LiveDashboardRoute
   '/sound/$soundId': typeof SoundSoundIdRoute
   '/u/$username': typeof UUsernameRoute
   '/groups/': typeof GroupsIndexRoute
@@ -136,7 +154,9 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/privacy'
     | '/settings'
+    | '/coins/recharge'
     | '/groups/$groupId'
+    | '/live/dashboard'
     | '/sound/$soundId'
     | '/u/$username'
     | '/groups/'
@@ -149,7 +169,9 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/privacy'
     | '/settings'
+    | '/coins/recharge'
     | '/groups/$groupId'
+    | '/live/dashboard'
     | '/sound/$soundId'
     | '/u/$username'
     | '/groups'
@@ -163,7 +185,9 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/privacy'
     | '/settings'
+    | '/coins/recharge'
     | '/groups/$groupId'
+    | '/live/dashboard'
     | '/sound/$soundId'
     | '/u/$username'
     | '/groups/'
@@ -178,6 +202,8 @@ export interface RootRouteChildren {
   OnboardingRoute: typeof OnboardingRoute
   PrivacyRoute: typeof PrivacyRoute
   SettingsRoute: typeof SettingsRoute
+  CoinsRechargeRoute: typeof CoinsRechargeRoute
+  LiveDashboardRoute: typeof LiveDashboardRoute
   SoundSoundIdRoute: typeof SoundSoundIdRoute
   UUsernameRoute: typeof UUsernameRoute
 }
@@ -240,6 +266,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/coins/recharge': {
+      id: '/coins/recharge'
+      path: '/coins/recharge'
+      fullPath: '/coins/recharge'
+      preLoaderRoute: typeof CoinsRechargeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/groups/': {
       id: '/groups/'
       path: '/'
@@ -253,6 +286,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/groups/$groupId'
       preLoaderRoute: typeof GroupsGroupIdRouteImport
       parentRoute: typeof GroupsRoute
+    }
+    '/live/dashboard': {
+      id: '/live/dashboard'
+      path: '/live/dashboard'
+      fullPath: '/live/dashboard'
+      preLoaderRoute: typeof LiveDashboardRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/sound/$soundId': {
       id: '/sound/$soundId'
@@ -293,6 +333,8 @@ const rootRouteChildren: RootRouteChildren = {
   OnboardingRoute: OnboardingRoute,
   PrivacyRoute: PrivacyRoute,
   SettingsRoute: SettingsRoute,
+  CoinsRechargeRoute: CoinsRechargeRoute,
+  LiveDashboardRoute: LiveDashboardRoute,
   SoundSoundIdRoute: SoundSoundIdRoute,
   UUsernameRoute: UUsernameRoute,
 }

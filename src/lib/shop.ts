@@ -57,3 +57,71 @@ export function useEquipped(handle?: string | null) {
 }
 
 export const findItem = (id?: string) => SHOP_ITEMS.find((i) => i.id === id);
+
+/* -------------------------------------------------------------------------- */
+/*  Free trials                                                               */
+/* -------------------------------------------------------------------------- */
+
+export type ShopPerk = {
+  id: string;
+  /** Brand name shown on the card. */
+  label: string;
+  /** One-line pitch under the name. */
+  blurb: string;
+  emoji: string;
+  /** Length of the free trial, in days. */
+  days: number;
+  /** Where the user finishes signup to activate the trial. */
+  url: string;
+  /** Tailwind gradient classes for the card face. */
+  face: string;
+};
+
+export const SHOP_PERKS: ShopPerk[] = [
+  {
+    id: "hulu-trial",
+    label: "Hulu",
+    blurb: "30 days free. Cancel anytime.",
+    emoji: "\u{1F4FA}",
+    days: 30,
+    url: "https://www.hulu.com/",
+    face: "from-[#1ce783] via-[#12a866] to-[#053b2a]",
+  },
+];
+
+const perkKey = (handle: string) => `shop-perks:${handle}`;
+
+/** Ids of the perks this account has already claimed. */
+export function getClaimedPerks(handle?: string | null): string[] {
+  if (!handle || typeof window === "undefined") return [];
+  try {
+    const raw = JSON.parse(localStorage.getItem(perkKey(handle)) || "[]");
+    return Array.isArray(raw) ? raw.filter((id): id is string => typeof id === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+export function hasClaimedPerk(handle: string | null | undefined, perkId: string): boolean {
+  return getClaimedPerks(handle).includes(perkId);
+}
+
+/** Claims a perk once per account. Returns false when it was already claimed. */
+export function claimPerk(handle: string, perkId: string): boolean {
+  const claimed = getClaimedPerks(handle);
+  if (claimed.includes(perkId)) return false;
+  localStorage.setItem(perkKey(handle), JSON.stringify([...claimed, perkId]));
+  window.dispatchEvent(new Event(EVT));
+  return true;
+}
+
+export function useClaimedPerks(handle?: string | null) {
+  const [claimed, setClaimed] = useState<string[]>([]);
+  useEffect(() => {
+    const sync = () => setClaimed(getClaimedPerks(handle));
+    sync();
+    window.addEventListener(EVT, sync);
+    return () => window.removeEventListener(EVT, sync);
+  }, [handle]);
+  return claimed;
+}

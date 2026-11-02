@@ -18,6 +18,9 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { VideoCard } from "@/components/VideoCard";
+import { SantaHat } from "@/components/SantaHat";
+import { ChristmasLights } from "@/components/ChristmasLights";
+import { useChristmasMode } from "@/lib/christmas";
 import { matchesKeyword, readBool } from "@/lib/prefs";
 // Heavy, interaction-only surfaces are split out so the initial feed bundle stays small.
 const UploadDialog = lazy(() => import("@/components/UploadDialog").then((m) => ({ default: m.UploadDialog })));
@@ -102,6 +105,9 @@ function Index() {
   const me = auth.handle;
   const net = useNetwork();
   const lite = isLiteMode(net);
+  // Nov 15 2026 -> Jan 1 2027 only. False today (Nov 1 2026), true on its own
+  // once the window opens, and false again after it closes.
+  const christmas = useChristmasMode();
 
   // Ban enforcement now lives in <BanGate /> (mounted in __root.tsx), which
   // covers every route and shows a proper blocked screen instead of an alert.
@@ -155,6 +161,10 @@ function Index() {
   const [followingList, setFollowingList] = useState<string[]>([]);
   const [repostedFeed, setRepostedFeed] = useState<Video[]>([]);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
+  const [challengeHidden, setChallengeHidden] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.sessionStorage.getItem("loop-christmas-challenge-hidden") === "1";
+  });
 
   // Moderation: videos the user tapped "Not interested" on, plus blocked authors.
   const { blocked } = useBlocked();
@@ -516,7 +526,8 @@ function Index() {
   // reachable on phones. Subscriptions now lives in Settings (/?tab=subscriptions
   // deep links still resolve for upgrade prompts).
   const TopTabs = ({ className = "" }: { className?: string }) => (
-    <div className={className}>
+    <div className={`${className} ${christmas ? "christmas-tabs" : ""}`}>
+      {christmas && <ChristmasLights />}
       <button onClick={() => pickFeedTab("home")} className={tabClass("home")}>Home</button>
       <button onClick={() => pickFeedTab("following")} className={tabClass("following")}>Following</button>
       <button onClick={() => pickFeedTab("foryou")} className={tabClass("foryou")}>For You</button>
@@ -531,7 +542,10 @@ function Index() {
     </div>
   );
   const topTabsClass =
-    "absolute inset-x-0 top-0 z-40 flex justify-center gap-3 overflow-x-auto bg-gradient-to-b from-black/80 to-transparent px-3 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] no-scrollbar [&>button]:shrink-0 [&>button]:whitespace-nowrap";
+    "absolute inset-x-0 top-0 z-40 flex justify-center gap-3 overflow-x-auto bg-gradient-to-b from-black/80 to-transparent px-3 pb-2 no-scrollbar [&>button]:shrink-0 [&>button]:whitespace-nowrap " +
+    (christmas
+      ? "pt-[calc(max(0.5rem,env(safe-area-inset-top))+0.65rem)]"
+      : "pt-[max(0.5rem,env(safe-area-inset-top))]");
   const tabClass = (t: string) =>
     `flex items-center gap-1 border-b-2 pb-1 text-[15px] ${topTab === t ? "border-white font-bold text-white" : "border-transparent text-white/60"}`;
 
@@ -566,7 +580,13 @@ function Index() {
       <aside className="hidden w-72 shrink-0 flex-col gap-6 border-r bg-sidebar p-6 md:flex">
         <div>
           <h1 className="font-display text-4xl tracking-tight">
-            coolerup<span className="text-primary">.</span>
+            coolerup
+            <span className="relative inline-block text-primary">
+              .
+              {christmas && (
+                <SantaHat className="pointer-events-none absolute -top-[0.62em] left-1/2 h-[0.7em] w-[0.8em] -translate-x-1/2 rotate-[8deg] drop-shadow-[0_2px_3px_rgba(0,0,0,0.45)]" />
+              )}
+            </span>
           </h1>
           <p className="mt-1 text-[11px] font-bold tracking-[0.3em] text-muted-foreground">A LITTLE MORE YOU</p>
         </div>
@@ -805,7 +825,13 @@ function Index() {
                     onClick={() => !n.read && markRead(n.id)}
                   >
                     <div className="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-500/10 text-lg">
-                      {n.type === "like" ? "❤️" : n.type === "follow" ? "👤" : "💬"}
+                      {n.type === "like"
+                        ? "❤️"
+                        : n.type === "follow"
+                          ? "👤"
+                          : n.type === "gift"
+                            ? "🎁"
+                            : "💬"}
                     </div>
                     <div className="flex-1">
                       <p className="text-sm">{n.text}</p>
@@ -825,6 +851,42 @@ function Index() {
               <h2 className="break-words font-display text-base md:text-3xl">{title}</h2>
               <p className="hidden text-sm text-muted-foreground md:block">{sub}</p>
             </header>
+
+            {christmas && !challengeHidden && activeTab === "foryou" && feedTab === "foryou" && !offlineMode && !query.trim() && (
+              <div className="christmas-banner relative mx-3 mb-2 flex shrink-0 items-center gap-2.5 rounded-2xl px-3 py-2.5 text-white shadow-lg md:mx-10">
+                <span className="text-2xl" aria-hidden>
+                  🎄
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[13px] font-bold leading-tight">
+                    #CoolerupChristmas Challenge: Post Christmas video!
+                  </p>
+                  <p className="text-[11px] leading-tight text-white/80">Nov 15 2026 – Jan 1 2027</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => (auth.user ? setRecordingOpen(true) : auth.signIn())}
+                  className="shrink-0 rounded-full bg-white px-3 py-1.5 text-[11px] font-bold text-black transition hover:bg-white/90"
+                >
+                  Post
+                </button>
+                <button
+                  type="button"
+                  aria-label="Dismiss Christmas challenge"
+                  onClick={() => {
+                    setChallengeHidden(true);
+                    try {
+                      window.sessionStorage.setItem("loop-christmas-challenge-hidden", "1");
+                    } catch {
+                      /* ignore */
+                    }
+                  }}
+                  className="shrink-0 text-white/70 transition hover:text-white"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            )}
 
             <div className="relative flex min-h-0 flex-1 flex-col">
             {showTopTabs && (

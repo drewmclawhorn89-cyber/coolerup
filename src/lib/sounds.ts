@@ -7,7 +7,8 @@ import { resolveVideoUrl, type Video } from "@/lib/loop";
  */
 export type Sound = {
   id: string;
-  original_video_id: string;
+  /** Null for library sounds (e.g. the Christmas carols) that aren't a video's audio. */
+  original_video_id: string | null;
   audio_url: string;
   title: string;
   creator_username: string;
@@ -69,6 +70,24 @@ export async function getTrendingSounds(limit = 20, query = ""): Promise<Sound[]
   if (q) request = request.or(`title.ilike.%${q}%,creator_username.ilike.%${q}%`);
 
   const { data, error } = await request;
+  if (error) throw error;
+  const sounds = (data ?? []) as Sound[];
+  sounds.forEach(cacheSound);
+  return sounds;
+}
+
+/**
+ * The 10 "Christmas - ..." sounds by @coolerup, shown as their own section in
+ * the sound picker while the Christmas update is live.
+ */
+export async function getChristmasSounds(): Promise<Sound[]> {
+  const { data, error } = await supabase
+    .from("sounds")
+    .select("*")
+    .eq("creator_username", "coolerup")
+    .ilike("title", "Christmas - %")
+    .order("title", { ascending: true });
+
   if (error) throw error;
   const sounds = (data ?? []) as Sound[];
   sounds.forEach(cacheSound);

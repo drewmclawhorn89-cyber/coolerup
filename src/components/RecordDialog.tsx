@@ -16,9 +16,12 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/compone
 import { uploadRecording } from "@/lib/loop";
 import { FilterBar } from "@/components/FilterBar";
 import { AnimalOverlay } from "@/components/AnimalOverlay";
+import { ChristmasOverlay } from "@/components/ChristmasOverlay";
 import { getAnimal, drawAnimal } from "@/lib/animals";
 import { useFaceTracker } from "@/lib/face";
 import { CAMERA_FILTERS, canBakeFilters } from "@/lib/filters";
+import { CHRISTMAS_EFFECTS, drawChristmasEffect, getChristmasEffect, needsFace } from "@/lib/christmas-effects";
+import { useChristmasMode } from "@/lib/christmas";
 import { SoundPickerDialog } from "@/components/SoundPickerDialog";
 import { canMixSound, createSoundTrack, type SoundTrack } from "@/lib/sound-mixer";
 import { soundAudioUrl, type Sound } from "@/lib/sounds";
@@ -68,6 +71,11 @@ export function RecordDialog({
   const [filterId, setFilterId] = useState("none");
   const [animalId, setAnimalId] = useState("");
   const animal = getAnimal(animalId);
+  // Christmas camera filters (Santa hat / reindeer nose / snow) are only offered
+  // while the Christmas update is live.
+  const christmas = useChristmasMode();
+  const [christmasEffectId, setChristmasEffectId] = useState("");
+  const christmasEffect = getChristmasEffect(christmasEffectId);
   const filter = CAMERA_FILTERS.find((f) => f.id === filterId) ?? CAMERA_FILTERS[0]!;
 
   const [facingMode, setFacingMode] = useState<FacingMode>("user");
@@ -76,7 +84,10 @@ export function RecordDialog({
   const [recording, setRecording] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
-  const faceRef = useFaceTracker(videoRef, !!animal && open && !recordedBlob);
+  const faceRef = useFaceTracker(
+    videoRef,
+    (!!animal || (!!christmasEffect && needsFace(christmasEffect.id))) && open && !recordedBlob,
+  );
   const [previewUrl, setPreviewUrl] = useState("");
   const [caption, setCaption] = useState("");
   const [posting, setPosting] = useState(false);
@@ -229,7 +240,7 @@ export function RecordDialog({
     const videoEl = videoRef.current;
     const canvas = document.createElement("canvas");
     if (
-      (filterId !== "none" || animal) &&
+      (filterId !== "none" || animal || christmasEffect) &&
       videoEl &&
       videoEl.videoWidth &&
       canBakeFilters() &&
@@ -243,6 +254,10 @@ export function RecordDialog({
         const draw = () => {
           ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
           drawAnimal(ctx, animal, faceRef.current);
+          drawChristmasEffect(ctx, christmasEffect, faceRef.current, {
+            width: canvas.width,
+            height: canvas.height,
+          });
           drawRef.current = requestAnimationFrame(draw);
         };
         draw();
@@ -306,6 +321,7 @@ export function RecordDialog({
     setPosting(false);
     setFilterId("none");
     setAnimalId("");
+    setChristmasEffectId("");
     setChosenSound(sound ?? null);
     setSoundPickerOpen(false);
     autoOpenedSound.current = false;
@@ -367,6 +383,14 @@ export function RecordDialog({
             {showCamera && (
               <AnimalOverlay
                 animal={animal}
+                videoRef={videoRef}
+                faceRef={faceRef}
+                mirror={facingMode === "user"}
+              />
+            )}
+            {showCamera && (
+              <ChristmasOverlay
+                effect={christmasEffect}
                 videoRef={videoRef}
                 faceRef={faceRef}
                 mirror={facingMode === "user"}
@@ -503,10 +527,54 @@ export function RecordDialog({
                       </button>
                     )}
                   </div>
-                  {!canBakeFilters() && (filterId !== "none" || !!animal) && (
+                  {!canBakeFilters() && (filterId !== "none" || !!animal || !!christmasEffect) && (
                     <p className="pb-2 text-center text-xs text-white/70">
                       Filters can't be saved on this browser, so the video will post unfiltered.
                     </p>
+                  )}
+                  {christmas && (
+                    <div
+                      className="no-scrollbar -mx-4 mb-1 flex items-center gap-2 overflow-x-auto px-4 pb-2"
+                      role="radiogroup"
+                      aria-label="Christmas filters"
+                    >
+                      <span className="shrink-0 text-base" aria-hidden>
+                        🎄
+                      </span>
+                      <button
+                        type="button"
+                        role="radio"
+                        aria-checked={christmasEffectId === ""}
+                        disabled={recording}
+                        onClick={() => setChristmasEffectId("")}
+                        className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-bold transition disabled:opacity-50 ${
+                          christmasEffectId === ""
+                            ? "bg-[#2ecc55] text-white"
+                            : "bg-white/15 text-white"
+                        }`}
+                      >
+                        Off
+                      </button>
+                      {CHRISTMAS_EFFECTS.map((e) => (
+                        <button
+                          key={e.id}
+                          type="button"
+                          role="radio"
+                          aria-checked={christmasEffectId === e.id}
+                          aria-label={e.name}
+                          disabled={recording}
+                          onClick={() => setChristmasEffectId(e.id)}
+                          className={`flex shrink-0 items-center gap-1 rounded-full px-3 py-1.5 text-xs font-bold transition disabled:opacity-50 ${
+                            christmasEffectId === e.id
+                              ? "bg-[#2ecc55] text-white"
+                              : "bg-white/15 text-white"
+                          }`}
+                        >
+                          <span aria-hidden>{e.icon}</span>
+                          {e.name}
+                        </button>
+                      ))}
+                    </div>
                   )}
                   <FilterBar
                     value={filterId}

@@ -9,7 +9,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { formatCount } from "@/lib/loop";
-import { getTrendingSounds, soundAudioUrl, type Sound } from "@/lib/sounds";
+import { getChristmasSounds, getTrendingSounds, soundAudioUrl, type Sound } from "@/lib/sounds";
+import { useChristmasMode } from "@/lib/christmas";
 
 type Mode = "choose" | "browse";
 
@@ -34,6 +35,8 @@ export function SoundPickerDialog({
   const [mode, setMode] = useState<Mode>("choose");
   const [query, setQuery] = useState("");
   const [sounds, setSounds] = useState<Sound[]>([]);
+  const [christmasSounds, setChristmasSounds] = useState<Sound[]>([]);
+  const christmas = useChristmasMode();
   const [loading, setLoading] = useState(false);
   const [playingId, setPlayingId] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -66,8 +69,15 @@ export function SoundPickerDialog({
       return;
     }
     void load("");
+    if (christmas) {
+      getChristmasSounds()
+        .then(setChristmasSounds)
+        .catch(() => setChristmasSounds([]));
+    } else {
+      setChristmasSounds([]);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  }, [open, christmas]);
 
   useEffect(() => {
     if (!open || mode !== "browse") return;
@@ -171,6 +181,50 @@ export function SoundPickerDialog({
                 className="h-10 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
               />
             </label>
+
+            {christmas && christmasSounds.length > 0 && !query.trim() && (
+              <div className="space-y-1">
+                <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
+                  🎄 Christmas sounds
+                </p>
+                {christmasSounds.map((sound) => {
+                  const selected = selectedSound?.id === sound.id;
+                  return (
+                    <div
+                      key={sound.id}
+                      className={`flex items-center gap-2 rounded-lg p-2 ${
+                        selected ? "bg-[#2ecc55]/15" : "hover:bg-secondary"
+                      }`}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => choose(sound)}
+                        className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                      >
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#2ecc55]/20">
+                          <Music className="h-4 w-4" />
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-semibold">{sound.title}</span>
+                          <span className="block truncate text-xs text-muted-foreground">
+                            @{sound.creator_username} · {formatCount(sound.uses_count)} uses
+                          </span>
+                        </span>
+                        {selected && <Check className="h-4 w-4 shrink-0 text-[#2ecc55]" />}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void preview(sound)}
+                        aria-label={playingId === sound.id ? "Pause preview" : "Play preview"}
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-black/40 text-white transition hover:bg-black/60"
+                      >
+                        {playingId === sound.id ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
 
             <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
               {query.trim() ? "Results" : "Trending sounds"}

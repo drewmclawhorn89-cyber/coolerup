@@ -22,6 +22,7 @@ import { BanGate } from "../components/BanGate";
 import { UpdateGate } from "../components/UpdateGate";
 import { applyPrefs } from "../lib/prefs";
 import { AuthProvider } from "../hooks/useAuth";
+import { SnowEffect } from "../components/SnowEffect";
 function NotFoundComponent() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -177,6 +178,8 @@ function RootComponent() {
         </CallProvider>
         <PhoneAuthDialog />
         <Toaster theme="dark" position="top-center" />
+        {/* 50 falling white dots, Nov 15 2026 -> Jan 1 2027 only. */}
+        <SnowEffect />
       </AuthProvider>
     </QueryClientProvider>
   );

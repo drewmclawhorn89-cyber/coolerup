@@ -23,7 +23,8 @@ export type Video = {
 /** Minimal sound shape embedded in feed rows. */
 export type SoundSummary = {
   id: string;
-  original_video_id: string;
+  /** Null for library sounds (e.g. the Christmas carols) that aren't a video's audio. */
+  original_video_id: string | null;
   audio_url: string;
   title: string;
   creator_username: string;

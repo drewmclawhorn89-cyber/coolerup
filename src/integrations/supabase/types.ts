@@ -528,7 +528,7 @@ export type Database = {
           created_at: string
           creator_username: string
           id: string
-          original_video_id: string
+          original_video_id: string | null
           title: string
           uses_count: number
         }
@@ -537,7 +537,7 @@ export type Database = {
           created_at?: string
           creator_username: string
           id?: string
-          original_video_id: string
+          original_video_id?: string | null
           title: string
           uses_count?: number
         }
@@ -546,7 +546,7 @@ export type Database = {
           created_at?: string
           creator_username?: string
           id?: string
-          original_video_id?: string
+          original_video_id?: string | null
           title?: string
           uses_count?: number
         }

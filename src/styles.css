@@ -263,3 +263,119 @@
     animation: none;
   }
 }
+
+/* ---------------------------------------------------------------------------
+ * Christmas update (Nov 15 2026 -> Jan 1 2027)
+ * Only rendered while isChristmasMode() is true, so these classes are inert
+ * for the rest of the year.
+ * ------------------------------------------------------------------------- */
+
+/* 50 white dots falling over the app. */
+@keyframes christmas-fall {
+  0% {
+    transform: translate3d(0, -10vh, 0);
+  }
+  100% {
+    transform: translate3d(var(--flake-drift, 0px), 110vh, 0);
+  }
+}
+.christmas-flake {
+  position: absolute;
+  top: 0;
+  border-radius: 9999px;
+  background: #fff;
+  box-shadow: 0 0 6px rgba(255, 255, 255, 0.65);
+  animation-name: christmas-fall;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  will-change: transform;
+}
+
+/* Blinking red/green lights along the top tabs. */
+.christmas-lights-wire {
+  position: absolute;
+  inset-inline: 0;
+  top: 3px;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.22);
+}
+.christmas-bulb {
+  position: relative;
+  display: block;
+  width: 6px;
+  height: 9px;
+  margin-top: 2px;
+  border-radius: 9999px;
+  animation: christmas-blink 1.4s ease-in-out infinite;
+}
+.christmas-bulb-red {
+  background: #ff3b30;
+  box-shadow: 0 0 6px 2px rgba(255, 59, 48, 0.85);
+}
+.christmas-bulb-green {
+  background: #2ecc55;
+  box-shadow: 0 0 6px 2px rgba(46, 204, 85, 0.85);
+}
+@keyframes christmas-blink {
+  0%,
+  100% {
+    opacity: 1;
+    filter: brightness(1.25);
+  }
+  50% {
+    opacity: 0.25;
+    filter: brightness(0.6);
+  }
+}
+
+/* Red/green profile ring. */
+.christmas-ring {
+  background: conic-gradient(from 0deg, #ff3b30, #2ecc55, #ff3b30, #2ecc55, #ff3b30);
+}
+
+/* Like button cycles red/green instead of the usual #fe2c55. */
+.christmas-heart {
+  color: #ff3b30;
+  animation: christmas-heart-cycle 2.4s steps(1, end) infinite;
+}
+@keyframes christmas-heart-cycle {
+  0%,
+  100% {
+    color: #ff3b30;
+  }
+  50% {
+    color: #2ecc55;
+  }
+}
+.christmas-tree-pop {
+  display: inline-block;
+  animation: christmas-tree-pop 0.45s ease-out;
+}
+@keyframes christmas-tree-pop {
+  0% {
+    transform: scale(0.6) rotate(-12deg);
+  }
+  60% {
+    transform: scale(1.25) rotate(6deg);
+  }
+  100% {
+    transform: scale(1) rotate(0);
+  }
+}
+
+/* Challenge banner. */
+.christmas-banner {
+  background:
+    radial-gradient(circle at 12% 20%, rgba(255, 59, 48, 0.35), transparent 55%),
+    radial-gradient(circle at 88% 80%, rgba(46, 204, 85, 0.35), transparent 55%),
+    linear-gradient(90deg, #7f1d1d, #14532d);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .christmas-flake,
+  .christmas-bulb,
+  .christmas-heart,
+  .christmas-tree-pop {
+    animation: none;
+  }
+}

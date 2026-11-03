@@ -1078,6 +1078,9 @@ export type Database = {
       };
       coin_admin_ok: { Args: never; Returns: boolean };
       my_coin_venmo_orders: { Args: never; Returns: Json };
+      claim_free_coins: { Args: never; Returns: Json };
+      my_free_coin_claim: { Args: never; Returns: Json };
+      admin_free_coin_claims: { Args: { _limit?: number }; Returns: Json };
       submit_coin_venmo_payment: {
         Args: { _order_id: string; _payer_handle: string; _venmo_note?: string | null };
         Returns: Json;

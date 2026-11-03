@@ -457,6 +457,12 @@ function Profile() {
               >
                 Settings
               </Link>
+              <Link
+                to="/wallet"
+                className="inline-flex items-center rounded-md border px-3 py-1 text-sm"
+              >
+                Wallet
+              </Link>
             </div>
           )}
           <div className="flex gap-8 text-sm">

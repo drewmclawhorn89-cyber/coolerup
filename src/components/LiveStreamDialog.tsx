@@ -26,6 +26,9 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/compone
 import { MusicPlayer, useMusicPlayer } from "@/components/MusicPlayer";
 import { GiftAnimation, type GiftAnimationEvent } from "@/components/GiftAnimation";
 import { LiveGiftPanel } from "@/components/LiveGiftPanel";
+import { LiveCoinSheet } from "@/components/LiveCoinSheet";
+import { CoinVenmoSheet } from "@/components/CoinVenmoSheet";
+import { myCoinVenmoOrders, type CoinVenmoOrderResult } from "@/lib/coins.functions";
 import { LiveModPanel } from "@/components/LiveModPanel";
 import { LiveJoinBanner, LiveJoinRequestSheet } from "@/components/LiveJoinRequest";
 import { LiveMultiGuest } from "@/components/LiveMultiGuest";
@@ -213,6 +216,52 @@ export function LiveStreamDialog({
   const [giftFeed, setGiftFeed] = useState<GiftFeedRow[]>([]);
   const [sendingGift, setSendingGift] = useState(false);
 
+  // --- in-stream coin purchases (Venmo) --------------------------------------
+  type ReadyOrder = Extract<CoinVenmoOrderResult, { ok: true }>;
+  const [coinOpen, setCoinOpen] = useState(false);
+  const [venmoOpen, setVenmoOpen] = useState(false);
+  const [activeOrder, setActiveOrder] = useState<ReadyOrder | null>(null);
+
+  /** Opens the Venmo sheet for an order created inside the stream. */
+  const openVenmoForOrder = useCallback((order: ReadyOrder) => {
+    setCoinOpen(false);
+    setActiveOrder(order);
+    setVenmoOpen(true);
+  }, []);
+
+  /**
+   * While the Venmo sheet is open, check whether an admin has matched the
+   * payment. When it lands, refresh the wallet so the gift panel is usable
+   * immediately without reloading the stream.
+   */
+  useEffect(() => {
+    if (!venmoOpen || !userId || !activeOrder) return;
+    let alive = true;
+    const check = async () => {
+      try {
+        const orders = await myCoinVenmoOrders();
+        if (!alive) return;
+        const paid = orders.find(
+          (order) => order.id === activeOrder.orderId && order.status === "paid",
+        );
+        if (!paid) return;
+        toast.success(`+${paid.coins.toLocaleString()} coins added`);
+        notifyCoinsChanged();
+        void wallet.refresh();
+        setVenmoOpen(false);
+        setActiveOrder(null);
+      } catch {
+        // Polling is best-effort; a failure shouldn't interrupt the stream.
+      }
+    };
+    void check();
+    const timer = setInterval(() => void check(), 8000);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+    };
+  }, [venmoOpen, userId, activeOrder, wallet]);
+
   /** Who receives the gift: the host, whichever side we're on. */
   const receiverId = mode === "host" ? (userId ?? null) : hostId;
   const giftCoins = giftFeed.reduce((sum, row) => sum + row.coins, 0);
@@ -311,7 +360,7 @@ export function LiveStreamDialog({
       if (result.needsRecharge) {
         toast.error(result.message);
         setGiftOpen(false);
-        void navigate({ to: "/coins/recharge" });
+        setCoinOpen(true);
         return;
       }
       toast.error(result.message);
@@ -1598,11 +1647,35 @@ export function LiveStreamDialog({
         onSend={(gift, quantity) => void sendGift(gift, quantity)}
         onRecharge={() => {
           setGiftOpen(false);
-          void navigate({ to: "/coins/recharge" });
+          setCoinOpen(true);
         }}
         onSignIn={() => {
           setGiftOpen(false);
           openAuthDialog();
+        }}
+      />
+
+      <LiveCoinSheet
+        open={coinOpen}
+        onOpenChange={setCoinOpen}
+        balance={wallet.balance}
+        signedIn={Boolean(userId)}
+        onOrderCreated={openVenmoForOrder}
+        onSignIn={() => {
+          setCoinOpen(false);
+          openAuthDialog();
+        }}
+      />
+
+      <CoinVenmoSheet
+        order={activeOrder}
+        open={venmoOpen}
+        onOpenChange={(next) => {
+          setVenmoOpen(next);
+          if (!next) setActiveOrder(null);
+        }}
+        onSubmitted={() => {
+          toast.success("Payment sent \u2014 we're matching it now");
         }}
       />
     </>

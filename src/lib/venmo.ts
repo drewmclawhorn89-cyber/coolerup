@@ -10,6 +10,13 @@
 /** Characters that survive being read aloud and typed on a phone keyboard. */
 const CODE_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
 export const REFERENCE_PREFIX = "CU-";
+
+/**
+ * The Coolerup Venmo account. `VENMO_RECIPIENT` overrides this, but the same
+ * handle already receives subscription payments, so coin purchases work
+ * without extra configuration.
+ */
+export const DEFAULT_VENMO_RECIPIENT = "Samantha-Barnes-168";
 export const REFERENCE_BODY_LENGTH = 6;
 
 export type VenmoOrderStatus = "awaiting_payment" | "submitted" | "paid" | "rejected" | "canceled";

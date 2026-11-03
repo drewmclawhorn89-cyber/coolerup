@@ -300,7 +300,7 @@ export async function reportContent(
       _video_id: videoId as string,
       _reported_username: reportedUsername.replace(/^@+/, "").trim(),
       _reason: reason,
-      _details: details?.trim() ? details.trim().slice(0, 1000) : undefined,
+      _details: (details?.trim() ? details.trim().slice(0, 1000) : null) as string,
     });
     if (error) return { ok: false, error: error.message };
     const row = unwrap<Record<string, unknown>>(data) ?? {};
@@ -410,7 +410,7 @@ export async function adminBan(
 ): Promise<ModerationResult> {
   const { data, error } = await supabase.rpc("admin_ban", {
     _username: username.replace(/^@+/, "").trim(),
-    _hours: hours ?? undefined,
+    _hours: hours as number,
     _permanent: permanent,
     _reason: reason,
   });

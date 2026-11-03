@@ -218,7 +218,7 @@ const toggleOffline = () => {
         toast.error(`@${blockedUsername} not found`);
         return;
       }
-      const { error } = await supabase.from("blocked_users").insert({ blocker_id: auth.user.id, blocker_username: auth.handle, blocked_username: blockedUsername });
+      const { error } = await supabase.from("blocked_users").insert({ blocker_id: auth.user.id, blocker_username: auth.handle ?? "", blocked_username: blockedUsername });
       if (error) {
         toast.error(error.message || "Couldn't block user");
         return;

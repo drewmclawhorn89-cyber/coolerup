@@ -64,7 +64,7 @@ export async function setAppStatus(
   try {
     const { error } = await supabase.rpc("set_app_status", {
       _maintenance: maintenance,
-      _message: message?.trim() ? message.trim() : null,
+      _message: (message?.trim() ? message.trim() : null) as string,
     });
     if (error) return { ok: false, error: error.message };
     return { ok: true };

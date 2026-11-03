@@ -150,7 +150,7 @@ export async function createSoundFromVideo(videoId: string): Promise<string | nu
 export async function useSound(videoId: string, soundId: string | null): Promise<boolean> {
   const { error } = await supabase.rpc("set_video_sound", {
     _video_id: videoId,
-    _sound_id: soundId,
+    _sound_id: soundId as string,
   });
   if (error) {
     console.error("Couldn't attach sound", error);

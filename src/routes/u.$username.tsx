@@ -432,11 +432,11 @@ function Profile() {
           {profile?.links && Object.keys(profile.links).length > 0 && (
             <div className="flex flex-wrap justify-center gap-2">
               {LINK_FIELDS.filter(
-                (f) => profile.links?.[f.key] && normalizeLink(profile.links[f.key]),
+                (f) => profile.links?.[f.key] && normalizeLink(profile.links[f.key] as string),
               ).map((f) => (
                 <a
                   key={f.key}
-                  href={normalizeLink(profile.links![f.key])!}
+                  href={normalizeLink(profile.links![f.key] as string)!}
                   target="_blank"
                   rel="noopener noreferrer nofollow"
                   className="rounded-full border border-border px-3 py-1 text-xs font-semibold hover:bg-accent"
@@ -456,12 +456,6 @@ function Profile() {
                 className="inline-flex items-center rounded-md border px-3 py-1 text-sm"
               >
                 Settings
-              </Link>
-              <Link
-                to="/wallet"
-                className="inline-flex items-center rounded-md border px-3 py-1 text-sm"
-              >
-                Wallet
               </Link>
             </div>
           )}

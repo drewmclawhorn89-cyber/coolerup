@@ -2,10 +2,10 @@ import { beforeEach, describe, expect, it } from "vitest";
 import {
   hasOfflineAccess,
   offlineLockReason,
-  startTrial,
   cancelSubscription,
   confirmPayment,
   requestPayment,
+  updatePaymentMethod,
   type PaymentMethod,
 } from "@/lib/subscriptions";
 import { PLANS, offlinePlan, planIncludesOffline } from "@/lib/plans";
@@ -31,6 +31,13 @@ const CARD: PaymentMethod = {
 beforeEach(() => {
   localStorage.clear();
 });
+
+/** Subscribe for real — there is no free trial, so perks need a paid plan. */
+function subscribe(planId = "plus") {
+  requestPayment(H, planId);
+  updatePaymentMethod(H, CARD);
+  confirmPayment(H);
+}
 
 describe("planIncludesOffline", () => {
   it("unlocks offline for Plus, Pro and VIP", () => {
@@ -69,38 +76,38 @@ describe("hasOfflineAccess", () => {
     expect(offlineLockReason(H)).toBe("no-plan");
   });
 
-  it("unlocks during the free trial, since Plus includes offline", () => {
-    startTrial(H, "plus", CARD);
+  it("unlocks on an active paid subscription", () => {
+    subscribe("plus");
     expect(hasOfflineAccess(H)).toBe(true);
     expect(offlineLockReason(H)).toBeNull();
   });
 
-  it("unlocks on an active paid subscription", () => {
-    startTrial(H, "plus", CARD);
-    requestPayment(H, "plus");
-    confirmPayment(H);
-    expect(hasOfflineAccess(H)).toBe(true);
-  });
-
   it("locks while a payment is still pending", () => {
-    startTrial(H, "plus", CARD);
     requestPayment(H, "plus");
+    updatePaymentMethod(H, CARD);
     expect(hasOfflineAccess(H)).toBe(false);
     expect(offlineLockReason(H)).toBe("expired");
   });
 
   it("locks again when the subscription is cancelled", () => {
-    startTrial(H, "plus", CARD);
+    subscribe("plus");
     expect(hasOfflineAccess(H)).toBe(true);
     cancelSubscription(H);
     expect(hasOfflineAccess(H)).toBe(false);
   });
 
-  it("locks once the trial has run out", () => {
-    const sub = startTrial(H, "plus", CARD);
-    // Fast-forward past the trial end.
-    const lapsed = { ...sub, trialEndsAt: new Date(Date.now() - 1000).toISOString() };
-    localStorage.setItem(`subscription:${H}`, JSON.stringify(lapsed));
+  it("locks a legacy trial record, since trials are gone", () => {
+    localStorage.setItem(
+      `subscription:${H}`,
+      JSON.stringify({
+        planId: "plus",
+        status: "trial",
+        startedAt: new Date().toISOString(),
+        trialEndsAt: new Date(Date.now() + 5 * 86400000).toISOString(),
+        paidAt: null,
+        paymentMethod: CARD,
+      }),
+    );
     expect(hasOfflineAccess(H)).toBe(false);
     expect(offlineLockReason(H)).toBe("expired");
   });

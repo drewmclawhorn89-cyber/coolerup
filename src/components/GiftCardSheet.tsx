@@ -313,7 +313,6 @@ export function GiftCardSheet({ card, handle, onClose, onPurchased, onSignIn }: 
           <PaymentMethodForm
             planLabel={`${card.name} gift card`}
             price={price}
-            trialDays={0}
             submitLabel={`Pay ${formatUsd(priceCents)}`}
             onSubmit={() => void payWithCard()}
             onCancel={() => setStage("choose")}

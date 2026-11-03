@@ -8,7 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { writePref } from "@/lib/prefs";
 import { MoreSettings } from "@/components/MoreSettings";
-import { hasOfflineAccess, offlinePlan, trialDaysLeft, useSubscription } from "@/lib/subscriptions";
+import { hasOfflineAccess, offlinePlan, useSubscription } from "@/lib/subscriptions";
 import { ThemePicker } from "@/components/ThemePicker"
 import { QUALITY_OPTIONS, useVideoQuality } from "@/lib/videoQuality"
 import {
@@ -401,7 +401,7 @@ const changeTheme = (t: string) => {
       <div className="rounded-2xl border bg-card p-4">
         <h2 className="font-semibold">Subscriptions</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Manage your plan, free trial, payment method, and billing.
+          Manage your plan, payment method, and billing.
         </p>
         <button
           onClick={() => setShowSubscriptions(true)}
@@ -411,13 +411,11 @@ const changeTheme = (t: string) => {
             <CreditCard className="h-4 w-4" />
             {subscription?.status === "active"
               ? "Your subscription is active"
-              : subscription?.status === "trial"
-                ? `Free trial — ${trialDaysLeft(subscription)} ${trialDaysLeft(subscription) === 1 ? "day" : "days"} left`
-                : subscription?.status === "pending"
-                  ? "Payment pending"
-                  : subscription?.status === "expired"
-                    ? "Subscription expired — renew"
-                    : "View plans and start a free trial"}
+              : subscription?.status === "pending"
+                ? "Payment pending"
+                : subscription?.status === "expired"
+                  ? "Subscription expired — renew"
+                  : "View plans"}
           </span>
           <ChevronRight className="h-4 w-4 text-muted-foreground" />
         </button>
@@ -610,11 +608,6 @@ const changeTheme = (t: string) => {
       <p className="mt-2 text-xs text-muted-foreground">
         {offlineMode ? "Tap View to see your saved videos" : "Turn ON first, then view"}
       </p>
-      {subscription?.status === "trial" && (
-        <p className="mt-1 text-xs text-muted-foreground">
-          Included with your free trial — offline mode locks when the trial ends unless you subscribe.
-        </p>
-      )}
     </>
   ) : (
     <>

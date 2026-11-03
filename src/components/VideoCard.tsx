@@ -31,6 +31,7 @@ import {
   type Sound,
 } from "@/lib/sounds";
 import { useAuth } from "@/hooks/useAuth";
+import { recordVideoView } from "@/lib/creatorFund";
 import { requireOnboarding } from "@/lib/auth";
 import { haptic, readBool } from "@/lib/prefs";
 import { isLiteMode, useNetwork } from "@/lib/network";
@@ -140,6 +141,8 @@ function VideoCardImpl({
   const progressRef = useRef<HTMLDivElement>(null);
   // Playback position, so switching quality doesn't jump back to the start.
   const resumeRef = useRef(0);
+  // Video id whose view has already been reported this session.
+  const viewRecordedRef = useRef<string | null>(null);
   useEffect(() => {
     resumeRef.current = 0;
   }, [video.id]);
@@ -785,6 +788,18 @@ function VideoCardImpl({
                 onPlay={() => {
                   setPlaying(true);
                   syncSound(true);
+                  // Count a view once the video has actually played for two
+                  // seconds. The database dedupes per viewer, ignores
+                  // self-views, and only pays the creator fund for signed-in
+                  // viewers, so refreshing can't farm views.
+                  if (viewRecordedRef.current !== video.id) {
+                    const id = video.id;
+                    window.setTimeout(() => {
+                      if (viewRecordedRef.current === id) return;
+                      viewRecordedRef.current = id;
+                      void recordVideoView(id);
+                    }, 2000);
+                  }
                 }}
                 onPause={() => {
                   setPlaying(false);

@@ -1016,6 +1016,172 @@ export type Database = {
         Relationships: [];
       };
     };
+    video_views: {
+      Row: {
+        created_at: string;
+        id: string;
+        user_id: string;
+        video_id: string;
+        viewer_id: string | null;
+      };
+      Insert: {
+        created_at?: string;
+        id?: string;
+        user_id: string;
+        video_id: string;
+        viewer_id?: string | null;
+      };
+      Update: {
+        created_at?: string;
+        id?: string;
+        user_id?: string;
+        video_id?: string;
+        viewer_id?: string | null;
+      };
+      Relationships: [
+        {
+          foreignKeyName: "video_views_user_id_fkey";
+          columns: ["user_id"];
+          isOneToOne: false;
+          referencedRelation: "profiles";
+          referencedColumns: ["id"];
+        },
+        {
+          foreignKeyName: "video_views_viewer_id_fkey";
+          columns: ["viewer_id"];
+          isOneToOne: false;
+          referencedRelation: "profiles";
+          referencedColumns: ["id"];
+        },
+      ];
+    };
+    creator_fund_earnings: {
+      Row: {
+        amount: number;
+        created_at: string;
+        id: string;
+        milestone_views: number;
+        user_id: string;
+      };
+      Insert: {
+        amount: number;
+        created_at?: string;
+        id?: string;
+        milestone_views: number;
+        user_id: string;
+      };
+      Update: {
+        amount?: number;
+        created_at?: string;
+        id?: string;
+        milestone_views?: number;
+        user_id?: string;
+      };
+      Relationships: [
+        {
+          foreignKeyName: "creator_fund_earnings_user_id_fkey";
+          columns: ["user_id"];
+          isOneToOne: false;
+          referencedRelation: "profiles";
+          referencedColumns: ["id"];
+        },
+      ];
+    };
+    gift_claims: {
+      Row: {
+        amount: number;
+        created_at: string;
+        diamonds: number;
+        gift_id: string;
+        id: string;
+        user_id: string;
+      };
+      Insert: {
+        amount?: number;
+        created_at?: string;
+        diamonds?: number;
+        gift_id: string;
+        id?: string;
+        user_id: string;
+      };
+      Update: {
+        amount?: number;
+        created_at?: string;
+        diamonds?: number;
+        gift_id?: string;
+        id?: string;
+        user_id?: string;
+      };
+      Relationships: [
+        {
+          foreignKeyName: "gift_claims_gift_id_fkey";
+          columns: ["gift_id"];
+          isOneToOne: true;
+          referencedRelation: "live_gifts";
+          referencedColumns: ["id"];
+        },
+        {
+          foreignKeyName: "gift_claims_user_id_fkey";
+          columns: ["user_id"];
+          isOneToOne: false;
+          referencedRelation: "profiles";
+          referencedColumns: ["id"];
+        },
+      ];
+    };
+    payouts: {
+      Row: {
+        amount: number;
+        destination: string | null;
+        diamonds: number;
+        id: string;
+        method: string;
+        note: string | null;
+        paid_at: string | null;
+        paid_by: string | null;
+        requested_at: string;
+        status: string;
+        user_id: string;
+        username: string | null;
+      };
+      Insert: {
+        amount: number;
+        destination?: string | null;
+        diamonds?: number;
+        id?: string;
+        method?: string;
+        note?: string | null;
+        paid_at?: string | null;
+        paid_by?: string | null;
+        requested_at?: string;
+        status?: string;
+        user_id: string;
+        username?: string | null;
+      };
+      Update: {
+        amount?: number;
+        destination?: string | null;
+        diamonds?: number;
+        id?: string;
+        method?: string;
+        note?: string | null;
+        paid_at?: string | null;
+        paid_by?: string | null;
+        requested_at?: string;
+        status?: string;
+        user_id?: string;
+        username?: string | null;
+      };
+      Relationships: [
+        {
+          foreignKeyName: "payouts_user_id_fkey";
+          columns: ["user_id"];
+          isOneToOne: false;
+          referencedRelation: "profiles";
+          referencedColumns: ["id"];
+        },
+      ];
+    };
     follower_rewards: {
       Row: {
         claimed: boolean;
@@ -1077,17 +1243,23 @@ export type Database = {
     };
     user_balance: {
       Row: {
+        diamonds: number;
         real_balance: number;
+        total_earned: number;
         updated_at: string;
         user_id: string;
       };
       Insert: {
+        diamonds?: number;
         real_balance?: number;
+        total_earned?: number;
         updated_at?: string;
         user_id: string;
       };
       Update: {
+        diamonds?: number;
         real_balance?: number;
+        total_earned?: number;
         updated_at?: string;
         user_id?: string;
       };
@@ -1299,6 +1471,23 @@ export type Database = {
           is_permanent: boolean;
           expires_at: string;
         }[];
+      };
+      my_wallet: { Args: never; Returns: Record<string, unknown> };
+      my_earnings_summary: { Args: never; Returns: Record<string, unknown> };
+      my_gift_earnings: { Args: { p_limit?: number }; Returns: Record<string, unknown> };
+      my_creator_fund: { Args: never; Returns: Record<string, unknown> };
+      my_payouts: { Args: { p_limit?: number }; Returns: Record<string, unknown> };
+      record_video_view: { Args: { p_video_id: string }; Returns: Record<string, unknown> };
+      check_creator_fund: { Args: { p_user_id?: string | null }; Returns: Record<string, unknown> };
+      request_payout: {
+        Args: { p_amount: number; p_method?: string; p_destination?: string | null };
+        Returns: Record<string, unknown>;
+      };
+      admin_payouts: { Args: { p_limit?: number }; Returns: Record<string, unknown> };
+      admin_payout_stats: { Args: never; Returns: Record<string, unknown> };
+      admin_mark_creator_payout_paid: {
+        Args: { p_payout_id: string; p_note?: string | null };
+        Returns: Record<string, unknown>;
       };
       my_follower_reward: { Args: never; Returns: Record<string, unknown> };
       take_follower_reward_notice: { Args: never; Returns: Record<string, unknown> };

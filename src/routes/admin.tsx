@@ -521,8 +521,8 @@ function AdminPage() {
       {tab === "payouts" && (
         <section className="space-y-3">
           <p className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
-            Every account that reached its first follower earned $1.00. Send it in Venmo, then mark
-            it paid so it leaves the queue.{" "}
+            Creators cash out diamonds, creator-fund earnings and gift income at $10 or more. Pay
+            them in Venmo or Stripe, then mark it paid so it leaves the queue.{" "}
             <Link to="/admin/payouts" className="font-semibold text-primary hover:underline">
               Open the full page
             </Link>

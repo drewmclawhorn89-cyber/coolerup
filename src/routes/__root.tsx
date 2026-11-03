@@ -22,6 +22,7 @@ import { Toaster } from "sonner";
 import { WellbeingWatcher } from "../components/MoreSettings";
 import { PushRegistrar } from "../components/PushRegistrar";
 import { FollowerRewardWatcher } from "../components/FollowerRewardModal";
+import { EarningsWatcher } from "../components/WalletBalance";
 import { BanGate } from "../components/BanGate";
 import { UpdateGate } from "../components/UpdateGate";
 import { applyPrefs } from "../lib/prefs";
@@ -224,6 +225,7 @@ function RootComponent() {
           <PushRegistrar />
           {/* Creator fund: celebrates the $1 first-follower reward exactly once. */}
           <FollowerRewardWatcher />
+          <EarningsWatcher />
         </CallProvider>
         <PhoneAuthDialog />
         <OnboardingRequiredDialog />

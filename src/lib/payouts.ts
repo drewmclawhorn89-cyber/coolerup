@@ -479,7 +479,7 @@ export function useWallet(userId?: string | null): LiveWallet {
     window.addEventListener("focus", onEvent);
 
     const channel = supabase
-      .channel(`wallet:${userId}`)
+      .channel(`wallet:${userId}:${Math.random().toString(36).slice(2)}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "user_balance", filter: `user_id=eq.${userId}` },

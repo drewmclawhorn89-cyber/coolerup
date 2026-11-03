@@ -50,6 +50,13 @@
       "when": 1791592768471,
       "tag": "0006_avatars_public_read",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793741490948,
+      "tag": "0007_tighten_group_posts_notifications_bans",
+      "breakpoints": true
     }
   ]
 }

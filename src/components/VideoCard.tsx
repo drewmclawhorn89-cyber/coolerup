@@ -9,15 +9,7 @@ import {
   type MouseEvent,
 } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
-import {
-  Bookmark,
-  Heart,
-  MessageCircle,
-  Music,
-  Play,
-  Repeat2,
-  Share2,
-} from "lucide-react";
+import { Bookmark, Heart, MessageCircle, Music, Play, Repeat2, Share2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -54,12 +46,9 @@ import {
 import { REPORT_REASONS, checkIfBanned, reportContent, type ReportReason } from "@/lib/moderation";
 import { resolveAvatarUrl } from "./EditProfileDialog";
 import { notifyUser, profileIdForHandle } from "@/lib/notify";
+import { followUser, unfollowUser } from "@/lib/follow";
 import { useChristmasMode } from "@/lib/christmas";
-import {
-  QUALITY_OPTIONS,
-  resolveQualitySource,
-  useVideoQuality,
-} from "@/lib/videoQuality";
+import { QUALITY_OPTIONS, resolveQualitySource, useVideoQuality } from "@/lib/videoQuality";
 import { QualitySelector } from "@/components/QualitySelector";
 
 const Comments = lazy(() => import("./Comments").then((m) => ({ default: m.Comments })));
@@ -262,9 +251,7 @@ function VideoCardImpl({
   // original upload when the row has no rendition for that quality.
   const qualitySource = resolveQualitySource(video, quality, net.effectiveType);
   const qualityLabel =
-    quality === "auto"
-      ? "Auto"
-      : (QUALITY_OPTIONS.find((o) => o.id === quality)?.label ?? "Auto");
+    quality === "auto" ? "Auto" : (QUALITY_OPTIONS.find((o) => o.id === quality)?.label ?? "Auto");
   const [showCaptions] = useState(() => readBool("captions"));
   const [autoplay] = useState(() => readBool("autoplay", true));
 
@@ -481,18 +468,16 @@ function VideoCardImpl({
     const next = !isFollowing;
     setIsFollowing(next);
     onFollowChange?.(video.username, next);
-    const { error } = next
-      ? await supabase.from("follows").insert({
-          follower_id: auth.user.id,
-          follower_username: myUsername,
-          following_username: video.username,
+    // The $1 first-follower reward is granted by a database trigger on
+    // `follows`, so a plain follow is all this needs to do.
+    const result = next
+      ? await followUser({
+          followerId: auth.user.id,
+          followerUsername: myUsername,
+          followingUsername: video.username,
         })
-      : await supabase
-          .from("follows")
-          .delete()
-          .eq("follower_id", auth.user.id)
-          .eq("following_username", video.username);
-    if (error) {
+      : await unfollowUser({ followerId: auth.user.id, followingUsername: video.username });
+    if (!result.ok) {
       setIsFollowing(!next);
       onFollowChange?.(video.username, !next);
       toast.error("Couldn't update follow");

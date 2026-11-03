@@ -24,6 +24,7 @@ import {
 } from "@/lib/coins.functions";
 import { usdFromCents } from "@/lib/coins";
 import { venmoStatusLabel } from "@/lib/venmo";
+import { PayoutsPanel } from "@/components/PayoutsPanel";
 import {
   REPORT_REASONS,
   adminBan,
@@ -58,7 +59,7 @@ export const Route = createFileRoute("/admin")({
   component: AdminPage,
 });
 
-type Tab = "reports" | "bans" | "log" | "coins" | "update";
+type Tab = "reports" | "bans" | "log" | "coins" | "payouts" | "update";
 
 const reasonLabel = (id: string) => REPORT_REASONS.find((r) => r.id === id)?.label ?? id;
 
@@ -237,6 +238,7 @@ function AdminPage() {
             ["bans", `Bans (${activeBans.length + activeMutes.length})`],
             ["log", "Auto-ban log"],
             ["coins", `Coins (${pendingCoins})`],
+            ["payouts", "Payouts"],
           ] as const
         ).map(([id, label]) => (
           <button
@@ -513,6 +515,19 @@ function AdminPage() {
           {coinOrders.map((order) => (
             <CoinOrderCard key={order.id} order={order} onReviewed={() => void refresh()} />
           ))}
+        </section>
+      )}
+
+      {tab === "payouts" && (
+        <section className="space-y-3">
+          <p className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
+            Every account that reached its first follower earned $1.00. Send it in Venmo, then mark
+            it paid so it leaves the queue.{" "}
+            <Link to="/admin/payouts" className="font-semibold text-primary hover:underline">
+              Open the full page
+            </Link>
+          </p>
+          <PayoutsPanel />
         </section>
       )}
 

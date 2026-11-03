@@ -1016,6 +1016,91 @@ export type Database = {
         Relationships: [];
       };
     };
+    follower_rewards: {
+      Row: {
+        claimed: boolean;
+        created_at: string;
+        follower_count: number;
+        id: string;
+        notified: boolean;
+        paid_at: string | null;
+        paid_by: string | null;
+        payout_method: string | null;
+        payout_note: string | null;
+        payout_requested_at: string | null;
+        payout_venmo_handle: string | null;
+        reward_amount: number;
+        user_id: string;
+        username: string | null;
+      };
+      Insert: {
+        claimed?: boolean;
+        created_at?: string;
+        follower_count?: number;
+        id?: string;
+        notified?: boolean;
+        paid_at?: string | null;
+        paid_by?: string | null;
+        payout_method?: string | null;
+        payout_note?: string | null;
+        payout_requested_at?: string | null;
+        payout_venmo_handle?: string | null;
+        reward_amount?: number;
+        user_id: string;
+        username?: string | null;
+      };
+      Update: {
+        claimed?: boolean;
+        created_at?: string;
+        follower_count?: number;
+        id?: string;
+        notified?: boolean;
+        paid_at?: string | null;
+        paid_by?: string | null;
+        payout_method?: string | null;
+        payout_note?: string | null;
+        payout_requested_at?: string | null;
+        payout_venmo_handle?: string | null;
+        reward_amount?: number;
+        user_id?: string;
+        username?: string | null;
+      };
+      Relationships: [
+        {
+          foreignKeyName: "follower_rewards_user_id_fkey";
+          columns: ["user_id"];
+          isOneToOne: true;
+          referencedRelation: "profiles";
+          referencedColumns: ["id"];
+        },
+      ];
+    };
+    user_balance: {
+      Row: {
+        real_balance: number;
+        updated_at: string;
+        user_id: string;
+      };
+      Insert: {
+        real_balance?: number;
+        updated_at?: string;
+        user_id: string;
+      };
+      Update: {
+        real_balance?: number;
+        updated_at?: string;
+        user_id?: string;
+      };
+      Relationships: [
+        {
+          foreignKeyName: "user_balance_user_id_fkey";
+          columns: ["user_id"];
+          isOneToOne: true;
+          referencedRelation: "profiles";
+          referencedColumns: ["id"];
+        },
+      ];
+    };
     Views: {
       [_ in never]: never;
     };
@@ -1214,6 +1299,21 @@ export type Database = {
           is_permanent: boolean;
           expires_at: string;
         }[];
+      };
+      my_follower_reward: { Args: never; Returns: Record<string, unknown> };
+      take_follower_reward_notice: { Args: never; Returns: Record<string, unknown> };
+      my_real_balance: { Args: never; Returns: number };
+      request_follower_payout: {
+        Args: { _venmo_handle: string };
+        Returns: Record<string, unknown>;
+      };
+      admin_follower_payouts: {
+        Args: { _limit?: number };
+        Returns: Record<string, unknown>[];
+      };
+      admin_mark_payout_paid: {
+        Args: { _reward_id: string; _note?: string | null; _method?: string | null };
+        Returns: Record<string, unknown>;
       };
     };
     Enums: {

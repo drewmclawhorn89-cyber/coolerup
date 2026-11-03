@@ -1,4 +1,5 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query"; import { MessageCircle } from "lucide-react"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MessageCircle } from "lucide-react";
 import {
   Outlet,
   Link,
@@ -20,6 +21,7 @@ import { OnboardingRequiredDialog } from "../components/OnboardingBanner";
 import { Toaster } from "sonner";
 import { WellbeingWatcher } from "../components/MoreSettings";
 import { PushRegistrar } from "../components/PushRegistrar";
+import { FollowerRewardWatcher } from "../components/FollowerRewardModal";
 import { BanGate } from "../components/BanGate";
 import { UpdateGate } from "../components/UpdateGate";
 import { applyPrefs } from "../lib/prefs";
@@ -91,37 +93,41 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     const supabaseOrigin = supabaseUrl ? new URL(supabaseUrl).origin : undefined;
     return {
       meta: [
-      { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
-      { title: "coolerup" },
-      { name: "description", content: "Short videos, less perfect, more real." },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary_large_image" },
-      { name: "theme-color", content: "#000000" },
-      { name: "mobile-web-app-capable", content: "yes" },
-      { name: "apple-mobile-web-app-capable", content: "yes" },
-      { name: "apple-mobile-web-app-status-bar-style", content: "black" },
-      { name: "apple-mobile-web-app-title", content: "coolerup" },
-    ],
-    links: [
-      { rel: "stylesheet", href: appCss },
-      { rel: "manifest", href: "/manifest.json" },
-      { rel: "icon", type: "image/png", href: "/favicon.png" },
-      { rel: "apple-touch-icon", href: "/icons/icon-192.png" },
-      { rel: "preconnect", href: "https://fonts.googleapis.com" },
-      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-      ...(supabaseOrigin
-        ? [
-            { rel: "preconnect" as const, href: supabaseOrigin, crossOrigin: "anonymous" as const },
-            { rel: "dns-prefetch" as const, href: supabaseOrigin },
-          ]
-        : []),
-      { rel: "preconnect", href: "https://api.audius.co" },
-      {
-        rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=Archivo+Black&family=Manrope:wght@400;500;600;700;800&display=swap",
-      },
-    ],
+        { charSet: "utf-8" },
+        { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
+        { title: "coolerup" },
+        { name: "description", content: "Short videos, less perfect, more real." },
+        { property: "og:type", content: "website" },
+        { name: "twitter:card", content: "summary_large_image" },
+        { name: "theme-color", content: "#000000" },
+        { name: "mobile-web-app-capable", content: "yes" },
+        { name: "apple-mobile-web-app-capable", content: "yes" },
+        { name: "apple-mobile-web-app-status-bar-style", content: "black" },
+        { name: "apple-mobile-web-app-title", content: "coolerup" },
+      ],
+      links: [
+        { rel: "stylesheet", href: appCss },
+        { rel: "manifest", href: "/manifest.json" },
+        { rel: "icon", type: "image/png", href: "/favicon.png" },
+        { rel: "apple-touch-icon", href: "/icons/icon-192.png" },
+        { rel: "preconnect", href: "https://fonts.googleapis.com" },
+        { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
+        ...(supabaseOrigin
+          ? [
+              {
+                rel: "preconnect" as const,
+                href: supabaseOrigin,
+                crossOrigin: "anonymous" as const,
+              },
+              { rel: "dns-prefetch" as const, href: supabaseOrigin },
+            ]
+          : []),
+        { rel: "preconnect", href: "https://api.audius.co" },
+        {
+          rel: "stylesheet",
+          href: "https://fonts.googleapis.com/css2?family=Archivo+Black&family=Manrope:wght@400;500;600;700;800&display=swap",
+        },
+      ],
     };
   },
   shellComponent: RootShell,
@@ -216,6 +222,8 @@ function RootComponent() {
           <CallOverlay />
           <WellbeingWatcher />
           <PushRegistrar />
+          {/* Creator fund: celebrates the $1 first-follower reward exactly once. */}
+          <FollowerRewardWatcher />
         </CallProvider>
         <PhoneAuthDialog />
         <OnboardingRequiredDialog />

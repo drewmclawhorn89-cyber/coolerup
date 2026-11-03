@@ -23,9 +23,6 @@ export type Plan = {
   offline: boolean;
 };
 
-/** Every plan gets the same 7 day free trial. */
-export const TRIAL_DAYS = 7;
-
 export const PLANS: Plan[] = [
   {
     id: "plus",

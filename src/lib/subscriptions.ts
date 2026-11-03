@@ -1,16 +1,9 @@
 import { useEffect, useState } from "react";
 
-import {
-  PLANS,
-  TRIAL_DAYS,
-  offlinePlan,
-  planById,
-  planIncludesOffline,
-  type Plan,
-} from "@/lib/plans";
+import { PLANS, offlinePlan, planById, planIncludesOffline, type Plan } from "@/lib/plans";
 
 export type { Plan };
-export { PLANS, TRIAL_DAYS, planById, planIncludesOffline, offlinePlan };
+export { PLANS, planById, planIncludesOffline, offlinePlan };
 
 export const VENMO_HANDLE = "Drew-McLawhorn-2";
 
@@ -167,26 +160,25 @@ export function providerLabel(pm: PaymentMethod): string {
 /*  Subscription record                                                       */
 /* -------------------------------------------------------------------------- */
 
-export type SubStatus = "trial" | "pending" | "active" | "expired";
+/**
+ * `expired` also covers the old `trial` status: free trials were removed, so any
+ * record still sitting on one is treated as ended and needs a paid plan.
+ */
+export type SubStatus = "pending" | "active" | "expired";
 
 export type Subscription = {
   planId: string;
   status: SubStatus;
-  /** when the trial began */
+  /** when the plan was first requested */
   startedAt: string;
-  /** when the free trial runs out */
-  trialEndsAt: string;
   /** set once the owner confirms the Venmo payment */
   paidAt: string | null;
-  /** card on file — required before a trial can start */
+  /** card on file, used to renew the plan */
   paymentMethod: PaymentMethod | null;
 };
 
 const key = (handle: string) => `subscription:${handle}`;
-const usedKey = (handle: string) => `trial-used:${handle}`;
 const EVT = "subscription-change";
-
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
  * Old versions stored a bare string ("pro" or "pending:pro"). Turn anything we
@@ -196,7 +188,8 @@ function migrate(raw: string): Subscription | null {
   if (!raw) return null;
   if (raw.startsWith("{")) {
     try {
-      return JSON.parse(raw) as Subscription;
+      const parsed = JSON.parse(raw) as Subscription & { trialEndsAt?: string };
+      return normalize(parsed);
     } catch {
       return null;
     }
@@ -207,40 +200,41 @@ function migrate(raw: string): Subscription | null {
       planId: raw.slice(8),
       status: "pending",
       startedAt: now.toISOString(),
-      trialEndsAt: new Date(now.getTime() + TRIAL_DAYS * DAY_MS).toISOString(),
       paidAt: null,
       paymentMethod: null,
     };
   }
-  // Legacy "active" plan with no dates — treat as active, no trial left.
+  // Legacy "active" plan with no dates.
   return {
     planId: raw,
     status: "active",
     startedAt: now.toISOString(),
-    trialEndsAt: now.toISOString(),
     paidAt: now.toISOString(),
     paymentMethod: null,
   };
 }
 
-/** Trial is over but they never paid -> "expired". */
-function withCurrentStatus(sub: Subscription): Subscription {
-  if (sub.status !== "trial") return sub;
-  if (Date.now() >= new Date(sub.trialEndsAt).getTime()) {
-    return { ...sub, status: "expired" };
-  }
-  return sub;
+/**
+ * Drops fields we no longer use and retires the old `trial` status, so a plan
+ * only ever reads as pending, active or expired.
+ */
+function normalize(sub: Subscription & { trialEndsAt?: string; status?: string }): Subscription {
+  const status: SubStatus =
+    sub.status === "active" || sub.status === "pending" ? sub.status : "expired";
+  return {
+    planId: sub.planId,
+    status,
+    startedAt: sub.startedAt,
+    paidAt: sub.paidAt ?? null,
+    paymentMethod: sub.paymentMethod ?? null,
+  };
 }
 
 export function getSubscription(handle?: string | null): Subscription | null {
   if (!handle || typeof window === "undefined") return null;
   const raw = localStorage.getItem(key(handle));
   if (!raw) return null;
-  const sub = migrate(raw);
-  if (!sub) return null;
-  // Records written before the card gate existed have no paymentMethod key.
-  const normalized: Subscription = { ...sub, paymentMethod: sub.paymentMethod ?? null };
-  return withCurrentStatus(normalized);
+  return migrate(raw);
 }
 
 /** True when there is a usable card on file. */
@@ -248,64 +242,10 @@ export function hasPaymentMethod(handle?: string | null): boolean {
   return Boolean(getSubscription(handle)?.paymentMethod);
 }
 
-/** Whole days left in the trial, rounded up. 0 once it has expired. */
-export function trialDaysLeft(sub: Subscription | null): number {
-  if (!sub || sub.status !== "trial") return 0;
-  const ms = new Date(sub.trialEndsAt).getTime() - Date.now();
-  return ms <= 0 ? 0 : Math.ceil(ms / DAY_MS);
-}
-
-/** One free trial per account, ever. */
-export function hasUsedTrial(handle?: string | null): boolean {
-  if (!handle || typeof window === "undefined") return false;
-  return localStorage.getItem(usedKey(handle)) === "1";
-}
-
-export function canStartTrial(handle?: string | null): boolean {
-  if (!handle) return false;
-  const sub = getSubscription(handle);
-  if (sub && (sub.status === "trial" || sub.status === "active" || sub.status === "pending"))
-    return false;
-  return !hasUsedTrial(handle);
-}
-
 function write(handle: string, sub: Subscription | null) {
   if (sub) localStorage.setItem(key(handle), JSON.stringify(sub));
   else localStorage.removeItem(key(handle));
   window.dispatchEvent(new Event(EVT));
-}
-
-/**
- * Start the 7 day free trial. A card on file is required first — the card is
- * not charged today, but it is what gets billed when the trial ends.
- * Throws if no valid payment method was supplied.
- */
-export function startTrial(
-  handle: string,
-  planId: string,
-  paymentMethod: PaymentMethod,
-): Subscription {
-  if (!paymentMethod) {
-    throw new Error("A payment method is required to start the trial");
-  }
-  const now = new Date();
-  const sub: Subscription = {
-    planId,
-    status: "trial",
-    startedAt: now.toISOString(),
-    trialEndsAt: new Date(now.getTime() + TRIAL_DAYS * DAY_MS).toISOString(),
-    paidAt: null,
-    paymentMethod,
-  };
-  localStorage.setItem(usedKey(handle), "1");
-  write(handle, sub);
-  return sub;
-}
-
-/** When the first real charge happens if they don't cancel. */
-export function firstChargeDate(sub: Subscription | null): Date | null {
-  if (!sub || sub.status !== "trial") return null;
-  return new Date(sub.trialEndsAt);
 }
 
 /** Update the card on an existing subscription. */
@@ -327,8 +267,6 @@ export function requestPayment(handle: string, planId: string) {
     planId,
     status: "pending",
     startedAt: existing?.startedAt ?? now.toISOString(),
-    trialEndsAt:
-      existing?.trialEndsAt ?? new Date(now.getTime() + TRIAL_DAYS * DAY_MS).toISOString(),
     paidAt: null,
     paymentMethod: existing?.paymentMethod ?? null,
   });
@@ -347,7 +285,7 @@ export function cancelSubscription(handle: string) {
 
 /** True when the plan is giving them perks right now. */
 export function isActive(sub: Subscription | null): boolean {
-  return sub?.status === "trial" || sub?.status === "active";
+  return sub?.status === "active";
 }
 
 /* -------------------------------------------------------------------------- */
@@ -359,8 +297,7 @@ export function isActive(sub: Subscription | null): boolean {
  *
  * Access requires a live subscription *and* a plan that includes the feature.
  * A `pending` or `expired` subscription does not count: the plan has to be
- * currently giving them perks (trial or active) for the offline library to
- * unlock.
+ * paid and active for the offline library to unlock.
  */
 export function hasOfflineAccess(handle?: string | null): boolean {
   const sub = getSubscription(handle);
@@ -386,7 +323,7 @@ export function useSubscription(handle?: string | null) {
     const sync = () => setSub(getSubscription(handle));
     sync();
     window.addEventListener(EVT, sync);
-    // Re-check on focus so a trial that lapses mid-session flips to expired.
+    // Re-check on focus so a plan cancelled elsewhere updates mid-session.
     window.addEventListener("focus", sync);
     return () => {
       window.removeEventListener(EVT, sync);

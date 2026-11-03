@@ -9,6 +9,7 @@ import {
   packById,
 } from "@/lib/coins";
 import {
+  DEFAULT_VENMO_RECIPIENT,
   amountString,
   buildVenmoNote,
   makeReferenceCode,
@@ -102,7 +103,10 @@ export type CoinPaymentStatus = {
 
 /** The Coolerup Venmo account buyers send money to, e.g. `@coolerup`. */
 function venmoRecipient(): string | null {
-  return normalizeVenmoHandle(process.env["VENMO_RECIPIENT"]);
+  return (
+    normalizeVenmoHandle(process.env["VENMO_RECIPIENT"]) ??
+    normalizeVenmoHandle(DEFAULT_VENMO_RECIPIENT)
+  );
 }
 
 export const coinPaymentStatus = createServerFn({ method: "GET" }).handler(

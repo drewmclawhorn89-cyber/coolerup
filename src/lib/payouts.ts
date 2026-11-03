@@ -57,6 +57,8 @@ export type GiftEarning = {
   amount: number;
   createdAt: string;
   giftType: string;
+  /** Same as `giftType`; the `gift_claims.gift` column. */
+  gift: string;
   coins: number;
   quantity: number;
   liveId: string;
@@ -244,6 +246,7 @@ export async function myGiftEarnings(limit = 50): Promise<GiftEarning[]> {
       amount: num(row["amount"]),
       createdAt: String(row["created_at"] ?? ""),
       giftType: String(row["gift_type"] ?? "gift"),
+      gift: String(row["gift"] ?? row["gift_type"] ?? "gift"),
       coins: num(row["coins"]),
       quantity: num(row["quantity"], 1),
       liveId: String(row["live_id"] ?? ""),

@@ -229,14 +229,18 @@ function CreatorPage() {
           <ul className="mt-3 divide-y divide-white/5">
             {fund.earnings.map((e) => (
               <li key={e.id} className="flex items-center justify-between gap-3 py-2.5">
-                <div>
-                  <p className="text-sm font-medium">{formatViews(e.milestoneViews)} views</p>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium">
+                    {e.videoUsername ? `@${e.videoUsername}` : "Video"} got{" "}
+                    {formatViews(e.milestoneViews)} views
+                  </p>
                   <p className="text-xs text-white/45">
+                    {e.caption ? `${e.caption} · ` : ""}
                     {new Date(e.createdAt).toLocaleDateString()}
                   </p>
                 </div>
-                <p className="text-sm font-semibold tabular-nums text-emerald-300">
-                  +{formatUsd(e.amount)}
+                <p className="shrink-0 text-sm font-semibold tabular-nums text-emerald-300">
+                  +{formatUsd(e.earnings || e.amount)}
                 </p>
               </li>
             ))}

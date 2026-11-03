@@ -390,6 +390,32 @@ function WalletPage() {
                 );
               })}
             </ul>
+            {(fund?.videos ?? []).some((v) => v.views > 0) ? (
+              <div className="mt-4">
+                <p className="text-[10px] uppercase tracking-wide text-white/40">
+                  Earnings by video
+                </p>
+                <ul className="mt-1.5 space-y-1.5">
+                  {(fund?.videos ?? [])
+                    .filter((v) => v.views > 0)
+                    .slice(0, 5)
+                    .map((v) => (
+                      <li
+                        key={v.videoId}
+                        className="flex items-center justify-between gap-3 rounded-lg bg-black/20 px-3 py-2"
+                      >
+                        <span className="min-w-0 truncate text-sm text-white/70">
+                          {v.videoUsername ? `@${v.videoUsername}` : "Video"} got{" "}
+                          {formatViews(v.views)} views
+                        </span>
+                        <span className="shrink-0 text-sm font-semibold tabular-nums text-emerald-300">
+                          {formatUsd(v.earnings)}
+                        </span>
+                      </li>
+                    ))}
+                </ul>
+              </div>
+            ) : null}
             <Link
               to="/creator"
               className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-[#25f4ee]"

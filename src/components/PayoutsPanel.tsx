@@ -111,7 +111,9 @@ export function PayoutsPanel() {
   );
 
   const payViaVenmo = (row: AdminPayoutRow) => {
-    const handle = row.method === "venmo" ? row.destination : null;
+    // `destination` is what the creator asked for; `venmoHandle` is their saved
+    // profile handle, used when the request didn't carry one.
+    const handle = row.method === "venmo" ? (row.destination ?? row.venmoHandle) : null;
     if (!handle) {
       toast.error("This request has no Venmo handle");
       return;

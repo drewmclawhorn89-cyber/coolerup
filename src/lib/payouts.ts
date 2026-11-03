@@ -37,6 +37,8 @@ export type Wallet = {
   totalEarned: number;
   coins: number;
   cashable: number;
+  /** The creator's saved Venmo username, if they set one. */
+  venmoHandle: string | null;
 };
 
 export type EarningsSummary = {
@@ -81,6 +83,8 @@ export type PayoutRow = {
 
 export type AdminPayoutRow = PayoutRow & {
   userId: string;
+  /** The creator's saved Venmo handle, used when the request has none. */
+  venmoHandle: string | null;
   username: string;
   displayName: string | null;
   avatarUrl: string | null;
@@ -183,6 +187,7 @@ const EMPTY_WALLET: Wallet = {
   totalEarned: 0,
   coins: 0,
   cashable: 0,
+  venmoHandle: null,
 };
 
 /** Reads the signed-in user's diamonds, real balance and coin balance. */
@@ -198,6 +203,7 @@ export async function myWallet(): Promise<Wallet> {
       totalEarned: num(data["totalEarned"]),
       coins: num(data["coins"]),
       cashable: num(data["cashable"], cashableBalance(diamonds, realBalance)),
+      venmoHandle: str(data["venmoHandle"]),
     };
   } catch {
     // A missing migration must never break the app.
@@ -284,39 +290,92 @@ function mapPayout(row: Record<string, unknown>): PayoutRow {
 }
 
 /**
- * Asks for a cashout. The database checks the $10 minimum and the available
- * balance, and deducts the money before the row is written, so a double tap
- * cannot overdraw the wallet.
+ * Asks for a cashout.
+ *
+ * Every argument is optional: with none, the database pays the creator's whole
+ * cashable balance to their saved Venmo handle in one tap. The database checks
+ * the $10 minimum and the available balance, and deducts the money before the
+ * row is written, so a double tap cannot overdraw the wallet.
  */
-export async function requestPayout(input: {
-  amount: number;
-  method: PayoutMethod;
-  destination: string;
-}): Promise<{ ok: boolean; error?: string; amount?: number }> {
-  const destination =
-    input.method === "venmo"
-      ? normalizeVenmoHandle(input.destination)
-      : input.destination.trim().toLowerCase();
-  if (!destination) {
+export async function requestPayout(
+  input: { amount?: number; method?: PayoutMethod; destination?: string } = {},
+): Promise<{ ok: boolean; error?: string; amount?: number; destination?: string | null }> {
+  const method = input.method ?? "venmo";
+  const raw = input.destination?.trim() ?? "";
+  const destination = raw
+    ? method === "venmo"
+      ? normalizeVenmoHandle(raw)
+      : raw.toLowerCase()
+    : null;
+  if (raw && !destination) {
     return {
       ok: false,
-      error: input.method === "venmo" ? "Enter your Venmo username" : "Enter your Stripe email",
+      error:
+        method === "venmo" ? "That doesn't look like a Venmo username" : "Enter your Stripe email",
     };
   }
   try {
     const data = obj(
       await rpc<unknown>("request_payout", {
-        p_amount: input.amount,
-        p_method: input.method,
+        p_amount: input.amount ?? null,
+        p_method: method,
         p_destination: destination,
       }),
     );
     if (data["ok"] === false) {
-      return { ok: false, error: String(data["error"] ?? "Couldn't request a payout") };
+      return { ok: false, error: payoutErrorMessage(String(data["error"] ?? "")) };
     }
-    return { ok: true, amount: num(data["amount"], input.amount) };
+    return {
+      ok: true,
+      amount: num(data["amount"], input.amount ?? 0),
+      destination: str(data["destination"]),
+    };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Couldn't request a payout" };
+  }
+}
+
+/** Turns the database's error codes into something a creator can act on. */
+function payoutErrorMessage(code: string): string {
+  switch (code) {
+    case "not_signed_in":
+      return "Sign in to cash out";
+    case "invalid_method":
+      return "Pick Venmo or Stripe";
+    case "below_minimum":
+      return `The minimum cashout is ${formatUsd(MIN_PAYOUT)}`;
+    case "insufficient_balance":
+      return "That's more than your cashable balance";
+    case "venmo_handle_required":
+      return "Add your Venmo username first";
+    default:
+      return code || "Couldn't request a payout";
+  }
+}
+
+/** Saves the creator's own Venmo handle so cashouts go to their account. */
+export async function setMyVenmoHandle(
+  handle: string,
+): Promise<{ ok: boolean; venmoHandle?: string | null; error?: string }> {
+  const cleaned = handle.trim();
+  if (cleaned && !normalizeVenmoHandle(cleaned)) {
+    return { ok: false, error: "That doesn't look like a Venmo username" };
+  }
+  try {
+    const data = obj(await rpc<unknown>("set_my_venmo_handle", { p_handle: cleaned }));
+    if (data["ok"] === false) {
+      const code = String(data["error"] ?? "");
+      return {
+        ok: false,
+        error:
+          code === "invalid_venmo_handle"
+            ? "That doesn't look like a Venmo username"
+            : "Couldn't save it",
+      };
+    }
+    return { ok: true, venmoHandle: str(data["venmoHandle"]) };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Couldn't save it" };
   }
 }
 
@@ -329,6 +388,7 @@ export async function adminPayouts(limit = 200): Promise<AdminPayoutRow[]> {
   return list(data["payouts"]).map((row) => ({
     ...mapPayout(row),
     userId: String(row["user_id"] ?? ""),
+    venmoHandle: str(row["venmo_handle"]),
     username: String(row["username"] ?? "unknown"),
     displayName: str(row["display_name"]),
     avatarUrl: str(row["avatar_url"]),

@@ -12,7 +12,7 @@ import {
 export type { Plan };
 export { PLANS, TRIAL_DAYS, planById, planIncludesOffline, offlinePlan };
 
-export const VENMO_HANDLE = "Samantha-Barnes-168";
+export const VENMO_HANDLE = "Drew-McLawhorn-2";
 
 export function venmoUrl(plan: Plan, handle?: string | null) {
   const note = encodeURIComponent(

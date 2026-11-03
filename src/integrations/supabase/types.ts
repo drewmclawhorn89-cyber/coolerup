@@ -1,1661 +1,2054 @@
-export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[]
 
 export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.18";
-  };
+    PostgrestVersion: "14.18"
+  }
   public: {
     Tables: {
       app_settings: {
         Row: {
-          id: number;
-          is_maintenance: boolean | null;
-          maintenance_message: string | null;
-          updated_at: string | null;
-        };
+          id: number
+          is_maintenance: boolean | null
+          maintenance_message: string | null
+          updated_at: string | null
+        }
         Insert: {
-          id?: number;
-          is_maintenance?: boolean | null;
-          maintenance_message?: string | null;
-          updated_at?: string | null;
-        };
+          id?: number
+          is_maintenance?: boolean | null
+          maintenance_message?: string | null
+          updated_at?: string | null
+        }
         Update: {
-          id?: number;
-          is_maintenance?: boolean | null;
-          maintenance_message?: string | null;
-          updated_at?: string | null;
-        };
-        Relationships: [];
-      };
+          id?: number
+          is_maintenance?: boolean | null
+          maintenance_message?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       banned_users: {
         Row: {
-          auto: boolean;
-          banned_at: string;
-          banned_by: string | null;
-          created_at: string;
-          expires_at: string | null;
-          id: string;
-          is_permanent: boolean;
-          kind: string;
-          reason: string | null;
-          report_count: number | null;
-          user_id: string | null;
-          username: string;
-        };
+          auto: boolean
+          banned_at: string
+          banned_by: string | null
+          created_at: string
+          expires_at: string | null
+          id: string
+          is_permanent: boolean
+          kind: string
+          reason: string | null
+          report_count: number | null
+          user_id: string | null
+          username: string
+        }
         Insert: {
-          auto?: boolean;
-          banned_at?: string;
-          banned_by?: string | null;
-          created_at?: string;
-          expires_at?: string | null;
-          id?: string;
-          is_permanent?: boolean;
-          kind?: string;
-          reason?: string | null;
-          report_count?: number | null;
-          user_id?: string | null;
-          username: string;
-        };
+          auto?: boolean
+          banned_at?: string
+          banned_by?: string | null
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          is_permanent?: boolean
+          kind?: string
+          reason?: string | null
+          report_count?: number | null
+          user_id?: string | null
+          username: string
+        }
         Update: {
-          auto?: boolean;
-          banned_at?: string;
-          banned_by?: string | null;
-          created_at?: string;
-          expires_at?: string | null;
-          id?: string;
-          is_permanent?: boolean;
-          kind?: string;
-          reason?: string | null;
-          report_count?: number | null;
-          user_id?: string | null;
-          username?: string;
-        };
-        Relationships: [];
-      };
+          auto?: boolean
+          banned_at?: string
+          banned_by?: string | null
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          is_permanent?: boolean
+          kind?: string
+          reason?: string | null
+          report_count?: number | null
+          user_id?: string | null
+          username?: string
+        }
+        Relationships: []
+      }
       banned_words: {
         Row: {
-          created_at: string;
-          id: string;
-          severity: string;
-          word: string;
-        };
+          created_at: string
+          id: string
+          severity: string
+          word: string
+        }
         Insert: {
-          created_at?: string;
-          id?: string;
-          severity?: string;
-          word: string;
-        };
+          created_at?: string
+          id?: string
+          severity?: string
+          word: string
+        }
         Update: {
-          created_at?: string;
-          id?: string;
-          severity?: string;
-          word?: string;
-        };
-        Relationships: [];
-      };
+          created_at?: string
+          id?: string
+          severity?: string
+          word?: string
+        }
+        Relationships: []
+      }
       blocked_users: {
         Row: {
-          blocked_username: string;
-          blocker_id: string;
-          blocker_username: string;
-          created_at: string;
-          id: string;
-        };
+          blocked_username: string
+          blocker_id: string
+          blocker_username: string
+          created_at: string
+          id: string
+        }
         Insert: {
-          blocked_username: string;
-          blocker_id: string;
-          blocker_username: string;
-          created_at?: string;
-          id?: string;
-        };
+          blocked_username: string
+          blocker_id: string
+          blocker_username: string
+          created_at?: string
+          id?: string
+        }
         Update: {
-          blocked_username?: string;
-          blocker_id?: string;
-          blocker_username?: string;
-          created_at?: string;
-          id?: string;
-        };
-        Relationships: [];
-      };
-      comments: {
-        Row: {
-          body: string;
-          created_at: string;
-          gif_url: string | null;
-          id: string;
-          parent_id: string | null;
-          username: string;
-          video_id: string;
-        };
-        Insert: {
-          body: string;
-          created_at?: string;
-          gif_url?: string | null;
-          id?: string;
-          parent_id?: string | null;
-          username: string;
-          video_id: string;
-        };
-        Update: {
-          body?: string;
-          created_at?: string;
-          id?: string;
-          username?: string;
-          video_id?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: "comments_video_id_fkey";
-            columns: ["video_id"];
-            isOneToOne: false;
-            referencedRelation: "videos";
-            referencedColumns: ["id"];
-          },
-        ];
-      };
-      direct_messages: {
-        Row: {
-          created_at: string;
-          from_id: string | null;
-          from_username: string;
-          id: string;
-          message: string;
-          to_id: string | null;
-          to_username: string;
-        };
-        Insert: {
-          created_at?: string;
-          from_id?: string | null;
-          from_username: string;
-          id?: string;
-          message: string;
-          to_id?: string | null;
-          to_username: string;
-        };
-        Update: {
-          created_at?: string;
-          from_id?: string | null;
-          from_username?: string;
-          id?: string;
-          message?: string;
-          to_id?: string | null;
-          to_username?: string;
-        };
-        Relationships: [];
-      };
-      follows: {
-        Row: {
-          created_at: string;
-          follower_id: string | null;
-          follower_username: string;
-          following_username: string;
-          id: string;
-        };
-        Insert: {
-          created_at?: string;
-          follower_id?: string | null;
-          follower_username: string;
-          following_username: string;
-          id?: string;
-        };
-        Update: {
-          created_at?: string;
-          follower_id?: string | null;
-          follower_username?: string;
-          following_username?: string;
-          id?: string;
-        };
-        Relationships: [];
-      };
-      gift_card_orders: {
-        Row: {
-          amount_cents: number;
-          card_id: string;
-          card_name: string;
-          code: string | null;
-          created_at: string;
-          id: string;
-          payment_intent_id: string | null;
-          provider_order_id: string | null;
-          recipient_email: string;
-          redemption_url: string | null;
-          status: string;
-          user_id: string;
-        };
-        Insert: {
-          amount_cents: number;
-          card_id: string;
-          card_name: string;
-          code?: string | null;
-          created_at?: string;
-          id?: string;
-          payment_intent_id?: string | null;
-          provider_order_id?: string | null;
-          recipient_email: string;
-          redemption_url?: string | null;
-          status?: string;
-          user_id: string;
-        };
-        Update: {
-          amount_cents?: number;
-          card_id?: string;
-          card_name?: string;
-          code?: string | null;
-          created_at?: string;
-          id?: string;
-          payment_intent_id?: string | null;
-          provider_order_id?: string | null;
-          recipient_email?: string;
-          redemption_url?: string | null;
-          status?: string;
-          user_id?: string;
-        };
-        Relationships: [];
-      };
-      likes: {
-        Row: {
-          created_at: string;
-          device_id: string | null;
-          user_id: string | null;
-          video_id: string;
-        };
-        Insert: {
-          created_at?: string;
-          device_id?: string | null;
-          user_id?: string | null;
-          video_id: string;
-        };
-        Update: {
-          created_at?: string;
-          device_id?: string | null;
-          user_id?: string | null;
-          video_id?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: "likes_video_id_fkey";
-            columns: ["video_id"];
-            isOneToOne: false;
-            referencedRelation: "videos";
-            referencedColumns: ["id"];
-          },
-        ];
-      };
-      messages: {
-        Row: {
-          created_at: string | null;
-          id: string;
-          message: string | null;
-          receiver_id: string | null;
-          sender_id: string | null;
-        };
-        Insert: {
-          created_at?: string | null;
-          id?: string;
-          message?: string | null;
-          receiver_id?: string | null;
-          sender_id?: string | null;
-        };
-        Update: {
-          created_at?: string | null;
-          id?: string;
-          message?: string | null;
-          receiver_id?: string | null;
-          sender_id?: string | null;
-        };
-        Relationships: [];
-      };
-      muted_words: {
-        Row: {
-          id: string;
-          word: string;
-        };
-        Insert: {
-          id?: string;
-          word: string;
-        };
-        Update: {
-          id?: string;
-          word?: string;
-        };
-        Relationships: [];
-      };
-      notifications: {
-        Row: {
-          actor_user_id: string | null;
-          created_at: string | null;
-          id: string;
-          read: boolean | null;
-          target_user_id: string | null;
-          text: string | null;
-          type: string | null;
-          video_id: string | null;
-        };
-        Insert: {
-          actor_user_id?: string | null;
-          created_at?: string | null;
-          id?: string;
-          read?: boolean | null;
-          target_user_id?: string | null;
-          text?: string | null;
-          type?: string | null;
-          video_id?: string | null;
-        };
-        Update: {
-          actor_user_id?: string | null;
-          created_at?: string | null;
-          id?: string;
-          read?: boolean | null;
-          target_user_id?: string | null;
-          text?: string | null;
-          type?: string | null;
-          video_id?: string | null;
-        };
-        Relationships: [
-          {
-            foreignKeyName: "notifications_video_id_fkey";
-            columns: ["video_id"];
-            isOneToOne: false;
-            referencedRelation: "videos";
-            referencedColumns: ["id"];
-          },
-        ];
-      };
-      profiles: {
-        Row: {
-          avatar_url: string | null;
-          bio: string | null;
-          birthday: string | null;
-          created_at: string;
-          display_name: string | null;
-          handle: string;
-          id: string;
-          links: Json;
-          onboarding_complete: boolean;
-          show_liked: boolean;
-          username: string | null;
-          venmo_handle: string | null;
-        };
-        Insert: {
-          avatar_url?: string | null;
-          bio?: string | null;
-          birthday?: string | null;
-          created_at?: string;
-          display_name?: string | null;
-          handle: string;
-          id: string;
-          links?: Json;
-          onboarding_complete?: boolean;
-          show_liked?: boolean;
-          username?: string | null;
-          venmo_handle?: string | null;
-        };
-        Update: {
-          avatar_url?: string | null;
-          bio?: string | null;
-          birthday?: string | null;
-          created_at?: string;
-          display_name?: string | null;
-          handle?: string;
-          id?: string;
-          links?: Json;
-          onboarding_complete?: boolean;
-          show_liked?: boolean;
-          username?: string | null;
-          venmo_handle?: string | null;
-        };
-        Relationships: [];
-      };
-      reserved_usernames: {
-        Row: {
-          username: string;
-          reason: string | null;
-        };
-        Insert: {
-          username: string;
-          reason?: string | null;
-        };
-        Update: {
-          username?: string;
-          reason?: string | null;
-        };
-        Relationships: [];
-      };
-      reports: {
-        Row: {
-          action_taken: string | null;
-          auto_actioned: boolean;
-          created_at: string;
-          details: string | null;
-          id: string;
-          reason: string;
-          reported_user_id: string | null;
-          reported_username: string;
-          reported_video_id: string | null;
-          reporter_id: string;
-          reporter_username: string;
-          status: string;
-          video_id: string | null;
-        };
-        Insert: {
-          action_taken?: string | null;
-          auto_actioned?: boolean;
-          created_at?: string;
-          details?: string | null;
-          id?: string;
-          reason: string;
-          reported_user_id?: string | null;
-          reported_username: string;
-          reported_video_id?: string | null;
-          reporter_id: string;
-          reporter_username: string;
-          status?: string;
-          video_id?: string | null;
-        };
-        Update: {
-          action_taken?: string | null;
-          auto_actioned?: boolean;
-          created_at?: string;
-          details?: string | null;
-          id?: string;
-          reason?: string;
-          reported_user_id?: string | null;
-          reported_username?: string;
-          reported_video_id?: string | null;
-          reporter_id?: string;
-          reporter_username?: string;
-          status?: string;
-          video_id?: string | null;
-        };
-        Relationships: [];
-      };
-      reposts: {
-        Row: { created_at: string; id: string; user_id: string; video_id: string };
-        Insert: { created_at?: string; id?: string; user_id: string; video_id: string };
-        Update: { created_at?: string; id?: string; user_id?: string; video_id?: string };
-        Relationships: [
-          {
-            foreignKeyName: "reposts_video_id_fkey";
-            columns: ["video_id"];
-            isOneToOne: false;
-            referencedRelation: "videos";
-            referencedColumns: ["id"];
-          },
-        ];
-      };
-      stories: {
-        Row: {
-          created_at: string;
-          expires_at: string;
-          id: string;
-          media_type: string;
-          media_url: string;
-          user_id: string;
-          username: string;
-        };
-        Insert: {
-          created_at?: string;
-          expires_at?: string;
-          id?: string;
-          media_type?: string;
-          media_url: string;
-          user_id: string;
-          username: string;
-        };
-        Update: {
-          created_at?: string;
-          expires_at?: string;
-          id?: string;
-          media_type?: string;
-          media_url?: string;
-          user_id?: string;
-          username?: string;
-        };
-        Relationships: [];
-      };
-      story_likes: {
-        Row: { created_at: string; id: string; story_id: string; user_id: string };
-        Insert: { created_at?: string; id?: string; story_id: string; user_id: string };
-        Update: { created_at?: string; id?: string; story_id?: string; user_id?: string };
-        Relationships: [
-          {
-            foreignKeyName: "story_likes_story_id_fkey";
-            columns: ["story_id"];
-            isOneToOne: false;
-            referencedRelation: "stories";
-            referencedColumns: ["id"];
-          },
-        ];
-      };
-      saved_videos: {
-        Row: { created_at: string; user_id: string; video_id: string };
-        Insert: { created_at?: string; user_id: string; video_id: string };
-        Update: { created_at?: string; user_id?: string; video_id?: string };
-        Relationships: [
-          {
-            foreignKeyName: "saved_videos_video_id_fkey";
-            columns: ["video_id"];
-            isOneToOne: false;
-            referencedRelation: "videos";
-            referencedColumns: ["id"];
-          },
-        ];
-      };
-      sounds: {
-        Row: {
-          audio_url: string;
-          created_at: string;
-          creator_username: string;
-          id: string;
-          original_video_id: string | null;
-          title: string;
-          uses_count: number;
-        };
-        Insert: {
-          audio_url: string;
-          created_at?: string;
-          creator_username: string;
-          id?: string;
-          original_video_id?: string | null;
-          title: string;
-          uses_count?: number;
-        };
-        Update: {
-          audio_url?: string;
-          created_at?: string;
-          creator_username?: string;
-          id?: string;
-          original_video_id?: string | null;
-          title?: string;
-          uses_count?: number;
-        };
-        Relationships: [
-          {
-            foreignKeyName: "sounds_original_video_id_fkey";
-            columns: ["original_video_id"];
-            isOneToOne: true;
-            referencedRelation: "videos";
-            referencedColumns: ["id"];
-          },
-        ];
-      };
-      user_roles: {
-        Row: {
-          id: string;
-          role: Database["public"]["Enums"]["app_role"];
-          user_id: string;
-        };
-        Insert: {
-          id?: string;
-          role: Database["public"]["Enums"]["app_role"];
-          user_id: string;
-        };
-        Update: {
-          id?: string;
-          role?: Database["public"]["Enums"]["app_role"];
-          user_id?: string;
-        };
-        Relationships: [];
-      };
-      videos: {
-        Row: {
-          caption: string;
-          comments_count: number;
-          created_at: string;
-          hidden: boolean;
-          hidden_reason: string | null;
-          id: string;
-          likes_count: number;
-          reposts_count: number;
-          shares_count: number;
-          sound_id: string | null;
-          user_id: string | null;
-          username: string;
-          video_url: string;
-          video_1080_url: string | null;
-          video_720_url: string | null;
-          video_480_url: string | null;
-          video_360_url: string | null;
-          quality: string;
-        };
-        Insert: {
-          caption?: string;
-          comments_count?: number;
-          created_at?: string;
-          hidden?: boolean;
-          hidden_reason?: string | null;
-          id?: string;
-          likes_count?: number;
-          reposts_count?: number;
-          shares_count?: number;
-          sound_id?: string | null;
-          user_id?: string | null;
-          username: string;
-          video_url: string;
-          video_1080_url?: string | null;
-          video_720_url?: string | null;
-          video_480_url?: string | null;
-          video_360_url?: string | null;
-          quality?: string;
-        };
-        Update: {
-          caption?: string;
-          comments_count?: number;
-          created_at?: string;
-          hidden?: boolean;
-          hidden_reason?: string | null;
-          id?: string;
-          likes_count?: number;
-          reposts_count?: number;
-          shares_count?: number;
-          sound_id?: string | null;
-          user_id?: string | null;
-          username?: string;
-          video_url?: string;
-          video_1080_url?: string | null;
-          video_720_url?: string | null;
-          video_480_url?: string | null;
-          video_360_url?: string | null;
-          quality?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: "videos_sound_id_fkey";
-            columns: ["sound_id"];
-            isOneToOne: false;
-            referencedRelation: "sounds";
-            referencedColumns: ["id"];
-          },
-        ];
-      };
-      moderation_log: {
-        Row: {
-          action: string;
-          actor: string | null;
-          auto: boolean;
-          created_at: string;
-          expires_at: string | null;
-          id: string;
-          is_permanent: boolean;
-          reason: string | null;
-          report_count: number | null;
-          user_id: string | null;
-          username: string | null;
-          window_hours: number | null;
-        };
-        Insert: {
-          action: string;
-          actor?: string | null;
-          auto?: boolean;
-          created_at?: string;
-          expires_at?: string | null;
-          id?: string;
-          is_permanent?: boolean;
-          reason?: string | null;
-          report_count?: number | null;
-          user_id?: string | null;
-          username?: string | null;
-          window_hours?: number | null;
-        };
-        Update: {
-          action?: string;
-          actor?: string | null;
-          auto?: boolean;
-          created_at?: string;
-          expires_at?: string | null;
-          id?: string;
-          is_permanent?: boolean;
-          reason?: string | null;
-          report_count?: number | null;
-          user_id?: string | null;
-          username?: string | null;
-          window_hours?: number | null;
-        };
-        Relationships: [];
-      };
+          blocked_username?: string
+          blocker_id?: string
+          blocker_username?: string
+          created_at?: string
+          id?: string
+        }
+        Relationships: []
+      }
       coin_cashouts: {
         Row: {
-          amount_cents: number;
-          coins: number;
-          created_at: string;
-          diamonds: number;
-          id: string;
-          status: string;
-          user_id: string;
-        };
+          amount_cents: number
+          coins: number
+          created_at: string
+          diamonds: number
+          id: string
+          status: string
+          user_id: string
+        }
         Insert: {
-          amount_cents: number;
-          coins: number;
-          created_at?: string;
-          diamonds: number;
-          id?: string;
-          status?: string;
-          user_id: string;
-        };
+          amount_cents: number
+          coins: number
+          created_at?: string
+          diamonds: number
+          id?: string
+          status?: string
+          user_id: string
+        }
         Update: {
-          amount_cents?: number;
-          coins?: number;
-          created_at?: string;
-          diamonds?: number;
-          id?: string;
-          status?: string;
-          user_id?: string;
-        };
-        Relationships: [];
-      };
+          amount_cents?: number
+          coins?: number
+          created_at?: string
+          diamonds?: number
+          id?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coin_cashouts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       coin_purchases: {
         Row: {
-          amount_cents: number;
-          coins: number;
-          created_at: string;
-          id: string;
-          pack_id: string;
-          paid_at: string | null;
-          status: string;
-          stripe_session_id: string | null;
-          user_id: string;
-        };
+          amount_cents: number
+          coins: number
+          created_at: string
+          id: string
+          pack_id: string
+          paid_at: string | null
+          status: string
+          stripe_session_id: string | null
+          user_id: string
+        }
         Insert: {
-          amount_cents: number;
-          coins: number;
-          created_at?: string;
-          id?: string;
-          pack_id: string;
-          paid_at?: string | null;
-          status?: string;
-          stripe_session_id?: string | null;
-          user_id: string;
-        };
+          amount_cents: number
+          coins: number
+          created_at?: string
+          id?: string
+          pack_id: string
+          paid_at?: string | null
+          status?: string
+          stripe_session_id?: string | null
+          user_id: string
+        }
         Update: {
-          amount_cents?: number;
-          coins?: number;
-          created_at?: string;
-          id?: string;
-          pack_id?: string;
-          paid_at?: string | null;
-          status?: string;
-          stripe_session_id?: string | null;
-          user_id?: string;
-        };
-        Relationships: [];
-      };
+          amount_cents?: number
+          coins?: number
+          created_at?: string
+          id?: string
+          pack_id?: string
+          paid_at?: string | null
+          status?: string
+          stripe_session_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coin_purchases_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       coin_venmo_orders: {
         Row: {
-          admin_note: string | null;
-          amount_cents: number;
-          coins: number;
-          created_at: string;
-          id: string;
-          pack_id: string;
-          payer_handle: string | null;
-          reference_code: string;
-          reviewed_at: string | null;
-          reviewed_by: string | null;
-          status: string;
-          updated_at: string;
-          user_id: string;
-          venmo_note: string | null;
-        };
+          admin_note: string | null
+          amount_cents: number
+          coins: number
+          created_at: string
+          id: string
+          pack_id: string
+          payer_handle: string | null
+          reference_code: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          updated_at: string
+          user_id: string
+          venmo_note: string | null
+        }
         Insert: {
-          admin_note?: string | null;
-          amount_cents: number;
-          coins: number;
-          created_at?: string;
-          id?: string;
-          pack_id: string;
-          payer_handle?: string | null;
-          reference_code: string;
-          reviewed_at?: string | null;
-          reviewed_by?: string | null;
-          status?: string;
-          updated_at?: string;
-          user_id: string;
-          venmo_note?: string | null;
-        };
+          admin_note?: string | null
+          amount_cents: number
+          coins: number
+          created_at?: string
+          id?: string
+          pack_id: string
+          payer_handle?: string | null
+          reference_code: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+          venmo_note?: string | null
+        }
         Update: {
-          admin_note?: string | null;
-          amount_cents?: number;
-          coins?: number;
-          created_at?: string;
-          id?: string;
-          pack_id?: string;
-          payer_handle?: string | null;
-          reference_code?: string;
-          reviewed_at?: string | null;
-          reviewed_by?: string | null;
-          status?: string;
-          updated_at?: string;
-          user_id?: string;
-          venmo_note?: string | null;
-        };
-        Relationships: [];
-      };
+          admin_note?: string | null
+          amount_cents?: number
+          coins?: number
+          created_at?: string
+          id?: string
+          pack_id?: string
+          payer_handle?: string | null
+          reference_code?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+          venmo_note?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coin_venmo_orders_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      comments: {
+        Row: {
+          body: string
+          created_at: string
+          gif_url: string | null
+          id: string
+          parent_id: string | null
+          username: string
+          video_id: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          gif_url?: string | null
+          id?: string
+          parent_id?: string | null
+          username: string
+          video_id: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          gif_url?: string | null
+          id?: string
+          parent_id?: string | null
+          username?: string
+          video_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comments_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "comments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comments_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "videos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      creator_fund_earnings: {
+        Row: {
+          amount: number
+          created_at: string
+          earnings: number
+          id: string
+          milestone_views: number
+          user_id: string
+          video_id: string | null
+          views: number
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          earnings?: number
+          id?: string
+          milestone_views: number
+          user_id: string
+          video_id?: string | null
+          views?: number
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          earnings?: number
+          id?: string
+          milestone_views?: number
+          user_id?: string
+          video_id?: string | null
+          views?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "creator_fund_earnings_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "creator_fund_earnings_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "videos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      direct_messages: {
+        Row: {
+          created_at: string
+          from_id: string | null
+          from_username: string
+          id: string
+          message: string
+          to_id: string | null
+          to_username: string
+        }
+        Insert: {
+          created_at?: string
+          from_id?: string | null
+          from_username: string
+          id?: string
+          message: string
+          to_id?: string | null
+          to_username: string
+        }
+        Update: {
+          created_at?: string
+          from_id?: string | null
+          from_username?: string
+          id?: string
+          message?: string
+          to_id?: string | null
+          to_username?: string
+        }
+        Relationships: []
+      }
+      follower_rewards: {
+        Row: {
+          claimed: boolean
+          created_at: string
+          follower_count: number
+          id: string
+          notified: boolean
+          paid_at: string | null
+          paid_by: string | null
+          payout_method: string | null
+          payout_note: string | null
+          payout_requested_at: string | null
+          payout_venmo_handle: string | null
+          reward_amount: number
+          user_id: string
+          username: string | null
+        }
+        Insert: {
+          claimed?: boolean
+          created_at?: string
+          follower_count?: number
+          id?: string
+          notified?: boolean
+          paid_at?: string | null
+          paid_by?: string | null
+          payout_method?: string | null
+          payout_note?: string | null
+          payout_requested_at?: string | null
+          payout_venmo_handle?: string | null
+          reward_amount?: number
+          user_id: string
+          username?: string | null
+        }
+        Update: {
+          claimed?: boolean
+          created_at?: string
+          follower_count?: number
+          id?: string
+          notified?: boolean
+          paid_at?: string | null
+          paid_by?: string | null
+          payout_method?: string | null
+          payout_note?: string | null
+          payout_requested_at?: string | null
+          payout_venmo_handle?: string | null
+          reward_amount?: number
+          user_id?: string
+          username?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "follower_rewards_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      follows: {
+        Row: {
+          created_at: string
+          follower_id: string | null
+          follower_username: string
+          following_username: string
+          id: string
+        }
+        Insert: {
+          created_at?: string
+          follower_id?: string | null
+          follower_username: string
+          following_username: string
+          id?: string
+        }
+        Update: {
+          created_at?: string
+          follower_id?: string | null
+          follower_username?: string
+          following_username?: string
+          id?: string
+        }
+        Relationships: []
+      }
+      gift_claims: {
+        Row: {
+          amount: number
+          coins: number
+          created_at: string
+          diamonds: number
+          gift: string | null
+          gift_id: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          amount?: number
+          coins?: number
+          created_at?: string
+          diamonds?: number
+          gift?: string | null
+          gift_id: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          coins?: number
+          created_at?: string
+          diamonds?: number
+          gift?: string | null
+          gift_id?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gift_claims_gift_id_fkey"
+            columns: ["gift_id"]
+            isOneToOne: true
+            referencedRelation: "live_gifts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gift_claims_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      group_join_requests: {
+        Row: {
+          created_at: string
+          group_id: string
+          id: string
+          status: string
+          user_id: string
+          username: string | null
+        }
+        Insert: {
+          created_at?: string
+          group_id: string
+          id?: string
+          status?: string
+          user_id: string
+          username?: string | null
+        }
+        Update: {
+          created_at?: string
+          group_id?: string
+          id?: string
+          status?: string
+          user_id?: string
+          username?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_join_requests_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      group_members: {
+        Row: {
+          group_id: string
+          id: string
+          joined_at: string
+          role: string
+          user_id: string
+          username: string | null
+        }
+        Insert: {
+          group_id: string
+          id?: string
+          joined_at?: string
+          role?: string
+          user_id: string
+          username?: string | null
+        }
+        Update: {
+          group_id?: string
+          id?: string
+          joined_at?: string
+          role?: string
+          user_id?: string
+          username?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_members_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      group_post_likes: {
+        Row: {
+          created_at: string
+          post_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          post_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          post_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_post_likes_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "group_posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      group_posts: {
+        Row: {
+          caption: string | null
+          created_at: string
+          group_id: string
+          id: string
+          image_url: string | null
+          likes: number
+          user_id: string
+          username: string | null
+          video_url: string | null
+        }
+        Insert: {
+          caption?: string | null
+          created_at?: string
+          group_id: string
+          id?: string
+          image_url?: string | null
+          likes?: number
+          user_id: string
+          username?: string | null
+          video_url?: string | null
+        }
+        Update: {
+          caption?: string | null
+          created_at?: string
+          group_id?: string
+          id?: string
+          image_url?: string | null
+          likes?: number
+          user_id?: string
+          username?: string | null
+          video_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_posts_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      groups: {
+        Row: {
+          avatar_image: string | null
+          cover_image: string | null
+          created_at: string
+          creator_id: string
+          creator_username: string | null
+          description: string | null
+          id: string
+          members_count: number
+          name: string
+          privacy: string
+        }
+        Insert: {
+          avatar_image?: string | null
+          cover_image?: string | null
+          created_at?: string
+          creator_id: string
+          creator_username?: string | null
+          description?: string | null
+          id?: string
+          members_count?: number
+          name: string
+          privacy?: string
+        }
+        Update: {
+          avatar_image?: string | null
+          cover_image?: string | null
+          created_at?: string
+          creator_id?: string
+          creator_username?: string | null
+          description?: string | null
+          id?: string
+          members_count?: number
+          name?: string
+          privacy?: string
+        }
+        Relationships: []
+      }
+      likes: {
+        Row: {
+          created_at: string
+          device_id: string | null
+          user_id: string | null
+          video_id: string
+        }
+        Insert: {
+          created_at?: string
+          device_id?: string | null
+          user_id?: string | null
+          video_id: string
+        }
+        Update: {
+          created_at?: string
+          device_id?: string | null
+          user_id?: string | null
+          video_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "likes_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "videos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       live_gifts: {
         Row: {
-          coins: number;
-          created_at: string;
-          diamonds: number;
-          gift_type: string;
-          id: string;
-          live_id: string;
-          quantity: number;
-          receiver_id: string;
-          sender_id: string;
-        };
+          coins: number
+          created_at: string
+          diamonds: number
+          gift_type: string
+          id: string
+          live_id: string
+          quantity: number
+          receiver_id: string
+          sender_id: string
+        }
         Insert: {
-          coins: number;
-          created_at?: string;
-          diamonds?: number;
-          gift_type: string;
-          id?: string;
-          live_id: string;
-          quantity?: number;
-          receiver_id: string;
-          sender_id: string;
-        };
+          coins: number
+          created_at?: string
+          diamonds?: number
+          gift_type: string
+          id?: string
+          live_id: string
+          quantity?: number
+          receiver_id: string
+          sender_id: string
+        }
         Update: {
-          coins?: number;
-          created_at?: string;
-          diamonds?: number;
-          gift_type?: string;
-          id?: string;
-          live_id?: string;
-          quantity?: number;
-          receiver_id?: string;
-          sender_id?: string;
-        };
-        Relationships: [];
-      };
-      live_mods: {
-        Row: {
-          added_by: string;
-          created_at: string;
-          id: string;
-          live_id: string;
-          user_id: string;
-        };
-        Insert: {
-          added_by: string;
-          created_at?: string;
-          id?: string;
-          live_id: string;
-          user_id: string;
-        };
-        Update: {
-          added_by?: string;
-          created_at?: string;
-          id?: string;
-          live_id?: string;
-          user_id?: string;
-        };
-        Relationships: [];
-      };
-      live_mutes: {
-        Row: {
-          created_at: string;
-          id: string;
-          live_id: string;
-          muted_by: string;
-          until: string | null;
-          user_id: string;
-        };
-        Insert: {
-          created_at?: string;
-          id?: string;
-          live_id: string;
-          muted_by: string;
-          until?: string | null;
-          user_id: string;
-        };
-        Update: {
-          created_at?: string;
-          id?: string;
-          live_id?: string;
-          muted_by?: string;
-          until?: string | null;
-          user_id?: string;
-        };
-        Relationships: [];
-      };
-      live_join_requests: {
-        Row: {
-          created_at: string;
-          id: string;
-          live_id: string;
-          requester_id: string;
-          responded_at: string | null;
-          status: string;
-        };
-        Insert: {
-          created_at?: string;
-          id?: string;
-          live_id: string;
-          requester_id: string;
-          responded_at?: string | null;
-          status?: string;
-        };
-        Update: {
-          created_at?: string;
-          id?: string;
-          live_id?: string;
-          requester_id?: string;
-          responded_at?: string | null;
-          status?: string;
-        };
-        Relationships: [];
-      };
+          coins?: number
+          created_at?: string
+          diamonds?: number
+          gift_type?: string
+          id?: string
+          live_id?: string
+          quantity?: number
+          receiver_id?: string
+          sender_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "live_gifts_receiver_id_fkey"
+            columns: ["receiver_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "live_gifts_sender_id_fkey"
+            columns: ["sender_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       live_guests: {
         Row: {
-          id: string;
-          is_active: boolean;
-          joined_at: string;
-          live_id: string;
-          user_id: string;
-        };
+          id: string
+          is_active: boolean
+          joined_at: string
+          live_id: string
+          user_id: string
+        }
         Insert: {
-          id?: string;
-          is_active?: boolean;
-          joined_at?: string;
-          live_id: string;
-          user_id: string;
-        };
+          id?: string
+          is_active?: boolean
+          joined_at?: string
+          live_id: string
+          user_id: string
+        }
         Update: {
-          id?: string;
-          is_active?: boolean;
-          joined_at?: string;
-          live_id?: string;
-          user_id?: string;
-        };
-        Relationships: [];
-      };
+          id?: string
+          is_active?: boolean
+          joined_at?: string
+          live_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "live_guests_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      live_join_requests: {
+        Row: {
+          created_at: string
+          id: string
+          live_id: string
+          requester_id: string
+          responded_at: string | null
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          live_id: string
+          requester_id: string
+          responded_at?: string | null
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          live_id?: string
+          requester_id?: string
+          responded_at?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "live_join_requests_requester_id_fkey"
+            columns: ["requester_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      live_mods: {
+        Row: {
+          added_by: string
+          created_at: string
+          id: string
+          live_id: string
+          user_id: string
+        }
+        Insert: {
+          added_by: string
+          created_at?: string
+          id?: string
+          live_id: string
+          user_id: string
+        }
+        Update: {
+          added_by?: string
+          created_at?: string
+          id?: string
+          live_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "live_mods_added_by_fkey"
+            columns: ["added_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "live_mods_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      live_mutes: {
+        Row: {
+          created_at: string
+          id: string
+          live_id: string
+          muted_by: string
+          until: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          live_id: string
+          muted_by: string
+          until?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          live_id?: string
+          muted_by?: string
+          until?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "live_mutes_muted_by_fkey"
+            columns: ["muted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "live_mutes_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       live_room_state: {
         Row: {
-          comments_off: boolean;
-          live_id: string;
-          pinned: Json | null;
-          updated_at: string;
-        };
+          comments_off: boolean
+          live_id: string
+          pinned: Json | null
+          updated_at: string
+        }
         Insert: {
-          comments_off?: boolean;
-          live_id: string;
-          pinned?: Json | null;
-          updated_at?: string;
-        };
+          comments_off?: boolean
+          live_id: string
+          pinned?: Json | null
+          updated_at?: string
+        }
         Update: {
-          comments_off?: boolean;
-          live_id?: string;
-          pinned?: Json | null;
-          updated_at?: string;
-        };
-        Relationships: [];
-      };
+          comments_off?: boolean
+          live_id?: string
+          pinned?: Json | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      marketplace_items: {
+        Row: {
+          category: string
+          created_at: string
+          description: string | null
+          id: string
+          image_url: string | null
+          location: string | null
+          price: number
+          seller_username: string
+          title: string
+          user_id: string
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          location?: string | null
+          price: number
+          seller_username: string
+          title: string
+          user_id: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          location?: string | null
+          price?: number
+          seller_username?: string
+          title?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      messages: {
+        Row: {
+          created_at: string | null
+          id: string
+          message: string | null
+          receiver_id: string | null
+          sender_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          message?: string | null
+          receiver_id?: string | null
+          sender_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          message?: string | null
+          receiver_id?: string | null
+          sender_id?: string | null
+        }
+        Relationships: []
+      }
+      moderation_log: {
+        Row: {
+          action: string
+          actor: string | null
+          auto: boolean
+          created_at: string
+          expires_at: string | null
+          id: string
+          is_permanent: boolean
+          reason: string | null
+          report_count: number | null
+          user_id: string | null
+          username: string | null
+          window_hours: number | null
+        }
+        Insert: {
+          action: string
+          actor?: string | null
+          auto?: boolean
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          is_permanent?: boolean
+          reason?: string | null
+          report_count?: number | null
+          user_id?: string | null
+          username?: string | null
+          window_hours?: number | null
+        }
+        Update: {
+          action?: string
+          actor?: string | null
+          auto?: boolean
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          is_permanent?: boolean
+          reason?: string | null
+          report_count?: number | null
+          user_id?: string | null
+          username?: string | null
+          window_hours?: number | null
+        }
+        Relationships: []
+      }
+      muted_words: {
+        Row: {
+          id: string
+          word: string
+        }
+        Insert: {
+          id?: string
+          word: string
+        }
+        Update: {
+          id?: string
+          word?: string
+        }
+        Relationships: []
+      }
+      notifications: {
+        Row: {
+          actor_user_id: string | null
+          created_at: string | null
+          id: string
+          read: boolean | null
+          target_user_id: string | null
+          text: string | null
+          type: string | null
+          video_id: string | null
+        }
+        Insert: {
+          actor_user_id?: string | null
+          created_at?: string | null
+          id?: string
+          read?: boolean | null
+          target_user_id?: string | null
+          text?: string | null
+          type?: string | null
+          video_id?: string | null
+        }
+        Update: {
+          actor_user_id?: string | null
+          created_at?: string | null
+          id?: string
+          read?: boolean | null
+          target_user_id?: string | null
+          text?: string | null
+          type?: string | null
+          video_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "videos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payouts: {
+        Row: {
+          amount: number
+          destination: string | null
+          diamonds: number
+          id: string
+          method: string
+          note: string | null
+          paid_at: string | null
+          paid_by: string | null
+          requested_at: string
+          status: string
+          user_id: string
+          username: string | null
+        }
+        Insert: {
+          amount: number
+          destination?: string | null
+          diamonds?: number
+          id?: string
+          method?: string
+          note?: string | null
+          paid_at?: string | null
+          paid_by?: string | null
+          requested_at?: string
+          status?: string
+          user_id: string
+          username?: string | null
+        }
+        Update: {
+          amount?: number
+          destination?: string | null
+          diamonds?: number
+          id?: string
+          method?: string
+          note?: string | null
+          paid_at?: string | null
+          paid_by?: string | null
+          requested_at?: string
+          status?: string
+          user_id?: string
+          username?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payouts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          bio: string | null
+          birthday: string | null
+          created_at: string
+          display_name: string | null
+          handle: string
+          id: string
+          links: Json
+          onboarding_complete: boolean
+          username: string | null
+          venmo_handle: string | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          bio?: string | null
+          birthday?: string | null
+          created_at?: string
+          display_name?: string | null
+          handle: string
+          id: string
+          links?: Json
+          onboarding_complete?: boolean
+          username?: string | null
+          venmo_handle?: string | null
+        }
+        Update: {
+          avatar_url?: string | null
+          bio?: string | null
+          birthday?: string | null
+          created_at?: string
+          display_name?: string | null
+          handle?: string
+          id?: string
+          links?: Json
+          onboarding_complete?: boolean
+          username?: string | null
+          venmo_handle?: string | null
+        }
+        Relationships: []
+      }
+      push_config: {
+        Row: {
+          created_at: string
+          id: string
+          private_key: string
+          public_key: string
+          subject: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          private_key: string
+          public_key: string
+          subject: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          private_key?: string
+          public_key?: string
+          subject?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      push_subscriptions: {
+        Row: {
+          auth: string
+          created_at: string
+          endpoint: string
+          p256dh: string
+          user_id: string
+        }
+        Insert: {
+          auth: string
+          created_at?: string
+          endpoint: string
+          p256dh: string
+          user_id: string
+        }
+        Update: {
+          auth?: string
+          created_at?: string
+          endpoint?: string
+          p256dh?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      reports: {
+        Row: {
+          action_taken: string | null
+          auto_actioned: boolean
+          created_at: string
+          details: string | null
+          id: string
+          reason: string
+          reported_user_id: string | null
+          reported_username: string
+          reported_video_id: string | null
+          reporter_id: string
+          reporter_username: string
+          status: string
+          video_id: string | null
+        }
+        Insert: {
+          action_taken?: string | null
+          auto_actioned?: boolean
+          created_at?: string
+          details?: string | null
+          id?: string
+          reason: string
+          reported_user_id?: string | null
+          reported_username: string
+          reported_video_id?: string | null
+          reporter_id: string
+          reporter_username: string
+          status?: string
+          video_id?: string | null
+        }
+        Update: {
+          action_taken?: string | null
+          auto_actioned?: boolean
+          created_at?: string
+          details?: string | null
+          id?: string
+          reason?: string
+          reported_user_id?: string | null
+          reported_username?: string
+          reported_video_id?: string | null
+          reporter_id?: string
+          reporter_username?: string
+          status?: string
+          video_id?: string | null
+        }
+        Relationships: []
+      }
+      reposts: {
+        Row: {
+          created_at: string
+          id: string
+          user_id: string
+          video_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          user_id: string
+          video_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          user_id?: string
+          video_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reposts_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "videos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      reserved_usernames: {
+        Row: {
+          reason: string | null
+          username: string
+        }
+        Insert: {
+          reason?: string | null
+          username: string
+        }
+        Update: {
+          reason?: string | null
+          username?: string
+        }
+        Relationships: []
+      }
+      saved_videos: {
+        Row: {
+          created_at: string
+          user_id: string
+          video_id: string
+        }
+        Insert: {
+          created_at?: string
+          user_id: string
+          video_id: string
+        }
+        Update: {
+          created_at?: string
+          user_id?: string
+          video_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saved_videos_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "videos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sounds: {
+        Row: {
+          audio_url: string
+          created_at: string
+          creator_username: string
+          id: string
+          original_video_id: string
+          title: string
+          uses_count: number
+        }
+        Insert: {
+          audio_url: string
+          created_at?: string
+          creator_username: string
+          id?: string
+          original_video_id: string
+          title: string
+          uses_count?: number
+        }
+        Update: {
+          audio_url?: string
+          created_at?: string
+          creator_username?: string
+          id?: string
+          original_video_id?: string
+          title?: string
+          uses_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sounds_original_video_id_fkey"
+            columns: ["original_video_id"]
+            isOneToOne: true
+            referencedRelation: "videos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stories: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          likes_count: number
+          media_type: string
+          media_url: string
+          user_id: string
+          username: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          likes_count?: number
+          media_type?: string
+          media_url: string
+          user_id: string
+          username: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          likes_count?: number
+          media_type?: string
+          media_url?: string
+          user_id?: string
+          username?: string
+        }
+        Relationships: []
+      }
+      story_likes: {
+        Row: {
+          created_at: string
+          id: string
+          story_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          story_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          story_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "story_likes_story_id_fkey"
+            columns: ["story_id"]
+            isOneToOne: false
+            referencedRelation: "stories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_balance: {
+        Row: {
+          diamonds: number
+          real_balance: number
+          total_earned: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          diamonds?: number
+          real_balance?: number
+          total_earned?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          diamonds?: number
+          real_balance?: number
+          total_earned?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_balance_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_coins: {
         Row: {
-          balance: number;
-          diamonds: number;
-          paid_balance: number;
-          total_earned: number;
-          total_recharged: number;
-          total_spent: number;
-          updated_at: string;
-          user_id: string;
-        };
+          balance: number
+          diamonds: number
+          paid_balance: number
+          total_earned: number
+          total_recharged: number
+          total_spent: number
+          updated_at: string
+          user_id: string
+        }
         Insert: {
-          balance?: number;
-          diamonds?: number;
-          paid_balance?: number;
-          total_earned?: number;
-          total_recharged?: number;
-          total_spent?: number;
-          updated_at?: string;
-          user_id: string;
-        };
+          balance?: number
+          diamonds?: number
+          paid_balance?: number
+          total_earned?: number
+          total_recharged?: number
+          total_spent?: number
+          updated_at?: string
+          user_id: string
+        }
         Update: {
-          balance?: number;
-          diamonds?: number;
-          paid_balance?: number;
-          total_earned?: number;
-          total_recharged?: number;
-          total_spent?: number;
-          updated_at?: string;
-          user_id?: string;
-        };
-        Relationships: [];
-      };
-    };
-    video_views: {
-      Row: {
-        created_at: string;
-        id: string;
-        user_id: string;
-        video_id: string;
-        viewer_id: string | null;
-        views: number;
-      };
-      Insert: {
-        created_at?: string;
-        id?: string;
-        user_id: string;
-        video_id: string;
-        viewer_id?: string | null;
-        views?: number;
-      };
-      Update: {
-        created_at?: string;
-        id?: string;
-        user_id?: string;
-        video_id?: string;
-        viewer_id?: string | null;
-        views?: number;
-      };
-      Relationships: [
-        {
-          foreignKeyName: "video_views_user_id_fkey";
-          columns: ["user_id"];
-          isOneToOne: false;
-          referencedRelation: "profiles";
-          referencedColumns: ["id"];
-        },
-        {
-          foreignKeyName: "video_views_viewer_id_fkey";
-          columns: ["viewer_id"];
-          isOneToOne: false;
-          referencedRelation: "profiles";
-          referencedColumns: ["id"];
-        },
-      ];
-    };
-    creator_fund_earnings: {
-      Row: {
-        amount: number;
-        created_at: string;
-        earnings: number;
-        id: string;
-        milestone_views: number;
-        user_id: string;
-        video_id: string | null;
-        views: number;
-      };
-      Insert: {
-        amount: number;
-        created_at?: string;
-        earnings?: number;
-        id?: string;
-        milestone_views: number;
-        user_id: string;
-        video_id?: string | null;
-        views?: number;
-      };
-      Update: {
-        amount?: number;
-        created_at?: string;
-        earnings?: number;
-        id?: string;
-        milestone_views?: number;
-        user_id?: string;
-        video_id?: string | null;
-        views?: number;
-      };
-      Relationships: [
-        {
-          foreignKeyName: "creator_fund_earnings_user_id_fkey";
-          columns: ["user_id"];
-          isOneToOne: false;
-          referencedRelation: "profiles";
-          referencedColumns: ["id"];
-        },
-      ];
-    };
-    gift_claims: {
-      Row: {
-        amount: number;
-        coins: number;
-        created_at: string;
-        diamonds: number;
-        gift: string | null;
-        gift_id: string;
-        id: string;
-        user_id: string;
-      };
-      Insert: {
-        amount?: number;
-        coins?: number;
-        created_at?: string;
-        diamonds?: number;
-        gift?: string | null;
-        gift_id: string;
-        id?: string;
-        user_id: string;
-      };
-      Update: {
-        amount?: number;
-        coins?: number;
-        created_at?: string;
-        diamonds?: number;
-        gift?: string | null;
-        gift_id?: string;
-        id?: string;
-        user_id?: string;
-      };
-      Relationships: [
-        {
-          foreignKeyName: "gift_claims_gift_id_fkey";
-          columns: ["gift_id"];
-          isOneToOne: true;
-          referencedRelation: "live_gifts";
-          referencedColumns: ["id"];
-        },
-        {
-          foreignKeyName: "gift_claims_user_id_fkey";
-          columns: ["user_id"];
-          isOneToOne: false;
-          referencedRelation: "profiles";
-          referencedColumns: ["id"];
-        },
-      ];
-    };
-    payouts: {
-      Row: {
-        amount: number;
-        destination: string | null;
-        diamonds: number;
-        id: string;
-        method: string;
-        note: string | null;
-        paid_at: string | null;
-        paid_by: string | null;
-        requested_at: string;
-        status: string;
-        user_id: string;
-        username: string | null;
-      };
-      Insert: {
-        amount: number;
-        destination?: string | null;
-        diamonds?: number;
-        id?: string;
-        method?: string;
-        note?: string | null;
-        paid_at?: string | null;
-        paid_by?: string | null;
-        requested_at?: string;
-        status?: string;
-        user_id: string;
-        username?: string | null;
-      };
-      Update: {
-        amount?: number;
-        destination?: string | null;
-        diamonds?: number;
-        id?: string;
-        method?: string;
-        note?: string | null;
-        paid_at?: string | null;
-        paid_by?: string | null;
-        requested_at?: string;
-        status?: string;
-        user_id?: string;
-        username?: string | null;
-      };
-      Relationships: [
-        {
-          foreignKeyName: "payouts_user_id_fkey";
-          columns: ["user_id"];
-          isOneToOne: false;
-          referencedRelation: "profiles";
-          referencedColumns: ["id"];
-        },
-      ];
-    };
-    follower_rewards: {
-      Row: {
-        claimed: boolean;
-        created_at: string;
-        follower_count: number;
-        id: string;
-        notified: boolean;
-        paid_at: string | null;
-        paid_by: string | null;
-        payout_method: string | null;
-        payout_note: string | null;
-        payout_requested_at: string | null;
-        payout_venmo_handle: string | null;
-        reward_amount: number;
-        user_id: string;
-        username: string | null;
-      };
-      Insert: {
-        claimed?: boolean;
-        created_at?: string;
-        follower_count?: number;
-        id?: string;
-        notified?: boolean;
-        paid_at?: string | null;
-        paid_by?: string | null;
-        payout_method?: string | null;
-        payout_note?: string | null;
-        payout_requested_at?: string | null;
-        payout_venmo_handle?: string | null;
-        reward_amount?: number;
-        user_id: string;
-        username?: string | null;
-      };
-      Update: {
-        claimed?: boolean;
-        created_at?: string;
-        follower_count?: number;
-        id?: string;
-        notified?: boolean;
-        paid_at?: string | null;
-        paid_by?: string | null;
-        payout_method?: string | null;
-        payout_note?: string | null;
-        payout_requested_at?: string | null;
-        payout_venmo_handle?: string | null;
-        reward_amount?: number;
-        user_id?: string;
-        username?: string | null;
-      };
-      Relationships: [
-        {
-          foreignKeyName: "follower_rewards_user_id_fkey";
-          columns: ["user_id"];
-          isOneToOne: true;
-          referencedRelation: "profiles";
-          referencedColumns: ["id"];
-        },
-      ];
-    };
-    user_balance: {
-      Row: {
-        diamonds: number;
-        real_balance: number;
-        total_earned: number;
-        updated_at: string;
-        user_id: string;
-      };
-      Insert: {
-        diamonds?: number;
-        real_balance?: number;
-        total_earned?: number;
-        updated_at?: string;
-        user_id: string;
-      };
-      Update: {
-        diamonds?: number;
-        real_balance?: number;
-        total_earned?: number;
-        updated_at?: string;
-        user_id?: string;
-      };
-      Relationships: [
-        {
-          foreignKeyName: "user_balance_user_id_fkey";
-          columns: ["user_id"];
-          isOneToOne: true;
-          referencedRelation: "profiles";
-          referencedColumns: ["id"];
-        },
-      ];
-    };
+          balance?: number
+          diamonds?: number
+          paid_balance?: number
+          total_earned?: number
+          total_recharged?: number
+          total_spent?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_coins_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      video_views: {
+        Row: {
+          created_at: string
+          id: string
+          user_id: string
+          video_id: string
+          viewer_id: string | null
+          views: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          user_id: string
+          video_id: string
+          viewer_id?: string | null
+          views?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          user_id?: string
+          video_id?: string
+          viewer_id?: string | null
+          views?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "video_views_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "video_views_viewer_id_fkey"
+            columns: ["viewer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      videos: {
+        Row: {
+          caption: string
+          comments_count: number
+          created_at: string
+          hidden: boolean
+          hidden_reason: string | null
+          id: string
+          likes_count: number
+          quality: string
+          reposts_count: number
+          shares_count: number
+          sound_id: string | null
+          user_id: string | null
+          username: string
+          video_1080_url: string | null
+          video_360_url: string | null
+          video_480_url: string | null
+          video_720_url: string | null
+          video_url: string
+        }
+        Insert: {
+          caption?: string
+          comments_count?: number
+          created_at?: string
+          hidden?: boolean
+          hidden_reason?: string | null
+          id?: string
+          likes_count?: number
+          quality?: string
+          reposts_count?: number
+          shares_count?: number
+          sound_id?: string | null
+          user_id?: string | null
+          username: string
+          video_1080_url?: string | null
+          video_360_url?: string | null
+          video_480_url?: string | null
+          video_720_url?: string | null
+          video_url: string
+        }
+        Update: {
+          caption?: string
+          comments_count?: number
+          created_at?: string
+          hidden?: boolean
+          hidden_reason?: string | null
+          id?: string
+          likes_count?: number
+          quality?: string
+          reposts_count?: number
+          shares_count?: number
+          sound_id?: string | null
+          user_id?: string | null
+          username?: string
+          video_1080_url?: string | null
+          video_360_url?: string | null
+          video_480_url?: string | null
+          video_720_url?: string | null
+          video_url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "videos_sound_id_fkey"
+            columns: ["sound_id"]
+            isOneToOne: false
+            referencedRelation: "sounds"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+    }
     Views: {
-      [_ in never]: never;
-    };
+      [_ in never]: never
+    }
     Functions: {
-      app_status: {
-        Args: never;
-        Returns: {
-          is_maintenance: boolean;
-          maintenance_message: string | null;
-          updated_at: string | null;
-        }[];
-      };
-      set_app_status: {
-        Args: { _maintenance: boolean; _message?: string | null };
-        Returns: undefined;
-      };
-      has_role: {
+      add_live_mod: {
+        Args: { p_live_id: string; p_user_id: string }
+        Returns: number
+      }
+      admin_ban: {
         Args: {
-          _role: Database["public"]["Enums"]["app_role"];
-          _user_id: string;
-        };
-        Returns: boolean;
-      };
-      increment_share: { Args: { _video_id: string }; Returns: undefined };
-      send_live_gift: {
-        Args: {
-          p_live_id: string;
-          p_receiver_id: string;
-          p_gift_type: string;
-          p_coins: number;
-          p_quantity?: number;
-        };
-        Returns: { gift_id: string; balance: number }[];
-      };
-      create_sound_from_video: { Args: { _video_id: string }; Returns: string | null };
-      set_video_sound: {
-        Args: { _video_id: string; _sound_id: string | null };
-        Returns: undefined;
-      };
-      increment_sound_use: { Args: { _sound_id: string }; Returns: undefined };
-      is_banned: { Args: { _username: string }; Returns: boolean };
-      is_banned_uid: { Args: { _uid: string }; Returns: boolean };
-      ban_status_for_handle: {
-        Args: { _handle: string };
+          _hours?: number
+          _permanent?: boolean
+          _reason?: string
+          _username: string
+        }
+        Returns: Json
+      }
+      admin_bans: {
+        Args: never
         Returns: {
-          is_banned: boolean;
-          reason: string;
-          is_permanent: boolean;
-          expires_at: string;
-        }[];
-      };
-      is_banned_username: { Args: { _username: string }; Returns: boolean };
-      is_muted: { Args: { _username: string }; Returns: boolean };
-      contains_banned_word: { Args: { _text: string }; Returns: boolean };
-      am_i_admin: { Args: never; Returns: boolean };
-      admin_coin_venmo_orders: { Args: { _limit?: number }; Returns: Json };
+          active: boolean
+          auto: boolean
+          banned_by: string
+          created_at: string
+          expires_at: string
+          id: string
+          is_permanent: boolean
+          kind: string
+          reason: string
+          report_count: number
+          user_id: string
+          username: string
+        }[]
+      }
+      admin_coin_venmo_orders: { Args: { _limit?: number }; Returns: Json }
+      admin_dismiss_report: { Args: { _report_id: string }; Returns: Json }
+      admin_follower_payouts: { Args: { _limit?: number }; Returns: Json }
+      admin_mark_creator_payout_paid: {
+        Args: { p_note?: string; p_payout_id: string }
+        Returns: Json
+      }
+      admin_mark_payout_paid: {
+        Args: { _method?: string; _note?: string; _reward_id: string }
+        Returns: Json
+      }
+      admin_moderation_log: {
+        Args: { _limit?: number }
+        Returns: {
+          action: string
+          actor: string
+          auto: boolean
+          created_at: string
+          expires_at: string
+          id: string
+          is_permanent: boolean
+          reason: string
+          report_count: number
+          username: string
+        }[]
+      }
+      admin_payout_stats: { Args: never; Returns: Json }
+      admin_payouts: { Args: { p_limit?: number }; Returns: Json }
+      admin_reports: {
+        Args: { _limit?: number }
+        Returns: {
+          action_taken: string
+          created_at: string
+          details: string
+          id: string
+          reason: string
+          reported_user_id: string
+          reported_username: string
+          reported_video_id: string
+          reporter_username: string
+          status: string
+          video_id: string
+        }[]
+      }
       admin_review_coin_venmo_order: {
-        Args: { _order_id: string; _action: string; _note?: string | null };
-        Returns: Json;
-      };
-      coin_admin_ok: { Args: never; Returns: boolean };
-      my_coin_venmo_orders: { Args: never; Returns: Json };
-      submit_coin_venmo_payment: {
-        Args: { _order_id: string; _payer_handle: string; _venmo_note?: string | null };
-        Returns: Json;
-      };
+        Args: { _action: string; _note?: string; _order_id: string }
+        Returns: Json
+      }
+      admin_unban: { Args: { _username: string }; Returns: Json }
+      admin_unhide_video: { Args: { _video_id: string }; Returns: Json }
+      am_i_admin: { Args: never; Returns: boolean }
+      app_status: {
+        Args: never
+        Returns: {
+          is_maintenance: boolean
+          maintenance_message: string
+          updated_at: string
+        }[]
+      }
       apply_moderation: {
         Args: {
-          _user_id: string | null;
-          _username: string;
-          _action: string;
-          _reason: string;
-          _hours?: number | null;
-          _permanent?: boolean;
-          _kind?: string;
-          _auto?: boolean;
-          _actor?: string;
-          _report_count?: number | null;
-          _window_hours?: number | null;
-        };
-        Returns: Json;
-      };
+          _action: string
+          _actor?: string
+          _auto?: boolean
+          _hours?: number
+          _kind?: string
+          _permanent?: boolean
+          _reason: string
+          _report_count?: number
+          _user_id: string
+          _username: string
+          _window_hours?: number
+        }
+        Returns: Json
+      }
+      award_first_follower_reward: {
+        Args: { _user_id: string; _username?: string }
+        Returns: Json
+      }
+      ban_status_for_handle: {
+        Args: { _handle: string }
+        Returns: {
+          expires_at: string
+          is_banned: boolean
+          is_permanent: boolean
+          reason: string
+        }[]
+      }
+      check_creator_fund: { Args: { p_user_id?: string }; Returns: Json }
+      coin_admin_ok: { Args: never; Returns: boolean }
+      contains_banned_word: { Args: { _text: string }; Returns: boolean }
+      create_sound_from_video: { Args: { _video_id: string }; Returns: string }
+      end_live_session: { Args: { p_live_id: string }; Returns: undefined }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      increment_share: { Args: { _video_id: string }; Returns: undefined }
+      increment_sound_use: { Args: { _sound_id: string }; Returns: undefined }
+      is_banned: { Args: { _username: string }; Returns: boolean }
+      is_banned_uid: { Args: { _uid: string }; Returns: boolean }
+      is_banned_username: { Args: { _username: string }; Returns: boolean }
+      is_group_member: { Args: { gid: string }; Returns: boolean }
+      is_group_staff: { Args: { gid: string }; Returns: boolean }
+      is_live_mod: {
+        Args: { p_live_id: string; p_user_id: string }
+        Returns: boolean
+      }
+      is_muted: { Args: { _username: string }; Returns: boolean }
+      leave_live_guest: {
+        Args: { p_live_id: string; p_user_id?: string }
+        Returns: undefined
+      }
+      mute_live_user: {
+        Args: { p_live_id: string; p_minutes?: number; p_user_id: string }
+        Returns: string
+      }
+      my_ban_status: {
+        Args: never
+        Returns: {
+          expires_at: string
+          is_banned: boolean
+          is_permanent: boolean
+          reason: string
+        }[]
+      }
+      my_coin_venmo_orders: { Args: never; Returns: Json }
+      my_creator_fund: { Args: never; Returns: Json }
+      my_earnings_summary: { Args: never; Returns: Json }
+      my_follower_reward: { Args: never; Returns: Json }
+      my_gift_earnings: { Args: { p_limit?: number }; Returns: Json }
+      my_payouts: { Args: { p_limit?: number }; Returns: Json }
+      my_real_balance: { Args: never; Returns: number }
+      my_wallet: { Args: never; Returns: Json }
+      norm_handle: { Args: { _handle: string }; Returns: string }
+      pin_live_message: {
+        Args: { p_live_id: string; p_message: Json }
+        Returns: Json
+      }
+      record_video_view: { Args: { p_video_id: string }; Returns: Json }
+      remove_live_mod: {
+        Args: { p_live_id: string; p_user_id: string }
+        Returns: number
+      }
       report_content: {
         Args: {
-          _video_id: string | null;
-          _reported_username: string;
-          _reason: string;
-          _details?: string | null;
-        };
-        Returns: Json;
-      };
-      admin_reports: {
-        Args: { _limit?: number };
-        Returns: {
-          id: string;
-          video_id: string | null;
-          reported_video_id: string | null;
-          reporter_username: string;
-          reported_username: string;
-          reported_user_id: string | null;
-          reason: string;
-          details: string | null;
-          status: string;
-          action_taken: string | null;
-          created_at: string;
-        }[];
-      };
-      admin_bans: {
-        Args: never;
-        Returns: {
-          id: string;
-          username: string;
-          user_id: string | null;
-          reason: string | null;
-          banned_by: string | null;
-          kind: string;
-          is_permanent: boolean;
-          expires_at: string | null;
-          auto: boolean;
-          report_count: number | null;
-          created_at: string;
-          active: boolean;
-        }[];
-      };
-      admin_moderation_log: {
-        Args: { _limit?: number };
-        Returns: {
-          id: string;
-          username: string | null;
-          action: string;
-          reason: string | null;
-          report_count: number | null;
-          is_permanent: boolean;
-          expires_at: string | null;
-          auto: boolean;
-          actor: string | null;
-          created_at: string;
-        }[];
-      };
-      admin_ban: {
-        Args: { _username: string; _hours?: number | null; _permanent?: boolean; _reason?: string };
-        Returns: Json;
-      };
-      admin_unban: { Args: { _username: string }; Returns: Json };
-      admin_dismiss_report: { Args: { _report_id: string }; Returns: Json };
-      admin_unhide_video: { Args: { _video_id: string }; Returns: Json };
-      is_live_mod: {
-        Args: { p_live_id: string; p_user_id: string };
-        Returns: boolean;
-      };
-      add_live_mod: {
-        Args: { p_live_id: string; p_user_id: string };
-        Returns: number;
-      };
-      remove_live_mod: {
-        Args: { p_live_id: string; p_user_id: string };
-        Returns: number;
-      };
-      mute_live_user: {
-        Args: { p_live_id: string; p_user_id: string; p_minutes?: number | null };
-        Returns: string | null;
-      };
-      unmute_live_user: {
-        Args: { p_live_id: string; p_user_id: string };
-        Returns: undefined;
-      };
-      set_live_comments: {
-        Args: { p_live_id: string; p_off: boolean };
-        Returns: boolean;
-      };
-      pin_live_message: {
-        Args: { p_live_id: string; p_message: Json };
-        Returns: Json;
-      };
-      request_join_live: {
-        Args: { p_live_id: string };
-        Returns: string;
-      };
-      respond_join_request: {
-        Args: { p_request_id: string; p_accept: boolean };
-        Returns: string;
-      };
-      leave_live_guest: {
-        Args: { p_live_id: string; p_user_id?: string | null };
-        Returns: undefined;
-      };
-      end_live_session: {
-        Args: { p_live_id: string };
-        Returns: undefined;
-      };
-      my_ban_status: {
-        Args: never;
-        Returns: {
-          is_banned: boolean;
-          reason: string;
-          is_permanent: boolean;
-          expires_at: string;
-        }[];
-      };
-      my_wallet: { Args: never; Returns: Record<string, unknown> };
-      set_my_venmo_handle: { Args: { p_handle: string }; Returns: Record<string, unknown> };
-      my_earnings_summary: { Args: never; Returns: Record<string, unknown> };
-      my_gift_earnings: { Args: { p_limit?: number }; Returns: Record<string, unknown> };
-      my_creator_fund: { Args: never; Returns: Record<string, unknown> };
-      my_payouts: { Args: { p_limit?: number }; Returns: Record<string, unknown> };
-      record_video_view: { Args: { p_video_id: string }; Returns: Record<string, unknown> };
-      check_creator_fund: { Args: { p_user_id?: string | null }; Returns: Record<string, unknown> };
-      request_payout: {
-        Args: {
-          p_amount?: number | null;
-          p_method?: string;
-          p_destination?: string | null;
-        };
-        Returns: Record<string, unknown>;
-      };
-      admin_payouts: { Args: { p_limit?: number }; Returns: Record<string, unknown> };
-      admin_payout_stats: { Args: never; Returns: Record<string, unknown> };
-      admin_mark_creator_payout_paid: {
-        Args: { p_payout_id: string; p_note?: string | null };
-        Returns: Record<string, unknown>;
-      };
-      my_follower_reward: { Args: never; Returns: Record<string, unknown> };
-      take_follower_reward_notice: { Args: never; Returns: Record<string, unknown> };
-      my_real_balance: { Args: never; Returns: number };
+          _details?: string
+          _reason: string
+          _reported_username: string
+          _video_id: string
+        }
+        Returns: Json
+      }
       request_follower_payout: {
-        Args: { _venmo_handle: string };
-        Returns: Record<string, unknown>;
-      };
-      admin_follower_payouts: {
-        Args: { _limit?: number };
-        Returns: Record<string, unknown>[];
-      };
-      admin_mark_payout_paid: {
-        Args: { _reward_id: string; _note?: string | null; _method?: string | null };
-        Returns: Record<string, unknown>;
-      };
-    };
+        Args: { _venmo_handle: string }
+        Returns: Json
+      }
+      request_join_live: { Args: { p_live_id: string }; Returns: string }
+      request_payout: {
+        Args: { p_amount?: number; p_destination?: string; p_method?: string }
+        Returns: Json
+      }
+      respond_join_request: {
+        Args: { p_accept: boolean; p_request_id: string }
+        Returns: string
+      }
+      send_live_gift: {
+        Args: {
+          p_coins: number
+          p_gift_type: string
+          p_live_id: string
+          p_quantity?: number
+          p_receiver_id: string
+        }
+        Returns: {
+          balance: number
+          gift_id: string
+        }[]
+      }
+      set_app_status: {
+        Args: { _maintenance: boolean; _message?: string }
+        Returns: undefined
+      }
+      set_live_comments: {
+        Args: { p_live_id: string; p_off: boolean }
+        Returns: boolean
+      }
+      set_my_venmo_handle: { Args: { p_handle: string }; Returns: Json }
+      set_video_sound: {
+        Args: { _sound_id: string; _video_id: string }
+        Returns: undefined
+      }
+      sound_title_for_video: {
+        Args: { _caption: string; _username: string }
+        Returns: string
+      }
+      submit_coin_venmo_payment: {
+        Args: { _order_id: string; _payer_handle: string; _venmo_note?: string }
+        Returns: Json
+      }
+      take_follower_reward_notice: { Args: never; Returns: Json }
+      unmute_live_user: {
+        Args: { p_live_id: string; p_user_id: string }
+        Returns: undefined
+      }
+    }
     Enums: {
-      app_role: "admin" | "moderator" | "user";
-    };
+      app_role: "admin" | "moderator" | "user"
+    }
     CompositeTypes: {
-      [_ in never]: never;
-    };
-  };
-};
+      [_ in never]: never
+    }
+  }
+}
 
-type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">;
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
 
-type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">];
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
 
 export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
   TableName extends (DefaultSchemaTableNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals;
+    schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
     : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals;
+  schema: keyof DatabaseWithoutInternals
 }
   ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
       DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
-      Row: infer R;
+      Row: infer R
     }
     ? R
     : never
-  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
-    ? (DefaultSchema["Tables"] & DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
-        Row: infer R;
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+        Row: infer R
       }
       ? R
       : never
-    : never;
+    : never
 
 export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
-    keyof DefaultSchema["Tables"] | { schema: keyof DatabaseWithoutInternals },
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
   TableName extends (DefaultSchemaTableNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals;
+    schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
     : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals;
+  schema: keyof DatabaseWithoutInternals
 }
   ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
-      Insert: infer I;
+      Insert: infer I
     }
     ? I
     : never
   : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
     ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
-        Insert: infer I;
+        Insert: infer I
       }
       ? I
       : never
-    : never;
+    : never
 
 export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
-    keyof DefaultSchema["Tables"] | { schema: keyof DatabaseWithoutInternals },
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
   TableName extends (DefaultSchemaTableNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals;
+    schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
     : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals;
+  schema: keyof DatabaseWithoutInternals
 }
   ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
-      Update: infer U;
+      Update: infer U
     }
     ? U
     : never
   : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
     ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
-        Update: infer U;
+        Update: infer U
       }
       ? U
       : never
-    : never;
+    : never
 
 export type Enums<
   DefaultSchemaEnumNameOrOptions extends
-    keyof DefaultSchema["Enums"] | { schema: keyof DatabaseWithoutInternals },
+    | keyof DefaultSchema["Enums"]
+    | { schema: keyof DatabaseWithoutInternals },
   EnumName extends (DefaultSchemaEnumNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals;
+    schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
     : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals;
+  schema: keyof DatabaseWithoutInternals
 }
   ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
   : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
     ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
-    : never;
+    : never
 
 export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
-    keyof DefaultSchema["CompositeTypes"] | { schema: keyof DatabaseWithoutInternals },
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof DatabaseWithoutInternals },
   CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals;
+    schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
     : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals;
+  schema: keyof DatabaseWithoutInternals
 }
   ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
   : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
     ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
-    : never;
+    : never
 
 export const Constants = {
   public: {
@@ -1663,4 +2056,4 @@ export const Constants = {
       app_role: ["admin", "moderator", "user"],
     },
   },
-} as const;
+} as const

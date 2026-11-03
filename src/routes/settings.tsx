@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeft, ChevronRight, CreditCard, Lock, LogOut, Pencil, ShieldCheck, UserRound } from "lucide-react";
+import { ArrowLeft, Banknote, ChevronRight, CreditCard, Gem, Lock, LogOut, Pencil, ShieldCheck, UserRound } from "lucide-react";
 import { Suspense, lazy, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { EditProfileDialog } from "@/components/EditProfileDialog";
@@ -394,6 +394,34 @@ const changeTheme = (t: string) => {
             <LogOut className="mr-2 h-4 w-4" />
             Sign out
           </Button>
+        </div>
+      </div>
+
+      {/* Earnings — the only way into /wallet and /creator, so it has to be here */}
+      <div className="rounded-2xl border bg-card p-4">
+        <h2 className="font-semibold">Earnings</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Your diamonds, creator-fund earnings, gifts and cashouts.
+        </p>
+        <div className="mt-3 space-y-2">
+          <Link
+            to="/wallet"
+            className="flex w-full items-center justify-between rounded-md border bg-background px-4 py-3 text-sm font-medium transition-colors hover:bg-accent"
+          >
+            <span className="flex items-center gap-2">
+              <Gem className="h-4 w-4" /> Wallet & cash out
+            </span>
+            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+          </Link>
+          <Link
+            to="/creator"
+            className="flex w-full items-center justify-between rounded-md border bg-background px-4 py-3 text-sm font-medium transition-colors hover:bg-accent"
+          >
+            <span className="flex items-center gap-2">
+              <Banknote className="h-4 w-4" /> Creator dashboard
+            </span>
+            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+          </Link>
         </div>
       </div>
 

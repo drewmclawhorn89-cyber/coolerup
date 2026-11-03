@@ -376,6 +376,7 @@ export type Database = {
           onboarding_complete: boolean;
           show_liked: boolean;
           username: string | null;
+          venmo_handle: string | null;
         };
         Insert: {
           avatar_url?: string | null;
@@ -389,6 +390,7 @@ export type Database = {
           onboarding_complete?: boolean;
           show_liked?: boolean;
           username?: string | null;
+          venmo_handle?: string | null;
         };
         Update: {
           avatar_url?: string | null;
@@ -402,6 +404,7 @@ export type Database = {
           onboarding_complete?: boolean;
           show_liked?: boolean;
           username?: string | null;
+          venmo_handle?: string | null;
         };
         Relationships: [];
       };
@@ -1497,6 +1500,7 @@ export type Database = {
         }[];
       };
       my_wallet: { Args: never; Returns: Record<string, unknown> };
+      set_my_venmo_handle: { Args: { p_handle: string }; Returns: Record<string, unknown> };
       my_earnings_summary: { Args: never; Returns: Record<string, unknown> };
       my_gift_earnings: { Args: { p_limit?: number }; Returns: Record<string, unknown> };
       my_creator_fund: { Args: never; Returns: Record<string, unknown> };
@@ -1504,7 +1508,11 @@ export type Database = {
       record_video_view: { Args: { p_video_id: string }; Returns: Record<string, unknown> };
       check_creator_fund: { Args: { p_user_id?: string | null }; Returns: Record<string, unknown> };
       request_payout: {
-        Args: { p_amount: number; p_method?: string; p_destination?: string | null };
+        Args: {
+          p_amount?: number | null;
+          p_method?: string;
+          p_destination?: string | null;
+        };
         Returns: Record<string, unknown>;
       };
       admin_payouts: { Args: { p_limit?: number }; Returns: Record<string, unknown> };

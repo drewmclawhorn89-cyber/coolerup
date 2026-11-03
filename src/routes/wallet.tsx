@@ -17,14 +17,6 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { WalletBalance } from "@/components/WalletBalance";
 import { useAuth } from "@/hooks/useAuth";
 import { useCoins } from "@/lib/coins";
@@ -36,7 +28,6 @@ import {
 } from "@/lib/creatorFund";
 import {
   MIN_PAYOUT,
-  PAYOUT_METHODS,
   amountToPayout,
   canRequestPayout,
   formatDiamonds,
@@ -46,13 +37,12 @@ import {
   myPayouts,
   notifyWalletChanged,
   requestPayout,
+  setMyVenmoHandle,
   useWallet,
   type EarningsSummary,
   type GiftEarning,
-  type PayoutMethod,
   type PayoutRow,
 } from "@/lib/payouts";
-import { DEFAULT_VENMO_RECIPIENT, venmoProfileUrl } from "@/lib/venmo";
 
 export const Route = createFileRoute("/wallet")({
   head: () => ({
@@ -93,11 +83,10 @@ function WalletPage() {
   const [fund, setFund] = useState<CreatorFund | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const [sheetOpen, setSheetOpen] = useState(false);
-  const [amount, setAmount] = useState("");
-  const [method, setMethod] = useState<PayoutMethod>("venmo");
-  const [destination, setDestination] = useState("");
-  const [requesting, setRequesting] = useState(false);
+  const [cashingOut, setCashingOut] = useState(false);
+  const [editingHandle, setEditingHandle] = useState(false);
+  const [handleDraft, setHandleDraft] = useState("");
+  const [savingHandle, setSavingHandle] = useState(false);
 
   const load = useCallback(async () => {
     if (!auth.user) {
@@ -126,34 +115,40 @@ function WalletPage() {
   const ready = canRequestPayout(cashable);
   const remaining = amountToPayout(cashable);
 
-  const openSheet = () => {
-    setAmount(cashable.toFixed(2));
-    setDestination("");
-    setSheetOpen(true);
-  };
-
-  const submit = async () => {
-    const value = Number(amount);
-    if (!Number.isFinite(value) || value < MIN_PAYOUT) {
-      toast.error(`The minimum cashout is ${formatUsd(MIN_PAYOUT)}`);
-      return;
-    }
-    setRequesting(true);
-    const result = await requestPayout({ amount: value, method, destination });
-    setRequesting(false);
+  /**
+   * One tap: the database pays the whole cashable balance to the creator's own
+   * saved Venmo handle. No dialog, no popup, no second screen.
+   */
+  const cashOut = async () => {
+    if (!ready || cashingOut) return;
+    setCashingOut(true);
+    const result = await requestPayout({});
+    setCashingOut(false);
     if (!result.ok) {
       toast.error(result.error ?? "Couldn't request a payout");
+      // The only thing we can fix from here is a missing handle, so reveal the
+      // inline field instead of a modal.
+      if (result.error === "Add your Venmo username first") setEditingHandle(true);
       return;
     }
-    toast.success(`${formatUsd(result.amount ?? value)} cashout requested`, {
-      description: "We'll pay you manually and mark it paid in your history.",
+    toast.success(`${formatUsd(result.amount ?? cashable)} on the way to your Venmo`, {
+      description: result.destination ? `Sending to @${result.destination}` : undefined,
     });
-    setSheetOpen(false);
     notifyWalletChanged();
     await Promise.all([wallet.refresh(), load()]);
-    if (method === "venmo") {
-      window.open(venmoProfileUrl(DEFAULT_VENMO_RECIPIENT), "_blank", "noopener,noreferrer");
+  };
+
+  const saveHandle = async () => {
+    setSavingHandle(true);
+    const result = await setMyVenmoHandle(handleDraft);
+    setSavingHandle(false);
+    if (!result.ok) {
+      toast.error(result.error ?? "Couldn't save your Venmo username");
+      return;
     }
+    setEditingHandle(false);
+    toast.success(result.venmoHandle ? `Cashouts go to @${result.venmoHandle}` : "Venmo removed");
+    await wallet.refresh();
   };
 
   const pending = useMemo(() => payouts.filter((p) => p.status === "pending"), [payouts]);
@@ -181,12 +176,18 @@ function WalletPage() {
       <div className="mt-3 grid grid-cols-2 gap-3">
         <button
           type="button"
-          onClick={openSheet}
-          disabled={!ready}
+          onClick={() => void cashOut()}
+          disabled={!ready || cashingOut}
           className="flex items-center justify-center gap-2 rounded-xl bg-[#fe2c55] px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/40"
         >
-          <Banknote className="h-4 w-4" aria-hidden="true" />
-          {ready ? "Cash out" : `${formatUsd(remaining)} to ${formatUsd(MIN_PAYOUT)}`}
+          {cashingOut ? (
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+          ) : (
+            <Banknote className="h-4 w-4" aria-hidden="true" />
+          )}
+          {ready
+            ? `Cash out ${formatUsd(cashable)}`
+            : `${formatUsd(remaining)} to ${formatUsd(MIN_PAYOUT)}`}
         </button>
         <Link
           to="/coins/recharge"
@@ -195,6 +196,49 @@ function WalletPage() {
           <Coins className="h-4 w-4" aria-hidden="true" /> Buy coins
         </Link>
       </div>
+
+      <section className="mt-3 rounded-xl border border-white/10 bg-white/[0.03] p-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[11px] uppercase tracking-wide text-white/40">Cashouts go to</p>
+            <p className="truncate text-sm font-medium">
+              {wallet.venmoHandle ? `Venmo @${wallet.venmoHandle}` : "No Venmo username yet"}
+            </p>
+          </div>
+          {editingHandle ? null : (
+            <button
+              type="button"
+              onClick={() => {
+                setHandleDraft(wallet.venmoHandle ?? "");
+                setEditingHandle(true);
+              }}
+              className="shrink-0 rounded-full border border-white/15 px-3 py-1.5 text-xs font-medium text-white/80 hover:bg-white/10"
+            >
+              {wallet.venmoHandle ? "Change" : "Add"}
+            </button>
+          )}
+        </div>
+        {editingHandle ? (
+          <div className="mt-2 flex items-center gap-2">
+            <Input
+              value={handleDraft}
+              onChange={(e) => setHandleDraft(e.target.value)}
+              placeholder="@your-venmo"
+              autoFocus
+              className="border-white/15 bg-black/40 text-white"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void saveHandle();
+              }}
+            />
+            <Button onClick={() => void saveHandle()} disabled={savingHandle} className="shrink-0">
+              {savingHandle ? (
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              ) : null}
+              Save
+            </Button>
+          </div>
+        ) : null}
+      </section>
 
       <Tabs defaultValue="earnings" className="mt-5">
         <TabsList className="grid w-full grid-cols-3 bg-white/5">
@@ -425,73 +469,6 @@ function WalletPage() {
           </section>
         </TabsContent>
       </Tabs>
-
-      <Dialog open={sheetOpen} onOpenChange={setSheetOpen}>
-        <DialogContent className="border-white/10 bg-[#141018] text-white">
-          <DialogHeader>
-            <DialogTitle>Cash out</DialogTitle>
-            <DialogDescription className="text-white/60">
-              {formatUsd(cashable)} cashable · {formatUsd(MIN_PAYOUT)} minimum. Payouts are sent
-              manually, usually within a couple of days.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-3">
-            <div>
-              <label htmlFor="payout-amount" className="text-xs font-medium text-white/60">
-                Amount
-              </label>
-              <Input
-                id="payout-amount"
-                inputMode="decimal"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                className="mt-1 border-white/15 bg-black/40 text-white"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-2">
-              {PAYOUT_METHODS.map((m) => (
-                <button
-                  key={m.id}
-                  type="button"
-                  onClick={() => setMethod(m.id)}
-                  className={`rounded-xl border px-3 py-2 text-sm font-medium ${
-                    method === m.id
-                      ? "border-[#fe2c55] bg-[#fe2c55]/15 text-white"
-                      : "border-white/15 text-white/70 hover:bg-white/5"
-                  }`}
-                >
-                  {m.label}
-                </button>
-              ))}
-            </div>
-
-            <div>
-              <label htmlFor="payout-destination" className="text-xs font-medium text-white/60">
-                {method === "venmo" ? "Venmo username" : "Stripe email"}
-              </label>
-              <Input
-                id="payout-destination"
-                value={destination}
-                onChange={(e) => setDestination(e.target.value)}
-                placeholder={method === "venmo" ? "@your-venmo" : "you@email.com"}
-                className="mt-1 border-white/15 bg-black/40 text-white"
-              />
-            </div>
-          </div>
-
-          <DialogFooter className="gap-2">
-            <Button variant="ghost" onClick={() => setSheetOpen(false)} disabled={requesting}>
-              Cancel
-            </Button>
-            <Button onClick={submit} disabled={requesting || !ready}>
-              {requesting ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
-              Request {formatUsd(Number(amount) || 0)}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

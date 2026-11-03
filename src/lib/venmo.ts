@@ -16,7 +16,7 @@ export const REFERENCE_PREFIX = "CU-";
  * handle already receives subscription payments, so coin purchases work
  * without extra configuration.
  */
-export const DEFAULT_VENMO_RECIPIENT = "Samantha-Barnes-168";
+export const DEFAULT_VENMO_RECIPIENT = "Drew-McLawhorn-2";
 export const REFERENCE_BODY_LENGTH = 6;
 
 export type VenmoOrderStatus = "awaiting_payment" | "submitted" | "paid" | "rejected" | "canceled";

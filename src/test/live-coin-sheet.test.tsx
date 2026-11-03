@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => ({
     amountCents: 99,
     amountUsd: "0.99",
     note: "Coolerup coins CU-ABC234",
-    recipient: "Samantha-Barnes-168",
+    recipient: "Drew-McLawhorn-2",
     venmoUrl: "https://venmo.com/?txn=pay",
     appUrl: "venmo://paycharge",
   })),
@@ -19,7 +19,7 @@ vi.mock("@/lib/coins.functions", () => ({
   coinPaymentStatus: async () => ({
     stripeConfigured: false,
     venmoConfigured: true,
-    venmoRecipient: "Samantha-Barnes-168",
+    venmoRecipient: "Drew-McLawhorn-2",
     packs: [],
   }),
   createCoinVenmoOrder: mocks.createCoinVenmoOrder,

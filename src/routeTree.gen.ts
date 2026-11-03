@@ -18,6 +18,8 @@ import { Route as OfflineRouteImport } from './routes/offline'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as WalletRouteImport } from './routes/wallet'
+import { Route as AdminPayoutsRouteImport } from './routes/admin_.payouts'
 import { Route as CoinsRechargeRouteImport } from './routes/coins.recharge'
 import { Route as GroupsIndexRouteImport } from './routes/groups.index'
 import { Route as GroupsGroupIdRouteImport } from './routes/groups.$groupId'
@@ -70,6 +72,16 @@ const SettingsRoute = SettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
+const WalletRoute = WalletRouteImport.update({
+  id: '/wallet',
+  path: '/wallet',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminPayoutsRoute = AdminPayoutsRouteImport.update({
+  id: '/admin_/payouts',
+  path: '/admin/payouts',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CoinsRechargeRoute = CoinsRechargeRouteImport.update({
   id: '/coins/recharge',
   path: '/coins/recharge',
@@ -111,6 +123,8 @@ export interface FileRoutesByFullPath {
   '/onboarding': typeof OnboardingRoute
   '/privacy': typeof PrivacyRoute
   '/settings': typeof SettingsRoute
+  '/wallet': typeof WalletRoute
+  '/admin/payouts': typeof AdminPayoutsRoute
   '/coins/recharge': typeof CoinsRechargeRoute
   '/groups/$groupId': typeof GroupsGroupIdRoute
   '/live/dashboard': typeof LiveDashboardRoute
@@ -127,6 +141,8 @@ export interface FileRoutesByTo {
   '/onboarding': typeof OnboardingRoute
   '/privacy': typeof PrivacyRoute
   '/settings': typeof SettingsRoute
+  '/wallet': typeof WalletRoute
+  '/admin/payouts': typeof AdminPayoutsRoute
   '/coins/recharge': typeof CoinsRechargeRoute
   '/groups/$groupId': typeof GroupsGroupIdRoute
   '/live/dashboard': typeof LiveDashboardRoute
@@ -145,6 +161,8 @@ export interface FileRoutesById {
   '/onboarding': typeof OnboardingRoute
   '/privacy': typeof PrivacyRoute
   '/settings': typeof SettingsRoute
+  '/wallet': typeof WalletRoute
+  '/admin_/payouts': typeof AdminPayoutsRoute
   '/coins/recharge': typeof CoinsRechargeRoute
   '/groups/$groupId': typeof GroupsGroupIdRoute
   '/live/dashboard': typeof LiveDashboardRoute
@@ -164,6 +182,8 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/privacy'
     | '/settings'
+    | '/wallet'
+    | '/admin/payouts'
     | '/coins/recharge'
     | '/groups/$groupId'
     | '/live/dashboard'
@@ -180,6 +200,8 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/privacy'
     | '/settings'
+    | '/wallet'
+    | '/admin/payouts'
     | '/coins/recharge'
     | '/groups/$groupId'
     | '/live/dashboard'
@@ -197,6 +219,8 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/privacy'
     | '/settings'
+    | '/wallet'
+    | '/admin_/payouts'
     | '/coins/recharge'
     | '/groups/$groupId'
     | '/live/dashboard'
@@ -215,6 +239,8 @@ export interface RootRouteChildren {
   OnboardingRoute: typeof OnboardingRoute
   PrivacyRoute: typeof PrivacyRoute
   SettingsRoute: typeof SettingsRoute
+  WalletRoute: typeof WalletRoute
+  AdminPayoutsRoute: typeof AdminPayoutsRoute
   CoinsRechargeRoute: typeof CoinsRechargeRoute
   SoundSoundIdRoute: typeof SoundSoundIdRoute
   UUsernameRoute: typeof UUsernameRoute
@@ -283,6 +309,20 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/wallet': {
+      id: '/wallet'
+      path: '/wallet'
+      fullPath: '/wallet'
+      preLoaderRoute: typeof WalletRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin_/payouts': {
+      id: '/admin_/payouts'
+      path: '/admin/payouts'
+      fullPath: '/admin/payouts'
+      preLoaderRoute: typeof AdminPayoutsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/coins/recharge': {
@@ -363,6 +403,8 @@ const rootRouteChildren: RootRouteChildren = {
   OnboardingRoute: OnboardingRoute,
   PrivacyRoute: PrivacyRoute,
   SettingsRoute: SettingsRoute,
+  WalletRoute: WalletRoute,
+  AdminPayoutsRoute: AdminPayoutsRoute,
   CoinsRechargeRoute: CoinsRechargeRoute,
   SoundSoundIdRoute: SoundSoundIdRoute,
   UUsernameRoute: UUsernameRoute,

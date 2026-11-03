@@ -11,7 +11,7 @@ export const Route = createFileRoute("/admin_/payouts")({
       { title: "Creator-fund payouts — Coolerup" },
       {
         name: "description",
-        content: "Send and record the $1.00 first-follower rewards.",
+        content: "Send creator cashouts via Venmo or Stripe and record them as paid.",
       },
     ],
   }),
@@ -68,10 +68,10 @@ function PayoutsPage() {
         <div className="min-w-0 flex-1">
           <h1 className="flex items-center gap-2 text-lg font-bold">
             <Banknote className="h-5 w-5 text-primary" />
-            Creator-fund payouts
+            Creator payouts
           </h1>
           <p className="text-xs text-muted-foreground">
-            $1.00 for every account that reached its first follower
+            Diamonds, creator-fund earnings and gift income, paid out by hand
           </p>
         </div>
       </header>

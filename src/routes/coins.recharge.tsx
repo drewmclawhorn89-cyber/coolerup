@@ -4,6 +4,7 @@ import { ArrowLeft, Check, Coins, CreditCard, Loader2, Lock, Sparkles, Wallet } 
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { CoinVenmoSheet } from "@/components/CoinVenmoSheet";
+import { VenmoFreeCoins } from "@/components/VenmoFreeCoins";
 import { useAuth } from "@/hooks/useAuth";
 import { COIN_PACKS, notifyCoinsChanged, usdFromCents, useCoins } from "@/lib/coins";
 import {
@@ -269,6 +270,11 @@ function RechargePage() {
               ? "Coins never expire. 100 coins = 50 diamonds for the streamer."
               : "Sign in to buy coins."}
           </p>
+        </section>
+
+        <section className="rounded-3xl border border-[#3D95CE]/30 bg-[#3D95CE]/5 p-4">
+          <h2 className="mb-2 text-sm font-extrabold">Free coins</h2>
+          <VenmoFreeCoins />
         </section>
 
         {confirming && (

@@ -18,6 +18,7 @@ import { Route as OfflineRouteImport } from './routes/offline'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as AdminFreeCoinsRouteImport } from './routes/admin_.free-coins'
 import { Route as CoinsRechargeRouteImport } from './routes/coins.recharge'
 import { Route as GroupsIndexRouteImport } from './routes/groups.index'
 import { Route as GroupsGroupIdRouteImport } from './routes/groups.$groupId'
@@ -70,6 +71,11 @@ const SettingsRoute = SettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminFreeCoinsRoute = AdminFreeCoinsRouteImport.update({
+  id: '/admin_/free-coins',
+  path: '/admin/free-coins',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CoinsRechargeRoute = CoinsRechargeRouteImport.update({
   id: '/coins/recharge',
   path: '/coins/recharge',
@@ -111,6 +117,7 @@ export interface FileRoutesByFullPath {
   '/onboarding': typeof OnboardingRoute
   '/privacy': typeof PrivacyRoute
   '/settings': typeof SettingsRoute
+  '/admin/free-coins': typeof AdminFreeCoinsRoute
   '/coins/recharge': typeof CoinsRechargeRoute
   '/groups/$groupId': typeof GroupsGroupIdRoute
   '/live/dashboard': typeof LiveDashboardRoute
@@ -127,6 +134,7 @@ export interface FileRoutesByTo {
   '/onboarding': typeof OnboardingRoute
   '/privacy': typeof PrivacyRoute
   '/settings': typeof SettingsRoute
+  '/admin/free-coins': typeof AdminFreeCoinsRoute
   '/coins/recharge': typeof CoinsRechargeRoute
   '/groups/$groupId': typeof GroupsGroupIdRoute
   '/live/dashboard': typeof LiveDashboardRoute
@@ -145,6 +153,7 @@ export interface FileRoutesById {
   '/onboarding': typeof OnboardingRoute
   '/privacy': typeof PrivacyRoute
   '/settings': typeof SettingsRoute
+  '/admin_/free-coins': typeof AdminFreeCoinsRoute
   '/coins/recharge': typeof CoinsRechargeRoute
   '/groups/$groupId': typeof GroupsGroupIdRoute
   '/live/dashboard': typeof LiveDashboardRoute
@@ -164,6 +173,7 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/privacy'
     | '/settings'
+    | '/admin/free-coins'
     | '/coins/recharge'
     | '/groups/$groupId'
     | '/live/dashboard'
@@ -180,6 +190,7 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/privacy'
     | '/settings'
+    | '/admin/free-coins'
     | '/coins/recharge'
     | '/groups/$groupId'
     | '/live/dashboard'
@@ -197,6 +208,7 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/privacy'
     | '/settings'
+    | '/admin_/free-coins'
     | '/coins/recharge'
     | '/groups/$groupId'
     | '/live/dashboard'
@@ -215,6 +227,7 @@ export interface RootRouteChildren {
   OnboardingRoute: typeof OnboardingRoute
   PrivacyRoute: typeof PrivacyRoute
   SettingsRoute: typeof SettingsRoute
+  AdminFreeCoinsRoute: typeof AdminFreeCoinsRoute
   CoinsRechargeRoute: typeof CoinsRechargeRoute
   SoundSoundIdRoute: typeof SoundSoundIdRoute
   UUsernameRoute: typeof UUsernameRoute
@@ -283,6 +296,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin_/free-coins': {
+      id: '/admin_/free-coins'
+      path: '/admin/free-coins'
+      fullPath: '/admin/free-coins'
+      preLoaderRoute: typeof AdminFreeCoinsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/coins/recharge': {
@@ -363,6 +383,7 @@ const rootRouteChildren: RootRouteChildren = {
   OnboardingRoute: OnboardingRoute,
   PrivacyRoute: PrivacyRoute,
   SettingsRoute: SettingsRoute,
+  AdminFreeCoinsRoute: AdminFreeCoinsRoute,
   CoinsRechargeRoute: CoinsRechargeRoute,
   SoundSoundIdRoute: SoundSoundIdRoute,
   UUsernameRoute: UUsernameRoute,

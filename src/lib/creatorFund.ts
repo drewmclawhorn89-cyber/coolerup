@@ -10,7 +10,7 @@
  * QUALIFICATION
  *   10 followers AND 10,000 views in the last 30 days.
  *
- * MILESTONES (lifetime views, paid once each)
+ * MILESTONES (per video, paid once each per video)
  *   1,000     -> $0.02
  *   10,000    -> $0.20
  *   100,000   -> $2.00
@@ -34,9 +34,24 @@ export const CREATOR_FUND_MILESTONES: Milestone[] = [
 
 export type CreatorFundEarning = {
   id: string;
+  videoId: string | null;
+  /** Views the video had when the milestone was paid. */
+  views: number;
   milestoneViews: number;
+  /** Same money as `amount`; kept so both column names read naturally. */
+  earnings: number;
   amount: number;
   createdAt: string;
+  caption: string | null;
+  videoUsername: string | null;
+};
+
+export type CreatorFundVideo = {
+  videoId: string;
+  caption: string | null;
+  videoUsername: string | null;
+  views: number;
+  earnings: number;
 };
 
 export type CreatorFund = {
@@ -47,6 +62,7 @@ export type CreatorFund = {
   earned: number;
   nextMilestone: number | null;
   earnings: CreatorFundEarning[];
+  videos: CreatorFundVideo[];
 };
 
 const EMPTY: CreatorFund = {
@@ -57,6 +73,7 @@ const EMPTY: CreatorFund = {
   earned: 0,
   nextMilestone: CREATOR_FUND_MILESTONES[0]?.views ?? 1000,
   earnings: [],
+  videos: [],
 };
 
 const num = (v: unknown, fallback = 0): number => {
@@ -132,9 +149,21 @@ export async function myCreatorFund(): Promise<CreatorFund> {
       nextMilestone: data["nextMilestone"] === null ? null : num(data["nextMilestone"], 0) || null,
       earnings: list(data["earnings"]).map((row) => ({
         id: String(row["id"] ?? ""),
+        videoId: row["video_id"] ? String(row["video_id"]) : null,
+        views: num(row["views"]),
         milestoneViews: num(row["milestone_views"]),
+        earnings: num(row["earnings"]),
         amount: num(row["amount"]),
         createdAt: String(row["created_at"] ?? ""),
+        caption: row["caption"] ? String(row["caption"]) : null,
+        videoUsername: row["video_username"] ? String(row["video_username"]) : null,
+      })),
+      videos: list(data["videos"]).map((row) => ({
+        videoId: String(row["video_id"] ?? ""),
+        caption: row["caption"] ? String(row["caption"]) : null,
+        videoUsername: row["video_username"] ? String(row["video_username"]) : null,
+        views: num(row["views"]),
+        earnings: num(row["earnings"]),
       })),
     };
   } catch {

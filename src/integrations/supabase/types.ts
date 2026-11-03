@@ -833,6 +833,7 @@ export type Database = {
         Row: {
           coins: number;
           created_at: string;
+          diamonds: number;
           gift_type: string;
           id: string;
           live_id: string;
@@ -843,6 +844,7 @@ export type Database = {
         Insert: {
           coins: number;
           created_at?: string;
+          diamonds?: number;
           gift_type: string;
           id?: string;
           live_id: string;
@@ -853,6 +855,7 @@ export type Database = {
         Update: {
           coins?: number;
           created_at?: string;
+          diamonds?: number;
           gift_type?: string;
           id?: string;
           live_id?: string;
@@ -989,6 +992,7 @@ export type Database = {
         Row: {
           balance: number;
           diamonds: number;
+          paid_balance: number;
           total_earned: number;
           total_recharged: number;
           total_spent: number;
@@ -998,6 +1002,7 @@ export type Database = {
         Insert: {
           balance?: number;
           diamonds?: number;
+          paid_balance?: number;
           total_earned?: number;
           total_recharged?: number;
           total_spent?: number;
@@ -1007,6 +1012,7 @@ export type Database = {
         Update: {
           balance?: number;
           diamonds?: number;
+          paid_balance?: number;
           total_earned?: number;
           total_recharged?: number;
           total_spent?: number;
@@ -1023,6 +1029,7 @@ export type Database = {
         user_id: string;
         video_id: string;
         viewer_id: string | null;
+        views: number;
       };
       Insert: {
         created_at?: string;
@@ -1030,6 +1037,7 @@ export type Database = {
         user_id: string;
         video_id: string;
         viewer_id?: string | null;
+        views?: number;
       };
       Update: {
         created_at?: string;
@@ -1037,6 +1045,7 @@ export type Database = {
         user_id?: string;
         video_id?: string;
         viewer_id?: string | null;
+        views?: number;
       };
       Relationships: [
         {
@@ -1059,23 +1068,32 @@ export type Database = {
       Row: {
         amount: number;
         created_at: string;
+        earnings: number;
         id: string;
         milestone_views: number;
         user_id: string;
+        video_id: string | null;
+        views: number;
       };
       Insert: {
         amount: number;
         created_at?: string;
+        earnings?: number;
         id?: string;
         milestone_views: number;
         user_id: string;
+        video_id?: string | null;
+        views?: number;
       };
       Update: {
         amount?: number;
         created_at?: string;
+        earnings?: number;
         id?: string;
         milestone_views?: number;
         user_id?: string;
+        video_id?: string | null;
+        views?: number;
       };
       Relationships: [
         {
@@ -1090,24 +1108,30 @@ export type Database = {
     gift_claims: {
       Row: {
         amount: number;
+        coins: number;
         created_at: string;
         diamonds: number;
+        gift: string | null;
         gift_id: string;
         id: string;
         user_id: string;
       };
       Insert: {
         amount?: number;
+        coins?: number;
         created_at?: string;
         diamonds?: number;
+        gift?: string | null;
         gift_id: string;
         id?: string;
         user_id: string;
       };
       Update: {
         amount?: number;
+        coins?: number;
         created_at?: string;
         diamonds?: number;
+        gift?: string | null;
         gift_id?: string;
         id?: string;
         user_id?: string;

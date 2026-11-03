@@ -297,10 +297,10 @@ export async function reportContent(
 ): Promise<ModerationResult> {
   try {
     const { data, error } = await supabase.rpc("report_content", {
-      _video_id: videoId,
+      _video_id: videoId as string,
       _reported_username: reportedUsername.replace(/^@+/, "").trim(),
       _reason: reason,
-      _details: details?.trim() ? details.trim().slice(0, 1000) : null,
+      _details: details?.trim() ? details.trim().slice(0, 1000) : undefined,
     });
     if (error) return { ok: false, error: error.message };
     const row = unwrap<Record<string, unknown>>(data) ?? {};
@@ -410,7 +410,7 @@ export async function adminBan(
 ): Promise<ModerationResult> {
   const { data, error } = await supabase.rpc("admin_ban", {
     _username: username.replace(/^@+/, "").trim(),
-    _hours: hours,
+    _hours: hours ?? undefined,
     _permanent: permanent,
     _reason: reason,
   });

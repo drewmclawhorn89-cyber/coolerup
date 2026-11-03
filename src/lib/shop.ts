@@ -40,7 +40,7 @@ export function getEquipped(handle?: string | null): Equipped {
 
 export function equip(handle: string, item: ShopItem | null, kind: ShopItem["kind"]) {
   const cur = getEquipped(handle);
-  cur[kind] = item?.id;
+  cur[kind] = item?.id as string;
   localStorage.setItem(key(handle), JSON.stringify(cur));
   window.dispatchEvent(new Event(EVT));
 }

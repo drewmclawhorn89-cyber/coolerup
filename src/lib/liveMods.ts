@@ -222,7 +222,7 @@ export async function muteUser(
   const { error } = await supabase.rpc("mute_live_user", {
     p_live_id: liveId,
     p_user_id: userId,
-    p_minutes: minutes,
+    p_minutes: minutes ?? undefined,
   });
   if (error) return { ok: false, message: readError(error) };
   return { ok: true };

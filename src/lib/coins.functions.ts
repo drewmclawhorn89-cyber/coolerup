@@ -436,7 +436,7 @@ export const submitCoinVenmoPayment = createServerFn({ method: "POST" })
     const { data: result, error } = await context.supabase.rpc("submit_coin_venmo_payment", {
       _order_id: data.orderId,
       _payer_handle: data.payerHandle,
-      _venmo_note: note ? note : null,
+      _venmo_note: note ? note : undefined,
     });
 
     if (error) return { ok: false, message: error.message };
@@ -483,7 +483,7 @@ export const adminReviewCoinVenmoOrder = createServerFn({ method: "POST" })
     const { data: result, error } = await context.supabase.rpc("admin_review_coin_venmo_order", {
       _order_id: data.orderId,
       _action: data.action,
-      _note: note ? note : null,
+      _note: note ? note : undefined,
     });
 
     if (error) return { ok: false, message: error.message };

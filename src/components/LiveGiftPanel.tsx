@@ -1,14 +1,18 @@
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 import { Coins, Loader2, Send, Sparkles, X } from "lucide-react";
 import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "@/components/ui/drawer";
 import {
   GIFT_COUNTS,
   canAfford,
   giftTotal,
-  giftsForMode,
   type GiftCount,
   type LiveGift,
 } from "@/lib/coins";
+
+const gifts: LiveGift[] = [
+  { id: "rose", name: "Rose", emoji: "🌹", coins: 1, kind: "fly", color: "#fe2c55" },
+  { id: "lion", name: "Lion", emoji: "🦁", coins: 100, kind: "burst", color: "#f59e0b" },
+];
 
 /**
  * The LIVE gift sheet: a half-screen dark panel that slides up from the bottom,
@@ -20,7 +24,6 @@ import {
 export function LiveGiftPanel({
   open,
   onOpenChange,
-  christmas,
   balance,
   signedIn,
   sending,
@@ -30,6 +33,7 @@ export function LiveGiftPanel({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Retained for compatibility with callers; this panel always shows Rose and Lion. */
   christmas: boolean;
   balance: number | null;
   signedIn: boolean;
@@ -38,17 +42,11 @@ export function LiveGiftPanel({
   onRecharge: () => void;
   onSignIn: () => void;
 }) {
-  const gifts = useMemo(() => giftsForMode(christmas), [christmas]);
-  const [giftId, setGiftId] = useState(gifts[0]?.id ?? "rose");
+  const [giftId, setGiftId] = useState("rose");
   const [quantity, setQuantity] = useState<GiftCount>(1);
 
-  // Keep the selection valid when Christmas gifts appear/disappear.
-  useEffect(() => {
-    if (!gifts.some((gift) => gift.id === giftId)) setGiftId(gifts[0]?.id ?? "rose");
-  }, [gifts, giftId]);
-
   const selected = gifts.find((gift) => gift.id === giftId) ?? gifts[0];
-  const total = selected ? giftTotal(selected, quantity) : 0;
+  const total = giftTotal(selected, quantity);
   const affordable = canAfford(balance, total);
 
   return (
@@ -100,7 +98,7 @@ export function LiveGiftPanel({
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
             <div className="grid grid-cols-4 gap-2 pb-2">
               {gifts.map((gift) => {
-                const active = gift.id === selected?.id;
+                const active = gift.id === selected.id;
                 return (
                   <button
                     key={gift.id}
@@ -126,11 +124,6 @@ export function LiveGiftPanel({
                     <span className="flex items-center gap-0.5 text-[10px] font-extrabold text-yellow-400">
                       {gift.coins.toLocaleString()} 🪙
                     </span>
-                    {gift.christmasOnly && (
-                      <span className="absolute -right-1 -top-1 rounded-full bg-green-600 px-1 text-[8px] font-extrabold">
-                        XMAS
-                      </span>
-                    )}
                   </button>
                 );
               })}
@@ -176,8 +169,8 @@ export function LiveGiftPanel({
             ) : (
               <button
                 type="button"
-                disabled={!selected || sending || !signedIn}
-                onClick={() => selected && onSend(selected, quantity)}
+                disabled={sending || !signedIn}
+                onClick={() => onSend(selected, quantity)}
                 className="flex w-full items-center justify-center gap-2 rounded-full bg-[#fe2c55] py-3.5 text-sm font-extrabold text-white transition active:scale-[0.99] disabled:opacity-50"
               >
                 {sending ? (
@@ -185,7 +178,7 @@ export function LiveGiftPanel({
                 ) : (
                   <Send className="h-4 w-4" />
                 )}
-                {signedIn ? `Send ${selected?.name ?? "gift"}` : "Sign in to send"}
+                {signedIn ? `Send ${selected.name}` : "Sign in to send"}
               </button>
             )}
 

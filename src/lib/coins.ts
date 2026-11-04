@@ -251,10 +251,12 @@ const INSUFFICIENT = /insufficient_coins/i;
 
 /**
  * Sends a gift through the `send_live_gift` Postgres function, which deducts
- * coins and writes the gift row in one transaction.
+ * coins and writes the gift row in one transaction. `liveId` is the stream's
+ * UUID, or null when the gift is not associated with a persisted live session.
+ * The database derives sender_id from auth.uid() rather than trusting client text.
  */
 export async function sendLiveGift(input: {
-  liveId: string;
+  liveId: string | null;
   receiverId: string;
   gift: LiveGift;
   quantity: number;
@@ -264,7 +266,7 @@ export async function sendLiveGift(input: {
   const total = giftTotal(gift, qty);
 
   const { data, error } = await supabase.rpc("send_live_gift", {
-    p_live_id: liveId,
+    p_live_id: liveId as string,
     p_receiver_id: receiverId,
     p_gift_type: gift.id,
     p_coins: total,

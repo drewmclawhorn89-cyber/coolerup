@@ -1003,6 +1003,7 @@ function Index() {
                   isSaved={savedIds.has(v.id)}
                   onSavedChange={handleSavedChange}
                   repostedBy={repostBy.get(v.id) ?? v.reposted_by ?? null}
+                  posterUsername={v.poster_username ?? v.username}
                 />
               ))}
               <div id="scroll-sentinel" className="h-10 w-full" />

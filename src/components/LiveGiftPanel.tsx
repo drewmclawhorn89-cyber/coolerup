@@ -45,7 +45,7 @@ export function LiveGiftPanel({
   const [giftId, setGiftId] = useState("rose");
   const [quantity, setQuantity] = useState<GiftCount>(1);
 
-  const selected = gifts.find((gift) => gift.id === giftId) ?? gifts[0];
+  const selected = gifts.find((gift) => gift.id === giftId) ?? gifts[0] ?? LIVE_GIFTS[0]!;
   const total = giftTotal(selected, quantity);
   const affordable = canAfford(balance, total);
 

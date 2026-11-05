@@ -127,8 +127,6 @@ function VideoCardImpl({
   const [shares, setShares] = useState(video.shares_count);
   const [reposted, setReposted] = useState(false);
   const [repostCount, setRepostCount] = useState(video.reposts ?? video.reposts_count ?? 0);
-  // Repost icon pop, mirroring the heart animation on like.
-  const [repostBurst, setRepostBurst] = useState(false);
   // Long-press on the ❤️ opens a TikTok-style bottom sheet (Repost / Not
   // interested). 600ms hold; a shorter tap is a normal like.
   const [showLikeMenu, setShowLikeMenu] = useState(false);
@@ -676,11 +674,7 @@ function VideoCardImpl({
     haptic();
     setReposted(next);
     setRepostCount((c) => Math.max(0, next ? c + 1 : c - 1));
-    if (next) {
-      setRepostBurst(true);
-      setTimeout(() => setRepostBurst(false), 650);
-      toast.success("Reposted! Your followers can see this");
-    }
+    if (next) toast.success("Reposted! Your followers can see this");
 
     try {
       if (next) {
@@ -1099,19 +1093,7 @@ function VideoCardImpl({
             <MessageCircle className="h-7 w-7 fill-white text-white drop-shadow-lg" />
           </RailButton>
 
-          {/* REPOST */}
-          <RailButton
-            label={formatCount(Math.max(repostCount ?? 0, reposted ? 1 : 0))}
-            onClick={() => void toggleRepost()}
-            pressed={reposted}
-            activeClass="text-yellow-400"
-          >
-            <Repeat2
-              className={`h-7 w-7 drop-shadow-lg ${
-                reposted ? "text-yellow-400" : "text-white"
-              } ${reposted && repostBurst ? "repost-pop-btn" : ""}`}
-            />
-          </RailButton>
+          {/* Repost lives in the long-press sheet on the ❤️, not on the rail. */}
 
           {/* BOOKMARK */}
           <RailButton

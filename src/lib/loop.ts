@@ -31,6 +31,11 @@ export type Video = {
    * person who reposted it, so the card can show "@name reposted".
    */
   reposted_by?: string | null;
+  /**
+   * Handle of the uploader, resolved with `videos.user_id → profiles.handle`.
+   * The feed renders it big at the bottom-left over the video.
+   */
+  poster_username?: string | null;
 };
 
 /** Minimal sound shape embedded in feed rows. */

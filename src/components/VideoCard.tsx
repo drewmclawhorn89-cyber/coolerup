@@ -112,6 +112,12 @@ export type VideoCardProps = {
    * the card can show "@name reposted" above the caption.
    */
   repostedBy?: string | null;
+  /**
+   * Handle of the account that actually uploaded the video (resolved from
+   * `videos.user_id → profiles.handle`). Rendered big at the bottom-left over
+   * the video, TikTok-style. Falls back to `video.username`.
+   */
+  posterUsername?: string | null;
 };
 
 function VideoCardImpl({
@@ -125,6 +131,7 @@ function VideoCardImpl({
   isSaved: isSavedProp,
   onSavedChange,
   repostedBy,
+  posterUsername,
 }: VideoCardProps) {
   const ref = useRef<HTMLVideoElement>(null);
   const [src, setSrc] = useState("");
@@ -790,6 +797,10 @@ function VideoCardImpl({
   // Never label a creator's own repost of their own video — TikTok doesn't.
   const reposter = repostedBy && repostedBy !== video.username ? repostedBy : null;
 
+  // Who uploaded the video. Resolved from videos.user_id → profiles.handle by
+  // the feed; `video.username` is the same value when the join isn't available.
+  const poster = posterUsername ?? video.poster_username ?? video.username;
+
   return (
     <section className="feed-card relative h-full w-full snap-start snap-always bg-black md:flex md:items-center md:justify-center md:bg-transparent md:py-4">
       <div className="relative flex h-full w-full items-end md:h-auto md:w-auto md:gap-4">
@@ -829,7 +840,7 @@ function VideoCardImpl({
                 aria-label={`View @${reposter}'s profile`}
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={(e) => e.stopPropagation()}
-                className="repost-label absolute left-3 top-3 z-30 inline-flex max-w-[calc(100%-1.5rem)] items-center gap-1.5 text-[14px] font-semibold leading-tight text-white"
+                className="repost-label absolute left-3 top-3 z-30 inline-flex max-w-[calc(100%-1.5rem)] items-center gap-1.5 text-[12px] font-semibold leading-tight text-white"
               >
                 <Repeat2 className="h-[15px] w-[15px] shrink-0" aria-hidden />
                 <span className="truncate">@{reposter} reposted</span>
@@ -990,12 +1001,17 @@ function VideoCardImpl({
 
             <div className="video-caption absolute inset-x-0 bottom-0 z-20 pb-14 pl-2 pr-16 pt-16">
               <div className={showCaptions ? "" : "md:hidden"}>
+                {/* Poster handle — big, bold, white over the video, bottom-left
+                    above the caption. Tapping it opens the uploader's profile. */}
                 <Link
                   to="/u/$username"
-                  params={{ username: video.username }}
-                  className="break-words text-sm font-bold"
+                  params={{ username: poster }}
+                  aria-label={`View @${poster}'s profile`}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={(e) => e.stopPropagation()}
+                  className="poster-handle inline-block max-w-full break-words text-[16px] font-bold leading-tight text-white"
                 >
-                  @{video.username}
+                  @{poster}
                 </Link>
               </div>
               {soundId && (
@@ -1027,10 +1043,10 @@ function VideoCardImpl({
           <div className="hidden max-w-[calc((100dvh-11rem)*9/16)] md:block">
             <Link
               to="/u/$username"
-              params={{ username: video.username }}
+              params={{ username: poster }}
               className="font-bold hover:text-primary"
             >
-              @{video.username}
+              @{poster}
             </Link>
             <p className="text-sm text-muted-foreground">{captionText}</p>
           </div>

@@ -787,6 +787,9 @@ function VideoCardImpl({
 
   if (deleted || isBanned || notInterested) return null;
 
+  // Never label a creator's own repost of their own video — TikTok doesn't.
+  const reposter = repostedBy && repostedBy !== video.username ? repostedBy : null;
+
   return (
     <section className="feed-card relative h-full w-full snap-start snap-always bg-black md:flex md:items-center md:justify-center md:bg-transparent md:py-4">
       <div className="relative flex h-full w-full items-end md:h-auto md:w-auto md:gap-4">
@@ -817,15 +820,20 @@ function VideoCardImpl({
             }}
             className="relative h-full w-full overflow-hidden bg-black md:aspect-[9/16] md:h-[calc(100dvh-11rem)] md:max-h-[760px] md:w-auto md:rounded-2xl md:bg-card"
           >
-            {/* "@name reposted" — only on cards the Following feed pulled in
-                through someone else's repost. */}
-            {repostedBy && (
-              <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex justify-start bg-gradient-to-b from-black/60 via-black/20 to-transparent px-3 pb-10 pt-3">
-                <span className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-black/45 px-2.5 py-1 text-[11px] font-bold text-white backdrop-blur-sm">
-                  <Repeat2 className="h-3.5 w-3.5 shrink-0 text-yellow-400" aria-hidden />
-                  <span className="truncate">Reposted by @{repostedBy}</span>
-                </span>
-              </div>
+            {/* TikTok-style repost attribution: 🔁 @reposter reposted, top-left
+                over the video, and it opens the *reposter's* profile. */}
+            {reposter && (
+              <Link
+                to="/u/$username"
+                params={{ username: reposter }}
+                aria-label={`View @${reposter}'s profile`}
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => e.stopPropagation()}
+                className="repost-label absolute left-3 top-3 z-30 inline-flex max-w-[calc(100%-1.5rem)] items-center gap-1.5 text-[14px] font-semibold leading-tight text-white"
+              >
+                <Repeat2 className="h-[15px] w-[15px] shrink-0" aria-hidden />
+                <span className="truncate">@{reposter} reposted</span>
+              </Link>
             )}
             {src && isImage && (
               <img

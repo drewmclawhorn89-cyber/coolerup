@@ -52,6 +52,7 @@ import { listSaved, onOfflineChange } from "@/lib/offline";
 import { readFeedCache, writeFeedCache } from "@/lib/feed-cache";
 import { feedPageSize, isLiteMode, useNetwork } from "@/lib/network";
 import { useBlocked } from "@/lib/safety";
+import { fetchRepostAttribution, REPOST_EVENT } from "@/lib/reposts";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -173,6 +174,8 @@ function Index() {
   });
   const [followingList, setFollowingList] = useState<string[]>([]);
   const [repostedFeed, setRepostedFeed] = useState<Video[]>([]);
+  /** videoId -> handle of whoever reposted it, for the "@name reposted" label. */
+  const [repostBy, setRepostBy] = useState<Map<string, string>>(new Map());
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [challengeHidden, setChallengeHidden] = useState(() => {
     if (typeof window === "undefined") return false;
@@ -525,6 +528,42 @@ function Index() {
     }
     return list;
   }, [videos, saved, query, activeTab, liked, me, followingList, feedTab, repostedFeed, notInterested, blocked]);
+
+  // Who reposted what — one batched query per feed page. The label names a
+  // person you follow when possible, otherwise the newest reposter.
+  const shownIdsKey = useMemo(() => shown.map((v) => v.id).join(","), [shown]);
+  useEffect(() => {
+    if (!shownIdsKey) {
+      setRepostBy(new Map());
+      return;
+    }
+    let active = true;
+    const ids = shownIdsKey.split(",");
+    fetchRepostAttribution(ids, followingList)
+      .then((map) => {
+        if (active) setRepostBy(map);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [shownIdsKey, followingList]);
+
+  // Reposting from a card updates the label immediately, without a refetch.
+  useEffect(() => {
+    const onRepost = (e: Event) => {
+      const detail = (e as CustomEvent<{ videoId: string; handle: string | null }>).detail;
+      if (!detail?.videoId) return;
+      setRepostBy((prev) => {
+        const next = new Map(prev);
+        if (detail.handle) next.set(detail.videoId, detail.handle);
+        else next.delete(detail.videoId);
+        return next;
+      });
+    };
+    window.addEventListener(REPOST_EVENT, onRepost);
+    return () => window.removeEventListener(REPOST_EVENT, onRepost);
+  }, []);
 
   // The LIVE top tab lists real broadcasters from the presence directory
   // (a `videos.is_live` row filter can't see people who are streaming now).
@@ -963,7 +1002,7 @@ function Index() {
                   onFollowChange={handleFollowChange}
                   isSaved={savedIds.has(v.id)}
                   onSavedChange={handleSavedChange}
-                  repostedBy={activeTab === "following" ? v.reposted_by ?? null : null}
+                  repostedBy={repostBy.get(v.id) ?? v.reposted_by ?? null}
                 />
               ))}
               <div id="scroll-sentinel" className="h-10 w-full" />

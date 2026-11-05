@@ -90,7 +90,7 @@ export function giftById(id: string): LiveGift | undefined {
 }
 
 /** Multipliers offered in the gift panel, TikTok style. */
-export const GIFT_COUNTS = [1, 5, 10] as const;
+export const GIFT_COUNTS = [1, 5, 10, 99] as const;
 export type GiftCount = (typeof GIFT_COUNTS)[number];
 
 /** Total coins for `quantity` of `gift`. */

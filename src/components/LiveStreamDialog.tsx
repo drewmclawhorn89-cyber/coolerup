@@ -78,7 +78,7 @@ import {
   earningsFromCoins,
   sendLiveGift,
   tickerLine,
-  topGifterLine,
+  topGifters,
   useCoins,
   type GiftCount,
   type GiftFeedRow,
@@ -146,6 +146,25 @@ function GiftTicker({ rows }: { rows: GiftFeedRow[] }) {
         <span>{line}</span>
         <span aria-hidden="true">{line}</span>
       </div>
+    </div>
+  );
+}
+
+/** Top three gifters in this stream, TikTok leaderboard style. */
+function GiftLeaderboard({ rows }: { rows: GiftFeedRow[] }) {
+  const top = topGifters(rows, 3);
+  if (top.length === 0) return null;
+  const medals = ["🥇", "🥈", "🥉"];
+  return (
+    <div className="flex flex-col items-center gap-1" data-testid="gift-leaderboard">
+      {top.map((gifter, index) => (
+        <span
+          key={gifter.userId}
+          className="max-w-full truncate rounded-full bg-black/60 px-3 py-1 text-[11px] font-bold text-yellow-300 backdrop-blur"
+        >
+          {medals[index]} @{gifter.name} · {gifter.coins.toLocaleString()} 🪙
+        </span>
+      ))}
     </div>
   );
 }
@@ -265,7 +284,6 @@ export function LiveStreamDialog({
   /** Who receives the gift: the host, whichever side we're on. */
   const receiverId = mode === "host" ? (userId ?? null) : hostId;
   const giftCoins = giftFeed.reduce((sum, row) => sum + row.coins, 0);
-  const topGifter = topGifterLine(giftFeed);
   const tickerRows = giftFeed.slice(-6);
 
   const hostUsername =
@@ -369,7 +387,7 @@ export function LiveStreamDialog({
 
     wallet.setBalance(result.balance);
     notifyCoinsChanged();
-    setGiftOpen(false);
+    // Keep the tray open so viewers can tap again and build a combo.
     const payload: GiftPayload = {
       id: result.giftId || `local-${Date.now()}`,
       giftType: gift.id,
@@ -1271,18 +1289,12 @@ export function LiveStreamDialog({
               </div>
             )}
 
-            {(topGifter || giftCoins > 0) && (
+            {giftCoins > 0 && (
               <div className="pointer-events-none absolute inset-x-0 top-[calc(env(safe-area-inset-top)+4.25rem)] flex flex-col items-center gap-1 px-4">
-                {topGifter && (
-                  <span className="max-w-full truncate rounded-full bg-black/60 px-3 py-1 text-[11px] font-bold text-yellow-300 backdrop-blur">
-                    🏆 {topGifter}
-                  </span>
-                )}
-                {giftCoins > 0 && (
-                  <span className="rounded-full bg-[#fe2c55]/90 px-3 py-1 text-[11px] font-extrabold text-white">
-                    🎁 {giftCoins.toLocaleString()} coins this stream
-                  </span>
-                )}
+                <GiftLeaderboard rows={giftFeed} />
+                <span className="rounded-full bg-[#fe2c55]/90 px-3 py-1 text-[11px] font-extrabold text-white">
+                  🎁 {giftCoins.toLocaleString()} coins this stream
+                </span>
               </div>
             )}
 

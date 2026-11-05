@@ -550,13 +550,6 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "gift_claims_gift_id_fkey"
-            columns: ["gift_id"]
-            isOneToOne: true
-            referencedRelation: "live_gifts"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "gift_claims_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
@@ -775,54 +768,39 @@ export type Database = {
       }
       live_gifts: {
         Row: {
-          coins: number
-          created_at: string
-          diamonds: number
-          gift_type: string
+          coins: number | null
+          created_at: string | null
+          diamonds: number | null
+          gift_type: string | null
           id: string
-          live_id: string
-          quantity: number
-          receiver_id: string
-          sender_id: string
+          live_id: string | null
+          quantity: number | null
+          receiver_id: string | null
+          sender_id: string | null
         }
         Insert: {
-          coins: number
-          created_at?: string
-          diamonds?: number
-          gift_type: string
+          coins?: number | null
+          created_at?: string | null
+          diamonds?: number | null
+          gift_type?: string | null
           id?: string
-          live_id: string
-          quantity?: number
-          receiver_id: string
-          sender_id: string
+          live_id?: string | null
+          quantity?: number | null
+          receiver_id?: string | null
+          sender_id?: string | null
         }
         Update: {
-          coins?: number
-          created_at?: string
-          diamonds?: number
-          gift_type?: string
+          coins?: number | null
+          created_at?: string | null
+          diamonds?: number | null
+          gift_type?: string | null
           id?: string
-          live_id?: string
-          quantity?: number
-          receiver_id?: string
-          sender_id?: string
+          live_id?: string | null
+          quantity?: number | null
+          receiver_id?: string | null
+          sender_id?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "live_gifts_receiver_id_fkey"
-            columns: ["receiver_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "live_gifts_sender_id_fkey"
-            columns: ["sender_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       live_guests: {
         Row: {
@@ -1560,6 +1538,7 @@ export type Database = {
         Row: {
           balance: number
           diamonds: number
+          last_gift_id: string | null
           paid_balance: number
           total_earned: number
           total_recharged: number
@@ -1570,6 +1549,7 @@ export type Database = {
         Insert: {
           balance?: number
           diamonds?: number
+          last_gift_id?: string | null
           paid_balance?: number
           total_earned?: number
           total_recharged?: number
@@ -1580,6 +1560,7 @@ export type Database = {
         Update: {
           balance?: number
           diamonds?: number
+          last_gift_id?: string | null
           paid_balance?: number
           total_earned?: number
           total_recharged?: number

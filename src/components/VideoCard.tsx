@@ -992,7 +992,7 @@ function VideoCardImpl({
                 grow *upward* from it, so a long caption never pushes the
                 username into the middle of the frame. Order here is
                 top→bottom: caption, sound, @handle, repost attribution. */}
-            <div className="video-caption absolute inset-x-0 bottom-0 z-20 pb-4 pl-3 pr-16 pt-16 md:pb-6">
+            <div className="video-caption absolute inset-x-0 bottom-0 z-20 pb-4 pl-3 pr-16 pt-16 md:pb-4">
               <div className={showCaptions ? "" : "md:hidden"}>
                 <p className="line-clamp-3 break-words text-sm">{captionText}</p>
               </div>
@@ -1004,7 +1004,9 @@ function VideoCardImpl({
                   className="mt-1"
                 />
               )}
-              <div className={showCaptions ? "" : "md:hidden"}>
+              {/* Always visible on every breakpoint: the handle is part of the
+                  video chrome, not the optional caption text. */}
+              <div>
                 {/* Poster handle — big, bold, white over the video, pinned to
                     the bottom-left just above the phone nav. Tapping it opens
                     the uploader's profile. */}
@@ -1049,25 +1051,9 @@ function VideoCardImpl({
               </span>
             )}
           </div>
+          {/* Desktop caption column. The handle and repost label live on the
+              video itself now, so they are not repeated here. */}
           <div className="hidden max-w-[calc((100dvh-11rem)*9/16)] md:block">
-            <Link
-              to="/u/$username"
-              params={{ username: poster }}
-              className="font-bold hover:text-primary"
-            >
-              @{poster}
-            </Link>
-            {reposter && (
-              <Link
-                to="/u/$username"
-                params={{ username: reposter }}
-                aria-label={`View @${reposter}'s profile`}
-                className="repost-label flex items-center gap-1 text-[12px] font-semibold text-muted-foreground"
-              >
-                <Repeat2 className="h-[13px] w-[13px] shrink-0" aria-hidden />
-                <span className="truncate">@{reposter} reposted</span>
-              </Link>
-            )}
             <p className="text-sm text-muted-foreground">{captionText}</p>
           </div>
         </div>

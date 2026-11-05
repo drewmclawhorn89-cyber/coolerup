@@ -21,6 +21,8 @@ import { VideoCard } from "@/components/VideoCard";
 import { SantaHat } from "@/components/SantaHat";
 import { ChristmasLights } from "@/components/ChristmasLights";
 import { ChristmasCountdown } from "@/components/ChristmasCountdown";
+import { LiveNowList } from "@/components/LiveNowList";
+import { useLiveDirectory, type LiveHost } from "@/lib/liveDirectory";
 import { OnboardingBanner, useOnboardingGuard } from "@/components/OnboardingBanner";
 import { isChristmasCountdownVisible, useChristmasMode } from "@/lib/christmas";
 import { matchesKeyword, readBool } from "@/lib/prefs";
@@ -251,6 +253,8 @@ function Index() {
   const [uploadFull, setUploadFull] = useState(false);
   const [recordingOpen, setRecordingOpen] = useState(false);
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
+  /** Set when a viewer taps a card on the LIVE tab; opens that room. */
+  const [liveWatchHost, setLiveWatchHost] = useState<LiveHost | null>(null);
   // Keep the create menu mounted after its first open. "Go live" closes the
   // menu before switching to the broadcast view, so unmounting here would
   // throw away the live-stream state and the broadcast screen would never show.
@@ -264,6 +268,9 @@ function Index() {
   useEffect(() => {
     if (createMenuOpen) setCreateMenuMounted(true);
   }, [createMenuOpen]);
+  useEffect(() => {
+    if (liveWatchHost) setCreateMenuMounted(true);
+  }, [liveWatchHost]);
 
   useEffect(() => {
     const q = query.trim().replace(/^@/, "").replace(/[%,()]/g, "");
@@ -519,6 +526,14 @@ function Index() {
     return list;
   }, [videos, saved, query, activeTab, liked, me, followingList, feedTab, repostedFeed, notInterested, blocked]);
 
+  // The LIVE top tab lists real broadcasters from the presence directory
+  // (a `videos.is_live` row filter can't see people who are streaming now).
+  const onLiveTab = activeTab === "foryou" && feedTab === "live" && !offlineMode;
+  const { hosts: liveHosts } = useLiveDirectory({
+    enabled: onLiveTab,
+    key: auth.user?.id ?? null,
+  });
+
   const showTopTabs = !offlineMode && (activeTab === "foryou" || activeTab === "following" || activeTab === "explore");
   const topTab =
     activeTab === "shop" || activeTab === "subscriptions"
@@ -772,7 +787,27 @@ function Index() {
           </div>
         )}
 
-        {activeTab === "foryou" && feedTab === "marketplace" && !offlineMode ? (
+        {onLiveTab ? (
+          <div className="relative flex min-h-0 flex-1 flex-col bg-black">
+            <TopTabs className={topTabsClass} />
+            <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto pt-[calc(env(safe-area-inset-top)+5.5rem)]">
+              <LiveNowList
+                hosts={liveHosts}
+                onWatch={(host) => {
+                  setLiveWatchHost(host);
+                  setCreateMenuOpen(true);
+                }}
+                onGoLive={() =>
+                  guardOnboarding(() => {
+                    setLiveWatchHost(null);
+                    if (auth.user) setCreateMenuOpen(true);
+                    else auth.signIn();
+                  })
+                }
+              />
+            </div>
+          </div>
+        ) : activeTab === "foryou" && feedTab === "marketplace" && !offlineMode ? (
           <div className="relative flex min-h-0 flex-1 flex-col">
             <TopTabs className={topTabsClass} />
             <Suspense fallback={null}>
@@ -1044,9 +1079,15 @@ function Index() {
         <Suspense fallback={null}>
           <LiveStreamDialog
             open={createMenuOpen}
-            onOpenChange={setCreateMenuOpen}
+            onOpenChange={(next) => {
+              setCreateMenuOpen(next);
+              if (!next) setLiveWatchHost(null);
+            }}
             {...(auth.user?.id ? { userId: auth.user.id } : {})}
             username={auth.handle}
+            {...(liveWatchHost
+              ? { initialHost: { userId: liveWatchHost.userId, username: liveWatchHost.username } }
+              : {})}
             onRecord={() => setRecordingOpen(true)}
             onPhoto={() => setPhotoOpen(true)}
             onUpload={() =>

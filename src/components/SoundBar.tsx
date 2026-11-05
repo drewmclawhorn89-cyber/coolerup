@@ -27,11 +27,11 @@ export function SoundBar({ soundId, title, creatorUsername, className = "" }: So
         to="/sound/$soundId"
         params={{ soundId }}
         aria-label={`Open sound: ${label}`}
-        className="flex min-w-0 items-center gap-1.5 rounded-full bg-black/35 px-2 py-1 backdrop-blur-sm transition hover:bg-black/50"
+        className="flex min-w-0 items-center gap-1 rounded-full bg-black/35 px-1.5 py-0.5 backdrop-blur-sm transition hover:bg-black/50"
       >
-        <Music className="h-3.5 w-3.5 shrink-0 text-white drop-shadow" aria-hidden />
+        <Music className="h-3 w-3 shrink-0 text-white drop-shadow" aria-hidden />
         <span className="relative block w-[min(52vw,210px)] overflow-hidden">
-          <span className="animate-marquee flex w-max text-white text-[13px] font-semibold">
+          <span className="animate-marquee flex w-max text-white text-[11px] font-medium leading-4">
             <span className="whitespace-nowrap pr-8">{label}</span>
             <span aria-hidden className="whitespace-nowrap pr-8">
               {label}

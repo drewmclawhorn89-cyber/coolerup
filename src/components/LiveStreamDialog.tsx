@@ -35,6 +35,7 @@ import { LiveMultiGuest } from "@/components/LiveMultiGuest";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
 import { supabase } from "@/integrations/supabase/client";
+import { useLiveDirectory, type LiveHost } from "@/lib/liveDirectory";
 import { openAuthDialog } from "@/hooks/useAuth";
 import { useChristmasMode } from "@/lib/christmas";
 import { isLiteMode, useNetwork } from "@/lib/network";
@@ -86,7 +87,6 @@ import {
 } from "@/lib/coins";
 
 type Mode = "host" | "viewer" | null;
-type LiveHost = { userId: string; username: string; title: string; since: number };
 type ChatMessage = {
   id: string;
   username: string;
@@ -112,13 +112,6 @@ type GiftPayload = {
   at: number;
 };
 const CHAT_LIMIT = 200;
-type Presence = {
-  userId?: string;
-  username?: string;
-  title?: string;
-  since?: number;
-  live?: boolean;
-};
 
 type Props = {
   open: boolean;
@@ -182,7 +175,6 @@ export function LiveStreamDialog({
   const music = useMusicPlayer();
   const [mode, setMode] = useState<Mode>(null);
   const [hostId, setHostId] = useState<string | null>(null);
-  const [liveNow, setLiveNow] = useState<LiveHost[]>([]);
   const [title, setTitle] = useState("");
   const [cameraReady, setCameraReady] = useState(false);
   const [cameraError, setCameraError] = useState("");
@@ -199,11 +191,17 @@ export function LiveStreamDialog({
   const localVideo = useRef<HTMLVideoElement>(null);
   const remoteVideo = useRef<HTMLVideoElement>(null);
   const localStream = useRef<MediaStream | null>(null);
-  const directory = useRef<RealtimeChannel | null>(null);
   const room = useRef<RealtimeChannel | null>(null);
   const peers = useRef<Map<string, RTCPeerConnection>>(new Map());
   const viewerToken = useRef(viewerId());
   const viewerSet = useRef<Set<string>>(new Set());
+
+  // Shared presence directory: everyone currently broadcasting on Coolerup.
+  const { hosts: liveNow, channel: directory } = useLiveDirectory({
+    enabled: open || mode !== null,
+    key: userId ?? viewerToken.current,
+    host: mode === "host" && broadcasting ? { userId, username, title } : null,
+  });
 
   // --- mods / guests ---------------------------------------------------------
   const [modOpen, setModOpen] = useState(false);
@@ -400,44 +398,6 @@ export function LiveStreamDialog({
     pushGift(payload);
     broadcast("gift-sent", payload as unknown as Record<string, unknown>);
   }
-
-  useEffect(() => {
-    if (!open && mode === null) return;
-    const channel = supabase.channel("coolerup-live-directory", {
-      config: { presence: { key: userId ?? viewerToken.current } },
-    });
-    directory.current = channel;
-    channel.on("presence", { event: "sync" }, () => {
-      const entries = Object.values(channel.presenceState()).flat() as Presence[];
-      const unique = new Map<string, LiveHost>();
-      entries
-        .filter((entry) => entry.live && entry.userId && entry.username)
-        .forEach((entry) => {
-          unique.set(entry.userId!, {
-            userId: entry.userId!,
-            username: entry.username!,
-            title: entry.title || "Live now",
-            since: entry.since || Date.now(),
-          });
-        });
-      setLiveNow([...unique.values()]);
-    });
-    channel.subscribe((status: string) => {
-      if (status === "SUBSCRIBED" && mode === "host" && broadcasting && userId && username) {
-        void channel.track({
-          userId,
-          username,
-          title: title.trim() || "Live now",
-          since: Date.now(),
-          live: true,
-        });
-      }
-    });
-    return () => {
-      if (directory.current === channel) directory.current = null;
-      void supabase.removeChannel(channel);
-    };
-  }, [open, mode, broadcasting, userId, username, title]);
 
   useEffect(() => {
     if (mode !== "host") return;

@@ -54,6 +54,62 @@ export function hostsFromPresence(entries: Presence[]): LiveHost[] {
   return [...unique.values()].sort((a, b) => a.since - b.since);
 }
 
+/**
+ * One shared directory channel per page. Supabase returns the same channel for
+ * the same topic, so every hook must reuse it instead of re-adding callbacks.
+ */
+type SharedDirectory = {
+  channel: RealtimeChannel;
+  refs: number;
+  hosts: LiveHost[];
+  subscribed: boolean;
+  listeners: Set<(hosts: LiveHost[]) => void>;
+  onReady: Set<() => void>;
+};
+let sharedDirectory: SharedDirectory | null = null;
+
+function acquireDirectory(presenceKey: string): SharedDirectory {
+  if (sharedDirectory) {
+    sharedDirectory.refs += 1;
+    return sharedDirectory;
+  }
+  const channel = supabase.channel(LIVE_DIRECTORY_CHANNEL, {
+    config: { presence: { key: presenceKey } },
+  });
+  const shared: SharedDirectory = {
+    channel,
+    refs: 1,
+    hosts: [],
+    subscribed: false,
+    listeners: new Set(),
+    onReady: new Set(),
+  };
+  channel.on("presence", { event: "sync" }, () => {
+    const entries = Object.values(channel.presenceState()).flat() as Presence[];
+    shared.hosts = hostsFromPresence(entries);
+    shared.listeners.forEach((fn) => fn(shared.hosts));
+  });
+  channel.subscribe((status: string) => {
+    if (status !== "SUBSCRIBED") return;
+    shared.subscribed = true;
+    shared.onReady.forEach((fn) => fn());
+    shared.onReady.clear();
+  });
+  sharedDirectory = shared;
+  return shared;
+}
+
+function releaseDirectory(shared: SharedDirectory) {
+  shared.refs -= 1;
+  if (shared.refs > 0) return;
+  // Defer so a quick unmount/remount reuses the channel instead of re-joining it.
+  setTimeout(() => {
+    if (shared.refs > 0) return;
+    if (sharedDirectory === shared) sharedDirectory = null;
+    void supabase.removeChannel(shared.channel);
+  }, 1000);
+}
+
 type DirectoryOptions = {
   /** Only stay subscribed while this is true. */
   enabled?: boolean;
@@ -87,18 +143,14 @@ export function useLiveDirectory({ enabled = true, key, host }: DirectoryOptions
 
   useEffect(() => {
     if (!enabled) return;
-    const channel = supabase.channel(LIVE_DIRECTORY_CHANNEL, {
-      config: { presence: { key: key ?? fallbackKey.current } },
-    });
+    const shared = acquireDirectory(key ?? fallbackKey.current);
+    const channel = shared.channel;
     channelRef.current = channel;
+    const listener = (next: LiveHost[]) => setHosts(next);
+    shared.listeners.add(listener);
+    listener(shared.hosts);
 
-    channel.on("presence", { event: "sync" }, () => {
-      const entries = Object.values(channel.presenceState()).flat() as Presence[];
-      setHosts(hostsFromPresence(entries));
-    });
-
-    channel.subscribe((status: string) => {
-      if (status !== "SUBSCRIBED") return;
+    const announce = () => {
       if (hostUserId && hostUsername) {
         void channel.track({
           userId: hostUserId,
@@ -108,11 +160,16 @@ export function useLiveDirectory({ enabled = true, key, host }: DirectoryOptions
           live: true,
         });
       }
-    });
+    };
+    if (shared.subscribed) announce();
+    else shared.onReady.add(announce);
 
     return () => {
+      shared.onReady.delete(announce);
+      shared.listeners.delete(listener);
       if (channelRef.current === channel) channelRef.current = null;
-      void supabase.removeChannel(channel);
+      if (hostUserId) void channel.untrack();
+      releaseDirectory(shared);
     };
     // Title changes are pushed by the effect below so we don't re-subscribe.
     // eslint-disable-next-line react-hooks/exhaustive-deps

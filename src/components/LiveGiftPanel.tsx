@@ -7,6 +7,7 @@ import {
   giftTotal,
   type GiftCount,
   type LiveGift,
+  LIVE_GIFTS,
 } from "@/lib/coins";
 
 const gifts: LiveGift[] = [

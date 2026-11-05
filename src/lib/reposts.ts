@@ -73,6 +73,89 @@ export async function toggleRepost(
   return ok ? !currentlyReposted : currentlyReposted;
 }
 
+// --- "Reposted by @name" attribution ---------------------------------------
+// TikTok stamps the top of a video with "Reposted by @someone" whenever it
+// reached your feed through a repost. We batch one query per feed page rather
+// than one per card.
+
+/**
+ * Map of `videoId -> handle` for the newest repost of each video.
+ *
+ * `preferHandles` (the people you follow) win over strangers, so the label
+ * names someone you actually know when several people reposted the same clip.
+ */
+export async function fetchRepostAttribution(
+  videoIds: string[],
+  preferHandles: string[] = [],
+): Promise<Map<string, string>> {
+  if (videoIds.length === 0) return new Map<string, string>();
+
+  const { data, error } = await supabase
+    .from("reposts")
+    .select("video_id, user_id, created_at")
+    .in("video_id", videoIds)
+    .order("created_at", { ascending: false })
+    .limit(500);
+  if (error || !data) return new Map<string, string>();
+
+  const rows = data as { video_id: string; user_id: string; created_at: string }[];
+  const userIds = Array.from(new Set(rows.map((r) => r.user_id)));
+  if (userIds.length === 0) return new Map<string, string>();
+
+  const { data: profiles } = await supabase
+    .from("profiles")
+    .select("id, handle")
+    .in("id", userIds);
+  const handleById = new Map(
+    ((profiles ?? []) as { id: string; handle: string | null }[]).map((p) => [
+      p.id,
+      p.handle ?? "",
+    ]),
+  );
+
+  return pickRepostAttribution(rows, handleById, preferHandles);
+}
+
+/**
+ * Pure core of {@link fetchRepostAttribution}: rows must be newest-first.
+ * Keeps the newest reposter unless a followed handle turns up later, in which
+ * case that person wins so the label names someone you know.
+ */
+export function pickRepostAttribution(
+  rows: { video_id: string; user_id: string }[],
+  handleById: Map<string, string>,
+  preferHandles: string[] = [],
+): Map<string, string> {
+  const attribution = new Map<string, string>();
+  const preferred = new Set(preferHandles);
+  for (const row of rows) {
+    const handle = handleById.get(row.user_id);
+    if (!handle) continue;
+    const current = attribution.get(row.video_id);
+    if (!current) {
+      attribution.set(row.video_id, handle);
+      continue;
+    }
+    if (!preferred.has(current) && preferred.has(handle)) {
+      attribution.set(row.video_id, handle);
+    }
+  }
+  return attribution;
+}
+
+/** Fired on `window` after the signed-in user reposts or un-reposts. */
+export const REPOST_EVENT = "loop-repost-changed";
+
+export type RepostEventDetail = { videoId: string; handle: string | null };
+
+/** Tell the feed a repost changed so the "@name reposted" label updates live. */
+export function notifyRepostChanged(videoId: string, handle: string | null) {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(
+    new CustomEvent<RepostEventDetail>(REPOST_EVENT, { detail: { videoId, handle } }),
+  );
+}
+
 /** Track whether the signed-in user has reposted a single video. */
 export function useReposted(videoId: string, userId: string | null | undefined) {
   const [reposted, setReposted] = useState(false);

@@ -47,7 +47,13 @@ import {
 import { REPORT_REASONS, checkIfBanned, reportContent, type ReportReason } from "@/lib/moderation";
 import { resolveAvatarUrl } from "./EditProfileDialog";
 import { notifyUser, profileIdForHandle } from "@/lib/notify";
-import { isNotInterested, markNotInterested, repostVideo, unrepostVideo } from "@/lib/reposts";
+import {
+  isNotInterested,
+  markNotInterested,
+  notifyRepostChanged,
+  repostVideo,
+  unrepostVideo,
+} from "@/lib/reposts";
 import { followUser, unfollowUser } from "@/lib/follow";
 import { useChristmasMode } from "@/lib/christmas";
 import { QUALITY_OPTIONS, resolveQualitySource, useVideoQuality } from "@/lib/videoQuality";
@@ -675,6 +681,8 @@ function VideoCardImpl({
     setReposted(next);
     setRepostCount((c) => Math.max(0, next ? c + 1 : c - 1));
     if (next) toast.success("Reposted! Your followers can see this");
+    // Show the "🔁 @you reposted" label on this video straight away.
+    notifyRepostChanged(video.id, next ? (myUsername ?? null) : null);
 
     try {
       if (next) {
@@ -697,6 +705,7 @@ function VideoCardImpl({
       }
     } catch {
       // Roll back the optimistic UI if the write failed.
+      notifyRepostChanged(video.id, next ? null : (myUsername ?? null));
       setReposted(!next);
       setRepostCount((c) => Math.max(0, next ? c - 1 : c + 1));
       toast.error("Couldn't update repost");
@@ -811,9 +820,11 @@ function VideoCardImpl({
             {/* "@name reposted" — only on cards the Following feed pulled in
                 through someone else's repost. */}
             {repostedBy && (
-              <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-center gap-1.5 bg-gradient-to-b from-black/70 via-black/30 to-transparent px-3 pb-8 pt-3 text-xs font-bold text-white">
-                <Repeat2 className="h-3.5 w-3.5 shrink-0 text-yellow-400" aria-hidden />
-                <span className="truncate">@{repostedBy} reposted</span>
+              <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex justify-start bg-gradient-to-b from-black/60 via-black/20 to-transparent px-3 pb-10 pt-3">
+                <span className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-black/45 px-2.5 py-1 text-[11px] font-bold text-white backdrop-blur-sm">
+                  <Repeat2 className="h-3.5 w-3.5 shrink-0 text-yellow-400" aria-hidden />
+                  <span className="truncate">Reposted by @{repostedBy}</span>
+                </span>
               </div>
             )}
             {src && isImage && (

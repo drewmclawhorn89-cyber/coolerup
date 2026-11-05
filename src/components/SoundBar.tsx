@@ -23,15 +23,30 @@ export function SoundBar({ soundId, title, creatorUsername, className = "" }: So
 
   return (
     <>
-      {/* In VideoCard's caption stack, show the uploader before the sound title. */}
+      {/* Keep the uploader handle just above the audio credit in VideoCard. */}
       <style>{`
         .video-caption:has(.repost-sound-bar) {
           display: flex;
           flex-direction: column;
+          gap: 0;
         }
         .video-caption:has(.repost-sound-bar) > :nth-child(1) { order: 3; }
         .video-caption:has(.repost-sound-bar) > :nth-child(2) { order: 2; }
         .video-caption:has(.repost-sound-bar) > :nth-child(3) { order: 1; }
+        .video-caption .poster-handle {
+          margin-top: 0;
+          font-size: 14px;
+          line-height: 1.2;
+        }
+        .video-caption .repost-label {
+          margin-top: 2px;
+          font-size: 11px;
+          line-height: 1.2;
+        }
+        .video-caption .repost-sound-bar {
+          margin-top: 3px;
+          line-height: 1.2;
+        }
       `}</style>
       <div className={`repost-sound-bar pointer-events-auto flex max-w-[85%] items-center gap-2 ${className}`}>
         <Link

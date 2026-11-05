@@ -896,14 +896,6 @@ function VideoCardImpl({
             )}
 
             <div className="video-caption absolute inset-x-0 bottom-0 z-20 pb-14 pl-2 pr-16 pt-16">
-              {soundId && (
-                <SoundBar
-                  soundId={soundId}
-                  title={sound?.title ?? `Original sound - @${video.username}`}
-                  creatorUsername={sound?.creator_username ?? video.username}
-                  className="mb-2"
-                />
-              )}
               <div className={showCaptions ? "" : "md:hidden"}>
                 <Link
                   to="/u/$username"
@@ -912,6 +904,16 @@ function VideoCardImpl({
                 >
                   @{video.username}
                 </Link>
+              </div>
+              {soundId && (
+                <SoundBar
+                  soundId={soundId}
+                  title={sound?.title ?? `Original sound - @${video.username}`}
+                  creatorUsername={sound?.creator_username ?? video.username}
+                  className="mt-1"
+                />
+              )}
+              <div className={showCaptions ? "" : "md:hidden"}>
                 <p className="mt-1 line-clamp-3 break-words text-sm">{captionText}</p>
               </div>
             </div>

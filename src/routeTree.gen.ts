@@ -18,6 +18,7 @@ import { Route as MessagesRouteImport } from './routes/messages'
 import { Route as OfflineRouteImport } from './routes/offline'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as SearchRouteImport } from './routes/search'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as WalletRouteImport } from './routes/wallet'
 import { Route as AdminPayoutsRouteImport } from './routes/admin_.payouts'
@@ -71,6 +72,11 @@ const OnboardingRoute = OnboardingRouteImport.update({
 const PrivacyRoute = PrivacyRouteImport.update({
   id: '/privacy',
   path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SearchRoute = SearchRouteImport.update({
+  id: '/search',
+  path: '/search',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SettingsRoute = SettingsRouteImport.update({
@@ -129,6 +135,7 @@ export interface FileRoutesByFullPath {
   '/offline': typeof OfflineRoute
   '/onboarding': typeof OnboardingRoute
   '/privacy': typeof PrivacyRoute
+  '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
   '/wallet': typeof WalletRoute
   '/admin/payouts': typeof AdminPayoutsRoute
@@ -148,6 +155,7 @@ export interface FileRoutesByTo {
   '/offline': typeof OfflineRoute
   '/onboarding': typeof OnboardingRoute
   '/privacy': typeof PrivacyRoute
+  '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
   '/wallet': typeof WalletRoute
   '/admin/payouts': typeof AdminPayoutsRoute
@@ -169,6 +177,7 @@ export interface FileRoutesById {
   '/offline': typeof OfflineRoute
   '/onboarding': typeof OnboardingRoute
   '/privacy': typeof PrivacyRoute
+  '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
   '/wallet': typeof WalletRoute
   '/admin_/payouts': typeof AdminPayoutsRoute
@@ -191,6 +200,7 @@ export interface FileRouteTypes {
     | '/offline'
     | '/onboarding'
     | '/privacy'
+    | '/search'
     | '/settings'
     | '/wallet'
     | '/admin/payouts'
@@ -210,6 +220,7 @@ export interface FileRouteTypes {
     | '/offline'
     | '/onboarding'
     | '/privacy'
+    | '/search'
     | '/settings'
     | '/wallet'
     | '/admin/payouts'
@@ -230,6 +241,7 @@ export interface FileRouteTypes {
     | '/offline'
     | '/onboarding'
     | '/privacy'
+    | '/search'
     | '/settings'
     | '/wallet'
     | '/admin_/payouts'
@@ -251,6 +263,7 @@ export interface RootRouteChildren {
   OfflineRoute: typeof OfflineRoute
   OnboardingRoute: typeof OnboardingRoute
   PrivacyRoute: typeof PrivacyRoute
+  SearchRoute: typeof SearchRoute
   SettingsRoute: typeof SettingsRoute
   WalletRoute: typeof WalletRoute
   AdminPayoutsRoute: typeof AdminPayoutsRoute
@@ -322,6 +335,13 @@ declare module '@tanstack/react-router' {
       path: '/privacy'
       fullPath: '/privacy'
       preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/search': {
+      id: '/search'
+      path: '/search'
+      fullPath: '/search'
+      preLoaderRoute: typeof SearchRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/settings': {
@@ -423,6 +443,7 @@ const rootRouteChildren: RootRouteChildren = {
   OfflineRoute: OfflineRoute,
   OnboardingRoute: OnboardingRoute,
   PrivacyRoute: PrivacyRoute,
+  SearchRoute: SearchRoute,
   SettingsRoute: SettingsRoute,
   WalletRoute: WalletRoute,
   AdminPayoutsRoute: AdminPayoutsRoute,

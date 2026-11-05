@@ -22,23 +22,35 @@ export function SoundBar({ soundId, title, creatorUsername, className = "" }: So
   const label = title?.trim() || `Original sound - @${creatorUsername ?? "creator"}`;
 
   return (
-    <div className={`pointer-events-auto flex max-w-[85%] items-center gap-2 ${className}`}>
-      <Link
-        to="/sound/$soundId"
-        params={{ soundId }}
-        aria-label={`Open sound: ${label}`}
-        className="flex min-w-0 items-center gap-1 rounded-full bg-black/35 px-1.5 py-0.5 backdrop-blur-sm transition hover:bg-black/50"
-      >
-        <Music className="h-3 w-3 shrink-0 text-white drop-shadow" aria-hidden />
-        <span className="relative block w-[min(52vw,210px)] overflow-hidden">
-          <span className="animate-marquee flex w-max text-white text-[11px] font-medium leading-4">
-            <span className="whitespace-nowrap pr-8">{label}</span>
-            <span aria-hidden className="whitespace-nowrap pr-8">
-              {label}
+    <>
+      {/* In VideoCard's caption stack, show the uploader before the sound title. */}
+      <style>{`
+        .video-caption:has(.repost-sound-bar) {
+          display: flex;
+          flex-direction: column;
+        }
+        .video-caption:has(.repost-sound-bar) > :nth-child(1) { order: 3; }
+        .video-caption:has(.repost-sound-bar) > :nth-child(2) { order: 2; }
+        .video-caption:has(.repost-sound-bar) > :nth-child(3) { order: 1; }
+      `}</style>
+      <div className={`repost-sound-bar pointer-events-auto flex max-w-[85%] items-center gap-2 ${className}`}>
+        <Link
+          to="/sound/$soundId"
+          params={{ soundId }}
+          aria-label={`Open sound: ${label}`}
+          className="flex min-w-0 items-center gap-1 rounded-full bg-black/35 px-1.5 py-0.5 backdrop-blur-sm transition hover:bg-black/50"
+        >
+          <Music className="h-3 w-3 shrink-0 text-white drop-shadow" aria-hidden />
+          <span className="relative block w-[min(52vw,210px)] overflow-hidden">
+            <span className="animate-marquee flex w-max text-white text-[11px] font-medium leading-4">
+              <span className="whitespace-nowrap pr-8">{label}</span>
+              <span aria-hidden className="whitespace-nowrap pr-8">
+                {label}
+              </span>
             </span>
           </span>
-        </span>
-      </Link>
-    </div>
+        </Link>
+      </div>
+    </>
   );
 }

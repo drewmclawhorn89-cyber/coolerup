@@ -26,6 +26,11 @@ export type Video = {
   video_360_url?: string | null;
   /** Default playback quality stored on the row ("auto" unless set). */
   quality?: string | null;
+  /**
+   * Set only on rows that reached the feed through a repost: the handle of the
+   * person who reposted it, so the card can show "@name reposted".
+   */
+  reposted_by?: string | null;
 };
 
 /** Minimal sound shape embedded in feed rows. */
@@ -397,19 +402,31 @@ export async function fetchRepostedVideos(userId: string) {
 /** Reposts made by the people a user follows, for the Following feed. */
 export async function fetchRepostsByHandles(handles: string[]) {
   if (handles.length === 0) return [] as Video[];
-  const { data: profiles } = await supabase.from("profiles").select("id").in("handle", handles);
-  const ids = (profiles ?? []).map((p) => p.id);
+  const { data: profiles } = await supabase
+    .from("profiles")
+    .select("id, handle")
+    .in("handle", handles);
+  const profileRows = (profiles ?? []) as { id: string; handle: string | null }[];
+  const ids = profileRows.map((p) => p.id);
   if (ids.length === 0) return [] as Video[];
+  const handleById = new Map(profileRows.map((p) => [p.id, p.handle ?? ""]));
   const { data } = await supabase
     .from("reposts")
-    .select("created_at, videos(*)")
+    .select("created_at, user_id, videos(*)")
     .in("user_id", ids)
     .order("created_at", { ascending: false })
     .limit(50);
-  return ((data ?? []) as unknown as { videos: Video | null }[])
-    .map((r) => r.videos)
-    .filter((v): v is Video => !!v)
-    .map((v) => ({ ...v, reposts: v.reposts_count ?? 0 }));
+  const videoRows = ((data ?? []) as unknown as { user_id: string; videos: Video | null }[]).map(
+    (r): Video | null =>
+      r.videos
+        ? {
+            ...r.videos,
+            reposts: r.videos.reposts_count ?? 0,
+            reposted_by: handleById.get(r.user_id) ?? null,
+          }
+        : null,
+  );
+  return videoRows.filter((v): v is Video => v !== null);
 }
 
 export async function deleteVideo(video: Video) {

@@ -254,9 +254,39 @@
 .heart-pop-btn {
   animation: heart-btn 0.4s ease-in-out;
 }
+@keyframes repost-pop {
+  0%,
+  100% {
+    transform: scale(1) rotate(0deg);
+  }
+  40% {
+    transform: scale(1.35) rotate(-18deg);
+  }
+  70% {
+    transform: scale(1.15) rotate(10deg);
+  }
+}
+.repost-pop-btn {
+  animation: repost-pop 0.55s ease-in-out;
+}
+@keyframes sheet-up {
+  from {
+    transform: translateY(100%);
+    opacity: 0.4;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+.sheet-up {
+  animation: sheet-up 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
 @media (prefers-reduced-motion: reduce) {
   .heart-pop,
-  .heart-pop-btn {
+  .heart-pop-btn,
+  .repost-pop-btn,
+  .sheet-up {
     animation: none;
   }
 }

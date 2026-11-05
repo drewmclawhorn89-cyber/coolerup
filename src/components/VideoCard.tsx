@@ -47,6 +47,7 @@ import {
 import { REPORT_REASONS, checkIfBanned, reportContent, type ReportReason } from "@/lib/moderation";
 import { resolveAvatarUrl } from "./EditProfileDialog";
 import { notifyUser, profileIdForHandle } from "@/lib/notify";
+import { isNotInterested, markNotInterested, repostVideo, unrepostVideo } from "@/lib/reposts";
 import { followUser, unfollowUser } from "@/lib/follow";
 import { useChristmasMode } from "@/lib/christmas";
 import { QUALITY_OPTIONS, resolveQualitySource, useVideoQuality } from "@/lib/videoQuality";
@@ -100,6 +101,11 @@ export type VideoCardProps = {
   onFollowChange?: (username: string, following: boolean) => void;
   isSaved?: boolean;
   onSavedChange?: (videoId: string, saved: boolean) => void;
+  /**
+   * Handle of the person who reposted this video. Set by the Following feed so
+   * the card can show "@name reposted" above the caption.
+   */
+  repostedBy?: string | null;
 };
 
 function VideoCardImpl({
@@ -112,6 +118,7 @@ function VideoCardImpl({
   onFollowChange,
   isSaved: isSavedProp,
   onSavedChange,
+  repostedBy,
 }: VideoCardProps) {
   const ref = useRef<HTMLVideoElement>(null);
   const [src, setSrc] = useState("");
@@ -120,6 +127,13 @@ function VideoCardImpl({
   const [shares, setShares] = useState(video.shares_count);
   const [reposted, setReposted] = useState(false);
   const [repostCount, setRepostCount] = useState(video.reposts ?? video.reposts_count ?? 0);
+  // Repost icon pop, mirroring the heart animation on like.
+  const [repostBurst, setRepostBurst] = useState(false);
+  // Long-press on the ❤️ opens a TikTok-style bottom sheet (Repost / Not
+  // interested). 600ms hold; a shorter tap is a normal like.
+  const [showLikeMenu, setShowLikeMenu] = useState(false);
+  const likePressRef = useRef<number | null>(null);
+  const likeSuppressRef = useRef(false);
   const [showComments, setShowComments] = useState(false);
   const [showShare, setShowShare] = useState(false);
   const [showGift, setShowGift] = useState(false);
@@ -201,7 +215,7 @@ function VideoCardImpl({
 
   // --- moderation -----------------------------------------------------------
   const [isBanned, setIsBanned] = useState(false);
-  const [notInterested, setNotInterested] = useState(false);
+  const [notInterested, setNotInterested] = useState(() => isNotInterested(video.id));
   const [showReport, setShowReport] = useState(false);
   const [reportReason, setReportReason] = useState<ReportReason | null>(null);
   const [reportDetails, setReportDetails] = useState("");
@@ -662,15 +676,16 @@ function VideoCardImpl({
     haptic();
     setReposted(next);
     setRepostCount((c) => Math.max(0, next ? c + 1 : c - 1));
-    if (next) toast.success("Reposted! Your followers will see this");
+    if (next) {
+      setRepostBurst(true);
+      setTimeout(() => setRepostBurst(false), 650);
+      toast.success("Reposted! Your followers can see this");
+    }
 
     try {
       if (next) {
-        const { error } = await supabase
-          .from("reposts")
-          .insert({ video_id: video.id, user_id: authUser.id });
-        // 23505 = already reposted, which is fine.
-        if (error && error.code !== "23505") throw error;
+        const ok = await repostVideo(video.id, authUser.id);
+        if (!ok) throw new Error("repost failed");
         const ownerId = await profileIdForHandle(video.username);
         if (ownerId) {
           await notifyUser({
@@ -683,12 +698,8 @@ function VideoCardImpl({
           });
         }
       } else {
-        const { error } = await supabase
-          .from("reposts")
-          .delete()
-          .eq("video_id", video.id)
-          .eq("user_id", authUser.id);
-        if (error) throw error;
+        const ok = await unrepostVideo(video.id, authUser.id);
+        if (!ok) throw new Error("unrepost failed");
       }
     } catch {
       // Roll back the optimistic UI if the write failed.
@@ -697,6 +708,67 @@ function VideoCardImpl({
       toast.error("Couldn't update repost");
     }
   }, [auth.user, auth.signIn, myUsername, reposted, video.id, video.username]);
+
+  // --- long press on the ❤️ ------------------------------------------------
+  // Hold for 600ms -> buzz + bottom sheet (Repost / Not interested).
+  // Release sooner -> a normal like, handled by the button's onClick.
+  const cancelLikePress = useCallback(() => {
+    if (likePressRef.current) window.clearTimeout(likePressRef.current);
+    likePressRef.current = null;
+  }, []);
+
+  const startLikePress = useCallback(
+    (e: React.PointerEvent<HTMLButtonElement>) => {
+      // Don't let the card's own long press (quality picker) fire as well.
+      e.stopPropagation();
+      if (e.pointerType === "mouse" && e.button !== 0) return;
+      cancelLikePress();
+      likePressRef.current = window.setTimeout(() => {
+        likePressRef.current = null;
+        likeSuppressRef.current = true;
+        try {
+          navigator.vibrate?.(50);
+        } catch {
+          /* vibration unsupported */
+        }
+        setShowLikeMenu(true);
+      }, 600);
+    },
+    [cancelLikePress],
+  );
+
+  const handleLikeClick = useCallback(
+    (e: MouseEvent<HTMLButtonElement>) => {
+      e.stopPropagation();
+      // The long press already opened the sheet; swallow the click it produces.
+      if (likeSuppressRef.current) {
+        likeSuppressRef.current = false;
+        return;
+      }
+      void toggleLike();
+    },
+    [toggleLike],
+  );
+
+  // Clear a pending timer if the card unmounts mid-press.
+  useEffect(() => cancelLikePress, [cancelLikePress]);
+
+  // Escape closes the sheet, like every other overlay in the app.
+  useEffect(() => {
+    if (!showLikeMenu) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setShowLikeMenu(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [showLikeMenu]);
+
+  const hideVideo = useCallback(() => {
+    markNotInterested(video.id);
+    setNotInterested(true);
+    setShowLikeMenu(false);
+    toast.success("You'll see fewer videos like this");
+  }, [video.id]);
 
   const onShared = useCallback(async () => {
     setShares((n) => n + 1);
@@ -742,6 +814,14 @@ function VideoCardImpl({
             }}
             className="relative h-full w-full overflow-hidden bg-black md:aspect-[9/16] md:h-[calc(100dvh-11rem)] md:max-h-[760px] md:w-auto md:rounded-2xl md:bg-card"
           >
+            {/* "@name reposted" — only on cards the Following feed pulled in
+                through someone else's repost. */}
+            {repostedBy && (
+              <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-center gap-1.5 bg-gradient-to-b from-black/70 via-black/30 to-transparent px-3 pb-8 pt-3 text-xs font-bold text-white">
+                <Repeat2 className="h-3.5 w-3.5 shrink-0 text-yellow-400" aria-hidden />
+                <span className="truncate">@{repostedBy} reposted</span>
+              </div>
+            )}
             {src && isImage && (
               <img
                 src={src}
@@ -978,12 +1058,17 @@ function VideoCardImpl({
             )}
           </div>
 
-          {/* LIKE */}
+          {/* LIKE — tap = like, hold 600ms = Repost / Not interested sheet */}
           <RailButton
             label={formatCount(Math.max(likes ?? 0, liked ? 1 : 0))}
-            onClick={toggleLike}
+            onClick={handleLikeClick}
             pressed={liked}
             activeClass={christmas ? "christmas-heart" : "text-[#fe2c55]"}
+            onPointerDown={startLikePress}
+            onPointerUp={cancelLikePress}
+            onPointerLeave={cancelLikePress}
+            onPointerCancel={cancelLikePress}
+            onContextMenu={(e) => e.preventDefault()}
           >
             {christmas && liked ? (
               <span
@@ -1022,7 +1107,9 @@ function VideoCardImpl({
             activeClass="text-yellow-400"
           >
             <Repeat2
-              className={`h-7 w-7 drop-shadow-lg ${reposted ? "text-yellow-400" : "text-white"}`}
+              className={`h-7 w-7 drop-shadow-lg ${
+                reposted ? "text-yellow-400" : "text-white"
+              } ${reposted && repostBurst ? "repost-pop-btn" : ""}`}
             />
           </RailButton>
 
@@ -1079,6 +1166,59 @@ function VideoCardImpl({
           )}
         </div>
       </div>
+      {/* Long-press sheet: slides up from the bottom, dark like TikTok's. */}
+      {showLikeMenu && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Video options"
+          className="fixed inset-0 z-[60] flex items-end justify-center"
+        >
+          <button
+            type="button"
+            aria-label="Close menu"
+            onClick={() => setShowLikeMenu(false)}
+            className="absolute inset-0 bg-black/50 backdrop-blur-[2px]"
+          />
+          <div className="sheet-up relative w-full max-w-[430px] rounded-t-2xl bg-[#1c1c1e] p-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] text-white shadow-2xl md:mb-6 md:max-w-sm md:rounded-2xl">
+            <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-white/25" aria-hidden />
+            <button
+              type="button"
+              onClick={() => {
+                setShowLikeMenu(false);
+                void toggleRepost();
+              }}
+              className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-[15px] font-semibold transition active:bg-white/10 hover:bg-white/10"
+            >
+              <Repeat2
+                className={`h-5 w-5 ${reposted ? "text-yellow-400" : "text-white"}`}
+                aria-hidden
+              />
+              <span>{reposted ? "Remove repost" : "Repost"}</span>
+              <span className="ml-auto text-xs font-bold text-white/50">
+                {formatCount(Math.max(repostCount ?? 0, reposted ? 1 : 0))}
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={hideVideo}
+              className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-[15px] font-semibold transition active:bg-white/10 hover:bg-white/10"
+            >
+              <span className="w-5 text-center text-lg leading-none" aria-hidden>
+                😒
+              </span>
+              <span>Not interested</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowLikeMenu(false)}
+              className="mt-1 w-full rounded-xl px-3 py-3 text-[15px] font-semibold text-white/70 transition active:bg-white/10 hover:bg-white/10"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
       {showComments && (
         <Suspense fallback={null}>
           <Comments
@@ -1255,19 +1395,34 @@ function RailButton({
   onClick,
   pressed,
   activeClass = "text-white",
+  onPointerDown,
+  onPointerUp,
+  onPointerLeave,
+  onPointerCancel,
+  onContextMenu,
 }: {
   children: React.ReactNode;
   label: string;
   onClick: (e: MouseEvent<HTMLButtonElement>) => void;
   pressed?: boolean;
   activeClass?: string;
+  onPointerDown?: (e: React.PointerEvent<HTMLButtonElement>) => void;
+  onPointerUp?: (e: React.PointerEvent<HTMLButtonElement>) => void;
+  onPointerLeave?: (e: React.PointerEvent<HTMLButtonElement>) => void;
+  onPointerCancel?: (e: React.PointerEvent<HTMLButtonElement>) => void;
+  onContextMenu?: (e: React.MouseEvent<HTMLButtonElement>) => void;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
       aria-pressed={pressed}
-      className="flex flex-col items-center bg-transparent p-0 focus-visible:outline-none"
+      onPointerDown={onPointerDown}
+      onPointerUp={onPointerUp}
+      onPointerLeave={onPointerLeave}
+      onPointerCancel={onPointerCancel}
+      onContextMenu={onContextMenu}
+      className="flex touch-manipulation select-none flex-col items-center bg-transparent p-0 focus-visible:outline-none"
     >
       <span className="flex items-center justify-center">{children}</span>
       {/* Fixed height so an empty label (unsaved bookmark) keeps the same

@@ -963,6 +963,7 @@ function Index() {
                   onFollowChange={handleFollowChange}
                   isSaved={savedIds.has(v.id)}
                   onSavedChange={handleSavedChange}
+                  repostedBy={activeTab === "following" ? v.reposted_by ?? null : null}
                 />
               ))}
               <div id="scroll-sentinel" className="h-10 w-full" />

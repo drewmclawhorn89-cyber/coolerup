@@ -15,6 +15,8 @@ import {
   Pencil,
   Plus,
   Repeat2,
+  UserRoundPlus,
+  UserRoundCheck,
   X,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
@@ -39,6 +41,7 @@ import { StoryViewer } from "@/components/StoryViewer";
 import { fetchStories, postStory, type Story } from "@/lib/stories";
 import { useChristmasMode } from "@/lib/christmas";
 import { toast } from "sonner";
+import { followUser, isFollowing as checkIsFollowing, unfollowUser } from "@/lib/follow";
 import type { Profile as ProfileRow } from "@/hooks/useAuth";
 
 export const Route = createFileRoute("/u/$username")({
@@ -127,6 +130,8 @@ function Profile() {
   const storyFile = useRef<HTMLInputElement>(null);
   const [totalFollowers, setTotalFollowers] = useState(0);
   const [totalFollowing, setTotalFollowing] = useState(0);
+  const [following, setFollowing] = useState(false);
+  const [followBusy, setFollowBusy] = useState(false);
   const [followingOpen, setFollowingOpen] = useState(false);
   const [followingUsers, setFollowingUsers] = useState<FollowingUser[] | null>(null);
   const [followersOpen, setFollowersOpen] = useState(false);
@@ -134,6 +139,49 @@ function Profile() {
 
   const equipped = useEquipped(username);
   const isOwn = !!auth.handle && auth.handle === username;
+
+  useEffect(() => {
+    if (!username || !auth.user || isOwn) {
+      setFollowing(false);
+      return;
+    }
+    let active = true;
+    void checkIsFollowing(auth.user.id, username).then((value) => {
+      if (active) setFollowing(value);
+    });
+    return () => {
+      active = false;
+    };
+  }, [username, auth.user?.id, isOwn]);
+
+  async function toggleProfileFollow() {
+    if (followBusy || isOwn || !username) return;
+    if (!auth.user) {
+      await auth.signIn();
+      return;
+    }
+    if (!auth.handle) {
+      toast.error("Complete your profile before following accounts");
+      return;
+    }
+    const next = !following;
+    setFollowBusy(true);
+    setFollowing(next);
+    setTotalFollowers((count) => Math.max(0, count + (next ? 1 : -1)));
+    const result = next
+      ? await followUser({
+          followerId: auth.user.id,
+          followerUsername: auth.handle,
+          followingUsername: username,
+        })
+      : await unfollowUser({ followerId: auth.user.id, followingUsername: username });
+    if (!result.ok) {
+      setFollowing(!next);
+      setTotalFollowers((count) => Math.max(0, count + (next ? -1 : 1)));
+      toast.error(result.error || "Couldn't update follow");
+    }
+    setFollowBusy(false);
+  }
 
   useEffect(() => {
     if (!username) return;
@@ -333,8 +381,7 @@ function Profile() {
   }, [open]);
 
   const totalLikes = (videos || []).reduce((a, v) => a + (v.likes_count || 0), 0);
-  // TikTok shows two different numbers: likes *received* on your videos (the
-  // header heart count) and the number of videos *you* liked (the Liked tab).
+  // TikTok shows two different numbers: likes received and videos liked.
   const likedCount = likedVideos?.length ?? 0;
   const showLiked = profile?.show_liked !== false;
   const canSeeLiked = showLiked || isOwn;
@@ -428,6 +475,28 @@ function Profile() {
             </h1>
             <p className="text-sm text-muted-foreground">@{username}</p>
           </div>
+          {!isOwn && auth.ready && (
+            <Button
+              type="button"
+              onClick={() => void toggleProfileFollow()}
+              disabled={followBusy}
+              variant={following ? "outline" : "default"}
+              className={`min-w-36 rounded-full font-bold ${
+                following ? "border-border" : "bg-[#fe2c55] text-white hover:bg-[#e9274d]"
+              }`}
+              aria-pressed={following}
+            >
+              {following ? (
+                <>
+                  <UserRoundCheck className="mr-2 h-4 w-4" /> Following
+                </>
+              ) : (
+                <>
+                  <UserRoundPlus className="mr-2 h-4 w-4" /> Follow
+                </>
+              )}
+            </Button>
+          )}
           {profile?.bio && <p className="max-w-md text-sm text-muted-foreground">{profile.bio}</p>}
           {profile?.links && Object.keys(profile.links).length > 0 && (
             <div className="flex flex-wrap justify-center gap-2">
@@ -485,42 +554,38 @@ function Profile() {
           </div>
         </div>
 
-        {
-          <div className="mt-4 flex justify-around border-b border-border">
-            {TABS.map((t) => {
-              const active = tab === t.key;
-              const Icon = t.icon;
-              const n =
-                t.key === "videos"
-                  ? (videos?.length ?? 0)
-                  : t.key === "reposts"
-                    ? reposts.length
-                    : t.key === "liked"
-                      ? likedCount
-                      : saved.length;
-              return (
-                <button
-                  key={t.key}
-                  type="button"
-                  onClick={() => setTab(t.key)}
-                  aria-label={t.label}
-                  aria-selected={active}
-                  role="tab"
-                  className={`flex flex-1 items-center justify-center gap-1.5 border-b-2 pb-2 pt-1 transition-colors ${
-                    active
-                      ? "border-foreground text-foreground"
-                      : "border-transparent text-muted-foreground hover:text-foreground/80"
-                  }`}
-                >
-                  <Icon
-                    className={`h-5 w-5 ${active && t.key === "liked" ? "fill-current" : ""}`}
-                  />
-                  <span className="text-xs font-bold tabular-nums">{n}</span>
-                </button>
-              );
-            })}
-          </div>
-        }
+        <div className="mt-4 flex justify-around border-b border-border">
+          {TABS.map((t) => {
+            const active = tab === t.key;
+            const Icon = t.icon;
+            const n =
+              t.key === "videos"
+                ? (videos?.length ?? 0)
+                : t.key === "reposts"
+                  ? reposts.length
+                  : t.key === "liked"
+                    ? likedCount
+                    : saved.length;
+            return (
+              <button
+                key={t.key}
+                type="button"
+                onClick={() => setTab(t.key)}
+                aria-label={t.label}
+                aria-selected={active}
+                role="tab"
+                className={`flex flex-1 items-center justify-center gap-1.5 border-b-2 pb-2 pt-1 transition-colors ${
+                  active
+                    ? "border-foreground text-foreground"
+                    : "border-transparent text-muted-foreground hover:text-foreground/80"
+                }`}
+              >
+                <Icon className={`h-5 w-5 ${active && t.key === "liked" ? "fill-current" : ""}`} />
+                <span className="text-xs font-bold tabular-nums">{n}</span>
+              </button>
+            );
+          })}
+        </div>
 
         {tab === "liked" && !canSeeLiked ? (
           <div className="flex flex-col items-center gap-2 px-6 py-16 text-center">
@@ -567,7 +632,7 @@ function Profile() {
                 aria-label={`Open video by @${v.username}`}
               >
                 <Thumb url={v.video_url} caption={parseCaption(v.caption || "").text} />
-                <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-center gap-1 bg-gradient-to-t from-black/70 to-transparent px-1.5 pb-1 pt-4 text-[11px] font-bold text-white opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
+                <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-center gap-1 bg-gradient-to-t from-black/70 to-transparent px-1.5 pb-1 pt-4 text-[11px] font-bold text-white">
                   <Heart className="h-3 w-3 fill-current" />
                   {v.likes_count || 0}
                 </div>

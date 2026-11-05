@@ -1856,6 +1856,7 @@ export type Database = {
         Returns: boolean
       }
       is_muted: { Args: { _username: string }; Returns: boolean }
+      is_reserved_username: { Args: { _username: string }; Returns: boolean }
       leave_live_guest: {
         Args: { p_live_id: string; p_user_id?: string }
         Returns: undefined

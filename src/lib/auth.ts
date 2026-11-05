@@ -178,11 +178,7 @@ export async function checkUsernameAvailable(
 
   // The reserved table is authoritative; fall back to the constant if it is
   // missing (e.g. migration not applied yet).
-  const { data: reserved } = await supabase
-    .from("reserved_usernames")
-    .select("username")
-    .eq("username", value)
-    .maybeSingle();
+  const { data: reserved } = await supabase.rpc("is_reserved_username", { _username: value });
   if (reserved) return { available: false, error: "That username is reserved", value };
 
   return { available: true, value };

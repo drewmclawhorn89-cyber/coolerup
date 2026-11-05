@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Fragment, Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Bell,
@@ -106,6 +106,7 @@ const HEADERS: Record<Tab, [string, string]> = {
 
 function Index() {
   const auth = useAuth();
+  const navigate = useNavigate();
   const me = auth.handle;
   const net = useNetwork();
   const lite = isLiteMode(net);
@@ -260,7 +261,6 @@ function Index() {
   // throw away the live-stream state and the broadcast screen would never show.
   const [createMenuMounted, setCreateMenuMounted] = useState(false);
   const [error, setError] = useState(false);
-  const [searchOpen, setSearchOpen] = useState(false);
   const [userResults, setUserResults] = useState<
     { id: string; handle: string | null; display_name: string | null; avatar_url: string | null }[]
   >([]);
@@ -616,15 +616,14 @@ function Index() {
           <p className="mt-1 text-[11px] font-bold tracking-[0.3em] text-muted-foreground">A LITTLE MORE YOU</p>
         </div>
 
-        <label className="flex items-center gap-2 rounded-full bg-secondary px-4 py-2.5">
+        <button
+          type="button"
+          onClick={() => void navigate({ to: "/search" })}
+          className="flex items-center gap-2 rounded-full bg-secondary px-4 py-2.5 text-left transition hover:bg-accent"
+        >
           <Search className="h-4 w-4 text-muted-foreground" />
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search videos"
-            className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-          />
-        </label>
+          <span className="text-sm text-muted-foreground">Search videos</span>
+        </button>
 
         <nav className="flex flex-col gap-1">
           {NAV.map(({ id, label, icon: Icon }) => (
@@ -695,11 +694,11 @@ function Index() {
           <Button
             variant="ghost"
             size="icon"
-            aria-label={searchOpen ? "Close search" : "Search videos"}
-            onClick={() => setSearchOpen((open) => !open)}
+            aria-label="Search videos"
+            onClick={() => void navigate({ to: "/search" })}
             className="pointer-events-auto rounded-full bg-black/35 text-white backdrop-blur-sm hover:bg-black/55 hover:text-white"
           >
-            {searchOpen ? <X /> : <Search />}
+            <Search />
           </Button>
           <Button
             variant="ghost"
@@ -717,25 +716,6 @@ function Index() {
             )}
           </Button>
         </div>
-
-        {searchOpen && (
-          <label className="absolute inset-x-3 top-[calc(env(safe-area-inset-top)+5.75rem)] z-50 flex items-center gap-3 rounded-full border border-white/15 bg-black/70 px-4 py-2 backdrop-blur md:hidden">
-            <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
-            <input
-              autoFocus
-              aria-label="Search videos"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search videos"
-              className="min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground"
-            />
-            {query && (
-              <Button variant="ghost" size="icon" aria-label="Clear search" onClick={() => setQuery("")}>
-                <X />
-              </Button>
-            )}
-          </label>
-        )}
 
         {offlineMode && (
           <div className="flex shrink-0 items-center gap-2 bg-primary/10 px-4 py-2 text-sm font-bold text-primary md:px-10">

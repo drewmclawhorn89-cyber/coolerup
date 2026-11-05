@@ -256,7 +256,12 @@
 }
 /* "🔁 @name reposted" — TikTok-style label over the top-left of a video.
    White text with a hard black shadow so it stays legible on any footage. */
+/* Repost attribution. Lives under the poster's handle inside the caption, so it
+   only needs the black shadow when it is actually drawn over video pixels. */
 .repost-label {
+  pointer-events: auto;
+}
+.video-caption .repost-label {
   text-shadow:
     0 1px 2px rgba(0, 0, 0, 0.9),
     0 0 4px rgba(0, 0, 0, 0.75),

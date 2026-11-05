@@ -831,21 +831,6 @@ function VideoCardImpl({
             }}
             className="relative h-full w-full overflow-hidden bg-black md:aspect-[9/16] md:h-[calc(100dvh-11rem)] md:max-h-[760px] md:w-auto md:rounded-2xl md:bg-card"
           >
-            {/* TikTok-style repost attribution: 🔁 @reposter reposted, top-left
-                over the video, and it opens the *reposter's* profile. */}
-            {reposter && (
-              <Link
-                to="/u/$username"
-                params={{ username: reposter }}
-                aria-label={`View @${reposter}'s profile`}
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={(e) => e.stopPropagation()}
-                className="repost-label absolute left-3 top-3 z-30 inline-flex max-w-[calc(100%-1.5rem)] items-center gap-1.5 text-[12px] font-semibold leading-tight text-white"
-              >
-                <Repeat2 className="h-[15px] w-[15px] shrink-0" aria-hidden />
-                <span className="truncate">@{reposter} reposted</span>
-              </Link>
-            )}
             {src && isImage && (
               <img
                 src={src}
@@ -999,20 +984,17 @@ function VideoCardImpl({
               </div>
             )}
 
-            <div className="video-caption absolute inset-x-0 bottom-0 z-20 pb-14 pl-2 pr-16 pt-16">
+            {/* The phone bottom nav is a flex sibling *below* the feed, so the
+                video's bottom edge already sits on top of it. A large pb here
+                was double-counting that 56px and floating the handle into the
+                middle of the frame. pb-4 anchors the block to the bottom. */}
+            {/* TikTok anchors the handle at the bottom and lets the caption
+                grow *upward* from it, so a long caption never pushes the
+                username into the middle of the frame. Order here is
+                top→bottom: caption, sound, @handle, repost attribution. */}
+            <div className="video-caption absolute inset-x-0 bottom-0 z-20 pb-4 pl-3 pr-16 pt-16 md:pb-6">
               <div className={showCaptions ? "" : "md:hidden"}>
-                {/* Poster handle — big, bold, white over the video, bottom-left
-                    above the caption. Tapping it opens the uploader's profile. */}
-                <Link
-                  to="/u/$username"
-                  params={{ username: poster }}
-                  aria-label={`View @${poster}'s profile`}
-                  onPointerDown={(e) => e.stopPropagation()}
-                  onClick={(e) => e.stopPropagation()}
-                  className="poster-handle inline-block max-w-full break-words text-[16px] font-bold leading-tight text-white"
-                >
-                  @{poster}
-                </Link>
+                <p className="line-clamp-3 break-words text-sm">{captionText}</p>
               </div>
               {soundId && (
                 <SoundBar
@@ -1023,7 +1005,34 @@ function VideoCardImpl({
                 />
               )}
               <div className={showCaptions ? "" : "md:hidden"}>
-                <p className="mt-1 line-clamp-3 break-words text-sm">{captionText}</p>
+                {/* Poster handle — big, bold, white over the video, pinned to
+                    the bottom-left just above the phone nav. Tapping it opens
+                    the uploader's profile. */}
+                <Link
+                  to="/u/$username"
+                  params={{ username: poster }}
+                  aria-label={`View @${poster}'s profile`}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={(e) => e.stopPropagation()}
+                  className="poster-handle mt-1 inline-block max-w-full break-words text-[16px] font-bold leading-tight text-white"
+                >
+                  @{poster}
+                </Link>
+                {/* Repost attribution sits directly *under* the poster's handle,
+                    TikTok style: 🔁 @reposter reposted. Links to the reposter. */}
+                {reposter && (
+                  <Link
+                    to="/u/$username"
+                    params={{ username: reposter }}
+                    aria-label={`View @${reposter}'s profile`}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onClick={(e) => e.stopPropagation()}
+                    className="repost-label mt-0.5 flex max-w-full items-center gap-1 text-[12px] font-semibold leading-tight text-white"
+                  >
+                    <Repeat2 className="h-[13px] w-[13px] shrink-0" aria-hidden />
+                    <span className="truncate">@{reposter} reposted</span>
+                  </Link>
+                )}
               </div>
             </div>
             {!isImage && (
@@ -1048,6 +1057,17 @@ function VideoCardImpl({
             >
               @{poster}
             </Link>
+            {reposter && (
+              <Link
+                to="/u/$username"
+                params={{ username: reposter }}
+                aria-label={`View @${reposter}'s profile`}
+                className="repost-label flex items-center gap-1 text-[12px] font-semibold text-muted-foreground"
+              >
+                <Repeat2 className="h-[13px] w-[13px] shrink-0" aria-hidden />
+                <span className="truncate">@{reposter} reposted</span>
+              </Link>
+            )}
             <p className="text-sm text-muted-foreground">{captionText}</p>
           </div>
         </div>

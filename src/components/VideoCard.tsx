@@ -758,7 +758,7 @@ function VideoCardImpl({
               <audio ref={songRef} src={songStreamUrl(song.id)} loop muted={muted} preload="none" />
             )}
             {song && isImage && (
-              <div className="absolute left-3 top-[calc(env(safe-area-inset-top)+5.5rem)] flex max-w-[70%] items-center gap-2 rounded-full bg-black/50 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur md:top-3">
+              <div className="absolute left-3 top-[calc(env(safe-area-inset-top)+5.5rem)] flex max-w-[70%] items-center gap-2 rounded-full bg-black/50 px-3 py-1.5 text-xs font-semibold text-white/90 backdrop-blur-sm">
                 <span aria-hidden>♫</span>
                 <span className="truncate">
                   {song.title} · {song.artist}
@@ -1036,6 +1036,11 @@ function VideoCardImpl({
             />
           </RailButton>
 
+          {/* SHARE — Quality lives inside this sheet */}
+          <RailButton label="Share" onClick={() => setShowShare(true)}>
+            <Share2 className="h-7 w-7 text-white drop-shadow-lg" />
+          </RailButton>
+
           {/* SOUND — spinning record, sits with the other actions like TikTok */}
           {soundId ? (
             <Link
@@ -1061,11 +1066,6 @@ function VideoCardImpl({
               <SoundRailLabel title={soundTitle} />
             </button>
           )}
-
-          {/* SHARE — Quality lives inside this sheet */}
-          <RailButton label="Share" onClick={() => setShowShare(true)}>
-            <Share2 className="h-7 w-7 text-white drop-shadow-lg" />
-          </RailButton>
 
           {/* CHRISTMAS GIFT — Nov 15 2026 -> Jan 1 2027 only */}
           {christmas && (
@@ -1217,8 +1217,8 @@ function SoundDisc({ spinning, busy }: { spinning?: boolean; busy?: boolean }) {
   return (
     <span
       className={`relative flex h-9 w-9 items-center justify-center rounded-full border border-white/25 bg-gradient-to-br from-zinc-600 via-zinc-900 to-black shadow-[0_4px_16px_rgba(0,0,0,0.55)] ${
-        busy ? "animate-pulse opacity-70" : ""
-      }`}
+        spinning ? "animate-spin-slow" : ""
+      } ${busy ? "animate-pulse opacity-70" : ""}`}
     >
       <span className="absolute inset-1 rounded-full border border-white/15" />
       <span className="absolute inset-[42%] rounded-full bg-white/80" />

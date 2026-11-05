@@ -102,8 +102,12 @@ function acquireDirectory(presenceKey: string): SharedDirectory {
 function releaseDirectory(shared: SharedDirectory) {
   shared.refs -= 1;
   if (shared.refs > 0) return;
-  if (sharedDirectory === shared) sharedDirectory = null;
-  void supabase.removeChannel(shared.channel);
+  // Defer so a quick unmount/remount reuses the channel instead of re-joining it.
+  setTimeout(() => {
+    if (shared.refs > 0) return;
+    if (sharedDirectory === shared) sharedDirectory = null;
+    void supabase.removeChannel(shared.channel);
+  }, 1000);
 }
 
 type DirectoryOptions = {

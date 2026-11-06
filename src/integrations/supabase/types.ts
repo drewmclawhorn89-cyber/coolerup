@@ -1972,6 +1972,8 @@ export type Database = {
         Args: { _sound_id: string; _video_id: string }
         Returns: undefined
       }
+      show_limit: { Args: never; Returns: number }
+      show_trgm: { Args: { "": string }; Returns: string[] }
       sound_title_for_video: {
         Args: { _caption: string; _username: string }
         Returns: string

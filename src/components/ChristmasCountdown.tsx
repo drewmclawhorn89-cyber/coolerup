@@ -27,8 +27,10 @@ export const ChristmasCountdown = () => {
   // instead of a one-frame "0d 0h 0m 0s" flash.
   const [timeLeft, setTimeLeft] = useState<TimeLeft>(() => split(Math.max(TARGET - Date.now(), 0)));
   const [isLive, setIsLive] = useState(() => Date.now() >= TARGET);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
     const tick = () => {
       const diff = TARGET - Date.now();
       if (diff <= 0) {
@@ -48,7 +50,7 @@ export const ChristmasCountdown = () => {
   }, []);
 
   // Hide once the Christmas update is live (Nov 15 2026).
-  if (isLive) return null;
+  if (!mounted || isLive) return null;
   // Hide after Jan 1 2027.
   if (Date.now() > HIDE_AFTER) return null;
 

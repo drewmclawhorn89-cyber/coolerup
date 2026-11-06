@@ -397,6 +397,16 @@ const changeTheme = (t: string) => {
         </div>
       </div>
 
+      {auth.isAdmin && (
+        <Link
+          to="/beta"
+          className="flex w-full items-center justify-between rounded-2xl border bg-card px-4 py-4 text-sm font-semibold transition-colors hover:bg-accent"
+        >
+          <span>🧪 Beta — private test area</span>
+          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+        </Link>
+      )}
+
       {/* Earnings — the only way into /wallet and /creator, so it has to be here */}
       <div className="rounded-2xl border bg-card p-4">
         <h2 className="font-semibold">Earnings</h2>

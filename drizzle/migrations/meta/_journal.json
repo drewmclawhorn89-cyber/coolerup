@@ -71,6 +71,13 @@
       "when": 1793898102874,
       "tag": "0009_tighten_reposts_group_posts_reserved",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793994048834,
+      "tag": "0010_beta_features_and_tighten_reads",
+      "breakpoints": true
     }
   ]
 }

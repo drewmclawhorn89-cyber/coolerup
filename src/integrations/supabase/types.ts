@@ -101,6 +101,30 @@ export type Database = {
         }
         Relationships: []
       }
+      beta_features: {
+        Row: {
+          enabled: boolean
+          feature_name: string
+          id: string
+          tested_by: string | null
+          updated_at: string
+        }
+        Insert: {
+          enabled?: boolean
+          feature_name: string
+          id?: string
+          tested_by?: string | null
+          updated_at?: string
+        }
+        Update: {
+          enabled?: boolean
+          feature_name?: string
+          id?: string
+          tested_by?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       blocked_users: {
         Row: {
           blocked_username: string

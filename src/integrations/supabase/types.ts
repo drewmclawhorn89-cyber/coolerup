@@ -101,6 +101,30 @@ export type Database = {
         }
         Relationships: []
       }
+      beta_features: {
+        Row: {
+          enabled: boolean
+          feature_name: string
+          id: string
+          tested_by: string | null
+          updated_at: string
+        }
+        Insert: {
+          enabled?: boolean
+          feature_name: string
+          id?: string
+          tested_by?: string | null
+          updated_at?: string
+        }
+        Update: {
+          enabled?: boolean
+          feature_name?: string
+          id?: string
+          tested_by?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       blocked_users: {
         Row: {
           blocked_username: string
@@ -1972,6 +1996,8 @@ export type Database = {
         Args: { _sound_id: string; _video_id: string }
         Returns: undefined
       }
+      show_limit: { Args: never; Returns: number }
+      show_trgm: { Args: { "": string }; Returns: string[] }
       sound_title_for_video: {
         Args: { _caption: string; _username: string }
         Returns: string

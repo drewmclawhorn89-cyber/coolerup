@@ -32,8 +32,8 @@ describe("isChristmasMode", () => {
     expect(at("2026-11-14T23:59:59")).toBe(false);
   });
 
-  it("is ON exactly at Nov 6 2026 02:40", () => {
-    expect(at("2026-11-6T00:00:00")).toBe(true);
+  it("is ON exactly at Nov 15 2026 00:00", () => {
+    expect(at("2026-11-15T00:00:00")).toBe(true);
   });
 
   it("is ON on Christmas Day", () => {

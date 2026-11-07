@@ -16,27 +16,6 @@ export type MarketItem = {
 };
 
 const CATEGORIES = ["All", "Vehicles", "Property", "Apparel", "Electronics", "Family", "Home", "Hobbies", "Free"];
-const SELLERS = ["maria", "jake", "sam", "alex", "tasha"];
-const CITIES = ["Austin, TX", "Denver, CO", "Miami, FL", "Seattle, WA", "Chicago, IL"];
-const NAMES = [
-  "Mountain Bike", "iPhone 13", "Leather Jacket", "Gaming Chair", "Toyota Corolla 2015",
-  "Studio Apartment", "Baby Stroller", "Sofa Set", "Nike Sneakers", "Laptop 16GB",
-  "Acoustic Guitar", "Coffee Table", "Honda Civic 2012", "Winter Coat", "Bluetooth Speaker",
-  "Kids Toy Bundle", "Office Desk", "Camera Lens", "2BR Condo for Rent", "Skateboard",
-];
-const CATS = ["Hobbies", "Electronics", "Apparel", "Home", "Vehicles", "Property", "Family", "Home", "Apparel", "Electronics"];
-
-const MOCK: MarketItem[] = NAMES.map((title, i) => ({
-  id: `mock-${i}`,
-  title,
-  price: ([20, 350, 60, 90, 4200, 900, 45, 250, 55, 480][i % 10] ?? 0) + i,
-  image: `https://picsum.photos/seed/market${i}/400/400`,
-  location: CITIES[i % CITIES.length] ?? "",
-  seller: SELLERS[i % SELLERS.length] ?? "",
-  category: CATS[i % CATS.length] ?? "Home",
-  description: `${title} in good condition. Pickup available, message me with any questions.`,
-}));
-
 const inputCls = "w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-black outline-none";
 const EMPTY = { title: "", price: "", description: "", location: "", image: "", category: "Home" };
 type FormState = typeof EMPTY;
@@ -144,7 +123,7 @@ export function Marketplace() {
       .order("created_at", { ascending: false })
       .limit(100)
       .then(({ data, error }: { data: any[] | null; error: unknown }) => {
-        if (!live || error || !data?.length) return;
+        if (!live || error || !data) return;
         const real: MarketItem[] = data.map((r) => ({
           id: r.id,
           title: r.title,
@@ -155,7 +134,7 @@ export function Marketplace() {
           category: r.category || "Home",
           description: r.description || "No description.",
         }));
-        setItems([...real, ...MOCK]);
+        setItems(real);
       });
     return () => {
       live = false;

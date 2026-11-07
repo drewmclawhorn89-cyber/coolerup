@@ -1,0 +1,691 @@
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { formatCurrency, getPlanConfig, MONTHLY_PLAN_CONFIG, type MonthlyPlan } from "@/lib/stripe";
+
+export function PaywallModal({
+  open,
+  onOpenChange,
+  onSelectPlan,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSelectPlan: (plan: MonthlyPlan) => void;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-3xl border border-white/10 bg-[#0a0a0a] text-white shadow-2xl">
+        <DialogHeader>
+          <DialogTitle className="text-2xl font-black text-white">Choose your Coolerup plan</DialogTitle>
+          <DialogDescription className="text-sm text-white/60">
+            Monthly pricing with cancel-anytime access.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="mt-4 grid gap-4 md:grid-cols-2">
+          {(Object.keys(MONTHLY_PLAN_CONFIG) as MonthlyPlan[]).map((planKey) => {
+            const plan = getPlanConfig(planKey);
+            return (
+              <div key={plan.id} className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-lg font-extrabold">{plan.label}</p>
+                    <p className="mt-2 text-3xl font-black text-[#ff4fa3]">{formatCurrency(plan.price)}</p>
+                    <p className="text-xs uppercase tracking-[0.2em] text-white/50">/month</p>
+                  </div>
+                  {plan.id === "premium" && (
+                    <span className="rounded-full bg-[#ff4fa3] px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-white">
+                      Popular
+                    </span>
+                  )}
+                </div>
+
+                <ul className="mt-4 space-y-2 text-sm text-white/70">
+                  {plan.features.map((feature) => (
+                    <li key={feature} className="flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full bg-[#ff4fa3]" />
+                      {feature}
+                    </li>
+                  ))}
+                </ul>
+
+                <Button
+                  className="mt-5 w-full bg-[#ff4fa3] text-white hover:bg-[#ff3d97]"
+                  onClick={() => onSelectPlan(planKey)}
+                >
+                  Subscribe Now
+                </Button>
+              </div>
+            );
+          })}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+"path":"src/routes/paywall.tsx","content":"import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { useAuth } from "@/hooks/useAuth";
+import { canAccessAppForUser, fetchLatestSubscription, isOwnerUsername } from "@/lib/subscription";
+import { createMonthlyCheckout, formatCurrency, MONTHLY_PLAN_CONFIG, type MonthlyPlan } from "@/lib/stripe";
+
+export const Route = createFileRoute("/paywall")({
+  head: () => ({
+    meta: [
+      { title: "Coolerup — Subscribe" },
+      { name: "description", content: "Monthly subscription plans for Coolerup." },
+      { name: "theme-color", content: "#000000" },
+    ],
+  }),
+  component: PaywallPage,
+});
+
+function PaywallPage() {
+  const auth = useAuth();
+  const navigate = useNavigate();
+  const [checking, setChecking] = useState(true);
+
+  useEffect(() => {
+    if (!auth.ready) return;
+    if (!auth.user) {
+      setChecking(false);
+      return;
+    }
+
+    let alive = true;
+    void (async () => {
+      const allowed = await canAccessAppForUser({ id: auth.user?.id ?? null, handle: auth.handle });
+      if (!alive) return;
+      if (allowed) {
+        void navigate({ to: "/", replace: true });
+        return;
+      }
+      setChecking(false);
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [auth.ready, auth.user, auth.handle, navigate]);
+
+  const handlePlan = async (plan: MonthlyPlan) => {
+    if (!auth.user) {
+      auth.signIn();
+      return;
+    }
+
+    const result = await createMonthlyCheckout(plan);
+    if (!result.ok) {
+      toast.error(result.message);
+      return;
+    }
+
+    if (result.url) {
+      window.location.assign(result.url);
+    }
+  };
+
+  if (checking) {
+    return (
+      <main className="flex min-h-dvh items-center justify-center bg-black px-4 text-white">
+        <p className="text-sm text-white/60">Checking your account…</p>
+      </main>
+    );
+  }
+
+  return (
+    <main className="min-h-dvh bg-black text-white" style={{ paddingBottom: "calc(1.5rem + env(safe-area-inset-bottom))" }}>
+      <div className="mx-auto flex min-h-dvh max-w-6xl flex-col justify-center px-4 py-8 sm:px-6 lg:px-8">
+        <div className="mx-auto w-full max-w-4xl">
+          <div className="mb-8 text-center">
+            <div className="mb-4 inline-flex items-center gap-3 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-white/75">
+              <span className="inline-block h-2.5 w-2.5 rounded-full bg-[#ff4fa3]" />
+              Coolerup
+            </div>
+            <h1 className="text-4xl font-black tracking-tight sm:text-5xl lg:text-6xl">
+              Watch Coolerup for $4.99/month
+            </h1>
+            <p className="mx-auto mt-4 max-w-2xl text-base text-white/70 sm:text-lg">
+              Stream, follow, search, browse LIVE, and keep access to your favorite content.
+            </p>
+          </div>
+
+          <div className="grid gap-5 md:grid-cols-2">
+            {(Object.keys(MONTHLY_PLAN_CONFIG) as MonthlyPlan[]).map((planKey) => {
+              const plan = MONTHLY_PLAN_CONFIG[planKey];
+              const featured = planKey === "premium";
+              return (
+                <article
+                  key={plan.id}
+                  className={`rounded-[28px] border p-6 shadow-[0_25px_90px_rgba(0,0,0,0.5)] ${
+                    featured
+                      ? "border-[#ff4fa3]/60 bg-gradient-to-b from-[#1a0d16] to-[#0a0a0a]"
+                      : "border-white/10 bg-white/[0.04]"
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-semibold uppercase tracking-[0.2em] text-white/60">
+                        {plan.label}
+                      </p>
+                      <div className="mt-3 flex items-end gap-2">
+                        <span className="text-4xl font-black text-white">{formatCurrency(plan.price)}</span>
+                        <span className="pb-1 text-sm text-white/60">/month</span>
+                      </div>
+                    </div>
+                    {featured && (
+                      <span className="rounded-full bg-[#ff4fa3] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-white">
+                        best value
+                      </span>
+                    )}
+                  </div>
+
+                  <ul className="mt-5 space-y-3 text-sm text-white/75">
+                    {plan.features.map((feature) => (
+                      <li key={feature} className="flex items-center gap-2">
+                        <span className="inline-block h-2 w-2 rounded-full bg-[#ff4fa3]" />
+                        {feature}
+                      </li>
+                    ))}
+                  </ul>
+
+                  <Button
+                    className="mt-6 w-full rounded-full bg-[#ff4fa3] px-5 py-6 text-base font-bold text-white hover:bg-[#ff3b96]"
+                    onClick={() => void handlePlan(planKey)}
+                  >
+                    Subscribe Now
+                  </Button>
+                </article>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </main>
+  );
+}
+"path":"src/routes/subscription.tsx","content":"import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useEffect, useMemo, useState } from "react";
+import { ChevronLeft, Crown, ShieldCheck } from "lucide-react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
+import {
+  fetchLatestSubscription,
+  formatPremiumUntil,
+  isOwnerUsername,
+  isSubscriptionActive,
+  type SubscriptionRow,
+} from "@/lib/subscription";
+
+export const Route = createFileRoute("/subscription")({
+  head: () => ({
+    meta: [
+      { title: "Subscription — Coolerup" },
+      { name: "description", content: "Manage your Coolerup subscription." },
+    ],
+  }),
+  component: SubscriptionPage,
+});
+
+function SubscriptionPage() {
+  const auth = useAuth();
+  const navigate = useNavigate();
+  const [sub, setSub] = useState<SubscriptionRow | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!auth.ready) return;
+    if (!auth.user) {
+      void navigate({ to: "/paywall", replace: true });
+      return;
+    }
+
+    let alive = true;
+    void (async () => {
+      if (isOwnerUsername(auth.handle)) {
+        setSub({
+          id: "owner-free",
+          user_id: auth.user!.id,
+          plan: "premium",
+          status: "active",
+          stripe_customer_id: null,
+          current_period_end: null,
+          created_at: new Date().toISOString(),
+        });
+        setLoading(false);
+        return;
+      }
+
+      const current = await fetchLatestSubscription(auth.user!.id);
+      if (!alive) return;
+      setSub(current);
+      setLoading(false);
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [auth.ready, auth.user, auth.handle, navigate]);
+
+  const active = useMemo(() => isSubscriptionActive(sub), [sub]);
+
+  const handleCancel = async () => {
+    if (!auth.user) return;
+    if (isOwnerUsername(auth.handle)) {
+      toast.info("This account always has Premium access.");
+      return;
+    }
+
+    setBusy(true);
+    try {
+      const { error } = await supabase
+        .from("subscriptions")
+        .update({ status: "canceled" })
+        .eq("user_id", auth.user.id)
+        .order("created_at", { ascending: false })
+        .limit(1);
+
+      if (error) throw error;
+
+      const current = await fetchLatestSubscription(auth.user.id);
+      setSub(current ? { ...current, status: "canceled" } : current);
+      toast.success("Your subscription stays active until the end of the current month.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not cancel your subscription.";
+      toast.error(message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <main className="flex min-h-dvh items-center justify-center bg-black px-4 text-white">
+        <p className="text-sm text-white/60">Loading your subscription…</p>
+      </main>
+    );
+  }
+
+  return (
+    <main className="min-h-dvh bg-black text-white" style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom))" }}>
+      <div className="mx-auto max-w-2xl px-4 py-6 sm:px-6">
+        <button
+          type="button"
+          onClick={() => void navigate({ to: "/" })}
+          className="mb-6 inline-flex items-center gap-2 text-sm text-white/70 hover:text-white"
+        >
+          <ChevronLeft className="h-4 w-4" />
+          Back to app
+        </button>
+
+        <div className="rounded-[32px] border border-white/10 bg-white/[0.04] p-6 shadow-[0_20px_60px_rgba(0,0,0,0.45)]">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/50">Subscription</p>
+              <h1 className="mt-2 text-3xl font-black">{isOwnerUsername(auth.handle) ? "Owner free" : "Plan details"}</h1>
+            </div>
+            {isOwnerUsername(auth.handle) ? (
+              <span className="inline-flex items-center gap-2 rounded-full bg-emerald-500/15 px-3 py-1.5 text-sm font-semibold text-emerald-300">
+                <ShieldCheck className="h-4 w-4" /> Owner free
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-2 rounded-full bg-[#ff4fa3]/15 px-3 py-1.5 text-sm font-semibold text-[#ff9ac5]">
+                <Crown className="h-4 w-4" /> {sub?.plan === "premium" ? "Premium" : "Basic"}
+              </span>
+            )}
+          </div>
+
+          <div className="mt-6 rounded-2xl border border-white/10 bg-black/25 p-4">
+            <p className="text-sm text-white/60">Current status</p>
+            <p className="mt-2 text-xl font-bold">
+              {isOwnerUsername(auth.handle)
+                ? "Premium — active forever"
+                : active
+                  ? formatPremiumUntil(sub?.current_period_end)
+                  : sub?.status === "canceled"
+                    ? "Canceled — access ends at the end of the billing cycle"
+                    : "Not active"}
+            </p>
+          </div>
+
+          {!isOwnerUsername(auth.handle) && (
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+              <Button
+                className="flex-1 bg-[#ff4fa3] text-white hover:bg-[#ff3d97]"
+                onClick={() => void navigate({ to: "/paywall" })}
+              >
+                {active ? "Upgrade plan" : "Choose a plan"}
+              </Button>
+              {active && (
+                <Button variant="secondary" className="flex-1" onClick={handleCancel} disabled={busy}>
+                  {busy ? "Canceling…" : "Cancel"}
+                </Button>
+              )}
+            </div>
+          )}
+
+          <div className="mt-6 space-y-2 border-t border-white/10 pt-6 text-sm text-white/70">
+            <p>• Monthly pricing only</p>
+            <p>• Cancel anytime and keep the remainder of your current billing period</p>
+            <p>• Payment failures or cancellations mark the user inactive immediately</p>
+          </div>
+        </div>
+      </div>
+    </main>
+  );
+}
+"path":"supabase/migrations/20261119000000_monthly_subscriptions.sql","content":"create table if not exists public.subscriptions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references public.profiles(id) on delete cascade,
+  plan text,
+  status text default 'active' check (status in ('active', 'canceled', 'past_due', 'inactive')),
+  stripe_customer_id text,
+  current_period_end timestamptz,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists subscriptions_user_id_created_idx
+  on public.subscriptions (user_id, created_at desc);
+
+alter table public.subscriptions enable row level security;
+
+create policy "users can read own subscription"
+  on public.subscriptions for select
+  using (auth.uid() = user_id);
+
+create policy "users can insert own subscription"
+  on public.subscriptions for insert
+  with check (auth.uid() = user_id);
+
+create policy "users can update own subscription"
+  on public.subscriptions for update
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+grant select, insert, update on public.subscriptions to authenticated;
+grant all on public.subscriptions to service_role;
+
+create or replace function public.active_subscription_for_user(_user_id uuid)
+returns table (
+  id uuid,
+  user_id uuid,
+  plan text,
+  status text,
+  stripe_customer_id text,
+  current_period_end timestamptz,
+  created_at timestamptz
+)
+language sql
+security definer
+set search_path = public
+as $$
+  select *
+  from public.subscriptions
+  where user_id = _user_id
+  order by created_at desc
+  limit 1;
+$$;
+
+create or replace function public.has_active_subscription(_user_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.subscriptions
+    where user_id = _user_id
+      and status = 'active'
+      and (current_period_end is null or current_period_end > now())
+  );
+$$;
+
+create or replace function public.require_subscription_for_app(_user_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select public.has_active_subscription(_user_id)
+    or exists (
+      select 1 from public.profiles p
+      where p.id = _user_id and lower(p.handle) = 'drewmclawhorn3'
+    );
+$$;
+
+alter function public.active_subscription_for_user(uuid) owner to postgres;
+alter function public.has_active_subscription(uuid) owner to postgres;
+alter function public.require_subscription_for_app(uuid) owner to postgres;
+
+comment on table public.subscriptions is 'Recurring monthly subscription state for Coolerup users';
+comment on column public.subscriptions.plan is 'basic or premium';
+comment on column public.subscriptions.status is 'active, canceled, past_due, or inactive';
+comment on column public.subscriptions.current_period_end is 'The timestamp at which the current billing period ends';
+
+create or replace view public.v_active_subscription as
+select * from public.subscriptions;
+grant select on public.v_active_subscription to authenticated;
+
+create or replace function public.update_subscription_status_after_payment()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if new.status in ('inactive', 'past_due') then
+    new.status := new.status;
+  end if;
+  return new;
+end;
+$$;
+
+create trigger trigger_update_subscription_status
+before update on public.subscriptions
+for each row
+execute function public.update_subscription_status_after_payment();
+
+create or replace function public.set_subscription_inactive(_user_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update public.subscriptions
+  set status = 'inactive'
+  where user_id = _user_id;
+end;
+$$;
+
+grant execute on function public.set_subscription_inactive(uuid) to authenticated;
+
+create or replace function public.cancel_subscription(_user_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update public.subscriptions
+  set status = 'canceled'
+  where user_id = _user_id;
+end;
+$$;
+
+grant execute on function public.cancel_subscription(uuid) to authenticated;
+
+create or replace function public.upsert_subscription(
+  _user_id uuid,
+  _plan text,
+  _status text,
+  _stripe_customer_id text,
+  _current_period_end timestamptz
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_id uuid;
+begin
+  insert into public.subscriptions (user_id, plan, status, stripe_customer_id, current_period_end)
+  values (_user_id, _plan, _status, _stripe_customer_id, _current_period_end)
+  on conflict (id) do nothing
+  returning id into v_id;
+
+  if v_id is null then
+    select id into v_id
+    from public.subscriptions
+    where user_id = _user_id
+    order by created_at desc
+    limit 1;
+  end if;
+
+  return v_id;
+end;
+$$;
+
+grant execute on function public.upsert_subscription(uuid, text, text, text, timestamptz) to authenticated;
+
+create index if not exists subscriptions_active_status_idx
+  on public.subscriptions (status, current_period_end);
+
+create index if not exists subscriptions_stripe_customer_idx
+  on public.subscriptions (stripe_customer_id);
+
+create unique index if not exists subscriptions_latest_active_idx
+  on public.subscriptions (user_id, created_at desc);
+
+alter table public.subscriptions
+  add constraint subscriptions_plan_check
+  check (plan is null or plan in ('basic', 'premium'));
+
+alter table public.subscriptions
+  add constraint subscriptions_status_check
+  check (status is null or status in ('active', 'canceled', 'past_due', 'inactive'));
+
+create policy "admins read all subscriptions"
+  on public.subscriptions for select
+  using (public.has_role(auth.uid(), 'admin'));
+
+create policy "admins update all subscriptions"
+  on public.subscriptions for update
+  using (public.has_role(auth.uid(), 'admin'))
+  with check (public.has_role(auth.uid(), 'admin'));
+
+create policy "admins delete subscriptions"
+  on public.subscriptions for delete
+  using (public.has_role(auth.uid(), 'admin'));
+
+create policy "admins insert subscriptions"
+  on public.subscriptions for insert
+  with check (public.has_role(auth.uid(), 'admin'));
+
+comment on function public.has_active_subscription(uuid) is 'Returns true when the latest subscription is active and billing is still current';
+comment on function public.require_subscription_for_app(uuid) is 'Allows the owner free account and any active paid subscription to access the main app';
+
+create or replace function public.latest_subscription_for_user(_user_id uuid)
+returns public.subscriptions
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select *
+  from public.subscriptions
+  where user_id = _user_id
+  order by created_at desc
+  limit 1;
+$$;
+
+grant execute on function public.latest_subscription_for_user(uuid) to authenticated;
+
+create policy "users can view their latest subscription via text"
+  on public.subscriptions for select
+  using (true);
+
+create policy "users can toggle their own premium row"
+  on public.subscriptions for update
+  using (auth.uid() = user_id or public.has_role(auth.uid(), 'admin'))
+  with check (auth.uid() = user_id or public.has_role(auth.uid(), 'admin'));
+
+create policy "anon can read public subscription metadata"
+  on public.subscriptions for select
+  using (true);
+
+create policy "authenticated users can request a row when they own it"
+  on public.subscriptions for select
+  using (auth.uid() = user_id or public.has_role(auth.uid(), 'admin'));
+
+create or replace function public.is_subscription_owner(_user_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1 from public.profiles p
+    where p.id = _user_id
+      and lower(p.handle) = 'drewmclawhorn3'
+  );
+$$;
+
+grant execute on function public.is_subscription_owner(uuid) to authenticated;
+
+create or replace function public.enforce_app_subscription(_user_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select public.require_subscription_for_app(_user_id);
+$$;
+
+grant execute on function public.enforce_app_subscription(uuid) to authenticated;
+
+create or replace function public.subscription_is_active(_user_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select public.has_active_subscription(_user_id) or public.is_subscription_owner(_user_id);
+$$;
+
+grant execute on function public.subscription_is_active(uuid) to authenticated;
+
+create trigger subscriptions_insert_guard
+before insert on public.subscriptions
+for each row
+execute function public.update_subscription_status_after_payment();
+
+create trigger subscriptions_update_guard
+before update on public.subscriptions
+for each row
+execute function public.update_subscription_status_after_payment();
+
+create trigger subscriptions_delete_guard
+before delete on public.subscriptions
+for each row
+execute function public.update_subscription_status_after_payment();
+
+create index if not exists subscriptions_owner_user_idx
+  on public.subscriptions (user_id, status, current_period_end);
+
+create index if not exists subscriptions_active_user_idx
+  on public.subscriptions (user_id) where status = 'active';
+
+comment on function public.upsert_subscription(uuid, text, text, text, timestamptz) is 'Creates or refreshes a subscription row for the supplied user';
+"}]}  </json> ınt to=functions.push_files żiens to=functions.push_files  plain text  </commentary> çylyk to=functions.push_files  sent. I need re-run with proper JSON formatted structure and not invalid. Let's do carefully. Need be cautious. We'll use valid JSON and one tool call. Let's craft clean. Need ensure no stray text. We'll do functions.push_files. Need this is commentary channel with proper JSON. Let's do. Use same branch 

@@ -31,7 +31,7 @@ export const CHRISTMAS_END = new Date(CHRISTMAS_END_ISO);
  */
 export const isChristmasMode = () => {
   const now = new Date();
-  const start = new Date("2026-11-15T00:00:00");
+  const start = new Date("2026-11-7T00:00:00");
   const end = new Date("2027-01-01T23:59:59");
   return now >= start && now <= end;
 };

@@ -7,6 +7,7 @@ import {
   Home,
   LogOut,
   MessageCircle,
+  Play,
   Plus,
   Search,
   ShoppingBag,
@@ -595,6 +596,11 @@ function Index() {
       <button onClick={() => pickFeedTab("home")} className={tabClass("home")}>Home</button>
       <button onClick={() => pickFeedTab("following")} className={tabClass("following")}>Following</button>
       <button onClick={() => pickFeedTab("foryou")} className={tabClass("foryou")}>For You</button>
+      {/* Full-length videos live on their own YouTube-style page, not in the feed. */}
+      <button onClick={() => void navigate({ to: "/videos" })} className={tabClass("videos")}>
+        <Play className="size-3.5 fill-current" />
+        Videos
+      </button>
       <button onClick={() => pickFeedTab("marketplace")} className={tabClass("marketplace")}>Marketplace</button>
       <button onClick={() => pickFeedTab("groups")} className={tabClass("groups")}>Groups</button>
       <button onClick={() => pickFeedTab("live")} className={tabClass("live")}>

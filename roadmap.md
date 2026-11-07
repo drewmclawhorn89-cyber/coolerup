@@ -4,3 +4,5 @@
 - [ ] Safety & moderation system (waiting on answers: accent color, admin lock-down)
 - [ ] Edit your profile
 - [ ] Real calling from the Messages inbox
+
+- [x] Remove fake AI items from the Marketplace

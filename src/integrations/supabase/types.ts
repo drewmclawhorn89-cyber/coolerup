@@ -1905,7 +1905,9 @@ export type Database = {
       is_banned: { Args: { _username: string }; Returns: boolean }
       is_banned_uid: { Args: { _uid: string }; Returns: boolean }
       is_banned_username: { Args: { _username: string }; Returns: boolean }
-      is_group_member: { Args: { gid: string }; Returns: boolean }
+      is_group_member:
+        | { Args: { _group_id: string; _user_id: string }; Returns: boolean }
+        | { Args: { gid: string }; Returns: boolean }
       is_group_staff: { Args: { gid: string }; Returns: boolean }
       is_live_mod: {
         Args: { p_live_id: string; p_user_id: string }

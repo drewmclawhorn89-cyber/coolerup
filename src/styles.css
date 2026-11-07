@@ -210,6 +210,23 @@
   }
 }
 
+/*
+ * The primary "create / plus" action stays pink in every theme.
+ * Hard-coded on purpose: it is a brand accent, not a theme-derived color,
+ * so it must not follow --primary when the user picks blue, green, red, etc.
+ */
+@utility create-pink {
+  background-color: #ec4899;
+  color: #ffffff;
+  --tw-shadow-color: #ec4899;
+  &:hover {
+    background-color: #db2777;
+  }
+  &:active {
+    background-color: #be185d;
+  }
+}
+
 .video-caption {
   background: var(--video-caption-background);
   pointer-events: none;

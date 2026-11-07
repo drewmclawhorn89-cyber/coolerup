@@ -99,7 +99,7 @@ function SellForm({ onClose, onPost }: { onClose: () => void; onPost: (f: FormSt
 
 export function Marketplace() {
   const auth = useAuth();
-  const [items, setItems] = useState<MarketItem[]>(MOCK);
+  const [items, setItems] = useState<MarketItem[]>([]);
   const [q, setQ] = useState("");
   const [cat, setCat] = useState("All");
   const [open, setOpen] = useState<MarketItem | null>(null);

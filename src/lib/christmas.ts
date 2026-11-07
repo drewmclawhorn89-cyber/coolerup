@@ -16,7 +16,7 @@
 import { useEffect, useState } from "react";
 
 /** First moment the update is live. */
-export const CHRISTMAS_START_ISO = "2026-11-15T00:00:00";
+export const CHRISTMAS_START_ISO = "2026-11-13T00:00:00";
 /** Last moment the update is live. */
 export const CHRISTMAS_END_ISO = "2027-01-01T23:59:59";
 

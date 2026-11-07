@@ -689,7 +689,7 @@ function Index() {
 
         <button
           onClick={() => guardOnboarding(() => (auth.user ? setCreateMenuOpen(true) : auth.signIn()))}
-          className="flex items-center justify-center gap-2 rounded-full bg-primary py-3.5 font-bold text-primary-foreground shadow-[0_10px_30px_-10px_var(--primary)] transition hover:brightness-95"
+          className="flex items-center justify-center gap-2 rounded-full create-pink py-3.5 font-bold shadow-[0_10px_30px_-10px_#ec4899] transition hover:brightness-95"
         >
           <Plus className="h-5 w-5" /> Create
         </button>
@@ -1033,7 +1033,8 @@ function Index() {
           <Button
             aria-label="Create video or go live"
             onClick={() => guardOnboarding(() => (auth.user ? setCreateMenuOpen(true) : auth.signIn()))}
-            className="m-auto h-9 w-10 rounded-lg px-0 [&_svg]:size-6"
+            style={{ backgroundColor: "#ec4899", color: "#ffffff" }}
+            className="m-auto h-9 w-10 rounded-lg px-0 hover:brightness-95 [&_svg]:size-6"
           >
             <Plus />
           </Button>

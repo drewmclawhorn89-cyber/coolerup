@@ -7,6 +7,7 @@ export function ThemePicker({ theme, changeTheme }: any) {
     { id: "purple", label: "Purple", color: "#9333EA", text: "#ffffff" },
     { id: "pink", label: "Pink", color: "#EC4899", text: "#ffffff" },
     { id: "green", label: "Green", color: "#16A34A", text: "#ffffff" },
+    { id: "red", label: "Red", color: "#DC2626", text: "#ffffff" },
   ];
 
   return (

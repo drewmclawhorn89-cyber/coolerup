@@ -312,7 +312,7 @@ const toggleOffline = () => {
       setTestingPush(false);
     }
   };
-const changeTheme = (t: string) => {
+ const changeTheme = (t: string) => {
   setTheme(t);
   writePref("theme", t);
   toast.success(`Theme: ${t}`);
@@ -578,7 +578,7 @@ const changeTheme = (t: string) => {
       { id: "mutuals", label: "Friends of friends" },
       { id: "noone", label: "No one" },
     ].map(o=>(
-      <button key={o.id} onClick={()=>{setMessagePrivacy(o.id); localStorage.setItem("messagePrivacy", o.id);}} className="flex justify-between p-3 rounded-xl border text-left" style={{backgroundColor: messagePrivacy===o.id ? "white" : "#1f1f1f", color: messagePrivacy===o.id ? "black" : "white", borderColor: messagePrivacy===o.id ? "white" : "#333"}}>
+      <button key={o.id} onClick={()=>{setMessagePrivacy(o.id); localStorage.setItem("messagePrivacy", o.id);}} className="flex justify-between p-3 rounded-xl border text-left" style={{background:messagePrivacy===o.id ? "white" : "#1f1f1f", color:messagePrivacy===o.id ? "black" : "white", borderColor:"#333"}}>
         <span className="font-medium text-">{o.label}</span>
         <div className="h-5 w-5 rounded-full border-2 flex items-center justify-center" style={{borderColor: messagePrivacy===o.id ? "black" : "#666"}}>
           {messagePrivacy===o.id && <div className="h-2 w-2 bg-black rounded-full" />}
@@ -723,6 +723,7 @@ const changeTheme = (t: string) => {
   <button onClick={() => changeTheme("purple")} style={{backgroundColor: "#9333ea", color: "white"}} className="rounded-md px-3 py-2">Purple</button>
   <button onClick={() => changeTheme("pink")} style={{backgroundColor: "#ec4899", color: "white"}} className="rounded-md px-3 py-2">Pink</button>
   <button onClick={() => changeTheme("green")} style={{backgroundColor: "#16a34a", color: "white"}} className="rounded-md px-3 py-2">Green</button>
+  <button onClick={() => changeTheme("red")} style={{backgroundColor: "#dc2626", color: "white"}} className="rounded-md px-3 py-2">Red</button>
 </div>
 </div> 
 

@@ -46,6 +46,7 @@ const THEMES: Record<string, { bg: string; fg: string; card: string; muted: stri
   purple: { bg: "#9333ea", fg: "#ffffff", card: "#7e22ce", muted: "#6b21a8", mutedFg: "#f3e8ff", border: "#a855f7" },
   pink: { bg: "#ec4899", fg: "#ffffff", card: "#db2777", muted: "#be185d", mutedFg: "#fce7f3", border: "#f472b6" },
   green: { bg: "#16a34a", fg: "#ffffff", card: "#15803d", muted: "#166534", mutedFg: "#dcfce7", border: "#22c55e" },
+  red: { bg: "#dc2626", fg: "#ffffff", card: "#b91c1c", muted: "#991b1b", mutedFg: "#fee2e2", border: "#ef4444" },
 };
 
 const THEME_VARS = ["--background", "--foreground", "--card", "--card-foreground", "--popover", "--popover-foreground", "--muted", "--muted-foreground", "--border", "--input"];

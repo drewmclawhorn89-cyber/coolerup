@@ -711,21 +711,14 @@ const toggleOffline = () => {
   </div>
 </div>
 
-   {/* Appearance */}
-<div className="rounded-2xl border bg-card p-4">
-  <h2 className="font-semibold">Appearance</h2>
-  <p className="mt-1 text-sm text-muted-foreground">Choose an app theme.</p>
-<div className="mt-3 flex flex-wrap gap-2">
-  <button onClick={() => changeTheme("light")} style={{backgroundColor: "white", color: "black"}} className="rounded-md px-3 py-2 border">Light</button>
-  <button onClick={() => changeTheme("dark")} style={{backgroundColor: "black", color: "white"}} className="rounded-md px-3 py-2 border">Dark</button>
-  <button onClick={() => changeTheme("system")} style={{backgroundColor: "#e4e4e7", color: "black"}} className="rounded-md px-3 py-2 border">System</button>
-  <button onClick={() => changeTheme("blue")} style={{backgroundColor: "#2563EB", color: "white"}} className="rounded-md px-3 py-2">Blue</button>
-  <button onClick={() => changeTheme("purple")} style={{backgroundColor: "#9333ea", color: "white"}} className="rounded-md px-3 py-2">Purple</button>
-  <button onClick={() => changeTheme("pink")} style={{backgroundColor: "#ec4899", color: "white"}} className="rounded-md px-3 py-2">Pink</button>
-  <button onClick={() => changeTheme("green")} style={{backgroundColor: "#16a34a", color: "white"}} className="rounded-md px-3 py-2">Green</button>
-  <button onClick={() => changeTheme("red")} style={{backgroundColor: "#dc2626", color: "white"}} className="rounded-md px-3 py-2">Red</button>
-</div>
-</div> 
+      {/* Appearance */}
+      <div className="rounded-2xl border bg-card p-4">
+        <h2 className="font-semibold">Appearance</h2>
+        <p className="mt-1 text-sm text-muted-foreground">Choose an app theme.</p>
+        <div className="mt-3">
+          <ThemePicker theme={theme} changeTheme={changeTheme} />
+        </div>
+      </div>
 
       <MoreSettings />
 

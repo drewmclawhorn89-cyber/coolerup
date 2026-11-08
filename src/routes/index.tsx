@@ -27,6 +27,14 @@ import { LiveNowList } from "@/components/LiveNowList";
 import { useLiveDirectory, type LiveHost } from "@/lib/liveDirectory";
 import { OnboardingBanner, useOnboardingGuard } from "@/components/OnboardingBanner";
 import { isChristmasCountdownVisible, useChristmasMode } from "@/lib/christmas";
+import {
+  GTA6_HASHTAG,
+  GTA6_PRIZE,
+  GTA6_WINNERS,
+  stripGTA6TestParam,
+  useGTA6Mode,
+} from "@/lib/gta6";
+import { GTA6Banner } from "@/components/GTA6Banner";
 import { useChristmasCodesSeason } from "@/lib/christmas-codes";
 import { matchesKeyword, readBool } from "@/lib/prefs";
 // Heavy, interaction-only surfaces are split out so the initial feed bundle stays small.
@@ -124,6 +132,9 @@ function Index() {
   // Nov 15 2026 -> Jan 1 2027 only. False today (Nov 1 2026), true on its own
   // once the window opens, and false again after it closes.
   const christmas = useChristmasMode();
+  // GTA 6 update: Nov 8 - Nov 15 2026 only. One-way door — after Nov 15
+  // `useGTA6Mode()` is false forever and nothing below ever renders again.
+  const gta6 = useGTA6Mode();
   // The "Codes" tab is seasonal: on Nov 15 - Jan 1, off the rest of the year.
   // It re-appears by itself every Christmas with no deploy and no flag.
   const codesSeason = useChristmasCodesSeason();
@@ -137,6 +148,11 @@ function Index() {
 
   const [videos, setVideos] = useState<Video[] | null>(null);
   const [myPostCount, setMyPostCount] = useState(0);
+  // After Nov 15 2026 the ?gta=test preview param is dead: physically remove it
+  // from the URL so it can't be shared, bookmarked or re-used.
+  useEffect(() => {
+    stripGTA6TestParam();
+  }, []);
   useEffect(() => {
     if (!me) {
       setMyPostCount(0);
@@ -189,6 +205,14 @@ function Index() {
   const [challengeHidden, setChallengeHidden] = useState(() => {
     if (typeof window === "undefined") return false;
     return window.sessionStorage.getItem("loop-christmas-challenge-hidden") === "1";
+  });
+  const [gta6BannerHidden, setGTA6BannerHidden] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.sessionStorage.getItem("loop-gta6-banner-hidden") === "1";
+  });
+  const [gta6ChallengeHidden, setGTA6ChallengeHidden] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.sessionStorage.getItem("loop-gta6-challenge-hidden") === "1";
   });
 
   // Moderation: videos the user tapped "Not interested" on, plus blocked authors.
@@ -674,7 +698,7 @@ function Index() {
     <div className="flex h-dvh overflow-hidden bg-background">
       <aside className="hidden w-72 shrink-0 flex-col gap-6 border-r bg-sidebar p-6 md:flex">
         <div>
-          <h1 className="font-display text-4xl tracking-tight">
+          <h1 className={`font-display text-4xl tracking-tight ${gta6 ? "gta6-logo-glow" : ""}`}>
             coolerup
             <span className="relative inline-block text-primary">
               .
@@ -682,6 +706,11 @@ function Index() {
                 <SantaHat className="pointer-events-none absolute -top-[0.62em] left-1/2 h-[0.7em] w-[0.8em] -translate-x-1/2 rotate-[8deg] drop-shadow-[0_2px_3px_rgba(0,0,0,0.45)]" />
               )}
             </span>
+            {gta6 && (
+              <span className="gta6-palm ml-1 text-2xl" aria-hidden>
+                🌴
+              </span>
+            )}
           </h1>
           <p className="mt-1 text-[11px] font-bold tracking-[0.3em] text-muted-foreground">A LITTLE MORE YOU</p>
         </div>
@@ -970,6 +999,58 @@ function Index() {
               <p className="hidden text-sm text-muted-foreground md:block">{sub}</p>
             </header>
 
+            {gta6 && !gta6BannerHidden && activeTab === "foryou" && feedTab === "foryou" && !offlineMode && !query.trim() && (
+              <GTA6Banner
+                onPost={() => guardOnboarding(() => (auth.user ? setRecordingOpen(true) : auth.signIn()))}
+                onDismiss={() => {
+                  setGTA6BannerHidden(true);
+                  try {
+                    window.sessionStorage.setItem("loop-gta6-banner-hidden", "1");
+                  } catch {
+                    /* ignore */
+                  }
+                }}
+              />
+            )}
+
+            {gta6 && !gta6ChallengeHidden && activeTab === "foryou" && feedTab === "foryou" && !offlineMode && !query.trim() && (
+              <div className="gta6-challenge-banner relative mx-3 mb-2 flex shrink-0 items-center gap-2.5 rounded-2xl px-3 py-2.5 text-white shadow-lg md:mx-10">
+                <span className="text-2xl" aria-hidden>
+                  🏁
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[13px] font-bold leading-tight">
+                    {GTA6_HASHTAG} Challenge: post a GTA 6 video!
+                  </p>
+                  <p className="text-[11px] leading-tight text-white/80">
+                    Top {GTA6_WINNERS} win {GTA6_PRIZE} · Nov 8 – Nov 15 2026
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => guardOnboarding(() => (auth.user ? setRecordingOpen(true) : auth.signIn()))}
+                  className="shrink-0 rounded-full bg-white px-3 py-1.5 text-[11px] font-bold text-black transition hover:bg-white/90"
+                >
+                  Post
+                </button>
+                <button
+                  type="button"
+                  aria-label="Dismiss GTA 6 challenge"
+                  onClick={() => {
+                    setGTA6ChallengeHidden(true);
+                    try {
+                      window.sessionStorage.setItem("loop-gta6-challenge-hidden", "1");
+                    } catch {
+                      /* ignore */
+                    }
+                  }}
+                  className="shrink-0 text-white/70 transition hover:text-white"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            )}
+
             {christmas && !challengeHidden && activeTab === "foryou" && feedTab === "foryou" && !offlineMode && !query.trim() && (
               <div className="christmas-banner relative mx-3 mb-2 flex shrink-0 items-center gap-2.5 rounded-2xl px-3 py-2.5 text-white shadow-lg md:mx-10">
                 <span className="text-2xl" aria-hidden>
@@ -1010,7 +1091,11 @@ function Index() {
             {showTopTabs && (
               <TopTabs className={`${topTabsClass} md:hidden`} />
             )}
-            <div className="no-scrollbar min-h-0 flex-1 snap-y snap-mandatory overflow-y-scroll overscroll-contain scroll-smooth">
+            <div
+              className={`no-scrollbar min-h-0 flex-1 snap-y snap-mandatory overflow-y-scroll overscroll-contain scroll-smooth ${
+                gta6 && activeTab === "foryou" && feedTab === "foryou" ? "gta6-foryou-bg" : ""
+              }`}
+            >
               {error && !offlineMode && !(videos && videos.length > 0) && (
                 <Empty text="Couldn't load videos. Refresh to try again." />
               )}

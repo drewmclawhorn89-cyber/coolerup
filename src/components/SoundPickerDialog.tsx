@@ -9,10 +9,93 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { formatCount } from "@/lib/loop";
-import { getChristmasSounds, getTrendingSounds, soundAudioUrl, type Sound } from "@/lib/sounds";
+import {
+  getChristmasSounds,
+  getGTA6Sounds,
+  getTrendingSounds,
+  soundAudioUrl,
+  type Sound,
+} from "@/lib/sounds";
 import { useChristmasMode } from "@/lib/christmas";
+import { useGTA6Mode } from "@/lib/gta6";
 
 type Mode = "choose" | "browse";
+
+/**
+ * One "special sounds" block in the picker (Christmas, GTA 6, ...). Renders
+ * nothing when it has no rows, so seasonal sections simply disappear.
+ */
+function SoundSection({
+  label,
+  accent,
+  sounds,
+  selectedId,
+  playingId,
+  onChoose,
+  onPreview,
+  hidden,
+}: {
+  label: string;
+  accent: string;
+  sounds: Sound[];
+  selectedId: string | null;
+  playingId: string | null;
+  onChoose: (sound: Sound) => void;
+  onPreview: (sound: Sound) => void;
+  hidden: boolean;
+}) {
+  if (hidden || sounds.length === 0) return null;
+  return (
+    <div className="space-y-1">
+      <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
+        {label}
+      </p>
+      {sounds.map((sound) => {
+        const selected = selectedId === sound.id;
+        return (
+          <div
+            key={sound.id}
+            className={`flex items-center gap-2 rounded-lg p-2 ${
+              selected ? "bg-[#2ecc55]/15" : "hover:bg-secondary"
+            }`}
+          >
+            <button
+              type="button"
+              onClick={() => onChoose(sound)}
+              className="flex min-w-0 flex-1 items-center gap-2 text-left"
+            >
+              <span
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
+                style={{ backgroundColor: `${accent}33` }}
+              >
+                <Music className="h-4 w-4" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-semibold">{sound.title}</span>
+                <span className="block truncate text-xs text-muted-foreground">
+                  @{sound.creator_username} · {formatCount(sound.uses_count)} uses
+                </span>
+              </span>
+              {selected && <Check className="h-4 w-4 shrink-0 text-[#2ecc55]" />}
+            </button>
+            <button
+              type="button"
+              onClick={() => onPreview(sound)}
+              aria-label={playingId === sound.id ? "Pause preview" : "Play preview"}
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-black/40 text-white transition hover:bg-black/60"
+            >
+              {playingId === sound.id ? (
+                <Pause className="h-4 w-4" />
+              ) : (
+                <Play className="h-4 w-4" />
+              )}
+            </button>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 export function SoundPickerDialog({
   open,
@@ -37,6 +120,8 @@ export function SoundPickerDialog({
   const [sounds, setSounds] = useState<Sound[]>([]);
   const [christmasSounds, setChristmasSounds] = useState<Sound[]>([]);
   const christmas = useChristmasMode();
+  const [gta6Sounds, setGTA6Sounds] = useState<Sound[]>([]);
+  const gta6 = useGTA6Mode();
   const [loading, setLoading] = useState(false);
   const [playingId, setPlayingId] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -76,14 +161,19 @@ export function SoundPickerDialog({
     } else {
       setChristmasSounds([]);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, christmas]);
+    if (gta6) {
+      getGTA6Sounds()
+        .then(setGTA6Sounds)
+        .catch(() => setGTA6Sounds([]));
+    } else {
+      setGTA6Sounds([]);
+    }
+  }, [open, christmas, gta6]);
 
   useEffect(() => {
     if (!open || mode !== "browse") return;
     const t = setTimeout(() => void load(query), 250);
     return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query, mode, open]);
 
   useEffect(() => () => stopPreview(), []);
@@ -182,49 +272,27 @@ export function SoundPickerDialog({
               />
             </label>
 
-            {christmas && christmasSounds.length > 0 && !query.trim() && (
-              <div className="space-y-1">
-                <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
-                  🎄 Christmas sounds
-                </p>
-                {christmasSounds.map((sound) => {
-                  const selected = selectedSound?.id === sound.id;
-                  return (
-                    <div
-                      key={sound.id}
-                      className={`flex items-center gap-2 rounded-lg p-2 ${
-                        selected ? "bg-[#2ecc55]/15" : "hover:bg-secondary"
-                      }`}
-                    >
-                      <button
-                        type="button"
-                        onClick={() => choose(sound)}
-                        className="flex min-w-0 flex-1 items-center gap-2 text-left"
-                      >
-                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#2ecc55]/20">
-                          <Music className="h-4 w-4" />
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-sm font-semibold">{sound.title}</span>
-                          <span className="block truncate text-xs text-muted-foreground">
-                            @{sound.creator_username} · {formatCount(sound.uses_count)} uses
-                          </span>
-                        </span>
-                        {selected && <Check className="h-4 w-4 shrink-0 text-[#2ecc55]" />}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void preview(sound)}
-                        aria-label={playingId === sound.id ? "Pause preview" : "Play preview"}
-                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-black/40 text-white transition hover:bg-black/60"
-                      >
-                        {playingId === sound.id ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+            <SoundSection
+              label="🎄 Christmas sounds"
+              accent="#2ecc55"
+              sounds={christmasSounds}
+              selectedId={selectedSound?.id ?? null}
+              playingId={playingId}
+              onChoose={choose}
+              onPreview={(sound) => void preview(sound)}
+              hidden={!christmas || !!query.trim()}
+            />
+
+            <SoundSection
+              label="🔥 GTA 6 sounds"
+              accent="#FF2E88"
+              sounds={gta6Sounds}
+              selectedId={selectedSound?.id ?? null}
+              playingId={playingId}
+              onChoose={choose}
+              onPreview={(sound) => void preview(sound)}
+              hidden={!gta6 || !!query.trim()}
+            />
 
             <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
               {query.trim() ? "Results" : "Trending sounds"}

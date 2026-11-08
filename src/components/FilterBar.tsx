@@ -1,5 +1,6 @@
-import { CAMERA_FILTERS } from "@/lib/filters";
+import { filtersForMode } from "@/lib/filters";
 import { ANIMAL_FILTERS } from "@/lib/animals";
+import { GTA6FilterChip } from "@/components/GTA6Filter";
 
 export function FilterBar({
   value,
@@ -7,12 +8,15 @@ export function FilterBar({
   disabled,
   animal = "",
   onAnimalChange,
+  gta6 = false,
 }: {
   value: string;
   onChange: (id: string) => void;
   disabled?: boolean;
   animal?: string;
   onAnimalChange?: (id: string) => void;
+  /** Reveals the limited-time GTA 6 event filter. */
+  gta6?: boolean;
 }) {
   return (
     <>
@@ -35,7 +39,7 @@ export function FilterBar({
         </div>
       )}
       <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 pb-3" role="radiogroup" aria-label="Filters">
-        {CAMERA_FILTERS.map((f) => (
+        {filtersForMode(gta6).map((f) => (
           <button
             key={f.id}
             type="button"
@@ -43,8 +47,9 @@ export function FilterBar({
             aria-checked={value === f.id}
             disabled={disabled}
             onClick={() => onChange(f.id)}
-            className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-bold transition disabled:opacity-50 ${value === f.id ? "bg-primary text-primary-foreground" : "bg-white/15 text-white"}`}
+            className={`flex shrink-0 items-center gap-1 rounded-full px-3 py-1.5 text-xs font-bold transition disabled:opacity-50 ${value === f.id ? "bg-primary text-primary-foreground" : "bg-white/15 text-white"} ${f.id === "gta6" ? "gta6-filter-chip" : ""}`}
           >
+            {f.id === "gta6" && <GTA6FilterChip active={value === f.id} />}
             {f.name}
           </button>
         ))}

@@ -95,6 +95,24 @@ export async function getChristmasSounds(): Promise<Sound[]> {
 }
 
 /**
+ * The "GTA 6 - ..." sounds by @coolerup, shown as their own section in the
+ * sound picker only while the GTA 6 update is live.
+ */
+export async function getGTA6Sounds(): Promise<Sound[]> {
+  const { data, error } = await supabase
+    .from("sounds")
+    .select("*")
+    .eq("creator_username", "coolerup")
+    .ilike("title", "GTA 6 - %")
+    .order("title", { ascending: true });
+
+  if (error) throw error;
+  const sounds = (data ?? []) as Sound[];
+  sounds.forEach(cacheSound);
+  return sounds;
+}
+
+/**
  * Every original sound in the library, most-used first. Used by the in-app
  * music player so users can listen to (and later reuse) sounds without opening
  * a video.

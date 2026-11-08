@@ -6,7 +6,8 @@ import { FilterBar } from "@/components/FilterBar";
 import { AnimalOverlay } from "@/components/AnimalOverlay";
 import { getAnimal, drawAnimal, mirrorFace } from "@/lib/animals";
 import { useFaceTracker } from "@/lib/face";
-import { CAMERA_FILTERS, canBakeFilters } from "@/lib/filters";
+import { canBakeFilters, filterById } from "@/lib/filters";
+import { awardGTA6Badge, useGTA6Mode } from "@/lib/gta6";
 import { songStreamUrl, uploadVideo, type Song } from "@/lib/loop";
 import { fetchTracks, type Track } from "@/components/MusicPlayer";
 
@@ -77,7 +78,9 @@ export function PhotoDialog({
   useEffect(() => {
     if (!open || !photo) audioRef.current?.pause();
   }, [open, photo]);
-  const filter = CAMERA_FILTERS.find((f) => f.id === filterId) ?? CAMERA_FILTERS[0]!;
+  // The GTA 6 event filter is only offered while the event is live.
+  const gta6 = useGTA6Mode();
+  const filter = filterById(filterId, gta6);
 
   useEffect(() => {
     if (!open || photo) return;
@@ -169,6 +172,8 @@ export function PhotoDialog({
     try {
       const file = new File([photo], `photo-${Date.now()}.jpg`, { type: "image/jpeg" });
       await uploadVideo(file, username, caption.trim().slice(0, 500), song);
+      // Posting during the GTA 6 window mints the permanent OG badge.
+      void awardGTA6Badge(username);
       toast.success("Your photo is posted!");
       reset();
       onOpenChange(false);
@@ -235,7 +240,13 @@ export function PhotoDialog({
             {!photo ? (
               <>
                 {!bake && <p className="pb-2 text-center text-xs text-white/70">Filters can't be saved on this browser, so photos will post unfiltered.</p>}
-                <FilterBar value={filterId} onChange={setFilterId} animal={animalId} onAnimalChange={setAnimalId} />
+                <FilterBar
+                  value={filterId}
+                  onChange={setFilterId}
+                  animal={animalId}
+                  onAnimalChange={setAnimalId}
+                  gta6={gta6}
+                />
                 <div className="flex justify-center">
                   <button type="button" onClick={snap} disabled={!ready} aria-label="Take photo" className="flex h-20 w-20 items-center justify-center rounded-full border-4 border-white transition disabled:opacity-40">
                     <span className="h-16 w-16 rounded-full bg-white" />

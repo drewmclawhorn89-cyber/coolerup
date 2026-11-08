@@ -38,6 +38,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useLiveDirectory, type LiveHost } from "@/lib/liveDirectory";
 import { openAuthDialog } from "@/hooks/useAuth";
 import { useChristmasMode } from "@/lib/christmas";
+import { useGTA6Mode } from "@/lib/gta6";
 import { isLiteMode, useNetwork } from "@/lib/network";
 import {
   MUTE_OPTIONS,
@@ -225,6 +226,7 @@ export function LiveStreamDialog({
   // --- gifts -----------------------------------------------------------------
   const navigate = useNavigate();
   const christmas = useChristmasMode();
+  const gta6 = useGTA6Mode();
   const network = useNetwork();
   const lite = isLiteMode(network);
   const wallet = useCoins(userId);
@@ -1613,6 +1615,7 @@ export function LiveStreamDialog({
         open={giftOpen}
         onOpenChange={setGiftOpen}
         christmas={christmas}
+        gta6={gta6}
         balance={wallet.balance}
         signedIn={Boolean(userId)}
         sending={sendingGift}

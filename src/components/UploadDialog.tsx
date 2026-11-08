@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Music, Search, Upload, X } from "lucide-react";
 import { toast } from "sonner";
+import { awardGTA6Badge } from "@/lib/gta6";
 import { readBool } from "@/lib/prefs";
 import { isCellularConnection } from "@/lib/network";
 import { songStreamUrl, uploadVideo, type Song } from "@/lib/loop";
@@ -148,6 +149,8 @@ export function UploadDialog({
             f.type.startsWith("video/") ? (chosenSound?.id ?? null) : null,
           );
         }
+        // Posting during the GTA 6 window mints the permanent OG badge.
+        void awardGTA6Badge(name);
         onDone();
       })(),
       {

@@ -24,7 +24,6 @@ import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as UploadFullRouteImport } from './routes/upload-full'
 import { Route as VideosRouteImport } from './routes/videos'
 import { Route as WalletRouteImport } from './routes/wallet'
-import { Route as WatchRouteImport } from './routes/watch'
 import { Route as AdminPayoutsRouteImport } from './routes/admin_.payouts'
 import { Route as CoinsRechargeRouteImport } from './routes/coins.recharge'
 import { Route as GroupsIndexRouteImport } from './routes/groups.index'
@@ -32,6 +31,8 @@ import { Route as GroupsGroupIdRouteImport } from './routes/groups.$groupId'
 import { Route as LiveDashboardRouteImport } from './routes/live.dashboard'
 import { Route as SoundSoundIdRouteImport } from './routes/sound.$soundId'
 import { Route as UUsernameRouteImport } from './routes/u.$username'
+import { Route as WatchIndexRouteImport } from './routes/watch.index'
+import { Route as WatchIdRouteImport } from './routes/watch.$id'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -108,11 +109,6 @@ const WalletRoute = WalletRouteImport.update({
   path: '/wallet',
   getParentRoute: () => rootRouteImport,
 } as any)
-const WatchRoute = WatchRouteImport.update({
-  id: '/watch',
-  path: '/watch',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const AdminPayoutsRoute = AdminPayoutsRouteImport.update({
   id: '/admin_/payouts',
   path: '/admin/payouts',
@@ -148,6 +144,16 @@ const UUsernameRoute = UUsernameRouteImport.update({
   path: '/u/$username',
   getParentRoute: () => rootRouteImport,
 } as any)
+const WatchIndexRoute = WatchIndexRouteImport.update({
+  id: '/watch/',
+  path: '/watch/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const WatchIdRoute = WatchIdRouteImport.update({
+  id: '/watch/$id',
+  path: '/watch/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -165,14 +171,15 @@ export interface FileRoutesByFullPath {
   '/upload-full': typeof UploadFullRoute
   '/videos': typeof VideosRoute
   '/wallet': typeof WalletRoute
-  '/watch': typeof WatchRoute
   '/admin/payouts': typeof AdminPayoutsRoute
   '/coins/recharge': typeof CoinsRechargeRoute
   '/groups/$groupId': typeof GroupsGroupIdRoute
   '/live/dashboard': typeof LiveDashboardRoute
   '/sound/$soundId': typeof SoundSoundIdRoute
   '/u/$username': typeof UUsernameRoute
+  '/watch/$id': typeof WatchIdRoute
   '/groups/': typeof GroupsIndexRoute
+  '/watch/': typeof WatchIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -189,14 +196,15 @@ export interface FileRoutesByTo {
   '/upload-full': typeof UploadFullRoute
   '/videos': typeof VideosRoute
   '/wallet': typeof WalletRoute
-  '/watch': typeof WatchRoute
   '/admin/payouts': typeof AdminPayoutsRoute
   '/coins/recharge': typeof CoinsRechargeRoute
   '/groups/$groupId': typeof GroupsGroupIdRoute
   '/live/dashboard': typeof LiveDashboardRoute
   '/sound/$soundId': typeof SoundSoundIdRoute
   '/u/$username': typeof UUsernameRoute
+  '/watch/$id': typeof WatchIdRoute
   '/groups': typeof GroupsIndexRoute
+  '/watch': typeof WatchIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -215,14 +223,15 @@ export interface FileRoutesById {
   '/upload-full': typeof UploadFullRoute
   '/videos': typeof VideosRoute
   '/wallet': typeof WalletRoute
-  '/watch': typeof WatchRoute
   '/admin_/payouts': typeof AdminPayoutsRoute
   '/coins/recharge': typeof CoinsRechargeRoute
   '/groups/$groupId': typeof GroupsGroupIdRoute
   '/live/dashboard': typeof LiveDashboardRoute
   '/sound/$soundId': typeof SoundSoundIdRoute
   '/u/$username': typeof UUsernameRoute
+  '/watch/$id': typeof WatchIdRoute
   '/groups/': typeof GroupsIndexRoute
+  '/watch/': typeof WatchIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -242,14 +251,15 @@ export interface FileRouteTypes {
     | '/upload-full'
     | '/videos'
     | '/wallet'
-    | '/watch'
     | '/admin/payouts'
     | '/coins/recharge'
     | '/groups/$groupId'
     | '/live/dashboard'
     | '/sound/$soundId'
     | '/u/$username'
+    | '/watch/$id'
     | '/groups/'
+    | '/watch/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -266,14 +276,15 @@ export interface FileRouteTypes {
     | '/upload-full'
     | '/videos'
     | '/wallet'
-    | '/watch'
     | '/admin/payouts'
     | '/coins/recharge'
     | '/groups/$groupId'
     | '/live/dashboard'
     | '/sound/$soundId'
     | '/u/$username'
+    | '/watch/$id'
     | '/groups'
+    | '/watch'
   id:
     | '__root__'
     | '/'
@@ -291,14 +302,15 @@ export interface FileRouteTypes {
     | '/upload-full'
     | '/videos'
     | '/wallet'
-    | '/watch'
     | '/admin_/payouts'
     | '/coins/recharge'
     | '/groups/$groupId'
     | '/live/dashboard'
     | '/sound/$soundId'
     | '/u/$username'
+    | '/watch/$id'
     | '/groups/'
+    | '/watch/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -317,11 +329,12 @@ export interface RootRouteChildren {
   UploadFullRoute: typeof UploadFullRoute
   VideosRoute: typeof VideosRoute
   WalletRoute: typeof WalletRoute
-  WatchRoute: typeof WatchRoute
   AdminPayoutsRoute: typeof AdminPayoutsRoute
   CoinsRechargeRoute: typeof CoinsRechargeRoute
   SoundSoundIdRoute: typeof SoundSoundIdRoute
   UUsernameRoute: typeof UUsernameRoute
+  WatchIdRoute: typeof WatchIdRoute
+  WatchIndexRoute: typeof WatchIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -431,13 +444,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WalletRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/watch': {
-      id: '/watch'
-      path: '/watch'
-      fullPath: '/watch'
-      preLoaderRoute: typeof WatchRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/admin_/payouts': {
       id: '/admin_/payouts'
       path: '/admin/payouts'
@@ -487,6 +493,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof UUsernameRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/watch/': {
+      id: '/watch/'
+      path: '/watch'
+      fullPath: '/watch/'
+      preLoaderRoute: typeof WatchIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/watch/$id': {
+      id: '/watch/$id'
+      path: '/watch/$id'
+      fullPath: '/watch/$id'
+      preLoaderRoute: typeof WatchIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -529,11 +549,12 @@ const rootRouteChildren: RootRouteChildren = {
   UploadFullRoute: UploadFullRoute,
   VideosRoute: VideosRoute,
   WalletRoute: WalletRoute,
-  WatchRoute: WatchRoute,
   AdminPayoutsRoute: AdminPayoutsRoute,
   CoinsRechargeRoute: CoinsRechargeRoute,
   SoundSoundIdRoute: SoundSoundIdRoute,
   UUsernameRoute: UUsernameRoute,
+  WatchIdRoute: WatchIdRoute,
+  WatchIndexRoute: WatchIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

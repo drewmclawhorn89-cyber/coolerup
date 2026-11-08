@@ -100,7 +100,9 @@ type RpcResponse = { data: unknown; error: { message: string } | null };
  * small wrapper keeps the call sites typed without editing the generated file.
  */
 async function rpc(name: string, args?: Record<string, unknown>): Promise<RpcResponse> {
-  const call = supabase.rpc as unknown as (
+  // Bind to the client: `supabase.rpc` reads `this.rest` internally, so calling
+  // a detached reference throws "Cannot read properties of undefined ('rest')".
+  const call = supabase.rpc.bind(supabase) as unknown as (
     fn: string,
     params?: Record<string, unknown>,
   ) => Promise<RpcResponse>;

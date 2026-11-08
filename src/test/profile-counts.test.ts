@@ -10,6 +10,7 @@ const { state } = vi.hoisted(() => ({
   state: {
     counts: {} as Record<string, number>,
     headFilters: [] as { table: string; column: string; value: unknown }[],
+    orFilters: [] as { table: string; filter: string }[],
     rows: [] as Record<string, unknown>[],
     ranges: [] as { from: number; to: number }[],
     paged: false,
@@ -26,11 +27,19 @@ vi.mock("@/integrations/supabase/client", () => {
               state.headFilters.push({ table, column, value });
               return Promise.resolve({ count: state.counts[table] ?? 0, error: null });
             },
+            or(filter: string) {
+              state.orFilters.push({ table, filter });
+              return Promise.resolve({ count: state.counts[table] ?? 0, error: null });
+            },
           };
         }
         return api;
       },
       eq() {
+        return api;
+      },
+      or(filter: string) {
+        state.orFilters.push({ table, filter });
         return api;
       },
       order() {
@@ -58,6 +67,7 @@ import {
 beforeEach(() => {
   state.counts = {};
   state.headFilters.length = 0;
+  state.orFilters.length = 0;
   state.rows = [];
   state.ranges.length = 0;
   state.paged = false;
@@ -98,6 +108,31 @@ describe("fetchProfileCounts", () => {
     });
   });
 
+  it("counts videos by user_id with a legacy username fallback", async () => {
+    state.counts = { videos: 1055 };
+
+    const counts = await fetchProfileCounts("user-1", "drew");
+
+    expect(counts.videos).toBe(1055);
+    expect(state.orFilters).toContainEqual({
+      table: "videos",
+      filter: 'user_id.eq.user-1,username.eq."drew"',
+    });
+  });
+
+  it("counts likes the profile gave, keyed by user_id", async () => {
+    state.counts = { likes: 2310 };
+
+    const counts = await fetchProfileCounts("user-1", "drew");
+
+    expect(counts.likes).toBe(2310);
+    expect(state.headFilters).toContainEqual({
+      table: "likes",
+      column: "user_id",
+      value: "user-1",
+    });
+  });
+
   it("sums likes received across every video page", async () => {
     state.paged = true;
     state.rows = Array.from({ length: 1000 }, () => ({ likes_count: 2 }));
@@ -117,6 +152,17 @@ describe("fetchProfileVideosPage", () => {
     expect(state.ranges[0]).toEqual({ from: 60, to: 89 });
     expect(page.rows).toHaveLength(PROFILE_PAGE_SIZE);
     expect(page.hasMore).toBe(true);
+  });
+
+  it("uses the same owner predicate as the video count", async () => {
+    state.rows = [{ id: "v1" }];
+
+    await fetchProfileVideosPage("drew", 0, PROFILE_PAGE_SIZE, "user-1");
+
+    expect(state.orFilters).toContainEqual({
+      table: "videos",
+      filter: 'user_id.eq.user-1,username.eq."drew"',
+    });
   });
 
   it("reports no more pages on a short page", async () => {

@@ -63,7 +63,20 @@ function UploadFullPage() {
 
   const [stage, setStage] = useState<Stage>("idle");
   const [progress, setProgress] = useState(0);
+  const [uploaded, setUploaded] = useState(false);
+  const [publishing, setPublishing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  /**
+   * The upload starts the moment a file is picked, not when Publish is hit, so
+   * the bytes are already moving while the user types a title. `token` guards
+   * against a stale upload from a file the user has since replaced.
+   */
+  const uploadRef = useRef<{
+    token: number;
+    promise: Promise<{ videoUrl: string; thumbnailUrl: string | null }>;
+  } | null>(null);
+  const tokenRef = useRef(0);
 
   // Release object URLs when they are replaced or the page unmounts.
   useEffect(() => () => {
@@ -73,7 +86,63 @@ function UploadFullPage() {
     if (thumbPreview) URL.revokeObjectURL(thumbPreview);
   }, [thumbPreview]);
 
-  const busy = stage === "probing" || stage === "uploading" || stage === "saving";
+  /** Actions that must not be interrupted (reading the file, writing the row). */
+  const busy = stage === "probing" || stage === "saving";
+  /** The bytes are moving, but the form stays usable and Publish stays live. */
+  const uploading = stage === "uploading";
+
+  /**
+   * Kick off the upload in the background. Resolves with the storage refs, and
+   * drives the progress bar as bytes land. Safe to call repeatedly — each call
+   * bumps the token so an older in-flight upload can't clobber the newer one.
+   */
+  function beginUpload(next: File, seconds: number) {
+    if (!auth.user) {
+      return Promise.reject(new Error("Sign in to upload a video."));
+    }
+    const token = ++tokenRef.current;
+    setStage("uploading");
+    setProgress(0);
+    setUploaded(false);
+    setError(null);
+
+    const promise = (async () => {
+      // Grab a poster frame first (~200 ms) so the video and thumbnail can be
+      // uploaded together instead of one after the other.
+      let thumb: Blob | null = null;
+      try {
+        thumb = await captureThumbnail(next, Math.min(1, seconds / 2));
+      } catch {
+        thumb = null;
+      }
+      if (token === tokenRef.current && thumb) {
+        setThumbBlob(thumb);
+        setThumbPreview(URL.createObjectURL(thumb));
+      }
+
+      const result = await uploadFullVideoFiles(next, thumb, auth.user!.id, (percent) => {
+        if (token === tokenRef.current) setProgress(percent);
+      });
+      if (token === tokenRef.current) {
+        setProgress(100);
+        setUploaded(true);
+        setStage("idle");
+      }
+      return result;
+    })();
+
+    // Surface a background failure immediately rather than at Publish time.
+    promise.catch((err) => {
+      if (token !== tokenRef.current) return;
+      uploadRef.current = null;
+      setStage("idle");
+      setProgress(0);
+      setError(err instanceof Error ? err.message : "Upload failed. Try again.");
+    });
+
+    uploadRef.current = { token, promise };
+    return promise;
+  }
 
   async function handleFile(next: File) {
     setError(null);
@@ -88,26 +157,21 @@ function UploadFullPage() {
           `That video is ${formatDuration(Math.round(meta.duration))}. Full videos can be up to 60 minutes.`,
         );
       }
+      const seconds = Math.round(meta.duration);
       setFile(next);
-      setDuration(Math.round(meta.duration));
+      setDuration(seconds);
       setVideoPreview(URL.createObjectURL(next));
-
-      // Auto-grab a thumbnail one second in so the card is never blank.
-      const grabbed = await captureThumbnail(next, Math.min(1, meta.duration / 2));
-      if (grabbed) {
-        setThumbBlob(grabbed);
-        setThumbPreview(URL.createObjectURL(grabbed));
-      }
       if (!title) {
         setTitle(next.name.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").slice(0, 100));
       }
+      // Start pushing bytes now — the user still has a form to fill in.
+      void beginUpload(next, seconds).catch(() => {});
     } catch (err) {
       setFile(null);
       setVideoPreview("");
       setDuration(0);
-      setError(err instanceof Error ? err.message : "That file could not be read.");
-    } finally {
       setStage("idle");
+      setError(err instanceof Error ? err.message : "That file could not be read.");
     }
   }
 
@@ -146,15 +210,12 @@ function UploadFullPage() {
     }
 
     setError(null);
-    setProgress(0);
-    setStage("uploading");
+    setPublishing(true);
     try {
-      const { videoUrl, thumbnailUrl } = await uploadFullVideoFiles(
-        file,
-        thumbBlob,
-        auth.user.id,
-        (percent) => setProgress(percent),
-      );
+      // Usually already finished or well underway — the upload began when the
+      // file was picked. Only start one here if the earlier attempt failed.
+      const pending = uploadRef.current?.promise ?? beginUpload(file, duration);
+      const { videoUrl, thumbnailUrl } = await pending;
 
       setStage("saving");
       const created = await createFullVideo({
@@ -177,6 +238,8 @@ function UploadFullPage() {
       setError(
         err instanceof Error ? err.message : "Upload failed. Check your connection and try again.",
       );
+    } finally {
+      setPublishing(false);
     }
   }
 
@@ -242,11 +305,18 @@ function UploadFullPage() {
                   size="sm"
                   disabled={busy}
                   onClick={() => {
+                    // Invalidate any in-flight upload so its progress and
+                    // result can't land on the next file the user picks.
+                    tokenRef.current += 1;
+                    uploadRef.current = null;
                     setFile(null);
                     setVideoPreview("");
                     setThumbBlob(null);
                     setThumbPreview("");
                     setDuration(0);
+                    setProgress(0);
+                    setUploaded(false);
+                    setStage("idle");
                   }}
                 >
                   <X className="mr-1 size-4" /> Remove
@@ -429,17 +499,17 @@ function UploadFullPage() {
           </p>
         )}
 
-        {(stage === "uploading" || stage === "saving" || stage === "done") && (
+        {(uploading || stage === "saving" || stage === "done" || uploaded) && (
           <div className="space-y-2 rounded-xl border border-border bg-card p-4">
             <div className="flex items-center justify-between text-sm">
               <span className="font-medium">
-                {stage === "uploading"
-                  ? `Uploading ${Math.round(progress)}%…`
-                  : stage === "saving"
-                    ? "Finishing up…"
-                    : "Uploaded"}
+                {stage === "saving"
+                  ? "Finishing up…"
+                  : stage === "done" || uploaded
+                    ? "Video uploaded — ready to publish"
+                    : `Uploading ${Math.round(progress)}%…`}
               </span>
-              {stage === "done" ? (
+              {stage === "done" || uploaded ? (
                 <CheckCircle2 className="size-4 text-emerald-500" />
               ) : (
                 <span className="tabular-nums text-xs text-muted-foreground">
@@ -450,11 +520,15 @@ function UploadFullPage() {
             <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
               <div
                 className="h-full rounded-full bg-primary transition-[width] duration-300"
-                style={{ width: `${stage === "saving" || stage === "done" ? 100 : progress}%` }}
+                style={{
+                  width: `${stage === "saving" || stage === "done" || uploaded ? 100 : progress}%`,
+                }}
               />
             </div>
             <p className="text-[11px] text-muted-foreground">
-              Chunked upload — you can leave this tab open while it finishes.
+              {uploaded
+                ? "Bytes are in storage. Fill in the details and hit Publish."
+                : "Uploading in the background — keep this tab open while it finishes."}
             </p>
           </div>
         )}
@@ -465,11 +539,19 @@ function UploadFullPage() {
           </Button>
           <Button
             onClick={() => void submit()}
-            disabled={busy || !file || !auth.user}
+            disabled={publishing || stage === "probing" || stage === "saving" || !file || !auth.user}
             className="create-pink"
           >
-            {busy ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Upload className="mr-2 size-4" />}
-            {busy ? "Uploading…" : "Publish"}
+            {publishing || stage === "saving" ? (
+              <Loader2 className="mr-2 size-4 animate-spin" />
+            ) : (
+              <Upload className="mr-2 size-4" />
+            )}
+            {publishing || stage === "saving"
+              ? "Publishing…"
+              : uploading
+                ? `Publish (${Math.round(progress)}%)`
+                : "Publish"}
           </Button>
         </div>
       </div>

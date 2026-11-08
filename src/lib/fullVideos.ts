@@ -414,13 +414,18 @@ export function captureThumbnail(file: File, atSeconds = 1): Promise<Blob | null
     };
     el.onseeked = () => {
       try {
+        // Cap the long edge at 1280px: a 4K frame is ~8 MB of JPEG and buys
+        // nothing on a card that renders 300px wide.
+        const srcW = el.videoWidth || 1280;
+        const srcH = el.videoHeight || 720;
+        const scale = Math.min(1, 1280 / Math.max(srcW, srcH));
         const canvas = document.createElement("canvas");
-        canvas.width = el.videoWidth || 1280;
-        canvas.height = el.videoHeight || 720;
+        canvas.width = Math.max(1, Math.round(srcW * scale));
+        canvas.height = Math.max(1, Math.round(srcH * scale));
         const ctx = canvas.getContext("2d");
         if (!ctx) return done(null);
         ctx.drawImage(el, 0, 0, canvas.width, canvas.height);
-        canvas.toBlob((blob) => done(blob), "image/jpeg", 0.82);
+        canvas.toBlob((blob) => done(blob), "image/jpeg", 0.8);
       } catch {
         done(null);
       }
@@ -431,108 +436,54 @@ export function captureThumbnail(file: File, atSeconds = 1): Promise<Blob | null
 }
 
 /**
- * Tus chunk size. Supabase requires a multiple of 6 MB for resumable uploads.
+ * Above this size we prefer the resumable path. Below it, one PUT is faster:
+ * the browser streams the body over a single HTTP/2 connection instead of
+ * paying a round trip per 6 MB chunk.
  */
-const TUS_CHUNK_SIZE = 6 * 1024 * 1024;
-
-/** base64 for tus `Upload-Metadata` values (btoa can't handle raw UTF-8). */
-function b64(value: string): string {
-  return btoa(unescape(encodeURIComponent(value)));
-}
-
-async function supabaseAccessToken(): Promise<string> {
-  const { data } = await supabase.auth.getSession();
-  const token = data.session?.access_token;
-  if (!token) throw new Error("You need to be signed in to upload.");
-  return token;
-}
+const RESUMABLE_THRESHOLD = 120 * 1024 * 1024;
 
 /**
- * Upload a file to Supabase Storage as a resumable, chunked upload (tus 1.0.0)
- * and report 0-100 progress as each chunk lands.
+ * Upload a file to Supabase Storage and report 0-100 progress.
  *
- * A single PUT is fine for a 20 MB clip, but a 60-minute video can be several
- * hundred MB — one request that size will time out on a phone. Chunking means
- * a dropped connection only costs the current 6 MB slice, and it gives us a
- * real progress signal to drive the "Uploading 45%..." bar.
- *
- * Falls back to a single signed PUT if the tus endpoint is unavailable, so the
- * feature still works on older storage setups.
+ * Speed matters more than elegance here, so the default is a **single signed
+ * PUT** — one request, one round trip, the browser streams the body. The tus
+ * resumable path is kept for genuinely large files (where a single request is
+ * likely to be cut off) and as a fallback when the PUT fails, so a dropped
+ * connection on a phone doesn't mean starting over.
  */
 export async function uploadWithProgress(
   bucket: string,
   path: string,
   file: File,
   onProgress: (percent: number) => void,
+  opts: { preferResumable?: boolean } = {},
 ): Promise<void> {
-  const supabaseUrl = (import.meta.env["VITE_SUPABASE_URL"] || process.env["SUPABASE_URL"] || "").replace(
-    /\/+$/,
-    "",
-  );
   const contentType = file.type || "application/octet-stream";
+  const resumable = opts.preferResumable === true || file.size > RESUMABLE_THRESHOLD;
 
-  if (supabaseUrl) {
+  if (!resumable) {
     try {
-      const token = await supabaseAccessToken();
-      const metadata = [
-        `bucketName ${b64(bucket)}`,
-        `objectName ${b64(path)}`,
-        `contentType ${b64(contentType)}`,
-        `cacheControl ${b64("3600")}`,
-      ].join(",");
-
-      const create = await fetch(`${supabaseUrl}/storage/v1/upload/resumable`, {
-        method: "POST",
-        headers: {
-          "Tus-Resumable": "1.0.0",
-          "Upload-Length": String(file.size),
-          "Upload-Metadata": metadata,
-          "x-upsert": "true",
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (create.status === 201) {
-        const location = create.headers.get("Location");
-        if (location) {
-          const uploadUrl = location.startsWith("http")
-            ? location
-            : `${supabaseUrl}/storage/v1${location.startsWith("/") ? "" : "/"}${location}`;
-
-          let offset = 0;
-          while (offset < file.size) {
-            const chunk = file.slice(offset, Math.min(offset + TUS_CHUNK_SIZE, file.size));
-            const patch = await fetch(uploadUrl, {
-              method: "PATCH",
-              headers: {
-                "Tus-Resumable": "1.0.0",
-                "Upload-Offset": String(offset),
-                "Content-Type": "application/offset+octet-stream",
-                Authorization: `Bearer ${token}`,
-              },
-              body: chunk,
-            });
-
-            if (patch.status !== 204) {
-              throw new Error(`Chunk upload failed (${patch.status}).`);
-            }
-
-            offset += chunk.size;
-            onProgress(Math.min(99, Math.round((offset / file.size) * 100)));
-          }
-
-          onProgress(100);
-          return;
-        }
-      }
+      await singlePut(bucket, path, file, contentType, onProgress);
+      return;
     } catch (err) {
-      // Auth problems should surface; anything else falls through to the
-      // single-request path below so the upload still has a chance.
+      // A hard auth failure is worth surfacing; anything else (flaky network,
+      // timeout) is exactly what the resumable path exists for.
       if (err instanceof Error && /signed in/i.test(err.message)) throw err;
+      onProgress(0);
     }
   }
 
-  // Fallback: one signed PUT, progress via XHR.
+  await resumableUpload(bucket, path, file, contentType, onProgress);
+}
+
+/** One signed PUT, progress from XHR's upload events. */
+async function singlePut(
+  bucket: string,
+  path: string,
+  file: File,
+  contentType: string,
+  onProgress: (percent: number) => void,
+): Promise<void> {
   const { data: signed, error: signErr } = await supabase.storage
     .from(bucket)
     .createSignedUploadUrl(path);
@@ -561,6 +512,96 @@ export async function uploadWithProgress(
     xhr.onabort = () => reject(new Error("Upload cancelled."));
     xhr.send(file);
   });
+}
+
+/**
+ * Tus chunk size. Supabase requires a multiple of 6 MB for resumable uploads.
+ */
+const TUS_CHUNK_SIZE = 6 * 1024 * 1024;
+
+/** base64 for tus `Upload-Metadata` values (btoa can't handle raw UTF-8). */
+function b64(value: string): string {
+  return btoa(unescape(encodeURIComponent(value)));
+}
+
+async function supabaseAccessToken(): Promise<string> {
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  if (!token) throw new Error("You need to be signed in to upload.");
+  return token;
+}
+
+/** Resumable tus 1.0.0 upload — the safety net for big files and bad networks. */
+async function resumableUpload(
+  bucket: string,
+  path: string,
+  file: File,
+  contentType: string,
+  onProgress: (percent: number) => void,
+): Promise<void> {
+  const supabaseUrl = (
+    import.meta.env["VITE_SUPABASE_URL"] ||
+    process.env["SUPABASE_URL"] ||
+    ""
+  ).replace(/\/+$/, "");
+
+  if (!supabaseUrl) {
+    throw new Error("Storage is not configured.");
+  }
+
+  const token = await supabaseAccessToken();
+  const metadata = [
+    `bucketName ${b64(bucket)}`,
+    `objectName ${b64(path)}`,
+    `contentType ${b64(contentType)}`,
+    `cacheControl ${b64("3600")}`,
+  ].join(",");
+
+  const create = await fetch(`${supabaseUrl}/storage/v1/upload/resumable`, {
+    method: "POST",
+    headers: {
+      "Tus-Resumable": "1.0.0",
+      "Upload-Length": String(file.size),
+      "Upload-Metadata": metadata,
+      "x-upsert": "true",
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (create.status !== 201) {
+    throw new Error(`Could not start the upload (${create.status}).`);
+  }
+
+  const location = create.headers.get("Location");
+  if (!location) throw new Error("Could not start the upload.");
+
+  const uploadUrl = location.startsWith("http")
+    ? location
+    : `${supabaseUrl}/storage/v1${location.startsWith("/") ? "" : "/"}${location}`;
+
+  let offset = 0;
+  while (offset < file.size) {
+    const chunk = file.slice(offset, Math.min(offset + TUS_CHUNK_SIZE, file.size));
+    const patch = await fetch(uploadUrl, {
+      method: "PATCH",
+      headers: {
+        "Tus-Resumable": "1.0.0",
+        "Upload-Offset": String(offset),
+        "Content-Type": "application/offset+octet-stream",
+        Authorization: `Bearer ${token}`,
+      },
+      body: chunk,
+    });
+
+    if (patch.status !== 204) {
+      throw new Error(`Chunk upload failed (${patch.status}).`);
+    }
+
+    offset += chunk.size;
+    onProgress(Math.min(99, Math.round((offset / file.size) * 100)));
+  }
+
+  onProgress(100);
 }
 
 export type CreateFullVideoInput = {
@@ -595,7 +636,13 @@ export async function createFullVideo(input: CreateFullVideoInput): Promise<Full
   return data as FullVideo;
 }
 
-/** Upload the chosen video + thumbnail and return their `storage:` refs. */
+/**
+ * Upload the chosen video and thumbnail and return their `storage:` refs.
+ *
+ * The thumbnail is a few hundred KB and the video can be hundreds of MB, so
+ * they go up **at the same time** — waiting for the video before starting a
+ * 200 KB image wasted a whole round trip on every publish.
+ */
 export async function uploadFullVideoFiles(
   file: File,
   thumbnail: Blob | null,
@@ -603,18 +650,26 @@ export async function uploadFullVideoFiles(
   onProgress: (percent: number) => void,
 ): Promise<{ videoUrl: string; thumbnailUrl: string | null }> {
   const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-  const videoPath = `${userId}/full/${Date.now()}-${safe}`;
+  const stamp = Date.now();
+  const videoPath = `${userId}/full/${stamp}-${safe}`;
 
-  await uploadWithProgress(FULL_VIDEO_BUCKET, videoPath, file, onProgress);
+  const thumbPromise: Promise<string | null> = thumbnail
+    ? supabase.storage
+        .from(FULL_VIDEO_BUCKET)
+        .upload(`${userId}/full/${stamp}-thumb.jpg`, thumbnail, {
+          contentType: "image/jpeg",
+          upsert: true,
+        })
+        .then(({ error }) =>
+          error ? null : `${STORAGE_PREFIX}${userId}/full/${stamp}-thumb.jpg`,
+        )
+        .catch(() => null)
+    : Promise.resolve(null);
 
-  let thumbnailUrl: string | null = null;
-  if (thumbnail) {
-    const thumbPath = `${userId}/full/${Date.now()}-thumb.jpg`;
-    const { error } = await supabase.storage
-      .from(FULL_VIDEO_BUCKET)
-      .upload(thumbPath, thumbnail, { contentType: "image/jpeg", upsert: true });
-    if (!error) thumbnailUrl = `${STORAGE_PREFIX}${thumbPath}`;
-  }
+  const [, thumbnailUrl] = await Promise.all([
+    uploadWithProgress(FULL_VIDEO_BUCKET, videoPath, file, onProgress),
+    thumbPromise,
+  ]);
 
   return { videoUrl: `${STORAGE_PREFIX}${videoPath}`, thumbnailUrl };
 }

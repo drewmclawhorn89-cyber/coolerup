@@ -7,6 +7,13 @@
 --
 -- Idempotent: re-running the migration won't duplicate the row.
 
+-- Library sounds have no source video, so `original_video_id` must be nullable.
+-- (Postgres allows many NULLs in a unique column, so
+-- sounds_original_video_id_key keeps working for real original sounds.)
+-- The Christmas sounds migration does this too; repeating it is harmless and
+-- keeps this migration runnable on its own.
+alter table public.sounds alter column original_video_id drop not null;
+
 insert into public.sounds (original_video_id, audio_url, title, creator_username, uses_count)
 select null, '/sounds/gta6/gta6-beat.mp3', 'GTA 6 - Beat', 'coolerup', 0
 where not exists (

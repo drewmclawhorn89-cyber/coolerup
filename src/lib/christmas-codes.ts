@@ -17,6 +17,8 @@
  */
 import { useEffect, useState } from "react";
 
+import { CHRISTMAS_TEST_EVENT, isChristmasTestMode } from "@/lib/christmas-test";
+
 /** Month is 0-indexed, matching `Date#getMonth()`. Nov = 10. */
 export const SEASON_START_MONTH = 10;
 export const SEASON_START_DAY = 15;
@@ -31,6 +33,8 @@ export const SEASON_END_DAY = 1;
  * comparisons rather than a single range: from Nov 15 to Dec 31, *or* on Jan 1.
  */
 export function isChristmasCodesSeason(now: Date = new Date()): boolean {
+  // The owner can force the seasonal tab on from Settings to preview it.
+  if (isChristmasTestMode()) return true;
   const month = now.getMonth();
   const day = now.getDate();
 
@@ -92,11 +96,15 @@ export function useChristmasCodesSeason(): boolean {
       if (document.visibilityState === "visible") setOn(isChristmasCodesSeason());
     };
     document.addEventListener("visibilitychange", onVisible);
+    // The owner's test switch flips the tab instantly, without waiting for the
+    // next minute tick.
+    window.addEventListener(CHRISTMAS_TEST_EVENT, onVisible);
 
     return () => {
       cancelled = true;
       if (timer) clearTimeout(timer);
       document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener(CHRISTMAS_TEST_EVENT, onVisible);
     };
   }, []);
 

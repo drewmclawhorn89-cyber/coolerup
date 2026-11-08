@@ -15,6 +15,8 @@
  */
 import { useEffect, useState } from "react";
 
+import { CHRISTMAS_TEST_EVENT, isChristmasTestMode } from "@/lib/christmas-test";
+
 /** First moment the update is live. */
 export const CHRISTMAS_START_ISO = "2026-11-15T00:00:00";
 /** Last moment the update is live. */
@@ -30,6 +32,8 @@ export const CHRISTMAS_END = new Date(CHRISTMAS_END_ISO);
  * (not UTC) so the update flips at midnight where the user actually is.
  */
 export const isChristmasMode = () => {
+  // The owner can force the update on from Settings to preview it off-season.
+  if (isChristmasTestMode()) return true;
   const now = new Date();
   const start = new Date("2026-11-15T00:00:00");
   const end = new Date("2027-01-01T23:59:59");
@@ -79,11 +83,15 @@ export function useChristmasMode(): boolean {
       if (document.visibilityState === "visible") setOn(isChristmasMode());
     };
     document.addEventListener("visibilitychange", onVisible);
+    // The owner's test switch flips the update instantly, without waiting for
+    // the next minute tick.
+    window.addEventListener(CHRISTMAS_TEST_EVENT, onVisible);
 
     return () => {
       cancelled = true;
       if (timer) clearTimeout(timer);
       document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener(CHRISTMAS_TEST_EVENT, onVisible);
     };
   }, []);
 

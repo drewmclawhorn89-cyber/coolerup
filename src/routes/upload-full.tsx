@@ -16,12 +16,16 @@ import { useAuth } from "@/hooks/useAuth";
 import {
   FULL_VIDEO_CATEGORIES,
   MAX_FULL_VIDEO_SECONDS,
+  STORAGE_PREFIX,
   captureThumbnail,
   createFullVideo,
+  finalizeFullVideo,
   formatDuration,
+  fullVideoObjectPath,
   probeVideo,
   uploadFullVideoFiles,
 } from "@/lib/fullVideos";
+import { clearPendingVideo, registerPendingVideo } from "@/lib/pendingUploads";
 
 export const Route = createFileRoute("/upload-full")({
   head: () => ({
@@ -77,6 +81,9 @@ function UploadFullPage() {
     promise: Promise<{ videoUrl: string; thumbnailUrl: string | null }>;
   } | null>(null);
   const tokenRef = useRef(0);
+  /** Storage path reserved when the file was picked, so the row can point at it. */
+  const videoPathRef = useRef<string>("");
+  const [videoPath, setVideoPath] = useState("");
 
   // Release object URLs when they are replaced or the page unmounts.
   useEffect(() => () => {
@@ -120,9 +127,17 @@ function UploadFullPage() {
         setThumbPreview(URL.createObjectURL(thumb));
       }
 
-      const result = await uploadFullVideoFiles(next, thumb, auth.user!.id, (percent) => {
-        if (token === tokenRef.current) setProgress(percent);
-      });
+      const result = await uploadFullVideoFiles(
+        next,
+        thumb,
+        auth.user!.id,
+        (percent) => {
+          if (token === tokenRef.current) setProgress(percent);
+        },
+        {
+          ...(videoPathRef.current ? { videoPath: videoPathRef.current } : {}),
+        },
+      );
       if (token === tokenRef.current) {
         setProgress(100);
         setUploaded(true);
@@ -158,6 +173,11 @@ function UploadFullPage() {
         );
       }
       const seconds = Math.round(meta.duration);
+      // Reserve the destination now: the row is inserted before the upload
+      // finishes, so both sides must agree on where the object will live.
+      const reserved = fullVideoObjectPath(auth.user?.id ?? "anon", next.name);
+      videoPathRef.current = reserved;
+      setVideoPath(reserved);
       setFile(next);
       setDuration(seconds);
       setVideoPreview(URL.createObjectURL(next));
@@ -212,11 +232,9 @@ function UploadFullPage() {
     setError(null);
     setPublishing(true);
     try {
-      // Usually already finished or well underway — the upload began when the
-      // file was picked. Only start one here if the earlier attempt failed.
-      const pending = uploadRef.current?.promise ?? beginUpload(file, duration);
-      const { videoUrl, thumbnailUrl } = await pending;
-
+      // Publish *first*, upload second. The row goes in immediately so the
+      // video is visible in the grid and playable from local disk within a
+      // second, while the bytes keep moving in the background.
       setStage("saving");
       const created = await createFullVideo({
         userId: auth.user.id,
@@ -226,12 +244,31 @@ function UploadFullPage() {
         category,
         tags,
         duration,
-        videoUrl,
-        thumbnailUrl,
+        // Reserved up front so the row and the eventual object agree.
+        videoUrl: `${STORAGE_PREFIX}${videoPath}`,
+        thumbnailUrl: null,
+        status: "processing",
       });
 
-      setStage("done");
-      toast.success("Uploaded — going live now.");
+      // Let the watch page read straight off the user's disk until the real
+      // object exists.
+      registerPendingVideo(created.id, file, thumbPreview || null);
+
+      const pending = uploadRef.current?.promise ?? beginUpload(file, duration);
+      void pending
+        .then(async ({ videoUrl, thumbnailUrl }) => {
+          await finalizeFullVideo(created.id, { videoUrl, thumbnailUrl });
+          clearPendingVideo(created.id);
+        })
+        .catch((err) => {
+          // The row stays `processing`; surface it on the watch page rather
+          // than silently showing a video that will never play.
+          toast.error(
+            err instanceof Error ? err.message : "The upload did not finish. Try again.",
+          );
+        });
+
+      toast.success("Published — uploading in the background.");
       navigate({ to: "/watch/$id", params: { id: created.id } });
     } catch (err) {
       setStage("idle");
@@ -309,6 +346,8 @@ function UploadFullPage() {
                     // result can't land on the next file the user picks.
                     tokenRef.current += 1;
                     uploadRef.current = null;
+                    videoPathRef.current = "";
+                    setVideoPath("");
                     setFile(null);
                     setVideoPreview("");
                     setThumbBlob(null);

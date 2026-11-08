@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { Pencil, Play } from "lucide-react";
+import { Pencil, Play, Loader2 } from "lucide-react";
 import {
   formatDuration,
   formatViews,
@@ -76,6 +76,13 @@ export function FullVideoCard({
         {video.duration > 0 && (
           <span className="absolute bottom-1.5 right-1.5 rounded bg-black/80 px-1 py-0.5 text-[11px] font-semibold leading-none text-white tabular-nums">
             {formatDuration(video.duration)}
+          </span>
+        )}
+
+        {video.status === "processing" && (
+          <span className="absolute left-1.5 top-1.5 flex items-center gap-1 rounded bg-amber-500/90 px-1.5 py-0.5 text-[11px] font-semibold leading-none text-black">
+            <Loader2 className="size-3 animate-spin" />
+            Uploading
           </span>
         )}
       </div>

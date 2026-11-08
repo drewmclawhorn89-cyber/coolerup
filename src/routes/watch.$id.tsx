@@ -17,6 +17,7 @@ import { EditFullVideoDialog } from "@/components/EditFullVideoDialog";
 import { FullVideoCard } from "@/components/FullVideoCard";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { getPendingVideo } from "@/lib/pendingUploads";
 import {
   addComment,
   formatViews,
@@ -97,6 +98,10 @@ function WatchPage() {
         }
         setVideo(row);
 
+        // Still uploading? If this tab did the upload we have the file on
+        // disk, so play that instead of waiting for the object to exist.
+        const local = row.status === "processing" ? getPendingVideo(row.id) : undefined;
+
         const [main, thumb, hd, sd, low] = await Promise.all([
           resolveFullVideoUrl(row.video_url),
           resolveFullVideoUrl(row.thumbnail_url),
@@ -105,8 +110,8 @@ function WatchPage() {
           resolveFullVideoUrl(row.video_480_url),
         ]);
         if (!alive) return;
-        setSrc(main);
-        setPoster(thumb);
+        setSrc(local ? local.objectUrl : main);
+        setPoster(local?.thumbUrl ?? thumb);
         setRenditions({ "1080p": hd || null, "720p": sd || null, "480p": low || null });
 
         const [counts, relatedRows] = await Promise.all([
@@ -136,6 +141,37 @@ function WatchPage() {
       alive = false;
     };
   }, [id, auth.user]);
+
+  /* ---------------- poll while the upload finishes ---------------- */
+
+  useEffect(() => {
+    if (video?.status !== "processing") return;
+    let alive = true;
+    const timer = setInterval(() => {
+      void (async () => {
+        try {
+          const row = await getFullVideo(video.id);
+          if (!alive || !row) return;
+          if (row.status === "ready") {
+            const [main, thumb] = await Promise.all([
+              resolveFullVideoUrl(row.video_url),
+              resolveFullVideoUrl(row.thumbnail_url),
+            ]);
+            if (!alive) return;
+            setVideo(row);
+            setSrc(main);
+            setPoster(thumb);
+          }
+        } catch {
+          // Keep polling; a transient failure is not worth surfacing here.
+        }
+      })();
+    }, 3000);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+    };
+  }, [video?.status, video?.id]);
 
   /* ---------------- subscription state ---------------- */
 
@@ -323,6 +359,17 @@ function WatchPage() {
             onFirstPlay={countView}
             className="sm:rounded-xl"
           />
+
+          {video.status === "processing" && (
+            <div className="mx-3 mt-3 flex items-start gap-2 rounded-lg bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-400">
+              <Loader2 className="mt-0.5 size-4 shrink-0 animate-spin" />
+              <span>
+                {getPendingVideo(video.id)
+                  ? "Still uploading — you're watching your local copy. It'll be available to everyone the moment it finishes."
+                  : "This video is still being uploaded by its owner. Check back in a moment."}
+              </span>
+            </div>
+          )}
 
           <div className="px-3 pt-3">
             <h1 className="text-[17px] font-bold leading-snug">{video.title}</h1>

@@ -22,6 +22,7 @@ import {
   finalizeFullVideo,
   formatDuration,
   fullVideoObjectPath,
+  markFullVideoFailed,
   probeVideo,
   uploadFullVideoFiles,
   type UploadProgress,
@@ -116,6 +117,18 @@ function UploadFullPage() {
   const busy = stage === "probing" || stage === "saving";
   /** The bytes are moving, but the form stays usable and Publish stays live. */
   const uploading = stage === "uploading";
+
+  // A long upload lives in this tab. Closing it kills the transfer, so warn
+  // before that happens rather than letting a 15-minute file die silently.
+  useEffect(() => {
+    if (!uploading) return;
+    const warn = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [uploading]);
 
   /**
    * Kick off the upload in the background. Resolves with the storage refs, and
@@ -280,6 +293,9 @@ function UploadFullPage() {
         videoUrl: `${STORAGE_PREFIX}${videoPath}`,
         thumbnailUrl: null,
         status: "processing",
+        // Lets the watch page detect an upload that finished but never got
+        // flipped to `ready` (e.g. the tab closed right at the end).
+        expectedBytes: file.size,
       });
 
       // Let the watch page read straight off the user's disk until the real
@@ -293,11 +309,15 @@ function UploadFullPage() {
           clearPendingVideo(created.id);
         })
         .catch((err) => {
-          // The row stays `processing`; surface it on the watch page rather
-          // than silently showing a video that will never play.
-          toast.error(
-            err instanceof Error ? err.message : "The upload did not finish. Try again.",
-          );
+          // Don't leave the row stuck on `processing` forever — that is a
+          // video nobody can watch and the owner cannot remove. Mark it
+          // `failed` so the watch page can offer a retry.
+          const reason =
+            err instanceof Error ? err.message : "The upload did not finish. Try again.";
+          void markFullVideoFailed(created.id, reason).catch(() => {
+            /* best effort — the toast below still tells the user */
+          });
+          toast.error(reason, { duration: 12_000 });
         });
 
       toast.success("Published — uploading in the background.");

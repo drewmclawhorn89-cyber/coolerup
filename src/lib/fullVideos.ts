@@ -37,9 +37,15 @@ export type FullVideo = {
   /**
    * `processing` means the row exists but the file is still being uploaded.
    * The uploader plays their own copy from disk; everyone else waits for it to
-   * flip to `ready`. Older rows predate the column, so it is optional.
+   * flip to `ready`. `failed` means the upload died and will never finish on
+   * its own — the owner can retry or delete it. Older rows predate the column,
+   * so it is optional.
    */
-  status?: "processing" | "ready";
+  status?: "processing" | "ready" | "failed";
+  /** Why the upload failed. Only meaningful when `status` is `failed`. */
+  upload_error?: string | null;
+  /** Size the finished file should be, used to detect a completed upload. */
+  expected_bytes?: number | null;
   created_at: string;
 };
 
@@ -154,7 +160,6 @@ function readyOrMine(viewerId?: string | null): string {
   // UUIDs are safe in a PostgREST `or` expression; no commas or parens.
   return `${base},user_id.eq.${viewerId}`;
 }
-
 /**
  * True when PostgREST is complaining that `status` doesn't exist, which means
  * the owner hasn't run `instant_publish_sql.sql` yet. In that case every row is
@@ -957,7 +962,9 @@ export type CreateFullVideoInput = {
   videoUrl: string;
   thumbnailUrl: string | null;
   /** Defaults to `ready`; pass `processing` when the bytes are still moving. */
-  status?: "processing" | "ready";
+  status?: "processing" | "ready" | "failed";
+  /** Size of the file being uploaded, so a finished upload can be detected. */
+  expectedBytes?: number | null;
 };
 
 export async function createFullVideo(input: CreateFullVideoInput): Promise<FullVideo> {
@@ -974,6 +981,7 @@ export async function createFullVideo(input: CreateFullVideoInput): Promise<Full
       video_url: input.videoUrl,
       thumbnail_url: input.thumbnailUrl,
       status: input.status ?? "ready",
+      expected_bytes: input.expectedBytes ?? null,
     })
     .select("*")
     .single();
@@ -1001,6 +1009,57 @@ export async function finalizeFullVideo(
     })
     .eq("id", id);
   if (error) throw error;
+}
+
+/**
+ * Record that an upload will never finish on its own.
+ *
+ * Without this the row sat on `processing` forever: invisible to everyone
+ * else, unplayable for the owner, and with no way to retry or remove it. Now
+ * it becomes `failed` with a reason the owner can act on.
+ */
+export async function markFullVideoFailed(id: string, reason: string): Promise<void> {
+  const { error } = await db
+    .from("full_videos")
+    .update({ status: "failed", upload_error: reason.slice(0, 500) })
+    .eq("id", id);
+  if (error) throw error;
+}
+
+/** Put a failed video back into `processing` before a retry upload starts. */
+export async function reopenFullVideo(id: string): Promise<void> {
+  const { error } = await db
+    .from("full_videos")
+    .update({ status: "processing", upload_error: null })
+    .eq("id", id);
+  if (error) throw error;
+}
+
+/**
+ * How many bytes of an object are actually in storage, or `null` if there is
+ * no such object yet.
+ *
+ * Supabase's tus endpoint creates the object when the upload starts, so a
+ * partially-uploaded file shows up here with a size smaller than the source.
+ * Comparing that against `expected_bytes` is what lets the app tell "still
+ * moving" apart from "finished, but the row never got updated".
+ */
+export async function storageObjectSize(path: string): Promise<number | null> {
+  const slash = path.lastIndexOf("/");
+  const dir = slash === -1 ? "" : path.slice(0, slash);
+  const name = slash === -1 ? path : path.slice(slash + 1);
+
+  const { data, error } = await supabase.storage
+    .from(FULL_VIDEO_BUCKET)
+    .list(dir, { search: name, limit: 100 });
+  if (error) return null;
+
+  const hit = (data ?? []).find((entry) => entry.name === name);
+  if (!hit) return null;
+
+  // Supabase exposes the size under `metadata.size` on the storage API.
+  const size = (hit as { metadata?: { size?: number } }).metadata?.size;
+  return typeof size === "number" ? size : null;
 }
 
 /**

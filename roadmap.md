@@ -12,4 +12,4 @@
 
 - [x] Fix Settings browser-storage render crash; build OK and signed-in Settings/feed verified. /videos is missing in this checkout due to GitHub divergence.
 
-- [ ] Return to PR #203 after checking its contents and confirming rollback scope.
+- [x] Restored GitHub main files to PR #203 with history-preserving commit f562656; preview sync still unverified.

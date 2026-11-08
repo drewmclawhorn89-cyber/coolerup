@@ -135,30 +135,71 @@ export type ListOptions = {
   category?: string;
   search?: string;
   limit?: number;
+  /**
+   * Who is looking. Rows still in `processing` have no playable object in
+   * storage yet, so they are hidden from everyone except their owner — there
+   * is nothing worse than clicking a video and getting a dead player.
+   */
+  viewerId?: string | null;
 };
+
+/**
+ * PostgREST filter that hides in-flight uploads from strangers while keeping
+ * them visible to the person who uploaded them. `status` is nullable because
+ * rows created before the column existed are all finished uploads.
+ */
+function readyOrMine(viewerId?: string | null): string {
+  const base = "status.eq.ready,status.is.null";
+  if (!viewerId) return base;
+  // UUIDs are safe in a PostgREST `or` expression; no commas or parens.
+  return `${base},user_id.eq.${viewerId}`;
+}
+
+/**
+ * True when PostgREST is complaining that `status` doesn't exist, which means
+ * the owner hasn't run `instant_publish_sql.sql` yet. In that case every row is
+ * a finished upload anyway, so dropping the filter is safe and keeps the page
+ * working instead of blowing up.
+ */
+function missingStatusColumn(error: { message?: string; details?: string } | null): boolean {
+  if (!error) return false;
+  const text = `${error.message ?? ""} ${error.details ?? ""}`.toLowerCase();
+  return text.includes("status") && (text.includes("does not exist") || text.includes("column"));
+}
 
 /**
  * Grid query. Category "All" (or empty) means no category filter. Search runs
  * across title, username and description with a single ilike OR clause.
  */
 export async function listFullVideos(opts: ListOptions = {}): Promise<FullVideo[]> {
-  const { category, search, limit = 60 } = opts;
-  let query = db.from("full_videos").select("*").order("created_at", { ascending: false }).limit(limit);
+  const { category, search, limit = 60, viewerId } = opts;
 
-  if (category && category !== "All") query = query.eq("category", category);
+  const build = (hideInFlight: boolean) => {
+    let query = db
+      .from("full_videos")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(limit);
 
-  const term = search?.trim();
-  if (term) {
-    // Escape PostgREST's `or` separators so a comma in the query can't break it.
-    const safe = term.replace(/[%,()]/g, " ").trim();
-    if (safe) {
-      query = query.or(
-        `title.ilike.%${safe}%,username.ilike.%${safe}%,description.ilike.%${safe}%`,
-      );
+    if (hideInFlight) query = query.or(readyOrMine(viewerId));
+    if (category && category !== "All") query = query.eq("category", category);
+
+    const term = search?.trim();
+    if (term) {
+      // Escape PostgREST's `or` separators so a comma in the query can't break it.
+      const safe = term.replace(/[%,()]/g, " ").trim();
+      if (safe) {
+        query = query.or(
+          `title.ilike.%${safe}%,username.ilike.%${safe}%,description.ilike.%${safe}%`,
+        );
+      }
     }
-  }
+    return query;
+  };
 
-  const { data, error } = await query;
+  let { data, error } = await build(true);
+  if (missingStatusColumn(error)) ({ data, error } = await build(false));
+
   if (error) throw error;
   return (data ?? []) as FullVideo[];
 }
@@ -171,12 +212,20 @@ export async function getFullVideo(id: string): Promise<FullVideo | null> {
 
 /** Related videos for the "Up Next" rail: same category first, then recent. */
 export async function listRelatedVideos(video: FullVideo, limit = 12): Promise<FullVideo[]> {
-  const { data, error } = await db
-    .from("full_videos")
-    .select("*")
-    .neq("id", video.id)
-    .order("created_at", { ascending: false })
-    .limit(limit * 2);
+  const build = (hideInFlight: boolean) => {
+    let query = db
+      .from("full_videos")
+      .select("*")
+      .neq("id", video.id)
+      .order("created_at", { ascending: false })
+      .limit(limit * 2);
+    // Never recommend something that isn't playable yet.
+    if (hideInFlight) query = query.or("status.eq.ready,status.is.null");
+    return query;
+  };
+
+  let { data, error } = await build(true);
+  if (missingStatusColumn(error)) ({ data, error } = await build(false));
   if (error) throw error;
 
   const rows = (data ?? []) as FullVideo[];

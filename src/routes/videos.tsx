@@ -48,13 +48,14 @@ function VideosPage() {
     setLoading(true);
     setError(null);
     try {
-      setVideos(await listFullVideos({ category, search }));
+      // `viewerId` keeps in-flight uploads visible to their owner only.
+      setVideos(await listFullVideos({ category, search, viewerId: auth.user?.id ?? null }));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load videos.");
     } finally {
       setLoading(false);
     }
-  }, [category, search]);
+  }, [category, search, auth.user?.id]);
 
   useEffect(() => {
     void load();

@@ -34,6 +34,12 @@ export type FullVideo = {
   video_1080_url?: string | null;
   video_720_url?: string | null;
   video_480_url?: string | null;
+  /**
+   * `processing` means the row exists but the file is still being uploaded.
+   * The uploader plays their own copy from disk; everyone else waits for it to
+   * flip to `ready`. Older rows predate the column, so it is optional.
+   */
+  status?: "processing" | "ready";
   created_at: string;
 };
 
@@ -60,7 +66,7 @@ export const FULL_VIDEO_CATEGORIES = [
 
 export type FullVideoCategory = (typeof FULL_VIDEO_CATEGORIES)[number];
 
-const STORAGE_PREFIX = "storage:";
+export const STORAGE_PREFIX = "storage:";
 
 /* ------------------------------------------------------------------ */
 /* Formatting                                                          */
@@ -655,6 +661,8 @@ export type CreateFullVideoInput = {
   duration: number;
   videoUrl: string;
   thumbnailUrl: string | null;
+  /** Defaults to `ready`; pass `processing` when the bytes are still moving. */
+  status?: "processing" | "ready";
 };
 
 export async function createFullVideo(input: CreateFullVideoInput): Promise<FullVideo> {
@@ -670,11 +678,45 @@ export async function createFullVideo(input: CreateFullVideoInput): Promise<Full
       duration: Math.min(input.duration, MAX_FULL_VIDEO_SECONDS),
       video_url: input.videoUrl,
       thumbnail_url: input.thumbnailUrl,
+      status: input.status ?? "ready",
     })
     .select("*")
     .single();
   if (error) throw error;
   return data as FullVideo;
+}
+
+/**
+ * Mark a video as finished once its bytes have landed.
+ *
+ * Publishing inserts the row first (so it shows up instantly) and calls this
+ * when the upload completes, which is what flips `processing` to `ready` and
+ * points `video_url` at the real object.
+ */
+export async function finalizeFullVideo(
+  id: string,
+  patch: { videoUrl: string; thumbnailUrl: string | null },
+): Promise<void> {
+  const { error } = await db
+    .from("full_videos")
+    .update({
+      video_url: patch.videoUrl,
+      thumbnail_url: patch.thumbnailUrl,
+      status: "ready",
+    })
+    .eq("id", id);
+  if (error) throw error;
+}
+
+/**
+ * Where an upload will live in storage.
+ *
+ * Computed *before* the upload starts so the row can be inserted — and the
+ * video shown — while the bytes are still in flight.
+ */
+export function fullVideoObjectPath(userId: string, fileName: string): string {
+  const safe = fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
+  return `${userId}/full/${Date.now()}-${safe}`;
 }
 
 /**
@@ -689,10 +731,13 @@ export async function uploadFullVideoFiles(
   thumbnail: Blob | null,
   userId: string,
   onProgress: (percent: number) => void,
+  opts: { videoPath?: string } = {},
 ): Promise<{ videoUrl: string; thumbnailUrl: string | null }> {
   const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
   const stamp = Date.now();
-  const videoPath = `${userId}/full/${stamp}-${safe}`;
+  // The caller may have reserved a path before inserting the row, so the row
+  // and the upload agree on where the file will end up.
+  const videoPath = opts.videoPath ?? `${userId}/full/${stamp}-${safe}`;
 
   const thumbPromise: Promise<string | null> = thumbnail
     ? supabase.storage

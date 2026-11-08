@@ -1,8 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { Pencil, Play, Loader2, Share2 } from "lucide-react";
-import { FullVideoOfflineButton } from "@/components/FullVideoOfflineButton";
-import { FullVideoShareMenu } from "@/components/FullVideoShareMenu";
+import { Pencil, Play, Loader2 } from "lucide-react";
 import {
   formatDuration,
   formatViews,
@@ -16,6 +14,9 @@ import {
  *
  * Horizontal 16:9 thumbnail with the duration burned into the bottom-right
  * corner, then the title, channel handle, views and relative time underneath.
+ *
+ * Share and offline saving live on the watch page, not on the card, so the
+ * grid stays clean and tapping a card is the only action.
  */
 export function FullVideoCard({
   video,
@@ -26,7 +27,6 @@ export function FullVideoCard({
   onEdit?: ((video: FullVideo) => void) | undefined;
 }) {
   const [thumb, setThumb] = useState<string>("");
-  const [shareOpen, setShareOpen] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -41,18 +41,6 @@ export function FullVideoCard({
 
   return (
     <div className="group relative min-w-0">
-      <button
-        type="button"
-        onClick={() => setShareOpen(true)}
-        aria-label={`Share ${video.title}`}
-        title="Share"
-        className={`absolute top-1.5 z-10 flex size-8 items-center justify-center rounded-full bg-black/70 text-white shadow-sm backdrop-blur transition hover:bg-black/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
-          onEdit ? "right-11" : "right-1.5"
-        }`}
-      >
-        <Share2 className="size-4" />
-      </button>
-
       {onEdit && (
         <button
           type="button"
@@ -64,7 +52,6 @@ export function FullVideoCard({
           <Pencil className="size-4" />
         </button>
       )}
-      <FullVideoOfflineButton video={video} />
 
       <Link
         to="/watch/$id"
@@ -110,8 +97,6 @@ export function FullVideoCard({
           </p>
         </div>
       </Link>
-
-      {shareOpen && <FullVideoShareMenu video={video} onClose={() => setShareOpen(false)} />}
     </div>
   );
 }

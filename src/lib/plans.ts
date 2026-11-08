@@ -12,15 +12,6 @@ export type Plan = {
   /** price in USD per month */
   price: number;
   perks: string[];
-  /**
-   * Whether the plan unlocks offline downloads.
-   *
-   * Offline mode is a paid feature: it starts with the cheapest plan (Plus)
-   * and every higher tier inherits it, because Pro and VIP both include
-   * "everything in Plus". Free accounts get a locked toggle with an upgrade
-   * prompt. Never write the price into a comment — it goes stale.
-   */
-  offline: boolean;
 };
 
 export const PLANS: Plan[] = [
@@ -29,8 +20,7 @@ export const PLANS: Plan[] = [
     label: "Plus",
     emoji: "\u2b50",
     price: 7.99,
-    perks: ["Ad-free feed", "Plus badge on your profile", "Offline downloads"],
-    offline: true,
+    perks: ["Ad-free feed", "Plus badge on your profile"],
   },
   {
     id: "pro",
@@ -38,7 +28,6 @@ export const PLANS: Plan[] = [
     emoji: "\ud83d\ude80",
     price: 14.99,
     perks: ["Everything in Plus", "Exclusive tops and names", "Priority uploads"],
-    offline: true,
   },
   {
     id: "vip",
@@ -46,7 +35,6 @@ export const PLANS: Plan[] = [
     emoji: "\ud83d\udc51",
     price: 29.99,
     perks: ["Everything in Pro", "VIP badge", "Early access to new features"],
-    offline: true,
   },
 ];
 
@@ -54,14 +42,15 @@ export function planById(id?: string | null): Plan | undefined {
   return PLANS.find((p) => p.id === id);
 }
 
-/** True when the plan unlocks offline downloads. */
-export function planIncludesOffline(id?: string | null): boolean {
-  return Boolean(planById(id)?.offline);
-}
-
-/** The cheapest plan that unlocks offline mode, used by upgrade prompts. */
-export function offlinePlan(): Plan {
-  return PLANS.find((p) => p.offline) ?? PLANS[0]!;
+/**
+ * Offline downloads are free for everyone, so no plan gates them.
+ *
+ * Kept as a function (rather than deleted) because the offline library and
+ * the download buttons still ask "may this viewer save videos?" and the
+ * answer is now always yes, regardless of plan or sign-in state.
+ */
+export function planIncludesOffline(_id?: string | null): boolean {
+  return true;
 }
 
 /** Authoritative price in cents, or null when the plan id is unknown. */

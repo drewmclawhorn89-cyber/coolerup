@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 
-import { PLANS, offlinePlan, planById, planIncludesOffline, type Plan } from "@/lib/plans";
+import { PLANS, planById, planIncludesOffline, type Plan } from "@/lib/plans";
 
 export type { Plan };
-export { PLANS, planById, planIncludesOffline, offlinePlan };
+export { PLANS, planById, planIncludesOffline };
 
 export const VENMO_HANDLE = "Drew-McLawhorn-2";
 
@@ -293,28 +293,21 @@ export function isActive(sub: Subscription | null): boolean {
 /* -------------------------------------------------------------------------- */
 
 /**
- * Offline downloads are a paid perk that starts with the cheapest plan.
+ * Offline downloads are free for everyone.
  *
- * Access requires a live subscription *and* a plan that includes the feature.
- * A `pending` or `expired` subscription does not count: the plan has to be
- * paid and active for the offline library to unlock.
+ * This used to require an active paid plan. It no longer does: saving videos
+ * for offline viewing is available to every viewer, signed in or not, and a
+ * lapsed or missing subscription must never take the library away.
  */
-export function hasOfflineAccess(handle?: string | null): boolean {
-  const sub = getSubscription(handle);
-  if (!isActive(sub)) return false;
-  return planIncludesOffline(sub?.planId);
+export function hasOfflineAccess(_handle?: string | null): boolean {
+  return true;
 }
 
-/** Why offline mode is locked, so the UI can say something useful. */
+/** Offline mode is never locked now; kept so callers can keep asking. */
 export type OfflineLockReason = "signed-out" | "no-plan" | "plan-lacks-offline" | "expired";
 
-export function offlineLockReason(handle?: string | null): OfflineLockReason | null {
-  if (hasOfflineAccess(handle)) return null;
-  if (!handle) return "signed-out";
-  const sub = getSubscription(handle);
-  if (!sub) return "no-plan";
-  if (sub.status === "expired" || sub.status === "pending") return "expired";
-  return "plan-lacks-offline";
+export function offlineLockReason(_handle?: string | null): OfflineLockReason | null {
+  return null;
 }
 
 export function useSubscription(handle?: string | null) {

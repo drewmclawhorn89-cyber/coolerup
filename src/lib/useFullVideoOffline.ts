@@ -1,13 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { useAuth } from "@/hooks/useAuth";
 import {
   getSavedFullVideo,
   onOfflineChange,
   removeFullVideoOffline,
   saveFullVideoOffline,
 } from "@/lib/offline";
-import { hasOfflineAccess, offlinePlan } from "@/lib/subscriptions";
 import type { FullVideo } from "@/lib/fullVideos";
 
 /**
@@ -18,12 +16,12 @@ import type { FullVideo } from "@/lib/fullVideos";
  * in-flight progress and the Plus gate all behave identically.
  */
 export function useFullVideoOffline(video: Pick<FullVideo, "id"> & Partial<FullVideo>) {
-  const auth = useAuth();
   const [savedSize, setSavedSize] = useState<number | null>(null);
   const [progress, setProgress] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const offlineUnlocked = hasOfflineAccess(auth.handle);
+  // Offline downloads are free, so every viewer can save.
+  const offlineUnlocked = true;
   const isSaved = savedSize !== null;
 
   useEffect(() => {
@@ -50,18 +48,11 @@ export function useFullVideoOffline(video: Pick<FullVideo, "id"> & Partial<FullV
     if (busy || progress !== null) return false;
     setBusy(true);
     try {
-      // Removing a saved copy is always allowed, even if the plan lapsed.
       if (savedSize !== null) {
         await removeFullVideoOffline(video.id);
         setSavedSize(null);
         toast.success("Removed from offline");
         return true;
-      }
-
-      if (!offlineUnlocked) {
-        toast.error(`Offline mode is part of Plus ($${offlinePlan().price.toFixed(2)}/mo)`);
-        window.location.href = "/?tab=subscriptions";
-        return false;
       }
 
       setProgress(0);
@@ -77,7 +68,7 @@ export function useFullVideoOffline(video: Pick<FullVideo, "id"> & Partial<FullV
       setProgress(null);
       setBusy(false);
     }
-  }, [busy, progress, savedSize, offlineUnlocked, video]);
+  }, [busy, progress, savedSize, video]);
 
   return { savedSize, progress, busy, isSaved, offlineUnlocked, toggle };
 }

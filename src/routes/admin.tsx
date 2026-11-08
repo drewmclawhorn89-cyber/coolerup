@@ -6,6 +6,7 @@ import {
   Clock,
   Coins,
   Flag,
+  Gift,
   Power,
   RefreshCw,
   ShieldCheck,
@@ -219,6 +220,12 @@ function AdminPage() {
             {pending.length} pending · {activeBans.length} banned · {activeMutes.length} muted
           </p>
         </div>
+        <Button asChild variant="secondary" size="sm" className="gap-2">
+          <Link to="/admin/codes">
+            <Gift className="h-4 w-4" />
+            Codes
+          </Link>
+        </Button>
         <Button
           variant="secondary"
           size="sm"

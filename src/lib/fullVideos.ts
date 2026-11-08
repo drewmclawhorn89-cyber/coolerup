@@ -630,13 +630,20 @@ export function captureThumbnail(file: File, atSeconds = 1): Promise<Blob | null
 const RESUMABLE_THRESHOLD = 25 * 1024 * 1024;
 
 /**
- * Hard ceiling we refuse to even attempt. Supabase's own per-object limit is
- * configurable, but nothing sane exceeds this, and failing in 50 ms beats
- * uploading for twenty minutes and then erroring.
+ * Hard ceiling we refuse to even attempt. This mirrors the `videos` bucket's
+ * `file_size_limit` set in `20261122000000_videos_bucket_size_limit.sql`
+ * (1 GiB). Failing in 50 ms beats uploading for twenty minutes and then
+ * getting a 413 from the last chunk.
  */
-const MAX_UPLOAD_BYTES = 5 * 1024 * 1024 * 1024;
+const MAX_UPLOAD_BYTES = 1024 * 1024 * 1024;
 
-/** Supabase requires resumable chunks to be a multiple of 6 MB. */
+/**
+ * Supabase's tus endpoint requires every PATCH to be a multiple of 6 MB, so
+ * "5 MB chunks" is not actually allowed — 6 MB is the smallest legal chunk and
+ * is what we send. Each chunk is retried up to five times in place, so a
+ * dropped connection mid-video resumes from the last confirmed offset instead
+ * of starting the 500 MB over.
+ */
 const TUS_CHUNK_SIZE = 6 * 1024 * 1024;
 
 /** How long a single chunk may stall before we abort and retry it. */
@@ -673,7 +680,8 @@ function tooLargeMessage(file: File): string {
   return (
     `This video is ${mb} MB, which is over your Supabase project's storage limit. ` +
     `Raise it in Supabase → Storage → Settings (Global file size limit) and set the ` +
-    `"videos" bucket's own limit, or upload a smaller file.`
+    `"videos" bucket's own limit to 1 GB (run 20261122000000_videos_bucket_size_limit.sql), ` +
+    `or let Coolerup compress it to 720p first.`
   );
 }
 

@@ -1,13 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import {
-  ArrowLeft,
-  CheckCircle2,
-  ImagePlus,
-  Loader2,
-  Upload,
-  X,
-} from "lucide-react";
+import { ArrowLeft, CheckCircle2, ImagePlus, Loader2, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,6 +21,12 @@ import {
   type UploadProgress,
 } from "@/lib/fullVideos";
 import { clearPendingVideo, registerPendingVideo } from "@/lib/pendingUploads";
+import {
+  cancelCompression,
+  compressVideoTo720p,
+  compressionHint,
+  shouldCompress,
+} from "@/lib/videoCompression";
 
 export const Route = createFileRoute("/upload-full")({
   head: () => ({
@@ -46,7 +45,13 @@ export const Route = createFileRoute("/upload-full")({
   component: UploadFullPage,
 });
 
-type Stage = "idle" | "probing" | "uploading" | "saving" | "done";
+type Stage = "idle" | "probing" | "compressing" | "uploading" | "saving" | "done";
+
+/** "10 min" / "45 sec" — the length label used in the upload status line. */
+function lengthLabel(seconds: number): string {
+  if (seconds >= 60) return `${Math.max(1, Math.round(seconds / 60))} min`;
+  return `${Math.max(1, Math.round(seconds))} sec`;
+}
 
 /** "3.4 MB/s" — throughput, so a slow upload is visibly slow, not stuck. */
 function formatSpeed(bytesPerSecond: number): string {
@@ -91,6 +96,21 @@ function UploadFullPage() {
   const [publishing, setPublishing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  /** 720p re-encode progress, shown before the bytes start moving. */
+  const [compProgress, setCompProgress] = useState(0);
+  const [compStage, setCompStage] = useState("");
+  /** True while a large file is being compressed (drives the skip button). */
+  const [compressing, setCompressing] = useState(false);
+  /** The file as picked, kept so the compression hint can show its size. */
+  const [sourceFile, setSourceFile] = useState<File | null>(null);
+
+  /**
+   * Guards the whole pick → probe → compress → upload chain. Bumped when the
+   * user removes the file, so a compression that finishes after that can't
+   * resurrect the old file.
+   */
+  const flowRef = useRef(0);
+
   /**
    * The upload starts the moment a file is picked, not when Publish is hit, so
    * the bytes are already moving while the user types a title. `token` guards
@@ -106,29 +126,36 @@ function UploadFullPage() {
   const [videoPath, setVideoPath] = useState("");
 
   // Release object URLs when they are replaced or the page unmounts.
-  useEffect(() => () => {
-    if (videoPreview) URL.revokeObjectURL(videoPreview);
-  }, [videoPreview]);
-  useEffect(() => () => {
-    if (thumbPreview) URL.revokeObjectURL(thumbPreview);
-  }, [thumbPreview]);
+  useEffect(
+    () => () => {
+      if (videoPreview) URL.revokeObjectURL(videoPreview);
+    },
+    [videoPreview],
+  );
+  useEffect(
+    () => () => {
+      if (thumbPreview) URL.revokeObjectURL(thumbPreview);
+    },
+    [thumbPreview],
+  );
 
   /** Actions that must not be interrupted (reading the file, writing the row). */
-  const busy = stage === "probing" || stage === "saving";
+  const busy = stage === "probing" || stage === "compressing" || stage === "saving";
   /** The bytes are moving, but the form stays usable and Publish stays live. */
   const uploading = stage === "uploading";
 
-  // A long upload lives in this tab. Closing it kills the transfer, so warn
-  // before that happens rather than letting a 15-minute file die silently.
+  // A long upload (or a long 720p re-encode) lives in this tab. Closing it
+  // kills the work, so warn before that happens rather than letting a
+  // 15-minute file die silently.
   useEffect(() => {
-    if (!uploading) return;
+    if (!uploading && stage !== "compressing") return;
     const warn = (e: BeforeUnloadEvent) => {
       e.preventDefault();
       e.returnValue = "";
     };
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
-  }, [uploading]);
+  }, [uploading, stage]);
 
   /**
    * Kick off the upload in the background. Resolves with the storage refs, and
@@ -196,10 +223,16 @@ function UploadFullPage() {
   }
 
   async function handleFile(next: File) {
+    const flow = ++flowRef.current;
     setError(null);
     setStage("probing");
+    setCompProgress(0);
+    setCompStage("");
+    setCompressing(false);
+    setSourceFile(next);
     try {
       const meta = await probeVideo(next);
+      if (flow !== flowRef.current) return;
       if (!Number.isFinite(meta.duration) || meta.duration <= 0) {
         throw new Error("We couldn't read that video. Try a different file.");
       }
@@ -209,35 +242,76 @@ function UploadFullPage() {
         );
       }
       const seconds = Math.round(meta.duration);
-      // A 15-minute video is routinely 200–500 MB. Supabase's free plan caps a
-      // single object at 50 MB, so warn up front rather than letting someone
-      // watch a progress bar for twenty minutes before it fails.
-      if (next.size > 50 * 1024 * 1024) {
-        toast.warning(
-          `This file is ${(next.size / (1024 * 1024)).toFixed(0)} MB. If your Supabase project is on the free plan (50 MB per file), the upload will fail — raise the limit in Storage → Settings first.`,
-          { duration: 12_000 },
-        );
-      }
       // Reserve the destination now: the row is inserted before the upload
       // finishes, so both sides must agree on where the object will live.
       const reserved = fullVideoObjectPath(auth.user?.id ?? "anon", next.name);
       videoPathRef.current = reserved;
       setVideoPath(reserved);
-      setFile(next);
       setDuration(seconds);
       setVideoPreview(URL.createObjectURL(next));
       if (!title) {
-        setTitle(next.name.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").slice(0, 100));
+        setTitle(
+          next.name
+            .replace(/\.[^.]+$/, "")
+            .replace(/[_-]+/g, " ")
+            .slice(0, 100),
+        );
       }
+
+      // ---- Compress long, heavy videos to 720p before sending them ----
+      //
+      // A 10-minute 1080p clip is ~500 MB; at 720p it is ~150 MB, so the
+      // upload finishes about three times sooner and comfortably fits under
+      // the storage cap. Compression is best-effort: if ffmpeg.wasm cannot
+      // load, we fall straight through to uploading the original.
+      let toUpload = next;
+      if (shouldCompress(next, seconds)) {
+        setStage("compressing");
+        setCompressing(true);
+        setCompProgress(0);
+        setCompStage("Preparing");
+        const compressed = await compressVideoTo720p(next, seconds, ({ percent, stage }) => {
+          if (flow !== flowRef.current) return;
+          setCompProgress(percent);
+          setCompStage(stage);
+        });
+        if (flow !== flowRef.current) return;
+        setCompressing(false);
+        if (compressed) {
+          toUpload = compressed;
+          const before = (next.size / (1024 * 1024)).toFixed(0);
+          const after = (compressed.size / (1024 * 1024)).toFixed(0);
+          toast.success(`Compressed to 720p — ${before} MB → ${after} MB. Uploading now.`);
+        } else {
+          toast.message("Couldn't compress this one — uploading the original instead.", {
+            duration: 8_000,
+          });
+        }
+      }
+
+      if (flow !== flowRef.current) return;
+      setFile(toUpload);
       // Start pushing bytes now — the user still has a form to fill in.
-      void beginUpload(next, seconds).catch(() => {});
+      void beginUpload(toUpload, seconds).catch(() => {});
     } catch (err) {
+      if (flow !== flowRef.current) return;
       setFile(null);
       setVideoPreview("");
       setDuration(0);
+      setCompressing(false);
       setStage("idle");
       setError(err instanceof Error ? err.message : "That file could not be read.");
     }
+  }
+
+  /** Give up on the re-encode and send the original file instead. */
+  function skipCompression() {
+    if (!compressing) return;
+    cancelCompression();
+    setCompressing(false);
+    setCompStage("");
+    setCompProgress(0);
+    toast.message("Skipped compression — uploading the original file.");
   }
 
   async function handleThumb(next: File) {
@@ -396,6 +470,8 @@ function UploadFullPage() {
                   onClick={() => {
                     // Invalidate any in-flight upload so its progress and
                     // result can't land on the next file the user picks.
+                    flowRef.current += 1;
+                    cancelCompression();
                     tokenRef.current += 1;
                     uploadRef.current = null;
                     videoPathRef.current = "";
@@ -406,6 +482,9 @@ function UploadFullPage() {
                     setThumbPreview("");
                     setDuration(0);
                     setProgress(0);
+                    setCompProgress(0);
+                    setCompStage("");
+                    setCompressing(false);
                     setUploaded(false);
                     setStage("idle");
                   }}
@@ -421,18 +500,54 @@ function UploadFullPage() {
               disabled={busy}
               className="flex w-full flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border bg-card px-4 py-12 text-center transition hover:border-primary/60 hover:bg-muted/40 disabled:opacity-60"
             >
-              {stage === "probing" ? (
+              {stage === "probing" || stage === "compressing" ? (
                 <Loader2 className="size-8 animate-spin text-muted-foreground" />
               ) : (
                 <Upload className="size-8 text-muted-foreground" />
               )}
               <span className="text-sm font-semibold">
-                {stage === "probing" ? "Reading video…" : "Select a video to upload"}
+                {stage === "probing"
+                  ? "Reading video…"
+                  : stage === "compressing"
+                    ? `Compressing to 720p — ${Math.round(compProgress)}%`
+                    : "Select a video to upload"}
               </span>
               <span className="text-xs text-muted-foreground">
-                MP4, MOV or WebM · horizontal or vertical · max 60 minutes
+                {stage === "compressing"
+                  ? `${compStage || "Working"} · this makes the upload ~3× faster`
+                  : "MP4, MOV or WebM · horizontal or vertical · max 60 minutes"}
               </span>
             </button>
+          )}
+
+          {stage === "compressing" && (
+            <div className="space-y-2 rounded-xl border border-border bg-card p-4">
+              <div className="flex items-center justify-between text-sm">
+                <span className="font-medium">
+                  Compressing to 720p — {Math.round(compProgress)}%
+                </span>
+                <span className="tabular-nums text-xs text-muted-foreground">
+                  {compStage || "Working"}
+                </span>
+              </div>
+              <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full rounded-full bg-primary transition-[width] duration-300"
+                  style={{ width: `${compProgress}%` }}
+                />
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-[11px] text-muted-foreground">
+                  {sourceFile
+                    ? compressionHint(sourceFile)
+                    : "Making the file smaller before upload."}{" "}
+                  Keep this tab open.
+                </p>
+                <Button type="button" variant="ghost" size="sm" onClick={skipCompression}>
+                  Skip
+                </Button>
+              </div>
+            </div>
           )}
 
           <input
@@ -489,7 +604,11 @@ function UploadFullPage() {
                 className="relative aspect-video w-40 shrink-0 overflow-hidden rounded-lg border border-border bg-muted"
               >
                 {thumbPreview ? (
-                  <img src={thumbPreview} alt="Thumbnail preview" className="size-full object-cover" />
+                  <img
+                    src={thumbPreview}
+                    alt="Thumbnail preview"
+                    className="size-full object-cover"
+                  />
                 ) : (
                   <span className="flex size-full flex-col items-center justify-center gap-1 text-muted-foreground">
                     <ImagePlus className="size-5" />
@@ -585,7 +704,10 @@ function UploadFullPage() {
         </section>
 
         {error && (
-          <p role="alert" className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          <p
+            role="alert"
+            className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive"
+          >
             {error}
           </p>
         )}
@@ -598,7 +720,7 @@ function UploadFullPage() {
                   ? "Finishing up…"
                   : stage === "done" || uploaded
                     ? "Video uploaded — ready to publish"
-                    : `Uploading ${Math.round(progress)}%…`}
+                    : `Uploading ${lengthLabel(duration)} video — ${Math.round(progress)}% — don't close`}
               </span>
               {stage === "done" || uploaded ? (
                 <CheckCircle2 className="size-4 text-emerald-500" />
@@ -632,7 +754,9 @@ function UploadFullPage() {
           </Button>
           <Button
             onClick={() => void submit()}
-            disabled={publishing || stage === "probing" || stage === "saving" || !file || !auth.user}
+            disabled={
+              publishing || stage === "probing" || stage === "saving" || !file || !auth.user
+            }
             className="create-pink"
           >
             {publishing || stage === "saving" ? (

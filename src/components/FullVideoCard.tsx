@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { Pencil, Play, Loader2, Bookmark } from "lucide-react";
+import { Pencil, Play, Loader2 } from "lucide-react";
 import {
   formatDuration,
   formatViews,
@@ -8,7 +8,6 @@ import {
   timeAgo,
   type FullVideo,
 } from "@/lib/fullVideos";
-import { useFullVideoSave } from "@/lib/savedFullVideos";
 
 /**
  * One cell in the /videos grid — YouTube's "home" card.
@@ -27,9 +26,6 @@ export function FullVideoCard({
   onEdit?: ((video: FullVideo) => void) | undefined;
 }) {
   const [thumb, setThumb] = useState<string>("");
-  // Shared across every tab: saving here turns the watch page's button yellow
-  // too, and vice versa.
-  const { saved, toggle: toggleSave } = useFullVideoSave(video.id);
 
   useEffect(() => {
     let alive = true;
@@ -101,26 +97,6 @@ export function FullVideoCard({
         </p>
       </div>
       </Link>
-
-      {/* Save toggle. Sits outside the Link so tapping it never opens the video. */}
-      <button
-        type="button"
-        onClick={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          void toggleSave();
-        }}
-        aria-label={saved ? `Remove ${video.title} from saved` : `Save ${video.title}`}
-        aria-pressed={saved}
-        title={saved ? "Saved" : "Save"}
-        className={`absolute bottom-1.5 left-1.5 z-10 flex size-8 items-center justify-center rounded-full shadow-sm backdrop-blur transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white ${
-          saved
-            ? "bg-yellow-400 text-black"
-            : "bg-black/70 text-white hover:bg-black/85"
-        }`}
-      >
-        <Bookmark className={`size-4 ${saved ? "fill-current" : ""}`} />
-      </button>
     </div>
   );
 }

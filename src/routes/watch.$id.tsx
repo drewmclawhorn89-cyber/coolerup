@@ -12,7 +12,6 @@ import {
   Share2,
   ThumbsDown,
   ThumbsUp,
-  WifiOff,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -653,10 +652,8 @@ function WatchPage() {
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : offline.isSaved ? (
                   <Check className="h-4 w-4" />
-                ) : offline.offlineUnlocked ? (
-                  <Download className="h-4 w-4" />
                 ) : (
-                  <WifiOff className="h-4 w-4" />
+                  <Download className="h-4 w-4" />
                 )}
                 {offline.progress !== null
                   ? `Saving ${offline.progress}%`

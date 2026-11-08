@@ -1,5 +1,15 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeft, Banknote, ChevronRight, CreditCard, Gem, Lock, LogOut, Pencil, ShieldCheck, UserRound } from "lucide-react";
+import {
+  ArrowLeft,
+  Banknote,
+  ChevronRight,
+  CreditCard,
+  Gem,
+  LogOut,
+  Pencil,
+  ShieldCheck,
+  UserRound,
+} from "lucide-react";
 import { Suspense, lazy, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { EditProfileDialog } from "@/components/EditProfileDialog";
@@ -8,9 +18,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { writePref } from "@/lib/prefs";
 import { MoreSettings } from "@/components/MoreSettings";
-import { hasOfflineAccess, offlinePlan, useSubscription } from "@/lib/subscriptions";
-import { ThemePicker } from "@/components/ThemePicker"
-import { QUALITY_OPTIONS, useVideoQuality } from "@/lib/videoQuality"
+import { useSubscription } from "@/lib/subscriptions";
+import { ThemePicker } from "@/components/ThemePicker";
+import { QUALITY_OPTIONS, useVideoQuality } from "@/lib/videoQuality";
 import {
   announcePushPref,
   disablePushSubscription,
@@ -20,7 +30,7 @@ import {
   pushPermission,
   pushStatus,
   sendTestPush,
-} from "@/lib/push-client"
+} from "@/lib/push-client";
 
 // Subscriptions moved out of the top tab row and into Settings. Lazy-loaded so
 // the payment sheet code isn't part of the settings bundle.
@@ -45,10 +55,8 @@ function Settings() {
   const auth = useAuth();
   // Playback quality is a device preference (localStorage `video_quality`).
   const { quality: videoQuality, setQuality: setVideoQuality } = useVideoQuality();
-  // Offline mode is a paid perk — re-read the plan whenever it changes.
+  // Offline mode is free; the subscription is still read for other perks.
   const subscription = useSubscription(auth.handle);
-  const offlineUnlocked = hasOfflineAccess(auth.handle);
-  const offlinePrice = offlinePlan().price;
   const [editing, setEditing] = useState(false);
   // Subscriptions used to be its own top tab; it now opens from inside Settings.
   const [showSubscriptions, setShowSubscriptions] = useState(false);
@@ -60,7 +68,7 @@ function Settings() {
     } catch {}
     toast.success("Phone number saved");
   };
-    const saveLinks = () => {
+  const saveLinks = () => {
     try {
       localStorage.setItem("settings:tiktok", tiktokLink);
       localStorage.setItem("settings:instagram", instagramLink);
@@ -77,11 +85,11 @@ function Settings() {
   const [blockTarget, setBlockTarget] = useState("");
   const [blocking, setBlocking] = useState(false);
   const [privateAccount, setPrivateAccount] = useState(false);
-    const [phone, setPhone] = useState("");
-    const [tiktokLink, setTiktokLink] = useState("");
+  const [phone, setPhone] = useState("");
+  const [tiktokLink, setTiktokLink] = useState("");
   const [instagramLink, setInstagramLink] = useState("");
   const [youtubeLink, setYoutubeLink] = useState("");
-const [offlineMode, setOfflineMode] = useState(false);
+  const [offlineMode, setOfflineMode] = useState(false);
   // Notifications (simple toggle stored in localStorage as prototype)
   const [notificationsEnabled, setNotificationsEnabled] = useState<boolean>(() => {
     try {
@@ -91,14 +99,24 @@ const [offlineMode, setOfflineMode] = useState(false);
     }
   });
   // Live push diagnostics so a misconfiguration is visible instead of silent.
-  const [pushState, setPushState] = useState<{ configured: boolean; devices: number; source?: string } | null>(null);
+  const [pushState, setPushState] = useState<{
+    configured: boolean;
+    devices: number;
+    source?: string;
+  } | null>(null);
   const [testingPush, setTestingPush] = useState(false);
   const [deviceHint, setDeviceHint] = useState<string | null>(null);
   const [lastTest, setLastTest] = useState<string | null>(null);
-const [messagePrivacy, setMessagePrivacy] = useState(localStorage.getItem("messagePrivacy") || "everyone");
-const [messageFilter, setMessageFilter] = useState(localStorage.getItem("messageFilter") || "all");
-const [allowDM, setAllowDM] = useState(localStorage.getItem("allowDM") !== "false");
-const [readReceipts, setReadReceipts] = useState(localStorage.getItem("readReceipts") !== "false");
+  const [messagePrivacy, setMessagePrivacy] = useState(
+    localStorage.getItem("messagePrivacy") || "everyone",
+  );
+  const [messageFilter, setMessageFilter] = useState(
+    localStorage.getItem("messageFilter") || "all",
+  );
+  const [allowDM, setAllowDM] = useState(localStorage.getItem("allowDM") !== "false");
+  const [readReceipts, setReadReceipts] = useState(
+    localStorage.getItem("readReceipts") !== "false",
+  );
   // Theme
   const [theme, setTheme] = useState<string>(() => {
     try {
@@ -107,48 +125,34 @@ const [readReceipts, setReadReceipts] = useState(localStorage.getItem("readRecei
       return "system";
     }
   });
-useEffect(() => {
-  try {
-    const savedOffline = localStorage.getItem("settings:offline") === "true";
-    // A subscription that lapsed must not leave offline mode switched on.
-    // Wait for auth to resolve first: running this while `handle` is still null
-    // would read "no subscription" and wipe a real subscriber's setting.
-    if (auth.ready) {
-      const allowed = savedOffline && hasOfflineAccess(auth.handle);
-      setOfflineMode(allowed);
-      if (savedOffline && !allowed) localStorage.setItem("settings:offline", "false");
-    } else {
+  useEffect(() => {
+    try {
+      const savedOffline = localStorage.getItem("settings:offline") === "true";
+      // Offline mode is free, so a lapsed plan never turns the setting off.
       setOfflineMode(savedOffline);
-    }
-          setPrivateAccount(localStorage.getItem("settings:private") === "true");
-          setPhone(localStorage.getItem("settings:phone") || "");
-         setTiktokLink(localStorage.getItem("settings:tiktok") || "");
+      setPrivateAccount(localStorage.getItem("settings:private") === "true");
+      setPhone(localStorage.getItem("settings:phone") || "");
+      setTiktokLink(localStorage.getItem("settings:tiktok") || "");
       setInstagramLink(localStorage.getItem("settings:instagram") || "");
-      setYoutubeLink(localStorage.getItem("settings:youtube") || ""); 
-  } catch {}
-}, [auth.ready, auth.handle]);
+      setYoutubeLink(localStorage.getItem("settings:youtube") || "");
+    } catch {}
+  }, [auth.ready, auth.handle]);
 
-const toggleOffline = () => {
-  const newVal = !offlineMode;
+  const toggleOffline = () => {
+    const newVal = !offlineMode;
 
-  // Turning it ON is a paid feature. Turning it OFF is always allowed so a
-  // lapsed subscriber can still clean up.
-  if (newVal && !offlineUnlocked) {
-    toast.error(`Offline mode is part of Plus ($${offlinePrice.toFixed(2)}/mo)`);
-    return;
-  }
+    setOfflineMode(newVal);
+    try {
+      localStorage.setItem("settings:offline", String(newVal));
+    } catch {}
 
-  setOfflineMode(newVal);
-  try { localStorage.setItem("settings:offline", String(newVal)); } catch {}
-  
-  if (newVal) {
-  
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js').catch(() => {});
+    if (newVal) {
+      if ("serviceWorker" in navigator) {
+        navigator.serviceWorker.register("/sw.js").catch(() => {});
+      }
     }
-  }
-  toast.success(`Offline mode: ${newVal ? "ON - videos will cache" : "OFF"}`);
-};
+    toast.success(`Offline mode: ${newVal ? "ON - videos will cache" : "OFF"}`);
+  };
   useEffect(() => {
     setNewHandle(auth.handle ?? "");
   }, [auth.handle]);
@@ -157,12 +161,20 @@ const toggleOffline = () => {
     if (!auth.user) return;
     let cancelled = false;
     pushStatus()
-      .then((s) => { if (!cancelled) setPushState(s); })
-      .catch(() => { if (!cancelled) setPushState({ configured: false, devices: 0, source: "none" }); });
+      .then((s) => {
+        if (!cancelled) setPushState(s);
+      })
+      .catch(() => {
+        if (!cancelled) setPushState({ configured: false, devices: 0, source: "none" });
+      });
     pushDiagnostics()
-      .then((d) => { if (!cancelled) setDeviceHint(d.hint); })
+      .then((d) => {
+        if (!cancelled) setDeviceHint(d.hint);
+      })
       .catch(() => undefined);
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [auth.user?.id]);
 
   useEffect(() => {
@@ -182,7 +194,9 @@ const toggleOffline = () => {
     if (!auth.user) return;
     const handle = (newHandle || "").trim().replace(/^@/, "").toLowerCase();
     if (!handle.match(/^[a-z0-9._]{1,40}$/)) {
-      toast.error("Handles may contain only lowercase letters, numbers, dots, and underscores (1-40 chars)");
+      toast.error(
+        "Handles may contain only lowercase letters, numbers, dots, and underscores (1-40 chars)",
+      );
       return;
     }
     if (handle === auth.handle) {
@@ -213,12 +227,20 @@ const toggleOffline = () => {
     const blockedUsername = username.trim().replace(/^@/, "").toLowerCase();
     try {
       // Check user exists
-      const { data: profile } = await supabase.from("profiles").select("id, handle").eq("handle", blockedUsername).maybeSingle();
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("id, handle")
+        .eq("handle", blockedUsername)
+        .maybeSingle();
       if (!profile) {
         toast.error(`@${blockedUsername} not found`);
         return;
       }
-      const { error } = await supabase.from("blocked_users").insert({ blocker_id: auth.user.id, blocker_username: auth.handle ?? "", blocked_username: blockedUsername });
+      const { error } = await supabase.from("blocked_users").insert({
+        blocker_id: auth.user.id,
+        blocker_username: auth.handle ?? "",
+        blocked_username: blockedUsername,
+      });
       if (error) {
         toast.error(error.message || "Couldn't block user");
         return;
@@ -234,7 +256,11 @@ const toggleOffline = () => {
   const doUnblock = async (username: string) => {
     if (!auth.user) return;
     const uname = username.trim().replace(/^@/, "").toLowerCase();
-    const { error } = await supabase.from("blocked_users").delete().eq("blocker_id", auth.user.id).eq("blocked_username", uname);
+    const { error } = await supabase
+      .from("blocked_users")
+      .delete()
+      .eq("blocker_id", auth.user.id)
+      .eq("blocked_username", uname);
     if (error) {
       toast.error("Couldn't unblock");
       return;
@@ -256,14 +282,18 @@ const toggleOffline = () => {
         return;
       }
       if (!pushConfigured()) {
-        toast.error("Out-of-app push isn't configured yet (missing VAPID key). In-app alerts only.");
+        toast.error(
+          "Out-of-app push isn't configured yet (missing VAPID key). In-app alerts only.",
+        );
         announcePushPref(true);
         return;
       }
       const ok = await ensurePushSubscription();
       if (ok) {
         toast.success("Notifications enabled — you'll get alerts even when the app is closed");
-        pushStatus().then(setPushState).catch(() => undefined);
+        pushStatus()
+          .then(setPushState)
+          .catch(() => undefined);
       } else if (pushPermission() === "denied") {
         toast.error("Notifications are blocked in your browser settings");
       } else {
@@ -301,9 +331,13 @@ const toggleOffline = () => {
         `configured=${res.configured} devices=${status.devices} sent=${res.sent} source=${status.source} endpoint=${diag?.endpointHost ?? "none"}`,
       );
       if (res.sent > 0) {
-        toast.success(`Test sent to ${res.sent} device${res.sent === 1 ? "" : "s"} — check your tray`);
+        toast.success(
+          `Test sent to ${res.sent} device${res.sent === 1 ? "" : "s"} — check your tray`,
+        );
       } else {
-        toast.error("Test couldn't be delivered. The saved subscription may be stale — tap Enable again.");
+        toast.error(
+          "Test couldn't be delivered. The saved subscription may be stale — tap Enable again.",
+        );
       }
     } catch (e) {
       setLastTest(`error: ${e instanceof Error ? e.message : "unknown"}`);
@@ -312,18 +346,22 @@ const toggleOffline = () => {
       setTestingPush(false);
     }
   };
- const changeTheme = (t: string) => {
-  setTheme(t);
-  writePref("theme", t);
-  toast.success(`Theme: ${t}`);
-};
+  const changeTheme = (t: string) => {
+    setTheme(t);
+    writePref("theme", t);
+    toast.success(`Theme: ${t}`);
+  };
   if (auth.ready && !auth.user) {
     return (
       <div className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-background p-6 text-center">
         <p className="font-display text-2xl">Settings</p>
-        <p className="max-w-sm text-muted-foreground">Sign in to manage your profile, username, and account preferences.</p>
+        <p className="max-w-sm text-muted-foreground">
+          Sign in to manage your profile, username, and account preferences.
+        </p>
         <Button onClick={auth.signIn}>Sign in</Button>
-        <Link to="/" className="text-sm text-muted-foreground">Back to home</Link>
+        <Link to="/" className="text-sm text-muted-foreground">
+          Back to home
+        </Link>
       </div>
     );
   }
@@ -342,7 +380,9 @@ const toggleOffline = () => {
           </button>
           <h1 className="font-display text-2xl">Subscriptions</h1>
         </div>
-        <Suspense fallback={<p className="px-4 pt-4 text-sm text-muted-foreground">Loading plans…</p>}>
+        <Suspense
+          fallback={<p className="px-4 pt-4 text-sm text-muted-foreground">Loading plans…</p>}
+        >
           <SubscriptionsPanel handle={auth.handle} onSignIn={auth.signIn} />
         </Suspense>
       </div>
@@ -352,7 +392,11 @@ const toggleOffline = () => {
   return (
     <div className="mx-auto max-w-xl px-4 pb-10 pt-6 space-y-6">
       <div className="flex items-center gap-3">
-        <Link to="/" aria-label="Back to home" className="text-muted-foreground hover:text-foreground">
+        <Link
+          to="/"
+          aria-label="Back to home"
+          className="text-muted-foreground hover:text-foreground"
+        >
           <ArrowLeft className="h-5 w-5" />
         </Link>
         <h1 className="font-display text-2xl">Settings</h1>
@@ -361,7 +405,11 @@ const toggleOffline = () => {
       <div className="rounded-2xl border bg-card p-4">
         <div className="flex items-center gap-4">
           {auth.avatar ? (
-            <img src={auth.avatar} alt={auth.name ?? "Profile avatar"} className="h-14 w-14 rounded-full object-cover" />
+            <img
+              src={auth.avatar}
+              alt={auth.name ?? "Profile avatar"}
+              className="h-14 w-14 rounded-full object-cover"
+            />
           ) : (
             <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary font-display text-xl uppercase text-primary-foreground">
               {auth.name?.[0] ?? "U"}
@@ -374,7 +422,11 @@ const toggleOffline = () => {
         </div>
 
         <div className="mt-4 grid grid-cols-1 gap-2 md:grid-cols-2">
-          <Button variant="outline" className="w-full justify-start" onClick={() => setEditing(true)}>
+          <Button
+            variant="outline"
+            className="w-full justify-start"
+            onClick={() => setEditing(true)}
+          >
             <Pencil className="mr-2 h-4 w-4" />
             Edit profile
           </Button>
@@ -462,10 +514,18 @@ const toggleOffline = () => {
       {/* Username editor */}
       <div className="rounded-2xl border bg-card p-4">
         <h2 className="font-semibold">Username</h2>
-        <p className="mt-1 text-sm text-muted-foreground">Your handle is how others find you. It must be unique.</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Your handle is how others find you. It must be unique.
+        </p>
         <div className="mt-3 flex gap-2">
-          <input value={newHandle} onChange={(e) => setNewHandle(e.target.value)} className="min-w-0 flex-1 rounded-md border bg-background px-3 py-2 text-sm" />
-          <Button onClick={saveHandle} disabled={updatingHandle}>{updatingHandle ? "Saving..." : "Save"}</Button>
+          <input
+            value={newHandle}
+            onChange={(e) => setNewHandle(e.target.value)}
+            className="min-w-0 flex-1 rounded-md border bg-background px-3 py-2 text-sm"
+          />
+          <Button onClick={saveHandle} disabled={updatingHandle}>
+            {updatingHandle ? "Saving..." : "Save"}
+          </Button>
         </div>
       </div>
 
@@ -474,16 +534,32 @@ const toggleOffline = () => {
         <h2 className="font-semibold">Privacy</h2>
         <p className="mt-1 text-sm text-muted-foreground">Manage blocked users.</p>
         <div className="mt-3 flex gap-2">
-          <input value={blockTarget} onChange={(e) => setBlockTarget(e.target.value)} placeholder="@username to block" className="min-w-0 flex-1 rounded-md border bg-background px-3 py-2 text-sm" />
-          <Button onClick={() => doBlock(blockTarget)} disabled={blocking}>{blocking ? "Blocking..." : "Block"}</Button>
+          <input
+            value={blockTarget}
+            onChange={(e) => setBlockTarget(e.target.value)}
+            placeholder="@username to block"
+            className="min-w-0 flex-1 rounded-md border bg-background px-3 py-2 text-sm"
+          />
+          <Button onClick={() => doBlock(blockTarget)} disabled={blocking}>
+            {blocking ? "Blocking..." : "Block"}
+          </Button>
         </div>
         <div className="mt-3 space-y-2">
-          {blocked.length === 0 ? <p className="text-sm text-muted-foreground">No blocked users</p> : blocked.map((b) => (
-            <div key={b} className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
-              <div className="text-sm">@{b}</div>
-              <button onClick={() => doUnblock(b)} className="text-sm text-primary">Unblock</button>
-            </div>
-          ))}
+          {blocked.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No blocked users</p>
+          ) : (
+            blocked.map((b) => (
+              <div
+                key={b}
+                className="flex items-center justify-between rounded-md border bg-background px-3 py-2"
+              >
+                <div className="text-sm">@{b}</div>
+                <button onClick={() => doUnblock(b)} className="text-sm text-primary">
+                  Unblock
+                </button>
+              </div>
+            ))
+          )}
         </div>
       </div>
 
@@ -495,13 +571,23 @@ const toggleOffline = () => {
         </div>
         <p className="mt-1 text-sm text-muted-foreground">Turn all notifications on or off.</p>
         <div className="mt-3 flex gap-2">
-          <button onClick={() => toggleNotifications(true)} className={`rounded-md px-3 py-2 ${notificationsEnabled ? "bg-primary text-primary-foreground" : "border bg-background"}`}>
+          <button
+            onClick={() => toggleNotifications(true)}
+            className={`rounded-md px-3 py-2 ${notificationsEnabled ? "bg-primary text-primary-foreground" : "border bg-background"}`}
+          >
             Enable
           </button>
-          <button onClick={() => toggleNotifications(false)} className={`rounded-md px-3 py-2 ${!notificationsEnabled ? "bg-primary text-primary-foreground" : "border bg-background"}`}>
+          <button
+            onClick={() => toggleNotifications(false)}
+            className={`rounded-md px-3 py-2 ${!notificationsEnabled ? "bg-primary text-primary-foreground" : "border bg-background"}`}
+          >
             Disable
           </button>
-          <button onClick={runPushTest} disabled={testingPush} className="rounded-md border bg-background px-3 py-2 disabled:opacity-50">
+          <button
+            onClick={runPushTest}
+            disabled={testingPush}
+            className="rounded-md border bg-background px-3 py-2 disabled:opacity-50"
+          >
             {testingPush ? "Sending…" : "Send test"}
           </button>
         </div>
@@ -514,202 +600,286 @@ const toggleOffline = () => {
                 : "Push is configured, but this device isn't registered yet. Tap Enable."}
           </p>
         )}
-        {deviceHint && (
-          <p className="mt-1 text-xs text-amber-500">{deviceHint}</p>
-        )}
+        {deviceHint && <p className="mt-1 text-xs text-amber-500">{deviceHint}</p>}
         {lastTest && (
-          <p className="mt-1 break-words font-mono text-[11px] text-muted-foreground">
-            {lastTest}
-          </p>
+          <p className="mt-1 break-words font-mono text-[11px] text-muted-foreground">{lastTest}</p>
         )}
       </div>
-             <div className="rounded-lg border bg-card p-6">
-          <h2 className="font-semibold">Social Links - Add to Your Profile</h2>
-          <p className="mt-1 text-sm text-muted-foreground"> add your links </p>
-          <div className="mt-3 space-y-3">
-            <div className="flex gap-2">
-              <span className="flex items-center rounded-md border bg-muted px-3 text-sm">TikTok</span>
-              <input 
-                value={tiktokLink} 
-                onChange={(e) => setTiktokLink(e.target.value)} 
-                placeholder="https://tiktok.com/@yourname" 
-                className="flex-1 rounded-md border bg-background p-2" 
-              />
-            </div>
-            <div className="flex gap-2">
-              <span className="flex items-center rounded-md border bg-muted px-3 text-sm">IG</span>
-              <input 
-                value={instagramLink} 
-                onChange={(e) => setInstagramLink(e.target.value)} 
-                placeholder="https://instagram.com/yourname" 
-                className="flex-1 rounded-md border bg-background p-2" 
-              />
-            </div>
-            <div className="flex gap-2">
-              <span className="flex items-center rounded-md border bg-muted px-3 text-sm">YouTube</span>
-              <input 
-                value={youtubeLink} 
-                onChange={(e) => setYoutubeLink(e.target.value)} 
-                placeholder="https://youtube.com/@yourname" 
-                className="flex-1 rounded-md border bg-background p-2" 
-              />
-            </div>
-            <button onClick={saveLinks} style={{backgroundColor: "black", color: "white"}} className="rounded-md px-4 py-2 font-medium">
-              Save Links to Profile
-            </button>
-            {tiktokLink && (
-              <div className="mt-2 flex gap-2">
-                <a href={tiktokLink} target="_blank" style={{backgroundColor: "black", color: "white"}} className="rounded-md px-3 py-1 text-xs">View TikTok</a>
-                <span className="text-xs text-muted-foreground truncate">{tiktokLink}</span>
-              </div>
-            )}
-          </div>
-        </div> 
-{/* DIFFERENT MESSAGE SETTINGS - BLACK + WHITE */}
-<div className="rounded-xl p-4 mb-4 shadow-sm" style={{backgroundColor:"black", color:"white"}}>
-  <h2 className="font-bold text- mb-1" style={{color:"white"}}>💬 Message Privacy</h2>
-  <p className="text- mb-4" style={{color:"#9ca3af"}}>Different settings like TikTok</p>
-
-  <p className="font-bold text- mb-2" style={{color:"white"}}>Who can DM you</p>
-  <div className="flex flex-col gap-2 mb-5">
-    {[
-      { id: "everyone", label: "Everyone" },
-      { id: "friends", label: "Friends" },
-      { id: "mutuals", label: "Friends of friends" },
-      { id: "noone", label: "No one" },
-    ].map(o=>(
-      <button key={o.id} onClick={()=>{setMessagePrivacy(o.id); localStorage.setItem("messagePrivacy", o.id);}} className="flex justify-between p-3 rounded-xl border text-left" style={{background:messagePrivacy===o.id ? "white" : "#1f1f1f", color:messagePrivacy===o.id ? "black" : "white", borderColor:"#333"}}>
-        <span className="font-medium text-">{o.label}</span>
-        <div className="h-5 w-5 rounded-full border-2 flex items-center justify-center" style={{borderColor: messagePrivacy===o.id ? "black" : "#666"}}>
-          {messagePrivacy===o.id && <div className="h-2 w-2 bg-black rounded-full" />}
-        </div>
-      </button>
-    ))}
-  </div>
-
-  <p className="font-bold text- mb-2" style={{color:"white"}}>Message requests</p>
-  <div className="flex gap-2 mb-5">
-    {["all","filtered","off"].map(id=>(
-      <button key={id} onClick={()=>{setMessageFilter(id); localStorage.setItem("messageFilter", id);}} className="flex-1 py-2 rounded-full font-bold text- border" style={{backgroundColor: messageFilter===id ? "white" : "#1f1f1f", color: messageFilter===id ? "black" : "white", borderColor: "#333"}}>{id}</button>
-    ))}
-  </div>
-
-  <div className="border-t" style={{borderColor:"#333"}}>
-    <div className="flex justify-between items-center py-3">
-      <div><div className="font-medium text-" style={{color:"white"}}>Allow DMs</div><div className="text-" style={{color:"#9ca3af"}}>Let others message you</div></div>
-      <button onClick={()=>{const v=!allowDM; setAllowDM(v); localStorage.setItem("allowDM", String(v));}} className="h-7 w-12 rounded-full p-1" style={{backgroundColor: allowDM ? "white" : "#333"}}><div className="h-5 w-5 rounded-full transition" style={{backgroundColor: allowDM ? "black" : "white", transform: allowDM ? "translateX(20px)" : "translateX(0)"}} /></button>
-    </div>
-    <div className="flex justify-between items-center py-3 border-t" style={{borderColor:"#333"}}>
-      <div><div className="font-medium text-" style={{color:"white"}}>Read receipts</div><div className="text-" style={{color:"#9ca3af"}}>Show when read</div></div>
-      <button onClick={()=>{const v=!readReceipts; setReadReceipts(v); localStorage.setItem("readReceipts", String(v));}} className="h-7 w-12 rounded-full p-1" style={{backgroundColor: readReceipts ? "white" : "#333"}}><div className="h-5 w-5 rounded-full transition" style={{backgroundColor: readReceipts ? "black" : "white", transform: readReceipts ? "translateX(20px)" : "translateX(0)"}} /></button>
-    </div>
-  </div>
-</div>
-              <div className="rounded-lg border bg-card p-6">
-          <h2 className="font-semibold">Phone Number</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Add your phone number to your account </p>
-          <div className="mt-3 flex gap-2">
-            <input 
-              value={phone} 
-              onChange={(e) => setPhone(e.target.value)} 
-              placeholder="+1 (555) 000-0000" 
-              type="tel"
-              className="flex-1 rounded-md border bg-background p-2" 
-            />
-            <button onClick={savePhone} style={{backgroundColor: "black", color: "white"}} className="rounded-md px-4 py-2 font-medium">
-              Save
-            </button>
-          </div>
-          {phone && <p className="mt-2 text-xs text-muted-foreground">Saved: {phone}</p>}
-        </div>
-<div className="rounded-lg border bg-card p-6">
-  <div className="flex items-center gap-2">
-    <h2 className="font-semibold">Offline Mode</h2>
-    {!offlineUnlocked && (
-      <span className="rounded-full border px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-        Plus
-      </span>
-    )}
-  </div>
-
-  {offlineUnlocked ? (
-    <>
-      <p className="mt-1 text-sm text-muted-foreground">Save videos and watch them without a connection.</p>
-      <div className="mt-3 flex items-center gap-3">
-        <button onClick={toggleOffline} style={{backgroundColor: offlineMode ? "#16a34a" : "black", color: "white"}} className="rounded-md px-4 py-2 font-medium">
-          {offlineMode ? "ON" : "OFF"}
-        </button>
-        <button onClick={() => window.location.href = "/offline"} style={{backgroundColor: "black", color: "white"}} className="rounded-md px-4 py-2 font-medium">
-          View Offline Videos →
-        </button>
-      </div>
-      <p className="mt-2 text-xs text-muted-foreground">
-        {offlineMode ? "Tap View to see your saved videos" : "Turn ON first, then view"}
-      </p>
-    </>
-  ) : (
-    <>
-      <p className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
-        <Lock className="h-4 w-4" />
-        Offline mode is a Plus feature. Subscribe to save videos and watch them without a connection.
-      </p>
-      <div className="mt-3 flex flex-wrap items-center gap-3">
-        <button
-          onClick={() => setShowSubscriptions(true)}
-          style={{backgroundColor: "black", color: "white"}}
-          className="rounded-md px-4 py-2 font-medium"
-        >
-          Get Plus — ${offlinePrice.toFixed(2)}/mo
-        </button>
-        <button onClick={() => window.location.href = "/offline"} className="rounded-md border px-4 py-2 font-medium">
-          See what's included
-        </button>
-      </div>
-      <p className="mt-2 text-xs text-muted-foreground">
-        {subscription?.status === "expired" || subscription?.status === "pending"
-          ? "Your subscription isn't active, so offline mode is locked."
-          : "Already subscribed? Offline mode unlocks as soon as your plan is active."}
-      </p>
-    </>
-  )}
-</div>
-   {/* Video quality */}
-<div className="rounded-2xl border bg-card p-4">
-  <h2 className="font-semibold">Video Quality</h2>
-  <p className="mt-1 text-sm text-muted-foreground">
-    Auto adjusts based on your connection — like TikTok.
-  </p>
-  <div className="mt-3 space-y-1.5">
-    {QUALITY_OPTIONS.map((option) => {
-      const active = videoQuality === option.id;
-      return (
-        <button
-          key={option.id}
-          type="button"
-          onClick={() => {
-            setVideoQuality(option.id);
-            toast.success(`Video quality set to ${option.label}`);
-          }}
-          aria-pressed={active}
-          className={`flex w-full items-center justify-between gap-3 rounded-md border px-3 py-2 text-left transition ${
-            active ? "border-primary bg-primary/10" : "bg-background hover:bg-accent"
-          }`}
-        >
-          <span className="min-w-0">
-            <span className="block text-sm font-medium">
-              {option.label}
-              {option.id === "auto" ? " (recommended)" : ""}
+      <div className="rounded-lg border bg-card p-6">
+        <h2 className="font-semibold">Social Links - Add to Your Profile</h2>
+        <p className="mt-1 text-sm text-muted-foreground"> add your links </p>
+        <div className="mt-3 space-y-3">
+          <div className="flex gap-2">
+            <span className="flex items-center rounded-md border bg-muted px-3 text-sm">
+              TikTok
             </span>
-            {option.hint && (
-              <span className="block text-xs text-muted-foreground">{option.hint}</span>
-            )}
+            <input
+              value={tiktokLink}
+              onChange={(e) => setTiktokLink(e.target.value)}
+              placeholder="https://tiktok.com/@yourname"
+              className="flex-1 rounded-md border bg-background p-2"
+            />
+          </div>
+          <div className="flex gap-2">
+            <span className="flex items-center rounded-md border bg-muted px-3 text-sm">IG</span>
+            <input
+              value={instagramLink}
+              onChange={(e) => setInstagramLink(e.target.value)}
+              placeholder="https://instagram.com/yourname"
+              className="flex-1 rounded-md border bg-background p-2"
+            />
+          </div>
+          <div className="flex gap-2">
+            <span className="flex items-center rounded-md border bg-muted px-3 text-sm">
+              YouTube
+            </span>
+            <input
+              value={youtubeLink}
+              onChange={(e) => setYoutubeLink(e.target.value)}
+              placeholder="https://youtube.com/@yourname"
+              className="flex-1 rounded-md border bg-background p-2"
+            />
+          </div>
+          <button
+            onClick={saveLinks}
+            style={{ backgroundColor: "black", color: "white" }}
+            className="rounded-md px-4 py-2 font-medium"
+          >
+            Save Links to Profile
+          </button>
+          {tiktokLink && (
+            <div className="mt-2 flex gap-2">
+              <a
+                href={tiktokLink}
+                target="_blank"
+                style={{ backgroundColor: "black", color: "white" }}
+                className="rounded-md px-3 py-1 text-xs"
+              >
+                View TikTok
+              </a>
+              <span className="text-xs text-muted-foreground truncate">{tiktokLink}</span>
+            </div>
+          )}
+        </div>
+      </div>
+      {/* DIFFERENT MESSAGE SETTINGS - BLACK + WHITE */}
+      <div
+        className="rounded-xl p-4 mb-4 shadow-sm"
+        style={{ backgroundColor: "black", color: "white" }}
+      >
+        <h2 className="font-bold text- mb-1" style={{ color: "white" }}>
+          💬 Message Privacy
+        </h2>
+        <p className="text- mb-4" style={{ color: "#9ca3af" }}>
+          Different settings like TikTok
+        </p>
+
+        <p className="font-bold text- mb-2" style={{ color: "white" }}>
+          Who can DM you
+        </p>
+        <div className="flex flex-col gap-2 mb-5">
+          {[
+            { id: "everyone", label: "Everyone" },
+            { id: "friends", label: "Friends" },
+            { id: "mutuals", label: "Friends of friends" },
+            { id: "noone", label: "No one" },
+          ].map((o) => (
+            <button
+              key={o.id}
+              onClick={() => {
+                setMessagePrivacy(o.id);
+                localStorage.setItem("messagePrivacy", o.id);
+              }}
+              className="flex justify-between p-3 rounded-xl border text-left"
+              style={{
+                background: messagePrivacy === o.id ? "white" : "#1f1f1f",
+                color: messagePrivacy === o.id ? "black" : "white",
+                borderColor: "#333",
+              }}
+            >
+              <span className="font-medium text-">{o.label}</span>
+              <div
+                className="h-5 w-5 rounded-full border-2 flex items-center justify-center"
+                style={{ borderColor: messagePrivacy === o.id ? "black" : "#666" }}
+              >
+                {messagePrivacy === o.id && <div className="h-2 w-2 bg-black rounded-full" />}
+              </div>
+            </button>
+          ))}
+        </div>
+
+        <p className="font-bold text- mb-2" style={{ color: "white" }}>
+          Message requests
+        </p>
+        <div className="flex gap-2 mb-5">
+          {["all", "filtered", "off"].map((id) => (
+            <button
+              key={id}
+              onClick={() => {
+                setMessageFilter(id);
+                localStorage.setItem("messageFilter", id);
+              }}
+              className="flex-1 py-2 rounded-full font-bold text- border"
+              style={{
+                backgroundColor: messageFilter === id ? "white" : "#1f1f1f",
+                color: messageFilter === id ? "black" : "white",
+                borderColor: "#333",
+              }}
+            >
+              {id}
+            </button>
+          ))}
+        </div>
+
+        <div className="border-t" style={{ borderColor: "#333" }}>
+          <div className="flex justify-between items-center py-3">
+            <div>
+              <div className="font-medium text-" style={{ color: "white" }}>
+                Allow DMs
+              </div>
+              <div className="text-" style={{ color: "#9ca3af" }}>
+                Let others message you
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                const v = !allowDM;
+                setAllowDM(v);
+                localStorage.setItem("allowDM", String(v));
+              }}
+              className="h-7 w-12 rounded-full p-1"
+              style={{ backgroundColor: allowDM ? "white" : "#333" }}
+            >
+              <div
+                className="h-5 w-5 rounded-full transition"
+                style={{
+                  backgroundColor: allowDM ? "black" : "white",
+                  transform: allowDM ? "translateX(20px)" : "translateX(0)",
+                }}
+              />
+            </button>
+          </div>
+          <div
+            className="flex justify-between items-center py-3 border-t"
+            style={{ borderColor: "#333" }}
+          >
+            <div>
+              <div className="font-medium text-" style={{ color: "white" }}>
+                Read receipts
+              </div>
+              <div className="text-" style={{ color: "#9ca3af" }}>
+                Show when read
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                const v = !readReceipts;
+                setReadReceipts(v);
+                localStorage.setItem("readReceipts", String(v));
+              }}
+              className="h-7 w-12 rounded-full p-1"
+              style={{ backgroundColor: readReceipts ? "white" : "#333" }}
+            >
+              <div
+                className="h-5 w-5 rounded-full transition"
+                style={{
+                  backgroundColor: readReceipts ? "black" : "white",
+                  transform: readReceipts ? "translateX(20px)" : "translateX(0)",
+                }}
+              />
+            </button>
+          </div>
+        </div>
+      </div>
+      <div className="rounded-lg border bg-card p-6">
+        <h2 className="font-semibold">Phone Number</h2>
+        <p className="mt-1 text-sm text-muted-foreground">Add your phone number to your account </p>
+        <div className="mt-3 flex gap-2">
+          <input
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="+1 (555) 000-0000"
+            type="tel"
+            className="flex-1 rounded-md border bg-background p-2"
+          />
+          <button
+            onClick={savePhone}
+            style={{ backgroundColor: "black", color: "white" }}
+            className="rounded-md px-4 py-2 font-medium"
+          >
+            Save
+          </button>
+        </div>
+        {phone && <p className="mt-2 text-xs text-muted-foreground">Saved: {phone}</p>}
+      </div>
+      <div className="rounded-lg border bg-card p-6">
+        <div className="flex items-center gap-2">
+          <h2 className="font-semibold">Offline Mode</h2>
+          <span className="rounded-full border px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+            Free
           </span>
-          {active && <span className="shrink-0 text-primary">✓</span>}
-        </button>
-      );
-    })}
-  </div>
-</div>
+        </div>
+
+        <p className="mt-1 text-sm text-muted-foreground">
+          Save videos and watch them without a connection.
+        </p>
+        <div className="mt-3 flex items-center gap-3">
+          <button
+            onClick={toggleOffline}
+            style={{ backgroundColor: offlineMode ? "#16a34a" : "black", color: "white" }}
+            className="rounded-md px-4 py-2 font-medium"
+          >
+            {offlineMode ? "ON" : "OFF"}
+          </button>
+          <button
+            onClick={() => (window.location.href = "/offline")}
+            style={{ backgroundColor: "black", color: "white" }}
+            className="rounded-md px-4 py-2 font-medium"
+          >
+            View Offline Videos →
+          </button>
+        </div>
+        <p className="mt-2 text-xs text-muted-foreground">
+          {offlineMode ? "Tap View to see your saved videos" : "Turn ON first, then view"}
+        </p>
+      </div>
+      {/* Video quality */}
+      <div className="rounded-2xl border bg-card p-4">
+        <h2 className="font-semibold">Video Quality</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Auto adjusts based on your connection — like TikTok.
+        </p>
+        <div className="mt-3 space-y-1.5">
+          {QUALITY_OPTIONS.map((option) => {
+            const active = videoQuality === option.id;
+            return (
+              <button
+                key={option.id}
+                type="button"
+                onClick={() => {
+                  setVideoQuality(option.id);
+                  toast.success(`Video quality set to ${option.label}`);
+                }}
+                aria-pressed={active}
+                className={`flex w-full items-center justify-between gap-3 rounded-md border px-3 py-2 text-left transition ${
+                  active ? "border-primary bg-primary/10" : "bg-background hover:bg-accent"
+                }`}
+              >
+                <span className="min-w-0">
+                  <span className="block text-sm font-medium">
+                    {option.label}
+                    {option.id === "auto" ? " (recommended)" : ""}
+                  </span>
+                  {option.hint && (
+                    <span className="block text-xs text-muted-foreground">{option.hint}</span>
+                  )}
+                </span>
+                {active && <span className="shrink-0 text-primary">✓</span>}
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
       {/* Appearance */}
       <div className="rounded-2xl border bg-card p-4">

@@ -8,12 +8,11 @@ import {
   updatePaymentMethod,
   type PaymentMethod,
 } from "@/lib/subscriptions";
-import { PLANS, offlinePlan, planIncludesOffline } from "@/lib/plans";
+import { PLANS, planIncludesOffline } from "@/lib/plans";
 
 /**
- * Offline mode is a paid perk: it starts with Plus and every higher
- * tier inherits it. These tests pin the gate down so a future refactor can't
- * quietly hand offline downloads to free accounts.
+ * Offline mode is free for everyone. These tests pin that down so a future
+ * refactor can't quietly put downloads back behind a paywall.
  */
 
 const H = "offline-tester";
@@ -40,63 +39,57 @@ function subscribe(planId = "plus") {
 }
 
 describe("planIncludesOffline", () => {
-  it("unlocks offline for Plus, Pro and VIP", () => {
+  it("is free for every plan", () => {
     expect(planIncludesOffline("plus")).toBe(true);
     expect(planIncludesOffline("pro")).toBe(true);
     expect(planIncludesOffline("vip")).toBe(true);
   });
 
-  it("does not unlock offline for unknown or missing plans", () => {
-    expect(planIncludesOffline("free")).toBe(false);
-    expect(planIncludesOffline(undefined)).toBe(false);
-    expect(planIncludesOffline(null)).toBe(false);
+  it("is free even with no plan at all", () => {
+    expect(planIncludesOffline("free")).toBe(true);
+    expect(planIncludesOffline(undefined)).toBe(true);
+    expect(planIncludesOffline(null)).toBe(true);
   });
 
-  it("advertises offline downloads on the Plus plan", () => {
-    const plus = PLANS.find((p) => p.id === "plus")!;
-    expect(plus.price).toBe(7.99);
-    expect(plus.perks).toContain("Offline downloads");
-  });
-
-  it("points upgrade prompts at the cheapest offline plan", () => {
-    expect(offlinePlan().id).toBe("plus");
-    expect(offlinePlan().price).toBe(7.99);
+  it("does not sell offline downloads as a plan perk", () => {
+    for (const plan of PLANS) {
+      expect(plan.perks).not.toContain("Offline downloads");
+    }
   });
 });
 
 describe("hasOfflineAccess", () => {
-  it("locks a signed-out visitor", () => {
-    expect(hasOfflineAccess(null)).toBe(false);
-    expect(hasOfflineAccess(undefined)).toBe(false);
-    expect(offlineLockReason(null)).toBe("signed-out");
+  it("is free for a signed-out visitor", () => {
+    expect(hasOfflineAccess(null)).toBe(true);
+    expect(hasOfflineAccess(undefined)).toBe(true);
+    expect(offlineLockReason(null)).toBeNull();
   });
 
-  it("locks a signed-in user with no plan", () => {
-    expect(hasOfflineAccess(H)).toBe(false);
-    expect(offlineLockReason(H)).toBe("no-plan");
+  it("is free for a signed-in user with no plan", () => {
+    expect(hasOfflineAccess(H)).toBe(true);
+    expect(offlineLockReason(H)).toBeNull();
   });
 
-  it("unlocks on an active paid subscription", () => {
+  it("stays free on an active paid subscription", () => {
     subscribe("plus");
     expect(hasOfflineAccess(H)).toBe(true);
     expect(offlineLockReason(H)).toBeNull();
   });
 
-  it("locks while a payment is still pending", () => {
+  it("stays free while a payment is still pending", () => {
     requestPayment(H, "plus");
     updatePaymentMethod(H, CARD);
-    expect(hasOfflineAccess(H)).toBe(false);
-    expect(offlineLockReason(H)).toBe("expired");
-  });
-
-  it("locks again when the subscription is cancelled", () => {
-    subscribe("plus");
     expect(hasOfflineAccess(H)).toBe(true);
-    cancelSubscription(H);
-    expect(hasOfflineAccess(H)).toBe(false);
+    expect(offlineLockReason(H)).toBeNull();
   });
 
-  it("locks a legacy trial record, since trials are gone", () => {
+  it("stays free when the subscription is cancelled", () => {
+    subscribe("plus");
+    cancelSubscription(H);
+    expect(hasOfflineAccess(H)).toBe(true);
+  });
+
+  it("stays free on a legacy trial record", () => {
     localStorage.setItem(
       `subscription:${H}`,
       JSON.stringify({
@@ -108,8 +101,8 @@ describe("hasOfflineAccess", () => {
         paymentMethod: CARD,
       }),
     );
-    expect(hasOfflineAccess(H)).toBe(false);
-    expect(offlineLockReason(H)).toBe("expired");
+    expect(hasOfflineAccess(H)).toBe(true);
+    expect(offlineLockReason(H)).toBeNull();
   });
 });
 

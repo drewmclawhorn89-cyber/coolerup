@@ -1,4 +1,4 @@
-import { Check, Copy, Download, Loader2, Lock, Share2, Trash2, WifiOff, X } from "lucide-react";
+import { Check, Copy, Download, Loader2, Share2, Trash2, WifiOff, X } from "lucide-react";
 import { toast } from "sonner";
 import { formatBytes } from "@/lib/offline";
 import { useFullVideoOffline } from "@/lib/useFullVideoOffline";
@@ -19,7 +19,7 @@ export function FullVideoShareMenu({
   onClose: () => void;
   onShared?: () => void;
 }) {
-  const { savedSize, progress, isSaved, offlineUnlocked, toggle } = useFullVideoOffline(video);
+  const { savedSize, progress, isSaved, toggle } = useFullVideoOffline(video);
 
   const url = typeof window !== "undefined" ? `${window.location.origin}/watch/${video.id}` : "";
 
@@ -99,9 +99,7 @@ export function FullVideoShareMenu({
       ? `Saving ${progress}%`
       : isSaved
         ? `Saved · ${formatBytes(savedSize ?? 0)}`
-        : offlineUnlocked
-          ? "Offline mode"
-          : "Offline · Plus";
+        : "Offline mode";
 
   return (
     <div
@@ -178,10 +176,8 @@ export function FullVideoShareMenu({
                 <Loader2 size={22} className="animate-spin" />
               ) : isSaved ? (
                 <Check size={22} />
-              ) : offlineUnlocked ? (
-                <WifiOff size={22} />
               ) : (
-                <Lock size={22} className="text-zinc-400" />
+                <WifiOff size={22} />
               )}
             </div>
             <span className="max-w-[5rem] truncate text-xs text-zinc-300">{offlineLabel}</span>

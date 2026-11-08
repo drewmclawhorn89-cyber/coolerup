@@ -20,6 +20,8 @@ import { FullVideoCard } from "@/components/FullVideoCard";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { getPendingVideo } from "@/lib/pendingUploads";
+import { getOfflineVideo, type OfflineVideoMeta } from "@/lib/db";
+import { getOfflinePlaybackUrl } from "@/lib/offline";
 import { useFullVideoSave } from "@/lib/savedFullVideos";
 import {
   addComment,
@@ -56,6 +58,29 @@ export const Route = createFileRoute("/watch/$id")({
   component: WatchPage,
 });
 
+/**
+ * Turn an IndexedDB offline record back into the shape the page renders.
+ * The player only needs the fields below; engagement counts stay at zero
+ * because there is no network to fetch them from.
+ */
+function offlineMetaToVideo(meta: OfflineVideoMeta): FullVideo {
+  return {
+    id: meta.video_id,
+    user_id: "",
+    username: meta.username,
+    title: meta.title,
+    description: "",
+    video_url: meta.video_url,
+    thumbnail_url: meta.thumbnail,
+    duration: meta.duration,
+    views: 0,
+    category: "",
+    tags: [],
+    status: "ready",
+    created_at: new Date(meta.downloaded_at).toISOString(),
+  };
+}
+
 function WatchPage() {
   const { id } = useParams({ from: "/watch/$id" });
   const auth = useAuth();
@@ -90,6 +115,24 @@ function WatchPage() {
   const [replyTo, setReplyTo] = useState<FullVideoComment | null>(null);
 
   const viewCounted = useRef(false);
+  /** Blob URL created for offline playback, revoked when the page changes. */
+  const offlineBlobRef = useRef<string | null>(null);
+
+  /** Play a downloaded copy from Cache Storage. Returns false when absent. */
+  const playOfflineCopy = async (videoId: string): Promise<boolean> => {
+    const meta = await getOfflineVideo(videoId).catch(() => null);
+    if (!meta) return false;
+    const blobUrl = await getOfflinePlaybackUrl(meta.video_url).catch(() => null);
+    if (!blobUrl) return false;
+    if (offlineBlobRef.current) URL.revokeObjectURL(offlineBlobRef.current);
+    offlineBlobRef.current = blobUrl;
+    setVideo(offlineMetaToVideo(meta));
+    setSrc(blobUrl);
+    setPoster("");
+    setRenditions({});
+    setLoading(false);
+    return true;
+  };
 
   /* ---------------- load video ---------------- */
 
@@ -100,6 +143,18 @@ function WatchPage() {
     viewCounted.current = false;
 
     void (async () => {
+      // No connection: skip Supabase entirely and play the cached copy.
+      const offline = typeof navigator !== "undefined" && navigator.onLine === false;
+      if (offline) {
+        const played = await playOfflineCopy(id);
+        if (!alive) return;
+        if (!played) {
+          setError("Need internet to play this video");
+          setLoading(false);
+        }
+        return;
+      }
+
       try {
         const row = await getFullVideo(id);
         if (!alive) return;
@@ -143,7 +198,13 @@ function WatchPage() {
         const rows = await listComments(row.id, auth.user?.id ?? null);
         if (alive) setComments(rows);
       } catch (err) {
-        if (alive) setError(err instanceof Error ? err.message : "Could not load this video.");
+        // Network died mid-load (or the request failed). Fall back to the
+        // downloaded copy if this video has one.
+        const played = await playOfflineCopy(id);
+        if (!alive) return;
+        if (!played) {
+          setError(err instanceof Error ? err.message : "Could not load this video.");
+        }
       } finally {
         if (alive) setLoading(false);
       }
@@ -153,6 +214,18 @@ function WatchPage() {
       alive = false;
     };
   }, [id, auth.user]);
+
+  // Free the blob URL when leaving the page so downloaded files aren't pinned
+  // in memory for the rest of the session.
+  useEffect(
+    () => () => {
+      if (offlineBlobRef.current) {
+        URL.revokeObjectURL(offlineBlobRef.current);
+        offlineBlobRef.current = null;
+      }
+    },
+    [],
+  );
 
   /* ---------------- poll while the upload finishes ---------------- */
 
@@ -221,6 +294,8 @@ function WatchPage() {
 
   useEffect(() => {
     if (!auth.user || !video) return;
+    // Offline playback has no network to check subscriptions against.
+    if (typeof navigator !== "undefined" && navigator.onLine === false) return;
     let alive = true;
     void (async () => {
       const db = supabase as any;

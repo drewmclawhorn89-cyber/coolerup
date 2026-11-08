@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { Pencil, Play, Loader2 } from "lucide-react";
-import { FullVideoOfflineButton } from "@/components/FullVideoOfflineButton";
+import { OfflineDownloadButton } from "@/components/OfflineDownloadButton";
 import {
   formatDuration,
   formatViews,
@@ -50,7 +50,7 @@ export function FullVideoCard({
           <Pencil className="size-4" />
         </button>
       )}
-      <FullVideoOfflineButton video={video} />
+      <OfflineDownloadButton video={video} />
 
       <Link
         to="/watch/$id"

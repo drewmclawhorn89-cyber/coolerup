@@ -1,5 +1,11 @@
 /* Coolerup service worker: offline app shell + incoming-call push alerts. */
 const CACHE = "coolerup-shell-v4";
+/**
+ * Dedicated bucket for downloaded video files. The app writes to it from
+ * lib/offline.ts; the worker only reads from it, so a <video> request can be
+ * answered with zero signal.
+ */
+const VIDEO_CACHE = "coolerup-videos";
 const SHELL = [
   "/",
   "/manifest.json",
@@ -23,7 +29,15 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches
       .keys()
-      .then((keys) => Promise.all(keys.filter((key) => key !== CACHE).map((key) => caches.delete(key))))
+      .then((keys) =>
+        Promise.all(
+          // Keep both the shell and the downloaded-video bucket; drop stale
+          // versions of everything else.
+          keys
+            .filter((key) => key !== CACHE && key !== VIDEO_CACHE)
+            .map((key) => caches.delete(key)),
+        ),
+      )
       .then(() => self.clients.claim()),
   );
 });
@@ -40,6 +54,32 @@ self.addEventListener("fetch", (event) => {
   if (req.method !== "GET") return;
 
   const url = new URL(req.url);
+
+  // Downloaded videos: serve straight from the `coolerup-videos` bucket so a
+  // <video> element resolves with no connection. This runs before the
+  // cross-origin bail-out because video bytes often come from Supabase.
+  const isVideoRequest =
+    req.destination === "video" ||
+    /\.(?:mp4|m4v|webm|mov|ogv)(?:$|\?)/i.test(url.pathname + url.search);
+  if (isVideoRequest) {
+    event.respondWith(
+      caches.open(VIDEO_CACHE).then((cache) =>
+        cache.match(req).then(
+          (hit) =>
+            hit ||
+            fetch(req).catch(
+              () =>
+                new Response("", {
+                  status: 503,
+                  statusText: "Offline — video not downloaded",
+                }),
+            ),
+        ),
+      ),
+    );
+    return;
+  }
+
   // Never intercept cross-origin requests (Supabase, fonts, Audius). Video
   // bytes are handled by the explicit offline store, not the HTTP cache.
   if (url.origin !== self.location.origin) return;

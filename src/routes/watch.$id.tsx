@@ -7,6 +7,7 @@ import {
   CornerDownRight,
   Download,
   Loader2,
+  Lock,
   Pencil,
   Repeat2,
   Share2,
@@ -15,6 +16,7 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
+import { offlinePlan } from "@/lib/subscriptions";
 import { YouTubePlayer } from "@/components/YouTubePlayer";
 import { EditFullVideoDialog } from "@/components/EditFullVideoDialog";
 import { FullVideoShareMenu } from "@/components/FullVideoShareMenu";
@@ -652,14 +654,18 @@ function WatchPage() {
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : offline.isSaved ? (
                   <Check className="h-4 w-4" />
-                ) : (
+                ) : offline.offlineUnlocked ? (
                   <Download className="h-4 w-4" />
+                ) : (
+                  <Lock className="h-4 w-4" />
                 )}
                 {offline.progress !== null
                   ? `Saving ${offline.progress}%`
                   : offline.isSaved
                     ? "Offline"
-                    : "Download"}
+                    : offline.offlineUnlocked
+                      ? "Download"
+                      : offlinePlan().label}
               </button>
               <button
                 type="button"

@@ -1,8 +1,9 @@
-import { Check, Copy, Download, Loader2, Share2, Trash2, WifiOff, X } from "lucide-react";
+import { Check, Copy, Download, Loader2, Lock, Share2, Trash2, WifiOff, X } from "lucide-react";
 import { toast } from "sonner";
 import { formatBytes } from "@/lib/offline";
 import { useFullVideoOffline } from "@/lib/useFullVideoOffline";
 import { resolveFullVideoUrl, type FullVideo } from "@/lib/fullVideos";
+import { offlinePlan } from "@/lib/subscriptions";
 
 /**
  * Share sheet for long-form videos (the /videos tab and the watch page).
@@ -19,7 +20,7 @@ export function FullVideoShareMenu({
   onClose: () => void;
   onShared?: () => void;
 }) {
-  const { savedSize, progress, isSaved, toggle } = useFullVideoOffline(video);
+  const { savedSize, progress, isSaved, offlineUnlocked, toggle } = useFullVideoOffline(video);
 
   const url = typeof window !== "undefined" ? `${window.location.origin}/watch/${video.id}` : "";
 
@@ -99,7 +100,9 @@ export function FullVideoShareMenu({
       ? `Saving ${progress}%`
       : isSaved
         ? `Saved · ${formatBytes(savedSize ?? 0)}`
-        : "Offline mode";
+        : offlineUnlocked
+          ? "Offline mode"
+          : `${offlinePlan().label} only`;
 
   return (
     <div
@@ -169,15 +172,17 @@ export function FullVideoShareMenu({
           >
             <div
               className={`flex h-14 w-14 items-center justify-center rounded-full text-white ${
-                isSaved ? "bg-emerald-600" : "bg-zinc-800"
+                isSaved ? "bg-emerald-600" : !offlineUnlocked ? "bg-zinc-800/60" : "bg-zinc-800"
               }`}
             >
               {progress !== null ? (
                 <Loader2 size={22} className="animate-spin" />
               ) : isSaved ? (
                 <Check size={22} />
-              ) : (
+              ) : offlineUnlocked ? (
                 <WifiOff size={22} />
+              ) : (
+                <Lock size={22} />
               )}
             </div>
             <span className="max-w-[5rem] truncate text-xs text-zinc-300">{offlineLabel}</span>

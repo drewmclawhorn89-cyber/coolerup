@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 
-import { PLANS, planById, planIncludesOffline, type Plan } from "@/lib/plans";
+import { PLANS, planById, planIncludesOffline, offlinePlan, type Plan } from "@/lib/plans";
 
 export type { Plan };
-export { PLANS, planById, planIncludesOffline };
+export { PLANS, planById, planIncludesOffline, offlinePlan };
 
 export const VENMO_HANDLE = "Drew-McLawhorn-2";
 
@@ -293,21 +293,29 @@ export function isActive(sub: Subscription | null): boolean {
 /* -------------------------------------------------------------------------- */
 
 /**
- * Offline downloads are free for everyone.
+ * Offline downloads are a Pro-and-up perk.
  *
- * This used to require an active paid plan. It no longer does: saving videos
- * for offline viewing is available to every viewer, signed in or not, and a
- * lapsed or missing subscription must never take the library away.
+ * Access requires a live subscription *and* a plan that includes the feature.
+ * Plus does not include offline mode, so a Plus subscriber is locked out just
+ * like a free account. A `pending` or `expired` subscription does not count:
+ * the plan has to be paid and active for the offline library to unlock.
  */
-export function hasOfflineAccess(_handle?: string | null): boolean {
-  return true;
+export function hasOfflineAccess(handle?: string | null): boolean {
+  const sub = getSubscription(handle);
+  if (!isActive(sub)) return false;
+  return planIncludesOffline(sub?.planId);
 }
 
-/** Offline mode is never locked now; kept so callers can keep asking. */
+/** Why offline mode is locked, so the UI can say something useful. */
 export type OfflineLockReason = "signed-out" | "no-plan" | "plan-lacks-offline" | "expired";
 
-export function offlineLockReason(_handle?: string | null): OfflineLockReason | null {
-  return null;
+export function offlineLockReason(handle?: string | null): OfflineLockReason | null {
+  if (hasOfflineAccess(handle)) return null;
+  if (!handle) return "signed-out";
+  const sub = getSubscription(handle);
+  if (!sub) return "no-plan";
+  if (sub.status === "expired" || sub.status === "pending") return "expired";
+  return "plan-lacks-offline";
 }
 
 export function useSubscription(handle?: string | null) {

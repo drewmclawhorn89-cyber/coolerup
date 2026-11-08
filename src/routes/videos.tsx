@@ -4,6 +4,7 @@ import { Loader2, ArrowLeft, Search, Upload, WifiOff } from "lucide-react";
 import { FullVideoCard } from "@/components/FullVideoCard";
 import { EditFullVideoDialog } from "@/components/EditFullVideoDialog";
 import { useAuth } from "@/hooks/useAuth";
+import { hasOfflineAccess, offlinePlan } from "@/lib/subscriptions";
 import { FULL_VIDEO_CATEGORIES, listFullVideos, type FullVideo } from "@/lib/fullVideos";
 import { listSavedFullVideos, onOfflineChange } from "@/lib/offline";
 
@@ -31,6 +32,8 @@ export const Route = createFileRoute("/videos")({
 
 function VideosPage() {
   const auth = useAuth();
+  // Offline mode ships with Pro and VIP; Plus and free accounts are locked.
+  const offlineUnlocked = hasOfflineAccess(auth.handle);
   const navigate = useNavigate();
 
   const [category, setCategory] = useState<string>("All");
@@ -259,8 +262,9 @@ function VideosPage() {
             <WifiOff className="h-8 w-8 text-muted-foreground" />
             <p className="mt-3 text-base font-semibold">Nothing saved offline yet</p>
             <p className="mt-1 max-w-xs text-sm text-muted-foreground">
-              Tap the download badge on any video, or use Share → Offline mode, to keep it available
-              without a connection.
+              {offlineUnlocked
+                ? "Open any video and tap Download on the watch page to keep it available without a connection."
+                : `Offline downloads are part of ${offlinePlan().label} and VIP. Upgrade to save videos for offline viewing.`}
             </p>
             <button
               type="button"

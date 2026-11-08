@@ -42,6 +42,12 @@ import { VideoCard } from "@/components/VideoCard";
 import { StoryViewer } from "@/components/StoryViewer";
 import { fetchStories, postStory, type Story } from "@/lib/stories";
 import { useChristmasMode } from "@/lib/christmas";
+import {
+  GTA6_BADGE,
+  GTA6_BADGE_EVENT,
+  fetchGTA6Badges,
+  hasGTA6BadgeCached,
+} from "@/lib/gta6";
 import { toast } from "sonner";
 import { followUser, isFollowing as checkIsFollowing, unfollowUser } from "@/lib/follow";
 import type { Profile as ProfileRow } from "@/hooks/useAuth";
@@ -115,6 +121,8 @@ function Profile() {
   const auth = useAuth();
   // Red/green ring instead of the usual pink gradient, Nov 15 2026 -> Jan 1 2027.
   const christmas = useChristmasMode();
+  // GTA 6 OG badge: awarded for posting during Nov 8-15 2026 and kept forever.
+  const [hasGTA6Badge, setHasGTA6Badge] = useState(() => hasGTA6BadgeCached(username));
   const [counts, setCounts] = useState<ProfileCounts | null>(null);
   const [videos, setVideos] = useState<Video[] | null>(null);
   const [open, setOpen] = useState<number | null>(null);
@@ -485,6 +493,20 @@ function Profile() {
   const displayName = profile?.display_name || username;
   const total = shownVideos?.length ?? 0;
   const sentinel = useRef<HTMLDivElement>(null);
+
+  // The OG badge is permanent, so this runs year-round — not gated on the event.
+  useEffect(() => {
+    let cancelled = false;
+    void fetchGTA6Badges([username]).then((found) => {
+      if (!cancelled) setHasGTA6Badge(found.has(username.replace(/^@/, "").toLowerCase()));
+    });
+    const onChange = () => setHasGTA6Badge(hasGTA6BadgeCached(username));
+    window.addEventListener(GTA6_BADGE_EVENT, onChange);
+    return () => {
+      cancelled = true;
+      window.removeEventListener(GTA6_BADGE_EVENT, onChange);
+    };
+  }, [username]);
   useEffect(() => {
     const el = sentinel.current;
     if (!el || !hasMore[tab] || loadingMore) return;
@@ -555,7 +577,18 @@ function Profile() {
             <h1 className={`text-2xl ${findItem(equipped.name)?.className ?? ""}`}>
               {findItem(equipped.top)?.emoji} {displayName}
             </h1>
-            <p className="text-sm text-muted-foreground">@{username}</p>
+            <p className="flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
+              <span>@{username}</span>
+              {hasGTA6Badge && (
+                <span
+                  className="gta6-og-badge inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold text-white"
+                  title={GTA6_BADGE.blurb}
+                >
+                  <span aria-hidden>{GTA6_BADGE.emoji}</span>
+                  {GTA6_BADGE.label}
+                </span>
+              )}
+            </p>
           </div>
           {!isOwn && auth.ready && (
             <Button

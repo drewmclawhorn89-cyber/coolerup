@@ -19,9 +19,10 @@ import { AnimalOverlay } from "@/components/AnimalOverlay";
 import { ChristmasOverlay } from "@/components/ChristmasOverlay";
 import { getAnimal, drawAnimal } from "@/lib/animals";
 import { useFaceTracker } from "@/lib/face";
-import { CAMERA_FILTERS, canBakeFilters } from "@/lib/filters";
+import { canBakeFilters, filterById } from "@/lib/filters";
 import { CHRISTMAS_EFFECTS, drawChristmasEffect, getChristmasEffect, needsFace } from "@/lib/christmas-effects";
 import { useChristmasMode } from "@/lib/christmas";
+import { awardGTA6Badge, useGTA6Mode } from "@/lib/gta6";
 import { SoundPickerDialog } from "@/components/SoundPickerDialog";
 import { canMixSound, createSoundTrack, type SoundTrack } from "@/lib/sound-mixer";
 import { soundAudioUrl, type Sound } from "@/lib/sounds";
@@ -74,9 +75,11 @@ export function RecordDialog({
   // Christmas camera filters (Santa hat / reindeer nose / snow) are only offered
   // while the Christmas update is live.
   const christmas = useChristmasMode();
+  // The GTA 6 event filter is only offered while the event is live.
+  const gta6 = useGTA6Mode();
   const [christmasEffectId, setChristmasEffectId] = useState("");
   const christmasEffect = getChristmasEffect(christmasEffectId);
-  const filter = CAMERA_FILTERS.find((f) => f.id === filterId) ?? CAMERA_FILTERS[0]!;
+  const filter = filterById(filterId, gta6);
 
   const [facingMode, setFacingMode] = useState<FacingMode>("user");
   const [cameraState, setCameraState] = useState<CameraState>("loading");
@@ -357,6 +360,8 @@ export function RecordDialog({
         chosenSound?.id ?? null,
         bakedRef.current,
       );
+      // Posting during the GTA 6 window mints the permanent OG badge.
+      void awardGTA6Badge(username);
       toast.success("Your video is posted!");
       reset();
       onOpenChange(false);
@@ -582,6 +587,7 @@ export function RecordDialog({
                     disabled={recording}
                     animal={animalId}
                     onAnimalChange={setAnimalId}
+                    gta6={gta6}
                   />
                   <div className="grid grid-cols-3 items-center">
                     <div className="flex justify-start">

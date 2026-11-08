@@ -31,6 +31,8 @@ export type LiveGift = {
   color: string;
   /** Only shown while the Christmas update is live. */
   christmasOnly?: boolean;
+  /** Only offered while the GTA 6 update is live (Nov 8-15 2026, then gone). */
+  gta6Only?: boolean;
 };
 
 export const LIVE_GIFTS: LiveGift[] = [
@@ -69,6 +71,15 @@ export const LIVE_GIFTS: LiveGift[] = [
     color: "#ef4444",
     christmasOnly: true,
   },
+  {
+    id: "gta-car",
+    name: "GTA Car",
+    emoji: "\u{1F697}",
+    coins: 100,
+    kind: "burst",
+    color: "#FF2E88",
+    gta6Only: true,
+  },
   { id: "lion", name: "Lion", emoji: "\u{1F981}", coins: 100, kind: "burst", color: "#f59e0b" },
   {
     id: "universe",
@@ -80,9 +91,14 @@ export const LIVE_GIFTS: LiveGift[] = [
   },
 ];
 
-/** Gifts visible right now: Christmas items only during the Christmas update. */
-export function giftsForMode(christmas: boolean): LiveGift[] {
-  return LIVE_GIFTS.filter((gift) => !gift.christmasOnly || christmas);
+/**
+ * Gifts visible right now: Christmas items only during the Christmas update,
+ * the GTA Car only during the GTA 6 update (and never again afterwards).
+ */
+export function giftsForMode(christmas: boolean, gta6 = false): LiveGift[] {
+  return LIVE_GIFTS.filter(
+    (gift) => (!gift.christmasOnly || christmas) && (!gift.gta6Only || gta6),
+  );
 }
 
 export function giftById(id: string): LiveGift | undefined {

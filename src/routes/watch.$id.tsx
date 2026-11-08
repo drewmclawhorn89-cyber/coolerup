@@ -568,10 +568,10 @@ function WatchPage() {
                 >
                   {subscribed ? (
                     <span className="flex items-center gap-1">
-                      <Check className="h-4 w-4" /> Subscribed
+                      <Check className="h-4 w-4" /> Following
                     </span>
                   ) : (
-                    "Subscribe"
+                    "Follow"
                   )}
                 </button>
               )}

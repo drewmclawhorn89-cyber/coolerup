@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Loader2, Search, Upload } from "lucide-react";
+import { Loader2, ArrowLeft, Search, Upload } from "lucide-react";
 import { FullVideoCard } from "@/components/FullVideoCard";
 import { EditFullVideoDialog } from "@/components/EditFullVideoDialog";
 import { useAuth } from "@/hooks/useAuth";
@@ -152,6 +152,14 @@ function VideosPage() {
           }}
           className="flex items-center gap-2"
         >
+          {/* Same back affordance the other tabs use. */}
+          <Link
+            to="/"
+            aria-label="Back to feed"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary text-secondary-foreground hover:bg-accent"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Link>
           <div className="flex min-w-0 flex-1 items-center gap-2 rounded-full border bg-card px-3 py-2">
             <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
             <input

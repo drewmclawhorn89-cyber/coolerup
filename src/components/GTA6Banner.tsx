@@ -38,7 +38,7 @@ export function GTA6Banner({
             •
           </span>
           <span>
-            Post with <strong className="text-white">{GTA6_HASHTAG}</strong> to win
+            Post 10 with <strong className="text-white">{GTA6_HASHTAG}</strong> to win
           </span>
           <span className="text-white/40" aria-hidden>
             •

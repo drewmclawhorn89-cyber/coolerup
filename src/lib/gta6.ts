@@ -37,11 +37,16 @@ export const GTA6_ORANGE = "#FF8A3D";
 /** The challenge hashtag users must include to enter. */
 export const GTA6_HASHTAG = "#GTA6Coolerup";
 
-/** What the top 10 videos win. */
+/** What the challenge pays out. */
 export const GTA6_PRIZE = "1 month of Pro free";
 
-/** How many videos win. */
-export const GTA6_WINNERS = 10;
+/**
+ * How many GTA videos unlock the prize.
+ *
+ * The mechanic is "post 10, get a month" rather than a leaderboard, so this is a
+ * goal every user can hit. The award itself lives in `@/lib/gta6-challenge`.
+ */
+export const GTA6_VIDEOS_TO_WIN = 10;
 
 /** The exclusive, never-again profile badge. */
 export const GTA6_BADGE = {

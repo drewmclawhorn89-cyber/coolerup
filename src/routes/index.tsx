@@ -27,14 +27,9 @@ import { LiveNowList } from "@/components/LiveNowList";
 import { useLiveDirectory, type LiveHost } from "@/lib/liveDirectory";
 import { OnboardingBanner, useOnboardingGuard } from "@/components/OnboardingBanner";
 import { isChristmasCountdownVisible, useChristmasMode } from "@/lib/christmas";
-import {
-  GTA6_HASHTAG,
-  GTA6_PRIZE,
-  GTA6_WINNERS,
-  stripGTA6TestParam,
-  useGTA6Mode,
-} from "@/lib/gta6";
+import { stripGTA6TestParam, useGTA6Mode } from "@/lib/gta6";
 import { GTA6Banner } from "@/components/GTA6Banner";
+import { GTA6ChallengeCard } from "@/components/GTA6ChallengeCard";
 import { useChristmasCodesSeason } from "@/lib/christmas-codes";
 import { matchesKeyword, readBool } from "@/lib/prefs";
 // Heavy, interaction-only surfaces are split out so the initial feed bundle stays small.
@@ -214,6 +209,8 @@ function Index() {
     if (typeof window === "undefined") return false;
     return window.sessionStorage.getItem("loop-gta6-challenge-hidden") === "1";
   });
+  // Bumped after every post so the GTA 6 challenge card refetches its count.
+  const [gta6ChallengeRefresh, setGta6ChallengeRefresh] = useState(0);
 
   // Moderation: videos the user tapped "Not interested" on, plus blocked authors.
   const { blocked } = useBlocked();
@@ -1014,41 +1011,19 @@ function Index() {
             )}
 
             {gta6 && !gta6ChallengeHidden && activeTab === "foryou" && feedTab === "foryou" && !offlineMode && !query.trim() && (
-              <div className="gta6-challenge-banner relative mx-3 mb-2 flex shrink-0 items-center gap-2.5 rounded-2xl px-3 py-2.5 text-white shadow-lg md:mx-10">
-                <span className="text-2xl" aria-hidden>
-                  🏁
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-[13px] font-bold leading-tight">
-                    {GTA6_HASHTAG} Challenge: post a GTA 6 video!
-                  </p>
-                  <p className="text-[11px] leading-tight text-white/80">
-                    Top {GTA6_WINNERS} win {GTA6_PRIZE} · Nov 8 – Nov 15 2026
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => guardOnboarding(() => (auth.user ? setRecordingOpen(true) : auth.signIn()))}
-                  className="shrink-0 rounded-full bg-white px-3 py-1.5 text-[11px] font-bold text-black transition hover:bg-white/90"
-                >
-                  Post
-                </button>
-                <button
-                  type="button"
-                  aria-label="Dismiss GTA 6 challenge"
-                  onClick={() => {
-                    setGTA6ChallengeHidden(true);
-                    try {
-                      window.sessionStorage.setItem("loop-gta6-challenge-hidden", "1");
-                    } catch {
-                      /* ignore */
-                    }
-                  }}
-                  className="shrink-0 text-white/70 transition hover:text-white"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
+              <GTA6ChallengeCard
+                handle={auth.handle}
+                refreshKey={gta6ChallengeRefresh}
+                onPost={() => guardOnboarding(() => (auth.user ? setRecordingOpen(true) : auth.signIn()))}
+                onDismiss={() => {
+                  setGTA6ChallengeHidden(true);
+                  try {
+                    window.sessionStorage.setItem("loop-gta6-challenge-hidden", "1");
+                  } catch {
+                    /* ignore */
+                  }
+                }}
+              />
             )}
 
             {christmas && !challengeHidden && activeTab === "foryou" && feedTab === "foryou" && !offlineMode && !query.trim() && (
@@ -1254,6 +1229,7 @@ function Index() {
             onDone={() => {
               setUploading(false);
               setTab("foryou");
+              setGta6ChallengeRefresh((n) => n + 1);
               load();
             }}
           />
@@ -1266,6 +1242,7 @@ function Index() {
         username={auth.handle}
         onPosted={() => {
           setTab("foryou");
+          setGta6ChallengeRefresh((n) => n + 1);
           load();
         }}
       /></Suspense>}
@@ -1277,6 +1254,7 @@ function Index() {
         onUploadInstead={() => setUploading(true)}
         onPosted={() => {
           setTab("foryou");
+          setGta6ChallengeRefresh((n) => n + 1);
           load();
         }}
       /></Suspense>}

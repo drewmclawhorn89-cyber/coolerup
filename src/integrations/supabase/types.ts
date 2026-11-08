@@ -776,6 +776,44 @@ export type Database = {
         }
         Relationships: []
       }
+      gta6_challenge_claims: {
+        Row: {
+          claimed_at: string
+          ends_at: string
+          handle: string
+          months: number
+          plan: string
+          user_id: string
+          videos_count: number
+        }
+        Insert: {
+          claimed_at?: string
+          ends_at: string
+          handle: string
+          months?: number
+          plan?: string
+          user_id: string
+          videos_count?: number
+        }
+        Update: {
+          claimed_at?: string
+          ends_at?: string
+          handle?: string
+          months?: number
+          plan?: string
+          user_id?: string
+          videos_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gta6_challenge_claims_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       likes: {
         Row: {
           created_at: string
@@ -1895,6 +1933,44 @@ export type Database = {
         Returns: Json
       }
       award_gta6_badge: { Args: never; Returns: boolean }
+      claim_gta6_challenge: {
+        Args: never
+        Returns: {
+          ok: boolean
+          error?: string
+          plan?: string
+          months?: number
+          ends_at?: string
+          posted?: number
+          required?: number
+        }
+      }
+      gta6_challenge_progress: {
+        Args: never
+        Returns: {
+          ok: boolean
+          error?: string
+          posted: number
+          required: number
+          eligible: boolean
+          claimed: boolean
+          plan?: string
+          months?: number
+          claimed_ends_at?: string | null
+          ends_at?: string | null
+        }
+      }
+      my_gta6_challenge_reward: {
+        Args: never
+        Returns: {
+          ok: boolean
+          error?: string
+          plan?: string
+          months?: number
+          claimed_at?: string
+          ends_at?: string
+        }
+      }
       ban_status_for_handle: {
         Args: { _handle: string }
         Returns: {

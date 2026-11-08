@@ -20,9 +20,15 @@ import { ChristmasOverlay } from "@/components/ChristmasOverlay";
 import { getAnimal, drawAnimal } from "@/lib/animals";
 import { useFaceTracker } from "@/lib/face";
 import { canBakeFilters, filterById } from "@/lib/filters";
-import { CHRISTMAS_EFFECTS, drawChristmasEffect, getChristmasEffect, needsFace } from "@/lib/christmas-effects";
+import {
+  CHRISTMAS_EFFECTS,
+  drawChristmasEffect,
+  getChristmasEffect,
+  needsFace,
+} from "@/lib/christmas-effects";
 import { useChristmasMode } from "@/lib/christmas";
 import { awardGTA6Badge, useGTA6Mode } from "@/lib/gta6";
+import { withGTA6Hashtag } from "@/lib/gta6-challenge";
 import { SoundPickerDialog } from "@/components/SoundPickerDialog";
 import { canMixSound, createSoundTrack, type SoundTrack } from "@/lib/sound-mixer";
 import { soundAudioUrl, type Sound } from "@/lib/sounds";
@@ -353,10 +359,13 @@ export function RecordDialog({
     }
     setPosting(true);
     try {
+      // Using the GTA 6 filter counts toward the challenge, so tag it for them.
+      const finalCaption =
+        gta6 && filterId === "gta6" ? withGTA6Hashtag(caption) : caption.trim().slice(0, 500);
       await uploadRecording(
         recordedBlob,
         username,
-        caption.trim().slice(0, 500),
+        finalCaption,
         chosenSound?.id ?? null,
         bakedRef.current,
       );

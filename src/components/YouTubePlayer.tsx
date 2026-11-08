@@ -18,8 +18,8 @@ export type YouTubePlayerProps = {
   /** Resolved (signed) URL for the default rendition. */
   src: string;
   /** Optional per-rendition URLs; a quality is only offered when it exists. */
-  sources?: Partial<Record<Exclude<Quality, "auto">, string | null>>;
-  poster?: string;
+  sources?: Partial<Record<Exclude<Quality, "auto">, string | null>> | undefined;
+  poster?: string | undefined;
   /** Called once, the first time playback actually starts. */
   onFirstPlay?: () => void;
   className?: string;

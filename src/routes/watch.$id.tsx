@@ -32,7 +32,7 @@ import {
   type Reaction,
 } from "@/lib/fullVideos";
 
-export const Route = createFileRoute("/watch")({
+export const Route = createFileRoute("/watch/$id")({
   head: () => ({
     meta: [
       { title: "Watch — Coolerup" },

@@ -664,7 +664,9 @@ function WatchPage() {
                   : offline.isSaved
                     ? "Offline"
                     : offline.offlineUnlocked
-                      ? "Download"
+                      ? offline.trialActive
+                        ? offline.trialLabel
+                        : "Download"
                       : offlinePlan().label}
               </button>
               <button

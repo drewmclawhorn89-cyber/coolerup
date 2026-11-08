@@ -5,6 +5,7 @@ import { FullVideoCard } from "@/components/FullVideoCard";
 import { EditFullVideoDialog } from "@/components/EditFullVideoDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { hasOfflineAccess, offlinePlan } from "@/lib/subscriptions";
+import { useTrial } from "@/lib/trial";
 import { FULL_VIDEO_CATEGORIES, listFullVideos, type FullVideo } from "@/lib/fullVideos";
 import { listSavedFullVideos, onOfflineChange } from "@/lib/offline";
 
@@ -32,8 +33,9 @@ export const Route = createFileRoute("/videos")({
 
 function VideosPage() {
   const auth = useAuth();
-  // Offline mode ships with Pro and VIP; Plus and free accounts are locked.
+  // Offline mode ships with Pro and VIP, with one free hour to try it.
   const offlineUnlocked = hasOfflineAccess(auth.handle);
+  const trial = useTrial(auth.handle);
   const navigate = useNavigate();
 
   const [category, setCategory] = useState<string>("All");
@@ -264,7 +266,10 @@ function VideosPage() {
             <p className="mt-1 max-w-xs text-sm text-muted-foreground">
               {offlineUnlocked
                 ? "Open any video and tap Download on the watch page to keep it available without a connection."
-                : `Offline downloads are part of ${offlinePlan().label} and VIP. Upgrade to save videos for offline viewing.`}
+                : trial.used
+                  ? `Your free trial has ended. Offline downloads are part of ${offlinePlan().label} and VIP.`
+                  : "Start a free one-hour trial from any video's watch page, or upgrade to " +
+                    `${offlinePlan().label} to save videos for offline viewing.`}
             </p>
             <button
               type="button"

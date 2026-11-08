@@ -8,6 +8,7 @@ import {
   saveFullVideoOffline,
 } from "@/lib/offline";
 import { hasOfflineAccess, offlinePlan } from "@/lib/subscriptions";
+import { useTrial } from "@/lib/trial";
 import type { FullVideo } from "@/lib/fullVideos";
 
 /**
@@ -23,7 +24,10 @@ export function useFullVideoOffline(video: Pick<FullVideo, "id"> & Partial<FullV
   const [progress, setProgress] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
 
-  // Offline mode ships with Pro and VIP; Plus and free accounts are locked.
+  // Offline mode ships with Pro and VIP, with one free hour to try it.
+  const trial = useTrial(auth.handle);
+  // Pull the stable pieces out so `toggle` doesn't depend on the whole object.
+  const { used: trialUsed, start: startTrial } = trial;
   const offlineUnlocked = hasOfflineAccess(auth.handle);
   const isSaved = savedSize !== null;
 
@@ -60,10 +64,18 @@ export function useFullVideoOffline(video: Pick<FullVideo, "id"> & Partial<FullV
       }
 
       if (!offlineUnlocked) {
-        const plan = offlinePlan();
-        toast.error(`Offline mode is part of ${plan.label} ($${plan.price.toFixed(2)}/mo)`);
-        window.location.href = "/?tab=subscriptions";
-        return false;
+        // A first-time viewer gets the hour instead of a paywall; once it is
+        // spent, saving is a paid feature again.
+        if (trialUsed) {
+          const plan = offlinePlan();
+          toast.error(
+            `Your free trial has ended. Offline mode is part of ${plan.label} ($${plan.price.toFixed(2)}/mo)`,
+          );
+          window.location.href = "/?tab=subscriptions";
+          return false;
+        }
+        startTrial();
+        toast.success("1-hour free trial started");
       }
 
       setProgress(0);
@@ -79,7 +91,20 @@ export function useFullVideoOffline(video: Pick<FullVideo, "id"> & Partial<FullV
       setProgress(null);
       setBusy(false);
     }
-  }, [busy, progress, savedSize, offlineUnlocked, video]);
+  }, [busy, progress, savedSize, offlineUnlocked, trialUsed, startTrial, video]);
 
-  return { savedSize, progress, busy, isSaved, offlineUnlocked, toggle };
+  return {
+    savedSize,
+    progress,
+    busy,
+    isSaved,
+    offlineUnlocked,
+    /** True while the one-hour free trial is running. */
+    trialActive: trial.active,
+    /** True once the hour has been spent, running or not. */
+    trialUsed: trial.used,
+    /** `59:59` countdown for the trial. */
+    trialLabel: trial.label,
+    toggle,
+  };
 }

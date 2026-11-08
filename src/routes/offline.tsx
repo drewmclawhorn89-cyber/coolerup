@@ -15,6 +15,7 @@ import {
 } from "@/lib/offline";
 import { useAuth } from "@/hooks/useAuth";
 import { hasOfflineAccess, offlinePlan } from "@/lib/subscriptions";
+import { useTrial } from "@/lib/trial";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/offline")({
@@ -27,6 +28,7 @@ type FeedItem = { id: string; video: any; size: number };
 function OfflinePage() {
   const auth = useAuth();
   const unlocked = hasOfflineAccess(auth.handle);
+  const trial = useTrial(auth.handle);
   const [items, setItems] = useState<FeedItem[] | null>(null);
   const [fullItems, setFullItems] = useState<SavedFullVideo[] | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
@@ -173,15 +175,30 @@ function OfflinePage() {
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-muted">
             <Lock className="h-6 w-6 text-muted-foreground" />
           </div>
-          <h2 className="mt-3 font-semibold">Offline mode is a {plan.label} feature</h2>
+          <h2 className="mt-3 font-semibold">
+            {trial.used ? `Your free trial has ended` : `Offline mode is a ${plan.label} feature`}
+          </h2>
           <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">
-            Subscribe to {plan.label} or VIP to save videos and watch them without a connection.
-            Offline downloads start at ${plan.price.toFixed(2)}/mo and are not included in Plus.
+            {trial.used
+              ? `Subscribe to ${plan.label} or VIP to keep saving videos for offline viewing. Offline downloads start at $${plan.price.toFixed(2)}/mo and are not included in Plus.`
+              : `Try it free for one hour — no card needed. After that, offline downloads come with ${plan.label} and VIP at $${plan.price.toFixed(2)}/mo, and are not included in Plus.`}
           </p>
+          {!trial.used && (
+            <button
+              type="button"
+              onClick={() => {
+                trial.start();
+                toast.success("1-hour free trial started");
+              }}
+              className="mt-4 inline-flex rounded-md bg-emerald-600 px-4 py-2 font-medium text-white"
+            >
+              Start 1-hour free trial
+            </button>
+          )}
           <Link
             to="/"
             search={{ tab: "subscriptions" }}
-            className="mt-4 inline-flex rounded-md bg-black px-4 py-2 font-medium text-white"
+            className={`inline-flex rounded-md bg-black px-4 py-2 font-medium text-white ${trial.used ? "mt-4" : "mt-2"}`}
           >
             Get {plan.label} — ${plan.price.toFixed(2)}/mo
           </Link>

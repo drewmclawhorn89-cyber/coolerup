@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { deleteVideo, resolveVideoUrl, type Video } from "@/lib/loop";
 import { formatBytes, getSaved, removeOffline, saveOffline } from "@/lib/offline";
 import { hasOfflineAccess, offlinePlan } from "@/lib/subscriptions";
+import { useTrial } from "@/lib/trial";
 
 export function ShareMenu({
   video,
@@ -25,7 +26,8 @@ export function ShareMenu({
   const [savedSize, setSavedSize] = useState<number | null>(null);
   const [progress, setProgress] = useState<number | null>(null);
   const auth = useAuth();
-  // Offline mode ships with Pro and VIP; Plus and free accounts are locked.
+  // Offline mode ships with Pro and VIP, with one free hour to try it.
+  const trial = useTrial(auth.handle);
   const offlineUnlocked = hasOfflineAccess(auth.handle);
   const isOwner = !!auth.user && !!auth.handle && auth.handle === video.username;
   const url = typeof window !== "undefined" ? `${window.location.origin}/v/${video.id}` : "";
@@ -38,10 +40,18 @@ export function ShareMenu({
 
   const save = async () => {
     if (!offlineUnlocked) {
-      const plan = offlinePlan();
-      toast.error(`Offline mode is part of ${plan.label} ($${plan.price.toFixed(2)}/mo)`);
-      window.location.href = "/?tab=subscriptions";
-      return;
+      // A first-time viewer gets the hour instead of a paywall; once it is
+      // spent, saving is a paid feature again.
+      if (trial.used) {
+        const plan = offlinePlan();
+        toast.error(
+          `Your free trial has ended. Offline mode is part of ${plan.label} ($${plan.price.toFixed(2)}/mo)`,
+        );
+        window.location.href = "/?tab=subscriptions";
+        return;
+      }
+      trial.start();
+      toast.success("1-hour free trial started");
     }
     setProgress(0);
     try {
@@ -214,7 +224,9 @@ export function ShareMenu({
               {savedSize
                 ? `Remove (${formatBytes(savedSize)})`
                 : offlineUnlocked
-                  ? "Save offline"
+                  ? trial.active
+                    ? `Trial · ${trial.label}`
+                    : "Save offline"
                   : `${offlinePlan().label} only`}
             </span>
           </button>

@@ -20,7 +20,8 @@ export function FullVideoShareMenu({
   onClose: () => void;
   onShared?: () => void;
 }) {
-  const { savedSize, progress, isSaved, offlineUnlocked, toggle } = useFullVideoOffline(video);
+  const { savedSize, progress, isSaved, offlineUnlocked, trialActive, trialLabel, toggle } =
+    useFullVideoOffline(video);
 
   const url = typeof window !== "undefined" ? `${window.location.origin}/watch/${video.id}` : "";
 
@@ -101,7 +102,9 @@ export function FullVideoShareMenu({
       : isSaved
         ? `Saved · ${formatBytes(savedSize ?? 0)}`
         : offlineUnlocked
-          ? "Offline mode"
+          ? trialActive
+            ? `Trial · ${trialLabel}`
+            : "Offline mode"
           : `${offlinePlan().label} only`;
 
   return (

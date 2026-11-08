@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { PLANS, planById, planIncludesOffline, offlinePlan, type Plan } from "@/lib/plans";
+import { hasUsedTrial, isTrialActive } from "@/lib/trial";
 
 export type { Plan };
 export { PLANS, planById, planIncludesOffline, offlinePlan };
@@ -161,8 +162,9 @@ export function providerLabel(pm: PaymentMethod): string {
 /* -------------------------------------------------------------------------- */
 
 /**
- * `expired` also covers the old `trial` status: free trials were removed, so any
- * record still sitting on one is treated as ended and needs a paid plan.
+ * `expired` also covers the old `trial` status. Trials are no longer stored on
+ * the subscription record — they live in `@/lib/trial` as a separate one-hour
+ * grant — so any record still sitting on `trial` is treated as ended.
  */
 export type SubStatus = "pending" | "active" | "expired";
 
@@ -293,27 +295,37 @@ export function isActive(sub: Subscription | null): boolean {
 /* -------------------------------------------------------------------------- */
 
 /**
- * Offline downloads are a Pro-and-up perk.
+ * Offline downloads are a Pro-and-up perk, with a one-hour free trial.
  *
- * Access requires a live subscription *and* a plan that includes the feature.
- * Plus does not include offline mode, so a Plus subscriber is locked out just
- * like a free account. A `pending` or `expired` subscription does not count:
- * the plan has to be paid and active for the offline library to unlock.
+ * Access requires a live subscription *and* a plan that includes the feature,
+ * or an unexpired trial. Plus does not include offline mode, so a Plus
+ * subscriber is locked out just like a free account once their trial is spent.
+ * A `pending` or `expired` subscription does not count: the plan has to be paid
+ * and active for the offline library to unlock.
  */
 export function hasOfflineAccess(handle?: string | null): boolean {
+  if (isTrialActive(handle)) return true;
+  const sub = getSubscription(handle);
+  if (!isActive(sub)) return false;
+  return planIncludesOffline(sub?.planId);
+}
+
+/** True when the plan alone unlocks offline mode, ignoring any trial. */
+export function planUnlocksOffline(handle?: string | null): boolean {
   const sub = getSubscription(handle);
   if (!isActive(sub)) return false;
   return planIncludesOffline(sub?.planId);
 }
 
 /** Why offline mode is locked, so the UI can say something useful. */
-export type OfflineLockReason = "signed-out" | "no-plan" | "plan-lacks-offline" | "expired";
+export type OfflineLockReason =
+  "signed-out" | "no-plan" | "plan-lacks-offline" | "expired" | "trial-ended";
 
 export function offlineLockReason(handle?: string | null): OfflineLockReason | null {
   if (hasOfflineAccess(handle)) return null;
   if (!handle) return "signed-out";
   const sub = getSubscription(handle);
-  if (!sub) return "no-plan";
+  if (!sub) return hasUsedTrial(handle) ? "trial-ended" : "no-plan";
   if (sub.status === "expired" || sub.status === "pending") return "expired";
   return "plan-lacks-offline";
 }

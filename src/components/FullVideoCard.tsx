@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { Play } from "lucide-react";
+import { Pencil, Play } from "lucide-react";
 import {
   formatDuration,
   formatViews,
@@ -17,7 +17,14 @@ import {
  * Nothing overlays the thumbnail except the duration badge, which is what makes
  * this read as YouTube rather than TikTok.
  */
-export function FullVideoCard({ video }: { video: FullVideo }) {
+export function FullVideoCard({
+  video,
+  onEdit,
+}: {
+  video: FullVideo;
+  /** When provided, an owner-only pencil button appears on the thumbnail. */
+  onEdit?: ((video: FullVideo) => void) | undefined;
+}) {
   const [thumb, setThumb] = useState<string>("");
 
   useEffect(() => {
@@ -32,12 +39,25 @@ export function FullVideoCard({ video }: { video: FullVideo }) {
   }, [video.thumbnail_url]);
 
   return (
-    <Link
-      to="/watch/$id"
-      params={{ id: video.id }}
-      className="group block min-w-0 focus-visible:outline-none"
-      aria-label={`${video.title} by ${video.username}`}
-    >
+    <div className="group relative min-w-0">
+      {onEdit && (
+        <button
+          type="button"
+          onClick={() => onEdit(video)}
+          aria-label={`Edit ${video.title}`}
+          title="Edit your video"
+          className="absolute right-1.5 top-1.5 z-10 flex size-8 items-center justify-center rounded-full bg-black/70 text-white shadow-sm backdrop-blur transition hover:bg-black/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+        >
+          <Pencil className="size-4" />
+        </button>
+      )}
+
+      <Link
+        to="/watch/$id"
+        params={{ id: video.id }}
+        className="block min-w-0 focus-visible:outline-none"
+        aria-label={`${video.title} by ${video.username}`}
+      >
       <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-muted">
         {thumb ? (
           <img
@@ -69,6 +89,7 @@ export function FullVideoCard({ video }: { video: FullVideo }) {
           {formatViews(video.views)} · {timeAgo(video.created_at)}
         </p>
       </div>
-    </Link>
+      </Link>
+    </div>
   );
 }

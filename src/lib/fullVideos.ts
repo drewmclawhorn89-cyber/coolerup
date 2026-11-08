@@ -294,6 +294,71 @@ export async function addComment(
 }
 
 /* ------------------------------------------------------------------ */
+/* Editing an existing upload                                          */
+/* ------------------------------------------------------------------ */
+
+export type FullVideoEdit = {
+  title: string;
+  description: string;
+  category: string;
+  tags: string[];
+  /** New `storage:` ref (or plain URL) when the thumbnail was replaced. */
+  thumbnailUrl?: string | null;
+};
+
+/**
+ * Update the editable fields of a video the signed-in user owns.
+ *
+ * RLS already restricts this to the owner (`auth.uid() = user_id`), so a
+ * crafted request can't touch someone else's row — the `.eq("user_id", ...)`
+ * below is belt-and-braces so a bad actor gets zero rows instead of an error
+ * that leaks whether the video exists.
+ */
+export async function updateFullVideo(
+  id: string,
+  userId: string,
+  patch: FullVideoEdit,
+): Promise<FullVideo> {
+  const title = patch.title.trim();
+  if (title.length < 3) throw new Error("Give your video a title of at least 3 characters.");
+  if (title.length > 100) throw new Error("Titles can be at most 100 characters.");
+
+  const row: Record<string, unknown> = {
+    title,
+    description: patch.description.trim().slice(0, 5000),
+    category: patch.category,
+    tags: patch.tags.slice(0, 8),
+  };
+  if (patch.thumbnailUrl !== undefined) row["thumbnail_url"] = patch.thumbnailUrl;
+
+  const { data, error } = await db
+    .from("full_videos")
+    .update(row)
+    .eq("id", id)
+    .eq("user_id", userId)
+    .select("*")
+    .single();
+  if (error) throw error;
+  return data as FullVideo;
+}
+
+/** Remove a video the user owns. Storage objects are left alone (cheap, safe). */
+export async function deleteFullVideo(id: string, userId: string): Promise<void> {
+  const { error } = await db.from("full_videos").delete().eq("id", id).eq("user_id", userId);
+  if (error) throw error;
+}
+
+/** Upload a replacement thumbnail image and return its `storage:` ref. */
+export async function uploadFullVideoThumbnail(blob: Blob, userId: string): Promise<string> {
+  const path = `${userId}/full/${Date.now()}-thumb.jpg`;
+  const { error } = await supabase.storage
+    .from(FULL_VIDEO_BUCKET)
+    .upload(path, blob, { contentType: "image/jpeg", upsert: true });
+  if (error) throw error;
+  return `${STORAGE_PREFIX}${path}`;
+}
+
+/* ------------------------------------------------------------------ */
 /* Upload                                                              */
 /* ------------------------------------------------------------------ */
 

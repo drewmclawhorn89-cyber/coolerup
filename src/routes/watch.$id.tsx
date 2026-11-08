@@ -18,6 +18,7 @@ import { FullVideoCard } from "@/components/FullVideoCard";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { getPendingVideo } from "@/lib/pendingUploads";
+import { useFullVideoSave } from "@/lib/savedFullVideos";
 import {
   addComment,
   deleteFullVideo,
@@ -74,7 +75,9 @@ function WatchPage() {
   const [myReaction, setMyReaction] = useState<Reaction | null>(null);
 
   const [subscribed, setSubscribed] = useState(false);
-  const [saved, setSaved] = useState(false);
+  // Saved state lives in a shared store, so a video saved here shows the same
+  // yellow button on the /videos grid and in the "Up next" rail.
+  const { saved, toggle: toggleSave } = useFullVideoSave(video?.id ?? id);
   const [editing, setEditing] = useState(false);
 
   const [comments, setComments] = useState<FullVideoComment[]>([]);
@@ -342,18 +345,6 @@ function WatchPage() {
     } catch {
       /* user dismissed the share sheet */
     }
-  };
-
-  const toggleSave = () => {
-    if (!auth.user) {
-      void auth.signIn();
-      return;
-    }
-    // Read the next value, not the stale one — otherwise the toast announces
-    // the opposite of what just happened.
-    const next = !saved;
-    setSaved(next);
-    toast.success(next ? "Saved to Vault" : "Removed from Vault");
   };
 
   const repost = () => {

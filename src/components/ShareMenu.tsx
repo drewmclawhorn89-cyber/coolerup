@@ -27,7 +27,7 @@ export function ShareMenu({
   const [progress, setProgress] = useState<number | null>(null);
   const auth = useAuth();
   // Offline mode ships with Pro and VIP, with one free hour to try it.
-  const trial = useTrial(auth.handle);
+  const trial = useTrial(auth.handle, offlinePlan().id);
   const offlineUnlocked = hasOfflineAccess(auth.handle);
   const isOwner = !!auth.user && !!auth.handle && auth.handle === video.username;
   const url = typeof window !== "undefined" ? `${window.location.origin}/v/${video.id}` : "";

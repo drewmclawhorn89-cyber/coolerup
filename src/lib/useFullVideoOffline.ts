@@ -25,7 +25,7 @@ export function useFullVideoOffline(video: Pick<FullVideo, "id"> & Partial<FullV
   const [busy, setBusy] = useState(false);
 
   // Offline mode ships with Pro and VIP, with one free hour to try it.
-  const trial = useTrial(auth.handle);
+  const trial = useTrial(auth.handle, offlinePlan().id);
   // Pull the stable pieces out so `toggle` doesn't depend on the whole object.
   const { used: trialUsed, start: startTrial } = trial;
   const offlineUnlocked = hasOfflineAccess(auth.handle);

@@ -32,7 +32,7 @@ beforeEach(() => {
   localStorage.clear();
 });
 
-/** Subscribe for real — there is no free trial, so perks need a paid plan. */
+/** Subscribe for real — the free hour lives in @/lib/trial, so perks need a paid plan. */
 function subscribe(planId = "pro") {
   requestPayment(H, planId);
   updatePaymentMethod(H, CARD);

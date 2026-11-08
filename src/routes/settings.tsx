@@ -24,7 +24,7 @@ import {
   planUnlocksOffline,
   useSubscription,
 } from "@/lib/subscriptions";
-import { useTrial } from "@/lib/trial";
+import { hasUsedTrial, useTrial } from "@/lib/trial";
 import { ThemePicker } from "@/components/ThemePicker";
 import { QUALITY_OPTIONS, useVideoQuality } from "@/lib/videoQuality";
 import {
@@ -65,8 +65,10 @@ function Settings() {
   const subscription = useSubscription(auth.handle);
   const offlineUnlocked = hasOfflineAccess(auth.handle);
   const offlinePrice = offlinePlan().price;
-  // Offline mode is Pro/VIP, but every account gets one free hour first.
+  // Offline mode is Pro/VIP, but every plan gets one free hour first. The badge
+  // follows whichever hour is running; the offline CTA starts the Pro hour.
   const trial = useTrial(auth.handle);
+  const proTrialUsed = hasUsedTrial(auth.handle, offlinePlan().id);
   const planUnlocked = planUnlocksOffline(auth.handle);
   const trialRunning = trial.active && !planUnlocked;
   const [editing, setEditing] = useState(false);
@@ -154,7 +156,7 @@ function Settings() {
 
   const toggleOffline = () => {
     if (!offlineMode && !offlineUnlocked) {
-      if (trial.used) {
+      if (proTrialUsed) {
         const plan = offlinePlan();
         toast.error(
           `Your free trial has ended. Offline mode is part of ${plan.label} ($${plan.price.toFixed(2)}/mo)`,
@@ -162,7 +164,7 @@ function Settings() {
         setShowSubscriptions(true);
         return;
       }
-      trial.start();
+      trial.start(offlinePlan().id);
       toast.success("1-hour free trial started");
     }
     const newVal = !offlineMode;
@@ -846,7 +848,7 @@ function Settings() {
               ? "Pro & VIP"
               : trialRunning
                 ? `Trial · ${trial.label} left`
-                : trial.used
+                : proTrialUsed
                   ? "Trial ended"
                   : "1 hour free"}
           </span>
@@ -880,10 +882,10 @@ function Settings() {
         ) : (
           <>
             <div className="mt-3 flex flex-wrap items-center gap-3">
-              {!trial.used && (
+              {!proTrialUsed && (
                 <button
                   onClick={() => {
-                    trial.start();
+                    trial.start(offlinePlan().id);
                     toast.success("1-hour free trial started");
                   }}
                   style={{ backgroundColor: "#16a34a", color: "white" }}
@@ -901,7 +903,7 @@ function Settings() {
               </button>
             </div>
             <p className="mt-2 text-xs text-muted-foreground">
-              {trial.used
+              {proTrialUsed
                 ? `Your free trial has ended. Offline downloads come with ${offlinePlan().label} and VIP — Plus does not include them.`
                 : `Try offline mode free for one hour. After that it comes with ${offlinePlan().label} and VIP — Plus does not include it.`}
             </p>

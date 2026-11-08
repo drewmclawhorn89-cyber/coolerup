@@ -35,7 +35,7 @@ function VideosPage() {
   const auth = useAuth();
   // Offline mode ships with Pro and VIP, with one free hour to try it.
   const offlineUnlocked = hasOfflineAccess(auth.handle);
-  const trial = useTrial(auth.handle);
+  const trial = useTrial(auth.handle, offlinePlan().id);
   const navigate = useNavigate();
 
   const [category, setCategory] = useState<string>("All");

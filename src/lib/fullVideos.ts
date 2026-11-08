@@ -439,17 +439,39 @@ export function captureThumbnail(file: File, atSeconds = 1): Promise<Blob | null
  * Above this size we prefer the resumable path. Below it, one PUT is faster:
  * the browser streams the body over a single HTTP/2 connection instead of
  * paying a round trip per 6 MB chunk.
+ *
+ * Supabase's own docs recommend resumable uploads past 6 MB; 25 MB is the
+ * point where a single request stops being reliably cheaper than chunking.
  */
-const RESUMABLE_THRESHOLD = 120 * 1024 * 1024;
+const RESUMABLE_THRESHOLD = 25 * 1024 * 1024;
+
+/** An upload failure that carries the HTTP status, so callers can react to it. */
+class UploadError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "UploadError";
+    this.status = status;
+  }
+}
+
+/** Turn a 413 into something a human can act on. */
+function tooLargeMessage(file: File): string {
+  const mb = (file.size / (1024 * 1024)).toFixed(1);
+  return (
+    `This video is ${mb} MB, which is over your Supabase project's storage limit. ` +
+    `Raise it in Supabase → Storage → Settings (Global file size limit) and set the ` +
+    `"videos" bucket's own limit, or upload a smaller file.`
+  );
+}
 
 /**
  * Upload a file to Supabase Storage and report 0-100 progress.
  *
- * Speed matters more than elegance here, so the default is a **single signed
- * PUT** — one request, one round trip, the browser streams the body. The tus
- * resumable path is kept for genuinely large files (where a single request is
- * likely to be cut off) and as a fallback when the PUT fails, so a dropped
- * connection on a phone doesn't mean starting over.
+ * Speed matters more than elegance here, so small files go up as a **single
+ * signed PUT** — one request, one round trip, the browser streams the body.
+ * Anything larger uses the tus resumable path, which is also the fallback when
+ * a PUT is rejected (a 413 from a bucket size limit, or a dropped connection).
  */
 export async function uploadWithProgress(
   bucket: string,
@@ -467,13 +489,18 @@ export async function uploadWithProgress(
       return;
     } catch (err) {
       // A hard auth failure is worth surfacing; anything else (flaky network,
-      // timeout) is exactly what the resumable path exists for.
+      // timeout, size rejection) is exactly what the resumable path is for.
       if (err instanceof Error && /signed in/i.test(err.message)) throw err;
       onProgress(0);
     }
   }
 
-  await resumableUpload(bucket, path, file, contentType, onProgress);
+  try {
+    await resumableUpload(bucket, path, file, contentType, onProgress);
+  } catch (err) {
+    if (err instanceof UploadError && err.status === 413) throw new Error(tooLargeMessage(file));
+    throw err;
+  }
 }
 
 /** One signed PUT, progress from XHR's upload events. */
@@ -505,7 +532,21 @@ async function singlePut(
         onProgress(100);
         resolve();
       } else {
-        reject(new Error(`Upload failed (${xhr.status}).`));
+        // Supabase puts a readable reason in the body ("The object exceeded the
+        // maximum allowed size"); keep it rather than a bare status code.
+        let detail = "";
+        try {
+          const parsed = JSON.parse(xhr.responseText) as { message?: string; error?: string };
+          detail = parsed.message ?? parsed.error ?? "";
+        } catch {
+          detail = xhr.responseText.slice(0, 200);
+        }
+        reject(
+          new UploadError(
+            detail ? `Upload failed (${xhr.status}): ${detail}` : `Upload failed (${xhr.status}).`,
+            xhr.status,
+          ),
+        );
       }
     };
     xhr.onerror = () => reject(new Error("Upload failed. Check your connection."));
@@ -569,7 +610,7 @@ async function resumableUpload(
   });
 
   if (create.status !== 201) {
-    throw new Error(`Could not start the upload (${create.status}).`);
+    throw new UploadError(`Could not start the upload (${create.status}).`, create.status);
   }
 
   const location = create.headers.get("Location");
@@ -594,7 +635,7 @@ async function resumableUpload(
     });
 
     if (patch.status !== 204) {
-      throw new Error(`Chunk upload failed (${patch.status}).`);
+      throw new UploadError(`Chunk upload failed (${patch.status}).`, patch.status);
     }
 
     offset += chunk.size;

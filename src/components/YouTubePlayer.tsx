@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { CSSProperties } from "react";
 import {
   Maximize,
   Minimize,
   Pause,
   Play,
+  RotateCw,
   Settings,
   Volume2,
   VolumeX,
@@ -11,6 +13,9 @@ import {
 import { formatDuration } from "@/lib/fullVideos";
 
 export type Quality = "1080p" | "720p" | "480p" | "auto";
+
+/** Quarter turns, in degrees, that the video can be rotated by in fullscreen. */
+type Rotation = 0 | 90 | 180 | 270;
 
 const QUALITIES: Quality[] = ["auto", "1080p", "720p", "480p"];
 
@@ -69,6 +74,9 @@ function unlockOrientation(): void {
 export function YouTubePlayer({ src, sources, poster, onFirstPlay, className = "" }: YouTubePlayerProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  /** The 9:16 frame the video sits in while fullscreen. Measured so a rotated
+   *  video can be sized to fill it exactly. */
+  const frameRef = useRef<HTMLDivElement>(null);
 
   const [playing, setPlaying] = useState(false);
   const [current, setCurrent] = useState(0);
@@ -81,6 +89,8 @@ export function YouTubePlayer({ src, sources, poster, onFirstPlay, className = "
   const [quality, setQuality] = useState<Quality>("auto");
   const [qualityOpen, setQualityOpen] = useState(false);
   const [started, setStarted] = useState(false);
+  const [rotation, setRotation] = useState<Rotation>(0);
+  const [frameSize, setFrameSize] = useState({ w: 0, h: 0 });
 
   const hideTimer = useRef<number | null>(null);
 
@@ -140,11 +150,35 @@ export function YouTubePlayer({ src, sources, poster, onFirstPlay, className = "
       const active = Boolean(document.fullscreenElement);
       setFullscreen(active);
       if (active) void lockPortrait();
-      else unlockOrientation();
+      else {
+        // Rotation only makes sense inside the fullscreen frame.
+        setRotation(0);
+        unlockOrientation();
+      }
     };
     document.addEventListener("fullscreenchange", onFsChange);
     return () => document.removeEventListener("fullscreenchange", onFsChange);
   }, []);
+
+  /** Step the video a quarter turn each tap. */
+  const rotateVideo = useCallback(() => {
+    setRotation((r) => ((r + 90) % 360) as Rotation);
+  }, []);
+
+  /* ---------------- fullscreen frame measurement ---------------- */
+
+  // A rotated video is drawn wider than the portrait frame, so we need the
+  // frame's exact pixel size to swap width/height and fill it edge to edge.
+  useEffect(() => {
+    if (!fullscreen) return;
+    const el = frameRef.current;
+    if (!el) return;
+    const update = () => setFrameSize({ w: el.clientWidth, h: el.clientHeight });
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [fullscreen]);
 
   /* ---------------- controls visibility ---------------- */
 
@@ -184,12 +218,14 @@ export function YouTubePlayer({ src, sources, poster, onFirstPlay, className = "
         toggleMute();
       } else if (e.key === "f") {
         void toggleFullscreen();
+      } else if (e.key === "r") {
+        rotateVideo();
       }
       revealControls();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [revealControls, togglePlay]);
+  }, [revealControls, togglePlay, rotateVideo]);
 
   /* ---------------- quality switching keeps position ---------------- */
 
@@ -215,6 +251,35 @@ export function YouTubePlayer({ src, sources, poster, onFirstPlay, className = "
   const progress = duration > 0 ? (current / duration) * 100 : 0;
   const bufferedPct = duration > 0 ? (buffered / duration) * 100 : 0;
 
+  const quarterTurn = rotation === 90 || rotation === 270;
+
+  /**
+   * Rotation only applies in fullscreen. A quarter turn swaps the video's
+   * width and height to the frame's, so the rotated picture fills the portrait
+   * frame instead of leaving black bars. A half turn just flips in place.
+   */
+  const videoStyle: CSSProperties = {};
+  if (fullscreen && rotation !== 0) {
+    if (quarterTurn) {
+      if (frameSize.w > 0 && frameSize.h > 0) {
+        Object.assign(videoStyle, {
+          position: "absolute",
+          left: "50%",
+          top: "50%",
+          width: frameSize.h,
+          height: frameSize.w,
+          transform: `translate(-50%, -50%) rotate(${rotation}deg)`,
+          transition: "transform 200ms ease",
+        });
+      }
+    } else {
+      Object.assign(videoStyle, {
+        transform: `rotate(${rotation}deg)`,
+        transition: "transform 200ms ease",
+      });
+    }
+  }
+
   return (
     <div
       ref={wrapRef}
@@ -229,6 +294,7 @@ export function YouTubePlayer({ src, sources, poster, onFirstPlay, className = "
       {/* In fullscreen this becomes a phone-shaped 9:16 frame centred on black,
           so the player reads as portrait instead of stretching to the monitor. */}
       <div
+        ref={frameRef}
         className={
           fullscreen
             ? "relative flex aspect-[9/16] h-full max-h-screen w-auto max-w-full items-center justify-center bg-black"
@@ -241,6 +307,7 @@ export function YouTubePlayer({ src, sources, poster, onFirstPlay, className = "
         poster={poster}
         playsInline
         preload="metadata"
+        style={videoStyle}
         className={
           fullscreen
             ? "h-full w-full bg-black object-contain"
@@ -377,6 +444,18 @@ export function YouTubePlayer({ src, sources, poster, onFirstPlay, className = "
                 </div>
               )}
             </div>
+
+            {fullscreen && (
+              <button
+                type="button"
+                onClick={rotateVideo}
+                aria-label="Rotate video"
+                title="Rotate video"
+                className="p-1"
+              >
+                <RotateCw className="h-5 w-5" />
+              </button>
+            )}
 
             <button
               type="button"

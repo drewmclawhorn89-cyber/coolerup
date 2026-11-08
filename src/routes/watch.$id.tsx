@@ -5,22 +5,27 @@ import {
   Bookmark,
   Check,
   CornerDownRight,
+  Download,
   Loader2,
   Pencil,
   Repeat2,
   Share2,
   ThumbsDown,
   ThumbsUp,
+  WifiOff,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { YouTubePlayer } from "@/components/YouTubePlayer";
 import { EditFullVideoDialog } from "@/components/EditFullVideoDialog";
+import { FullVideoShareMenu } from "@/components/FullVideoShareMenu";
 import { FullVideoCard } from "@/components/FullVideoCard";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { getPendingVideo } from "@/lib/pendingUploads";
 import { useFullVideoSave } from "@/lib/savedFullVideos";
+import { useFullVideoOffline } from "@/lib/useFullVideoOffline";
+import { formatBytes } from "@/lib/offline";
 import {
   addComment,
   deleteFullVideo,
@@ -81,7 +86,10 @@ function WatchPage() {
   // Saved state lives in a shared store, so a video saved here shows the same
   // yellow button on the /videos grid and in the "Up next" rail.
   const { saved, toggle: toggleSave } = useFullVideoSave(video?.id ?? id);
+  // Offline download state is shared with the /videos grid badge and share sheet.
+  const offline = useFullVideoOffline(video ?? ({ id } as FullVideo));
   const [editing, setEditing] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
 
   const [comments, setComments] = useState<FullVideoComment[]>([]);
   const [commentText, setCommentText] = useState("");
@@ -334,20 +342,6 @@ function WatchPage() {
         setSubscribed(false);
         toast.error("Could not subscribe.");
       }
-    }
-  };
-
-  const share = async () => {
-    const url = `${window.location.origin}/watch/${id}`;
-    try {
-      if (navigator.share) {
-        await navigator.share({ title: video?.title ?? "Coolerup video", url });
-      } else {
-        await navigator.clipboard.writeText(url);
-        toast.success("Link copied");
-      }
-    } catch {
-      /* user dismissed the share sheet */
     }
   };
 
@@ -623,7 +617,7 @@ function WatchPage() {
               )}
               <button
                 type="button"
-                onClick={() => void share()}
+                onClick={() => setShareOpen(true)}
                 className="flex items-center gap-1.5 rounded-full bg-secondary px-3 py-2 text-sm font-semibold text-secondary-foreground"
               >
                 <Share2 className="h-4 w-4" /> Share
@@ -638,6 +632,37 @@ function WatchPage() {
               >
                 <Bookmark className={`h-4 w-4 ${saved ? "fill-current" : ""}`} />
                 {saved ? "Saved" : "Save"}
+              </button>
+              <button
+                type="button"
+                onClick={() => void offline.toggle()}
+                disabled={offline.progress !== null}
+                aria-pressed={offline.isSaved}
+                aria-label={
+                  offline.isSaved
+                    ? `Remove from offline${offline.savedSize ? ` (${formatBytes(offline.savedSize)})` : ""}`
+                    : "Download for offline"
+                }
+                className={`flex items-center gap-1.5 rounded-full px-3 py-2 text-sm font-semibold transition disabled:opacity-80 ${
+                  offline.isSaved
+                    ? "bg-emerald-600 text-white"
+                    : "bg-secondary text-secondary-foreground"
+                }`}
+              >
+                {offline.progress !== null ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : offline.isSaved ? (
+                  <Check className="h-4 w-4" />
+                ) : offline.offlineUnlocked ? (
+                  <Download className="h-4 w-4" />
+                ) : (
+                  <WifiOff className="h-4 w-4" />
+                )}
+                {offline.progress !== null
+                  ? `Saving ${offline.progress}%`
+                  : offline.isSaved
+                    ? "Offline"
+                    : "Download"}
               </button>
               <button
                 type="button"
@@ -750,6 +775,10 @@ function WatchPage() {
           </div>
         </aside>
       </div>
+
+      {video && shareOpen && (
+        <FullVideoShareMenu video={video} onClose={() => setShareOpen(false)} />
+      )}
 
       {video && auth.user && (
         <EditFullVideoDialog

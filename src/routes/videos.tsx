@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Loader2, Search, Upload } from "lucide-react";
 import { FullVideoCard } from "@/components/FullVideoCard";
 import { EditFullVideoDialog } from "@/components/EditFullVideoDialog";
@@ -9,6 +9,12 @@ import {
   listFullVideos,
   type FullVideo,
 } from "@/lib/fullVideos";
+
+/**
+ * How many cards to fetch per page. Two screens' worth on a phone, so the grid
+ * feels populated immediately without pulling the whole library down.
+ */
+const PAGE_SIZE = 12;
 
 export const Route = createFileRoute("/videos")({
   head: () => ({
@@ -35,8 +41,14 @@ function VideosPage() {
   const [search, setSearch] = useState("");
   const [videos, setVideos] = useState<FullVideo[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<FullVideo | null>(null);
+
+  /** Guards against a stale page landing after the filters changed. */
+  const requestRef = useRef(0);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   // Debounce typing so we don't hit the API on every keystroke.
   useEffect(() => {
@@ -44,22 +56,82 @@ function VideosPage() {
     return () => window.clearTimeout(t);
   }, [searchInput]);
 
+  /** First page for the current filters. */
   const load = useCallback(async () => {
+    const token = ++requestRef.current;
     setLoading(true);
     setError(null);
     try {
       // `viewerId` keeps in-flight uploads visible to their owner only.
-      setVideos(await listFullVideos({ category, search, viewerId: auth.user?.id ?? null }));
+      const page = await listFullVideos({
+        category,
+        search,
+        limit: PAGE_SIZE,
+        offset: 0,
+        viewerId: auth.user?.id ?? null,
+      });
+      if (token !== requestRef.current) return;
+      setVideos(page);
+      // A short page means there is nothing after it.
+      setHasMore(page.length === PAGE_SIZE);
     } catch (err) {
+      if (token !== requestRef.current) return;
       setError(err instanceof Error ? err.message : "Could not load videos.");
+      setVideos([]);
+      setHasMore(false);
     } finally {
-      setLoading(false);
+      if (token === requestRef.current) setLoading(false);
     }
   }, [category, search, auth.user?.id]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  /** Append the next page. Safe to call repeatedly; the guard prevents doubles. */
+  const loadMore = useCallback(async () => {
+    if (loadingMore || loading || !hasMore) return;
+    const token = requestRef.current;
+    setLoadingMore(true);
+    try {
+      const page = await listFullVideos({
+        category,
+        search,
+        limit: PAGE_SIZE,
+        offset: videos.length,
+        viewerId: auth.user?.id ?? null,
+      });
+      if (token !== requestRef.current) return;
+      setVideos((prev) => {
+        // Dedupe: a video created between pages would otherwise appear twice.
+        const seen = new Set(prev.map((v) => v.id));
+        return [...prev, ...page.filter((v) => !seen.has(v.id))];
+      });
+      setHasMore(page.length === PAGE_SIZE);
+    } catch {
+      // Leave `hasMore` alone so scrolling again retries.
+    } finally {
+      if (token === requestRef.current) setLoadingMore(false);
+    }
+  }, [loadingMore, loading, hasMore, videos.length, category, search, auth.user?.id]);
+
+  /**
+   * Fetch the next page as the sentinel scrolls into view, so the grid grows
+   * as you scroll instead of downloading everything up front.
+   */
+  useEffect(() => {
+    const node = sentinelRef.current;
+    if (!node || !hasMore) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) void loadMore();
+      },
+      // Start loading a bit before the sentinel is actually visible.
+      { rootMargin: "600px 0px" },
+    );
+    io.observe(node);
+    return () => io.disconnect();
+  }, [hasMore, loadMore]);
 
   const startUpload = () => {
     if (!auth.user) {
@@ -161,7 +233,33 @@ function VideosPage() {
       )}
 
       {videos.length > 0 && (
-        <div className="mt-8 text-center">
+        <div className="mt-6 flex flex-col items-center gap-3">
+          {/* Scroll target: the next page loads as this comes into view. */}
+          <div ref={sentinelRef} aria-hidden className="h-px w-full" />
+
+          {loadingMore && (
+            <div className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading more…
+            </div>
+          )}
+
+          {hasMore && !loadingMore && (
+            <button
+              type="button"
+              onClick={() => void loadMore()}
+              className="rounded-full bg-secondary px-4 py-2 text-sm font-semibold text-secondary-foreground hover:bg-accent"
+            >
+              Load more
+            </button>
+          )}
+
+          {!hasMore && (
+            <p className="py-2 text-[13px] text-muted-foreground">
+              That's everything for now.
+            </p>
+          )}
+
           <Link to="/" className="text-sm text-muted-foreground underline">
             Back to the feed
           </Link>

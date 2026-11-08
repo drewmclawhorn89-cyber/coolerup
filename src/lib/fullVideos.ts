@@ -141,6 +141,8 @@ export type ListOptions = {
   category?: string;
   search?: string;
   limit?: number;
+  /** Rows to skip. Used for paging the grid a screenful at a time. */
+  offset?: number;
   /**
    * Who is looking. Rows still in `processing` have no playable object in
    * storage yet, so they are hidden from everyone except their owner — there
@@ -177,14 +179,15 @@ function missingStatusColumn(error: { message?: string; details?: string } | nul
  * across title, username and description with a single ilike OR clause.
  */
 export async function listFullVideos(opts: ListOptions = {}): Promise<FullVideo[]> {
-  const { category, search, limit = 60, viewerId } = opts;
+  const { category, search, limit = 60, offset = 0, viewerId } = opts;
 
   const build = (hideInFlight: boolean) => {
     let query = db
       .from("full_videos")
       .select("*")
       .order("created_at", { ascending: false })
-      .limit(limit);
+      // Paged: only the rows this screenful needs ever cross the wire.
+      .range(offset, offset + limit - 1);
 
     if (hideInFlight) query = query.or(readyOrMine(viewerId));
     if (category && category !== "All") query = query.eq("category", category);

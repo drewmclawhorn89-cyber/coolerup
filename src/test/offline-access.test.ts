@@ -11,9 +11,9 @@ import {
 import { PLANS, offlinePlan, planIncludesOffline } from "@/lib/plans";
 
 /**
- * Offline mode ships with Pro and VIP, but deliberately not with Plus.
- * These tests pin that split down so a future refactor can't quietly move
- * downloads into Plus or give them away for free.
+ * Offline mode is a paid perk: it starts with Plus and every higher
+ * tier inherits it. These tests pin the gate down so a future refactor can't
+ * quietly hand offline downloads to free accounts.
  */
 
 const H = "offline-tester";
@@ -32,91 +32,75 @@ beforeEach(() => {
   localStorage.clear();
 });
 
-/** Subscribe for real — the free hour lives in @/lib/trial, so perks need a paid plan. */
-function subscribe(planId = "pro") {
+/** Subscribe for real — there is no free trial, so perks need a paid plan. */
+function subscribe(planId = "plus") {
   requestPayment(H, planId);
   updatePaymentMethod(H, CARD);
   confirmPayment(H);
 }
 
 describe("planIncludesOffline", () => {
-  it("is included in Pro and VIP", () => {
+  it("unlocks offline for Plus, Pro and VIP", () => {
+    expect(planIncludesOffline("plus")).toBe(true);
     expect(planIncludesOffline("pro")).toBe(true);
     expect(planIncludesOffline("vip")).toBe(true);
   });
 
-  it("is not included in Plus", () => {
-    expect(planIncludesOffline("plus")).toBe(false);
-  });
-
-  it("is not included for free or unknown plans", () => {
+  it("does not unlock offline for unknown or missing plans", () => {
     expect(planIncludesOffline("free")).toBe(false);
     expect(planIncludesOffline(undefined)).toBe(false);
     expect(planIncludesOffline(null)).toBe(false);
   });
 
-  it("advertises offline downloads on Pro and VIP only", () => {
-    const withOffline = PLANS.filter((p) => p.perks.includes("Offline downloads")).map((p) => p.id);
-    expect(withOffline).toEqual(["pro", "vip"]);
+  it("advertises offline downloads on the Plus plan", () => {
+    const plus = PLANS.find((p) => p.id === "plus")!;
+    expect(plus.price).toBe(7.99);
+    expect(plus.perks).toContain("Offline downloads");
   });
-});
 
-describe("offlinePlan", () => {
-  it("points the upsell at Pro, the cheapest plan with offline", () => {
-    expect(offlinePlan().id).toBe("pro");
-    expect(offlinePlan().offline).toBe(true);
+  it("points upgrade prompts at the cheapest offline plan", () => {
+    expect(offlinePlan().id).toBe("plus");
+    expect(offlinePlan().price).toBe(7.99);
   });
 });
 
 describe("hasOfflineAccess", () => {
-  it("is locked for a signed-out visitor", () => {
+  it("locks a signed-out visitor", () => {
     expect(hasOfflineAccess(null)).toBe(false);
     expect(hasOfflineAccess(undefined)).toBe(false);
     expect(offlineLockReason(null)).toBe("signed-out");
   });
 
-  it("is locked for a signed-in user with no plan", () => {
+  it("locks a signed-in user with no plan", () => {
     expect(hasOfflineAccess(H)).toBe(false);
     expect(offlineLockReason(H)).toBe("no-plan");
   });
 
-  it("is locked on an active Plus subscription", () => {
+  it("unlocks on an active paid subscription", () => {
     subscribe("plus");
-    expect(hasOfflineAccess(H)).toBe(false);
-    expect(offlineLockReason(H)).toBe("plan-lacks-offline");
-  });
-
-  it("unlocks on an active Pro subscription", () => {
-    subscribe("pro");
     expect(hasOfflineAccess(H)).toBe(true);
     expect(offlineLockReason(H)).toBeNull();
   });
 
-  it("unlocks on an active VIP subscription", () => {
-    subscribe("vip");
-    expect(hasOfflineAccess(H)).toBe(true);
-    expect(offlineLockReason(H)).toBeNull();
-  });
-
-  it("is locked while a payment is still pending", () => {
-    requestPayment(H, "pro");
+  it("locks while a payment is still pending", () => {
+    requestPayment(H, "plus");
     updatePaymentMethod(H, CARD);
     expect(hasOfflineAccess(H)).toBe(false);
     expect(offlineLockReason(H)).toBe("expired");
   });
 
-  it("is locked again once the subscription is cancelled", () => {
-    subscribe("pro");
+  it("locks again when the subscription is cancelled", () => {
+    subscribe("plus");
+    expect(hasOfflineAccess(H)).toBe(true);
     cancelSubscription(H);
     expect(hasOfflineAccess(H)).toBe(false);
-    expect(offlineLockReason(H)).toBe("no-plan");
   });
 
-  it("is locked on a legacy trial record", () => {
+  it("locks a legacy trial record, since trials are gone", () => {
     localStorage.setItem(
       `subscription:${H}`,
       JSON.stringify({
-        planId: "pro",
+        planId: "plus",
         status: "trial",
         startedAt: new Date().toISOString(),
         trialEndsAt: new Date(Date.now() + 5 * 86400000).toISOString(),

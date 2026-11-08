@@ -120,9 +120,8 @@ function GooglePayButton({
 
 /**
  * Tap-to-pay sheet. Tapping any plan opens this, then they pay with Google Pay,
- * a card, or Venmo. The free hour is started from the plan card itself and needs
- * no card, so this sheet only ever sells the paid plan — it starts once the
- * payment is confirmed.
+ * a card, or Venmo. There is no free trial — the plan starts once the payment
+ * is confirmed.
  */
 export function PaymentSheet({ plan, handle, sub, onClose, onSignIn }: Props) {
   const open = Boolean(plan);

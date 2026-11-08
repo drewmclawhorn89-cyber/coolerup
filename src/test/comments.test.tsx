@@ -36,34 +36,16 @@ const eq = vi.fn();
 const select = vi.fn();
 const single = vi.fn();
 const insert = vi.fn();
-const del = vi.fn();
-const inFn = vi.fn();
-
-/** Likes query resolves empty by default so the thread still renders. */
-let likeRows: unknown[] = [];
 
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
-    from: (table: string) => ({
+    from: () => ({
       select: (...args: unknown[]) => {
         select(...args);
         return {
           eq: (...eqArgs: unknown[]) => {
             eq(...eqArgs);
-            return {
-              order: (...orderArgs: unknown[]) => order(...orderArgs),
-              eq: (...moreEq: unknown[]) => ({
-                order: (...orderArgs: unknown[]) => order(...orderArgs),
-                ...moreEq,
-              }),
-            };
-          },
-          in: (...inArgs: unknown[]) => {
-            inFn(...inArgs);
-            return Promise.resolve({
-              data: table === "comment_likes" ? likeRows : [],
-              error: null,
-            });
+            return { order: (...orderArgs: unknown[]) => order(...orderArgs) };
           },
         };
       },
@@ -71,33 +53,19 @@ vi.mock("@/integrations/supabase/client", () => ({
         insert(...args);
         return {
           select: () => ({ single: () => single() }),
-          then: (resolve: (v: unknown) => void) => resolve({ error: null }),
         };
-      },
-      delete: (...args: unknown[]) => {
-        del(...args);
-        const chain = {
-          eq: () => chain,
-          then: (resolve: (v: unknown) => void) => resolve({ error: null }),
-        };
-        return chain;
       },
     }),
   },
 }));
 
 vi.mock("@/hooks/useAuth", () => ({
-  useAuth: () => ({
-    handle: "maya.moves",
-    signIn: vi.fn(),
-    user: { id: "u1" },
-  }),
+  useAuth: () => ({ handle: "maya.moves", signIn: vi.fn() }),
 }));
 
 describe("Comments", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    likeRows = [];
   });
 
   it("renders top-level comments and nests their replies", async () => {
@@ -153,25 +121,5 @@ describe("Comments", () => {
       expect.objectContaining({ video_id: "v1", username: "maya.moves", body: "hello" }),
     );
     expect(await screen.findByText("hello")).toBeInTheDocument();
-  });
-
-  it("shows like counts and toggles a like on", async () => {
-    order.mockResolvedValue({ data: rows, error: null });
-    likeRows = [{ comment_id: "c1", user_id: "someone-else" }];
-
-    render(<Comments videoId="v1" onClose={() => {}} onAdded={() => {}} />);
-
-    // c1 already has one like from another user.
-    const likeButtons = await screen.findAllByRole("button", { name: "Like comment" });
-    // c1 sorts first (newest-first order preserved from the query), so its
-    // button is the one carrying the existing like.
-    const likeButton = likeButtons[0]!;
-    expect(likeButton).toHaveTextContent("1");
-
-    fireEvent.click(likeButton);
-
-    await waitFor(() => expect(insert).toHaveBeenCalledWith({ comment_id: "c1", user_id: "u1" }));
-    const unlike = await screen.findByRole("button", { name: "Unlike comment" });
-    expect(unlike).toHaveTextContent("2");
   });
 });

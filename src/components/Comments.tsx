@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { CornerDownRight, Heart, X } from "lucide-react";
+import { CornerDownRight, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -12,9 +12,6 @@ type Comment = {
   created_at: string;
   gif_url: string | null;
   parent_id: string | null;
-  /** Folded in after the comments load; not a column on `comments`. */
-  like_count: number;
-  liked_by_me: boolean;
 };
 
 const COLS = "id, username, body, created_at, gif_url, parent_id";
@@ -128,43 +125,8 @@ export function Comments({
       setItems([]);
       return;
     }
-
-    const rows = (data ?? []) as Omit<Comment, "like_count" | "liked_by_me">[];
-    if (rows.length === 0) {
-      setItems([]);
-      return;
-    }
-
-    // One extra query for every like on the thread, then fold the counts in.
-    // A missing table (migration not applied yet) must not blank the thread.
-    const { data: likeRows, error: likeError } = await supabase
-      .from("comment_likes")
-      .select("comment_id, user_id")
-      .in(
-        "comment_id",
-        rows.map((r) => r.id),
-      );
-
-    if (likeError) {
-      setItems(rows.map((r) => ({ ...r, like_count: 0, liked_by_me: false })));
-      return;
-    }
-
-    const counts = new Map<string, number>();
-    const mine = new Set<string>();
-    for (const like of (likeRows ?? []) as { comment_id: string; user_id: string }[]) {
-      counts.set(like.comment_id, (counts.get(like.comment_id) ?? 0) + 1);
-      if (user?.id && like.user_id === user.id) mine.add(like.comment_id);
-    }
-
-    setItems(
-      rows.map((r) => ({
-        ...r,
-        like_count: counts.get(r.id) ?? 0,
-        liked_by_me: mine.has(r.id),
-      })),
-    );
-  }, [videoId, user?.id]);
+    setItems(data ?? []);
+  }, [videoId]);
 
   useEffect(() => {
     void load();
@@ -228,54 +190,6 @@ export function Comments({
   const topLevel = items?.filter((c) => !c.parent_id) ?? [];
   const repliesTo = (id: string) => (items ?? []).filter((r) => r.parent_id === id).reverse();
 
-  /** Optimistically flip a comment's like, then settle on the server value. */
-  const likeComment = async (comment: Comment) => {
-    if (!user?.id) {
-      void signIn();
-      return;
-    }
-    const nextLiked = !comment.liked_by_me;
-
-    setItems((list) =>
-      (list ?? []).map((c) =>
-        c.id === comment.id
-          ? {
-              ...c,
-              liked_by_me: nextLiked,
-              like_count: Math.max(0, c.like_count + (nextLiked ? 1 : -1)),
-            }
-          : c,
-      ),
-    );
-
-    try {
-      if (nextLiked) {
-        const { error } = await supabase
-          .from("comment_likes")
-          .insert({ comment_id: comment.id, user_id: user.id });
-        // 23505 = already liked; treat as success.
-        if (error && error.code !== "23505") throw error;
-      } else {
-        const { error } = await supabase
-          .from("comment_likes")
-          .delete()
-          .eq("comment_id", comment.id)
-          .eq("user_id", user.id);
-        if (error) throw error;
-      }
-    } catch {
-      // Put it back the way it was.
-      setItems((list) =>
-        (list ?? []).map((c) =>
-          c.id === comment.id
-            ? { ...c, liked_by_me: comment.liked_by_me, like_count: comment.like_count }
-            : c,
-        ),
-      );
-      toast.error("Couldn't save your like");
-    }
-  };
-
   return (
     <div
       className="fixed inset-0 z-50 flex items-end justify-end bg-overlay sm:items-stretch"
@@ -310,10 +224,10 @@ export function Comments({
           )}
           {topLevel.map((c) => (
             <div key={c.id} className="space-y-3">
-              <CommentRow c={c} onReply={setReplyTo} onLike={likeComment} />
+              <CommentRow c={c} onReply={setReplyTo} />
               {repliesTo(c.id).map((r) => (
                 <div key={r.id} className="ml-11">
-                  <CommentRow c={r} onReply={setReplyTo} onLike={likeComment} />
+                  <CommentRow c={r} onReply={setReplyTo} />
                 </div>
               ))}
             </div>
@@ -389,15 +303,7 @@ export function Comments({
   );
 }
 
-function CommentRow({
-  c,
-  onReply,
-  onLike,
-}: {
-  c: Comment;
-  onReply: (c: Comment) => void;
-  onLike: (c: Comment) => void;
-}) {
+function CommentRow({ c, onReply }: { c: Comment; onReply: (c: Comment) => void }) {
   // `username` is NOT NULL in the database, but a trimmed empty string would
   // still make `c.username[0]` render nothing; fall back to "?".
   const initial = (c.username ?? "").trim().charAt(0).toUpperCase() || "?";
@@ -412,27 +318,12 @@ function CommentRow({
         {c.gif_url && (
           <img src={c.gif_url} alt="GIF" loading="lazy" className="mt-1 max-h-40 rounded-lg" />
         )}
-        <div className="mt-1 flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => onLike(c)}
-            aria-pressed={c.liked_by_me}
-            aria-label={c.liked_by_me ? "Unlike comment" : "Like comment"}
-            className={`flex items-center gap-1 text-xs font-semibold transition ${
-              c.liked_by_me ? "text-red-500" : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <Heart className={`h-3.5 w-3.5 ${c.liked_by_me ? "fill-current" : ""}`} />
-            {c.like_count > 0 ? c.like_count : "Like"}
-          </button>
-          <button
-            type="button"
-            onClick={() => onReply(c)}
-            className="flex items-center gap-1 text-xs font-semibold text-muted-foreground hover:text-foreground"
-          >
-            <CornerDownRight className="h-3 w-3" /> Reply
-          </button>
-        </div>
+        <button
+          onClick={() => onReply(c)}
+          className="mt-1 flex items-center gap-1 text-xs font-semibold text-muted-foreground"
+        >
+          <CornerDownRight className="h-3 w-3" /> Reply
+        </button>
       </div>
     </div>
   );

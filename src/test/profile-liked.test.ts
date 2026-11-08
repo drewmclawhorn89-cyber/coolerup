@@ -42,9 +42,6 @@ vi.mock("@/integrations/supabase/client", () => {
       limit() {
         return Promise.resolve({ data: state.rows, error: null });
       },
-      range() {
-        return Promise.resolve({ data: state.rows, error: null });
-      },
     };
     return api;
   }

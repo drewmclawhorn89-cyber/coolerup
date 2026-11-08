@@ -9,11 +9,6 @@ import { useAuth } from "@/hooks/useAuth";
 import { deleteMyAccount } from "@/lib/push.functions";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { announcePushPref, ensurePushSubscription } from "@/lib/push-client";
-import {
-  isChristmasTestOwner,
-  setChristmasTestMode,
-  useChristmasTestMode,
-} from "@/lib/christmas-test";
 
 function Toggle({ id, label, desc, def = false }: { id: string; label: string; desc?: string; def?: boolean }) {
   const [on, setOn] = useState(read(id, String(def)) === "true");
@@ -82,35 +77,6 @@ const Card = ({ title, children }: { title: string; children: React.ReactNode })
     {children}
   </div>
 );
-
-/**
- * Owner-only switch that forces the Christmas Update on for this device.
- *
- * The real update is date-gated (Nov 15 - Jan 1), so without this there is no
- * way to check the snow, lights, gifts and seasonal Codes tab out of season.
- * The flag is local to the browser and never reaches the database.
- */
-function ChristmasTestCard() {
-  const on = useChristmasTestMode();
-  const change = (v: boolean) => {
-    setChristmasTestMode(v);
-    toast.success(v ? "Christmas Update preview is on" : "Christmas Update preview is off");
-  };
-  return (
-    <Card title="Christmas update (owner)">
-      <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <div className="font-medium">Test the Christmas Update</div>
-          <div className="text-sm text-muted-foreground">
-            Preview the snow, lights, gifts and seasonal Codes tab on this device, even outside Nov
-            15 - Jan 1. Only you see this switch, and it only affects this browser.
-          </div>
-        </div>
-        <Switch checked={on} onCheckedChange={change} aria-label="Test the Christmas Update" />
-      </div>
-    </Card>
-  );
-}
 
 const WHO = ["Everyone", "Friends", "Only me"];
 
@@ -253,7 +219,6 @@ export function MoreSettings() {
 
   return (
     <>
-      {isChristmasTestOwner(auth.handle) && <ChristmasTestCard />}
       <Card title="Push notifications">
         <Toggle id="n-likes" label="Likes" def />
         <Toggle id="n-comments" label="Comments" def />

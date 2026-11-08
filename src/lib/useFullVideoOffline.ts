@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { useAuth } from "@/hooks/useAuth";
 import {
   getSavedFullVideo,
   onOfflineChange,
   removeFullVideoOffline,
   saveFullVideoOffline,
 } from "@/lib/offline";
+import { hasOfflineAccess, offlinePlan } from "@/lib/subscriptions";
 import type { FullVideo } from "@/lib/fullVideos";
 
 /**
@@ -13,15 +15,16 @@ import type { FullVideo } from "@/lib/fullVideos";
  *
  * Every surface that offers "download for offline" (the card badge, the share
  * sheet, the watch-page action row) goes through this hook so the saved size,
- * in-flight progress and the Plus gate all behave identically.
+ * in-flight progress and the Pro/VIP gate all behave identically.
  */
 export function useFullVideoOffline(video: Pick<FullVideo, "id"> & Partial<FullVideo>) {
+  const auth = useAuth();
   const [savedSize, setSavedSize] = useState<number | null>(null);
   const [progress, setProgress] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
 
-  // Offline downloads are free, so every viewer can save.
-  const offlineUnlocked = true;
+  // Offline mode ships with Pro and VIP; Plus and free accounts are locked.
+  const offlineUnlocked = hasOfflineAccess(auth.handle);
   const isSaved = savedSize !== null;
 
   useEffect(() => {
@@ -48,11 +51,19 @@ export function useFullVideoOffline(video: Pick<FullVideo, "id"> & Partial<FullV
     if (busy || progress !== null) return false;
     setBusy(true);
     try {
+      // Removing a saved copy is always allowed, even if the plan lapsed.
       if (savedSize !== null) {
         await removeFullVideoOffline(video.id);
         setSavedSize(null);
         toast.success("Removed from offline");
         return true;
+      }
+
+      if (!offlineUnlocked) {
+        const plan = offlinePlan();
+        toast.error(`Offline mode is part of ${plan.label} ($${plan.price.toFixed(2)}/mo)`);
+        window.location.href = "/?tab=subscriptions";
+        return false;
       }
 
       setProgress(0);
@@ -68,7 +79,7 @@ export function useFullVideoOffline(video: Pick<FullVideo, "id"> & Partial<FullV
       setProgress(null);
       setBusy(false);
     }
-  }, [busy, progress, savedSize, video]);
+  }, [busy, progress, savedSize, offlineUnlocked, video]);
 
   return { savedSize, progress, busy, isSaved, offlineUnlocked, toggle };
 }

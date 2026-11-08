@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { Check, Download, Gauge, Link2, Share2, Trash2, X } from "lucide-react";
+import { Check, Download, Gauge, Link2, Lock, Share2, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { deleteVideo, resolveVideoUrl, type Video } from "@/lib/loop";
 import { formatBytes, getSaved, removeOffline, saveOffline } from "@/lib/offline";
+import { hasOfflineAccess, offlinePlan } from "@/lib/subscriptions";
 
 export function ShareMenu({
   video,
@@ -24,6 +25,8 @@ export function ShareMenu({
   const [savedSize, setSavedSize] = useState<number | null>(null);
   const [progress, setProgress] = useState<number | null>(null);
   const auth = useAuth();
+  // Offline mode ships with Pro and VIP; Plus and free accounts are locked.
+  const offlineUnlocked = hasOfflineAccess(auth.handle);
   const isOwner = !!auth.user && !!auth.handle && auth.handle === video.username;
   const url = typeof window !== "undefined" ? `${window.location.origin}/v/${video.id}` : "";
 
@@ -34,6 +37,12 @@ export function ShareMenu({
   }, [video.id]);
 
   const save = async () => {
+    if (!offlineUnlocked) {
+      const plan = offlinePlan();
+      toast.error(`Offline mode is part of ${plan.label} ($${plan.price.toFixed(2)}/mo)`);
+      window.location.href = "/?tab=subscriptions";
+      return;
+    }
     setProgress(0);
     try {
       const size = await saveOffline(video, setProgress);
@@ -188,11 +197,25 @@ export function ShareMenu({
               }
             }}
           >
-            <div className="w-14 h-14 rounded-full bg-zinc-800 flex items-center justify-center">
-              {savedSize ? <Trash2 size={22} /> : <Check size={22} />}
+            <div
+              className={`w-14 h-14 rounded-full flex items-center justify-center ${
+                offlineUnlocked || savedSize ? "bg-zinc-800" : "bg-zinc-800/60"
+              }`}
+            >
+              {savedSize ? (
+                <Trash2 size={22} />
+              ) : offlineUnlocked ? (
+                <Check size={22} />
+              ) : (
+                <Lock size={22} />
+              )}
             </div>
             <span className="text-xs text-zinc-300">
-              {savedSize ? `Remove (${formatBytes(savedSize)})` : "Save offline"}
+              {savedSize
+                ? `Remove (${formatBytes(savedSize)})`
+                : offlineUnlocked
+                  ? "Save offline"
+                  : `${offlinePlan().label} only`}
             </span>
           </button>
 

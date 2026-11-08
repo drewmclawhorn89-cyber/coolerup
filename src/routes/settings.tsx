@@ -18,7 +18,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { writePref } from "@/lib/prefs";
 import { MoreSettings } from "@/components/MoreSettings";
-import { useSubscription } from "@/lib/subscriptions";
+import { hasOfflineAccess, offlinePlan, useSubscription } from "@/lib/subscriptions";
 import { ThemePicker } from "@/components/ThemePicker";
 import { QUALITY_OPTIONS, useVideoQuality } from "@/lib/videoQuality";
 import {
@@ -55,8 +55,10 @@ function Settings() {
   const auth = useAuth();
   // Playback quality is a device preference (localStorage `video_quality`).
   const { quality: videoQuality, setQuality: setVideoQuality } = useVideoQuality();
-  // Offline mode is free; the subscription is still read for other perks.
+  // Offline mode ships with Pro and VIP; Plus and free accounts are locked.
   const subscription = useSubscription(auth.handle);
+  const offlineUnlocked = hasOfflineAccess(auth.handle);
+  const offlinePrice = offlinePlan().price;
   const [editing, setEditing] = useState(false);
   // Subscriptions used to be its own top tab; it now opens from inside Settings.
   const [showSubscriptions, setShowSubscriptions] = useState(false);
@@ -128,8 +130,10 @@ function Settings() {
   useEffect(() => {
     try {
       const savedOffline = localStorage.getItem("settings:offline") === "true";
-      // Offline mode is free, so a lapsed plan never turns the setting off.
-      setOfflineMode(savedOffline);
+      // A lapsed plan (or a Plus-only plan) turns the setting off, but never
+      // deletes anything already downloaded.
+      const allowed = savedOffline && hasOfflineAccess(auth.handle);
+      setOfflineMode(allowed);
       setPrivateAccount(localStorage.getItem("settings:private") === "true");
       setPhone(localStorage.getItem("settings:phone") || "");
       setTiktokLink(localStorage.getItem("settings:tiktok") || "");
@@ -139,6 +143,12 @@ function Settings() {
   }, [auth.ready, auth.handle]);
 
   const toggleOffline = () => {
+    if (!offlineMode && !offlineUnlocked) {
+      const plan = offlinePlan();
+      toast.error(`Offline mode is part of ${plan.label} ($${plan.price.toFixed(2)}/mo)`);
+      setShowSubscriptions(true);
+      return;
+    }
     const newVal = !offlineMode;
 
     setOfflineMode(newVal);
@@ -816,32 +826,51 @@ function Settings() {
         <div className="flex items-center gap-2">
           <h2 className="font-semibold">Offline Mode</h2>
           <span className="rounded-full border px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-            Free
+            {offlineUnlocked ? "Pro & VIP" : `${offlinePlan().label} required`}
           </span>
         </div>
 
         <p className="mt-1 text-sm text-muted-foreground">
           Save videos and watch them without a connection.
         </p>
-        <div className="mt-3 flex items-center gap-3">
-          <button
-            onClick={toggleOffline}
-            style={{ backgroundColor: offlineMode ? "#16a34a" : "black", color: "white" }}
-            className="rounded-md px-4 py-2 font-medium"
-          >
-            {offlineMode ? "ON" : "OFF"}
-          </button>
-          <button
-            onClick={() => (window.location.href = "/offline")}
-            style={{ backgroundColor: "black", color: "white" }}
-            className="rounded-md px-4 py-2 font-medium"
-          >
-            View Offline Videos →
-          </button>
-        </div>
-        <p className="mt-2 text-xs text-muted-foreground">
-          {offlineMode ? "Tap View to see your saved videos" : "Turn ON first, then view"}
-        </p>
+        {offlineUnlocked ? (
+          <>
+            <div className="mt-3 flex items-center gap-3">
+              <button
+                onClick={toggleOffline}
+                style={{ backgroundColor: offlineMode ? "#16a34a" : "black", color: "white" }}
+                className="rounded-md px-4 py-2 font-medium"
+              >
+                {offlineMode ? "ON" : "OFF"}
+              </button>
+              <button
+                onClick={() => (window.location.href = "/offline")}
+                style={{ backgroundColor: "black", color: "white" }}
+                className="rounded-md px-4 py-2 font-medium"
+              >
+                View Offline Videos →
+              </button>
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">
+              {offlineMode ? "Tap View to see your saved videos" : "Turn ON first, then view"}
+            </p>
+          </>
+        ) : (
+          <>
+            <div className="mt-3 flex items-center gap-3">
+              <button
+                onClick={() => setShowSubscriptions(true)}
+                style={{ backgroundColor: "black", color: "white" }}
+                className="rounded-md px-4 py-2 font-medium"
+              >
+                Upgrade to {offlinePlan().label} · ${offlinePrice.toFixed(2)}/mo
+              </button>
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Offline downloads come with {offlinePlan().label} and VIP. Plus does not include them.
+            </p>
+          </>
+        )}
       </div>
       {/* Video quality */}
       <div className="rounded-2xl border bg-card p-4">

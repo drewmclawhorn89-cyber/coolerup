@@ -1,14 +1,11 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Loader2, ArrowLeft, Search, Upload } from "lucide-react";
+import { Loader2, ArrowLeft, Search, Upload, WifiOff } from "lucide-react";
 import { FullVideoCard } from "@/components/FullVideoCard";
 import { EditFullVideoDialog } from "@/components/EditFullVideoDialog";
 import { useAuth } from "@/hooks/useAuth";
-import {
-  FULL_VIDEO_CATEGORIES,
-  listFullVideos,
-  type FullVideo,
-} from "@/lib/fullVideos";
+import { FULL_VIDEO_CATEGORIES, listFullVideos, type FullVideo } from "@/lib/fullVideos";
+import { listSavedFullVideos, onOfflineChange } from "@/lib/offline";
 
 /**
  * How many cards to fetch per page. Two screens' worth on a phone, so the grid
@@ -45,6 +42,10 @@ function VideosPage() {
   const [hasMore, setHasMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<FullVideo | null>(null);
+  /** When true the grid shows only videos downloaded for offline viewing. */
+  const [offlineOnly, setOfflineOnly] = useState(false);
+  const [savedVideos, setSavedVideos] = useState<FullVideo[]>([]);
+  const [savedLoading, setSavedLoading] = useState(false);
 
   /** Guards against a stale page landing after the filters changed. */
   const requestRef = useRef(0);
@@ -58,6 +59,8 @@ function VideosPage() {
 
   /** First page for the current filters. */
   const load = useCallback(async () => {
+    // The offline shelf is read from IndexedDB, not the network.
+    if (offlineOnly) return;
     const token = ++requestRef.current;
     setLoading(true);
     setError(null);
@@ -82,15 +85,40 @@ function VideosPage() {
     } finally {
       if (token === requestRef.current) setLoading(false);
     }
-  }, [category, search, auth.user?.id]);
+  }, [category, search, auth.user?.id, offlineOnly]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
+  /** Read the offline shelf, and keep it fresh as downloads are added/removed. */
+  useEffect(() => {
+    if (!offlineOnly) return;
+    let alive = true;
+    const refresh = () => {
+      setSavedLoading(true);
+      void listSavedFullVideos()
+        .then((rows) => {
+          if (alive) setSavedVideos(rows.map((r) => r.video));
+        })
+        .catch(() => {
+          if (alive) setSavedVideos([]);
+        })
+        .finally(() => {
+          if (alive) setSavedLoading(false);
+        });
+    };
+    refresh();
+    const off = onOfflineChange(refresh);
+    return () => {
+      alive = false;
+      off();
+    };
+  }, [offlineOnly]);
+
   /** Append the next page. Safe to call repeatedly; the guard prevents doubles. */
   const loadMore = useCallback(async () => {
-    if (loadingMore || loading || !hasMore) return;
+    if (offlineOnly || loadingMore || loading || !hasMore) return;
     const token = requestRef.current;
     setLoadingMore(true);
     try {
@@ -113,7 +141,7 @@ function VideosPage() {
     } finally {
       if (token === requestRef.current) setLoadingMore(false);
     }
-  }, [loadingMore, loading, hasMore, videos.length, category, search, auth.user?.id]);
+  }, [offlineOnly, loadingMore, loading, hasMore, videos.length, category, search, auth.user?.id]);
 
   /**
    * Fetch the next page as the sentinel scrolls into view, so the grid grows
@@ -121,7 +149,7 @@ function VideosPage() {
    */
   useEffect(() => {
     const node = sentinelRef.current;
-    if (!node || !hasMore) return;
+    if (!node || !hasMore || offlineOnly) return;
     const io = new IntersectionObserver(
       (entries) => {
         if (entries.some((e) => e.isIntersecting)) void loadMore();
@@ -131,7 +159,7 @@ function VideosPage() {
     );
     io.observe(node);
     return () => io.disconnect();
-  }, [hasMore, loadMore]);
+  }, [hasMore, loadMore, offlineOnly]);
 
   const startUpload = () => {
     if (!auth.user) {
@@ -198,6 +226,20 @@ function VideosPage() {
               {c}
             </button>
           ))}
+          <button
+            type="button"
+            onClick={() => setOfflineOnly((v) => !v)}
+            aria-pressed={offlineOnly}
+            title="Show videos downloaded for offline viewing"
+            className={`flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-3 py-1.5 text-[13px] font-medium transition ${
+              offlineOnly
+                ? "bg-emerald-600 text-white"
+                : "bg-secondary text-secondary-foreground hover:bg-accent"
+            }`}
+          >
+            <WifiOff className="h-3.5 w-3.5" />
+            Offline
+          </button>
         </div>
       </div>
 
@@ -207,7 +249,35 @@ function VideosPage() {
         </p>
       )}
 
-      {loading ? (
+      {offlineOnly ? (
+        savedLoading ? (
+          <div className="flex items-center justify-center py-20 text-muted-foreground">
+            <Loader2 className="h-6 w-6 animate-spin" />
+          </div>
+        ) : savedVideos.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <WifiOff className="h-8 w-8 text-muted-foreground" />
+            <p className="mt-3 text-base font-semibold">Nothing saved offline yet</p>
+            <p className="mt-1 max-w-xs text-sm text-muted-foreground">
+              Tap the download badge on any video, or use Share → Offline mode, to keep it available
+              without a connection.
+            </p>
+            <button
+              type="button"
+              onClick={() => setOfflineOnly(false)}
+              className="mt-4 rounded-full bg-secondary px-4 py-2 text-sm font-semibold text-secondary-foreground hover:bg-accent"
+            >
+              Browse all videos
+            </button>
+          </div>
+        ) : (
+          <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-5 sm:grid-cols-3 lg:grid-cols-4">
+            {savedVideos.map((v) => (
+              <FullVideoCard key={v.id} video={v} />
+            ))}
+          </div>
+        )
+      ) : loading ? (
         <div className="flex items-center justify-center py-20 text-muted-foreground">
           <Loader2 className="h-6 w-6 animate-spin" />
         </div>
@@ -240,7 +310,7 @@ function VideosPage() {
         </div>
       )}
 
-      {videos.length > 0 && (
+      {!offlineOnly && videos.length > 0 && (
         <div className="mt-6 flex flex-col items-center gap-3">
           {/* Scroll target: the next page loads as this comes into view. */}
           <div ref={sentinelRef} aria-hidden className="h-px w-full" />
@@ -263,9 +333,7 @@ function VideosPage() {
           )}
 
           {!hasMore && (
-            <p className="py-2 text-[13px] text-muted-foreground">
-              That's everything for now.
-            </p>
+            <p className="py-2 text-[13px] text-muted-foreground">That's everything for now.</p>
           )}
 
           <Link to="/" className="text-sm text-muted-foreground underline">
@@ -281,9 +349,7 @@ function VideosPage() {
           userId={auth.user.id}
           open
           onClose={() => setEditing(null)}
-          onSaved={(next) =>
-            setVideos((prev) => prev.map((v) => (v.id === next.id ? next : v)))
-          }
+          onSaved={(next) => setVideos((prev) => prev.map((v) => (v.id === next.id ? next : v)))}
           onDeleted={(id) => setVideos((prev) => prev.filter((v) => v.id !== id))}
         />
       )}

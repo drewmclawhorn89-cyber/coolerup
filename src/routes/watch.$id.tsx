@@ -20,6 +20,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { getPendingVideo } from "@/lib/pendingUploads";
 import {
   addComment,
+  deleteFullVideo,
+  finalizeFullVideo,
   formatViews,
   getFullVideo,
   getMyReaction,
@@ -29,6 +31,8 @@ import {
   listRelatedVideos,
   resolveFullVideoUrl,
   setReaction,
+  storageObjectSize,
+  STORAGE_PREFIX,
   timeAgo,
   type FullVideo,
   type FullVideoComment,
@@ -147,26 +151,58 @@ function WatchPage() {
   useEffect(() => {
     if (video?.status !== "processing") return;
     let alive = true;
-    const timer = setInterval(() => {
-      void (async () => {
-        try {
-          const row = await getFullVideo(video.id);
-          if (!alive || !row) return;
-          if (row.status === "ready") {
-            const [main, thumb] = await Promise.all([
-              resolveFullVideoUrl(row.video_url),
-              resolveFullVideoUrl(row.thumbnail_url),
-            ]);
-            if (!alive) return;
-            setVideo(row);
-            setSrc(main);
-            setPoster(thumb);
-          }
-        } catch {
-          // Keep polling; a transient failure is not worth surfacing here.
+
+    /** Swap the player over to the real object once it is playable. */
+    const adopt = async (row: FullVideo) => {
+      const [main, thumb] = await Promise.all([
+        resolveFullVideoUrl(row.video_url),
+        resolveFullVideoUrl(row.thumbnail_url),
+      ]);
+      if (!alive) return;
+      setVideo(row);
+      setSrc(main);
+      setPoster(thumb);
+    };
+
+    const tick = async () => {
+      try {
+        const row = await getFullVideo(video.id);
+        if (!alive || !row) return;
+
+        if (row.status === "ready") {
+          await adopt(row);
+          return;
         }
-      })();
-    }, 3000);
+        if (row.status === "failed") {
+          setVideo(row);
+          return;
+        }
+
+        // Still `processing`, and this browser isn't the one uploading. The
+        // bytes may have landed while the row never got flipped to `ready`
+        // (tab closed at 99%, the finalize call failed, etc). Compare what is
+        // actually in storage against the expected size and finish the job.
+        if (getPendingVideo(row.id)) return;
+        if (row.video_url.startsWith(STORAGE_PREFIX)) {
+          const path = row.video_url.slice(STORAGE_PREFIX.length);
+          const size = await storageObjectSize(path);
+          const expected = row.expected_bytes ?? 0;
+          if (size && size > 0 && (expected === 0 || size >= expected)) {
+            await finalizeFullVideo(row.id, {
+              videoUrl: row.video_url,
+              thumbnailUrl: row.thumbnail_url,
+            });
+            const healed = await getFullVideo(row.id);
+            if (healed) await adopt(healed);
+          }
+        }
+      } catch {
+        // Keep polling; a transient failure is not worth surfacing here.
+      }
+    };
+
+    void tick();
+    const timer = setInterval(() => void tick(), 3000);
     return () => {
       alive = false;
       clearInterval(timer);
@@ -205,6 +241,20 @@ function WatchPage() {
    */
   const waitingForUpload =
     video?.status === "processing" && !getPendingVideo(video.id);
+
+  /** The upload died. Only the owner can do anything about it. */
+  const uploadFailed = video?.status === "failed";
+
+  async function removeFailed() {
+    if (!video || !auth.user) return;
+    try {
+      await deleteFullVideo(video.id, auth.user.id);
+      toast.success("Removed.");
+      void navigate({ to: "/videos" });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not remove this video.");
+    }
+  }
 
   const countView = useCallback(() => {
     if (!video || viewCounted.current) return;
@@ -371,6 +421,35 @@ function WatchPage() {
                 <p className="mt-1 text-[13px] text-muted-foreground">
                   It'll start playing here on its own — no need to refresh.
                 </p>
+              </div>
+            </div>
+          ) : uploadFailed ? (
+            <div className="mx-3 mt-2 flex aspect-video flex-col items-center justify-center gap-3 rounded-xl bg-muted text-center sm:mx-0">
+              <div className="px-6">
+                <p className="text-sm font-semibold">This upload didn't finish</p>
+                <p className="mt-1 text-[13px] text-muted-foreground">
+                  {isOwner
+                    ? (video.upload_error ?? "The file never finished uploading.")
+                    : "The owner can re-upload it."}
+                </p>
+                {isOwner && (
+                  <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void navigate({ to: "/upload-full" })}
+                      className="rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
+                    >
+                      Upload again
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void removeFailed()}
+                      className="rounded-full bg-secondary px-4 py-2 text-sm font-semibold text-secondary-foreground"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           ) : (

@@ -4,12 +4,14 @@ import {
   ArrowLeft,
   Bookmark,
   Check,
+  CornerDownRight,
   Loader2,
   Pencil,
   Repeat2,
   Share2,
   ThumbsDown,
   ThumbsUp,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { YouTubePlayer } from "@/components/YouTubePlayer";
@@ -35,6 +37,7 @@ import {
   storageObjectSize,
   STORAGE_PREFIX,
   timeAgo,
+  toggleCommentLike,
   type FullVideo,
   type FullVideoComment,
   type Reaction,
@@ -83,6 +86,8 @@ function WatchPage() {
   const [comments, setComments] = useState<FullVideoComment[]>([]);
   const [commentText, setCommentText] = useState("");
   const [posting, setPosting] = useState(false);
+  /** The comment being answered; null means a fresh top-level comment. */
+  const [replyTo, setReplyTo] = useState<FullVideoComment | null>(null);
 
   const viewCounted = useRef(false);
 
@@ -135,7 +140,7 @@ function WatchPage() {
           if (alive) setMyReaction(mine);
         }
 
-        const rows = await listComments(row.id);
+        const rows = await listComments(row.id, auth.user?.id ?? null);
         if (alive) setComments(rows);
       } catch (err) {
         if (alive) setError(err instanceof Error ? err.message : "Could not load this video.");
@@ -242,8 +247,7 @@ function WatchPage() {
    * isn't the one holding the file — i.e. a stranger who has nothing to play.
    * The uploader keeps their local-copy player, so they never see this.
    */
-  const waitingForUpload =
-    video?.status === "processing" && !getPendingVideo(video.id);
+  const waitingForUpload = video?.status === "processing" && !getPendingVideo(video.id);
 
   /**
    * The upload died. Only the owner can do anything about it. Also true when
@@ -366,18 +370,59 @@ function WatchPage() {
 
     setPosting(true);
     try {
+      // Replies to a reply attach to the same top-level comment, so a thread
+      // never nests deeper than one level.
+      const parentId = replyTo ? (replyTo.parent_id ?? replyTo.id) : null;
       const row = await addComment(
         video.id,
         auth.user.id,
         auth.handle ?? auth.name ?? "you",
         body,
+        parentId,
       );
       setComments((c) => [row, ...c]);
       setCommentText("");
+      setReplyTo(null);
     } catch {
       toast.error("Could not post your comment.");
     } finally {
       setPosting(false);
+    }
+  };
+
+  /** Optimistically flip a comment's like, then settle on the server value. */
+  const likeComment = async (comment: FullVideoComment) => {
+    if (!auth.user) {
+      void auth.signIn();
+      return;
+    }
+    const nextLiked = !comment.liked_by_me;
+    setComments((list) =>
+      list.map((c) =>
+        c.id === comment.id
+          ? { ...c, liked_by_me: nextLiked, like_count: c.like_count + (nextLiked ? 1 : -1) }
+          : c,
+      ),
+    );
+    try {
+      const result = await toggleCommentLike(comment.id, auth.user.id, comment.liked_by_me);
+      setComments((list) =>
+        list.map((c) =>
+          c.id === comment.id
+            ? { ...c, liked_by_me: result.liked, like_count: result.like_count }
+            : c,
+        ),
+      );
+    } catch {
+      // Put it back the way it was.
+      setComments((list) =>
+        list.map((c) =>
+          c.id === comment.id
+            ? { ...c, liked_by_me: comment.liked_by_me, like_count: comment.like_count }
+            : c,
+        ),
+      );
+      toast.error("Could not save your like.");
     }
   };
 
@@ -517,23 +562,23 @@ function WatchPage() {
               </Link>
 
               {!isOwner && (
-              <button
-                type="button"
-                onClick={() => void toggleSubscribe()}
-                className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold ${
-                  subscribed
-                    ? "bg-secondary text-secondary-foreground"
-                    : "bg-red-600 text-white hover:bg-red-700"
-                }`}
-              >
-                {subscribed ? (
-                  <span className="flex items-center gap-1">
-                    <Check className="h-4 w-4" /> Subscribed
-                  </span>
-                ) : (
-                  "Subscribe"
-                )}
-              </button>
+                <button
+                  type="button"
+                  onClick={() => void toggleSubscribe()}
+                  className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold ${
+                    subscribed
+                      ? "bg-secondary text-secondary-foreground"
+                      : "bg-red-600 text-white hover:bg-red-700"
+                  }`}
+                >
+                  {subscribed ? (
+                    <span className="flex items-center gap-1">
+                      <Check className="h-4 w-4" /> Subscribed
+                    </span>
+                  ) : (
+                    "Subscribe"
+                  )}
+                </button>
               )}
             </div>
 
@@ -560,7 +605,9 @@ function WatchPage() {
                     myReaction === "dislike" ? "text-red-500" : "text-secondary-foreground"
                   }`}
                 >
-                  <ThumbsDown className={`h-4 w-4 ${myReaction === "dislike" ? "fill-current" : ""}`} />
+                  <ThumbsDown
+                    className={`h-4 w-4 ${myReaction === "dislike" ? "fill-current" : ""}`}
+                  />
                   {dislikes > 0 && dislikes}
                 </button>
               </div>
@@ -586,9 +633,7 @@ function WatchPage() {
                 onClick={toggleSave}
                 aria-pressed={saved}
                 className={`flex items-center gap-1.5 rounded-full px-3 py-2 text-sm font-semibold transition ${
-                  saved
-                    ? "bg-yellow-400 text-black"
-                    : "bg-secondary text-secondary-foreground"
+                  saved ? "bg-yellow-400 text-black" : "bg-secondary text-secondary-foreground"
                 }`}
               >
                 <Bookmark className={`h-4 w-4 ${saved ? "fill-current" : ""}`} />
@@ -624,7 +669,13 @@ function WatchPage() {
                 <input
                   value={commentText}
                   onChange={(e) => setCommentText(e.target.value)}
-                  placeholder={auth.user ? "Add a comment…" : "Sign in to comment"}
+                  placeholder={
+                    replyTo
+                      ? `Reply to @${replyTo.username}…`
+                      : auth.user
+                        ? "Add a comment…"
+                        : "Sign in to comment"
+                  }
                   aria-label="Add a comment"
                   className="min-w-0 flex-1 border-b bg-transparent pb-1 text-sm outline-none focus:border-foreground"
                 />
@@ -633,29 +684,53 @@ function WatchPage() {
                   disabled={!commentText.trim() || posting}
                   className="rounded-full bg-secondary px-3 py-1.5 text-sm font-semibold disabled:opacity-50"
                 >
-                  {posting ? "Posting…" : "Comment"}
+                  {posting ? "Posting…" : replyTo ? "Reply" : "Comment"}
                 </button>
               </form>
 
+              {replyTo && (
+                <div className="mt-1.5 flex items-center justify-between text-[12px] text-muted-foreground">
+                  <span>Replying to @{replyTo.username}</span>
+                  <button
+                    type="button"
+                    onClick={() => setReplyTo(null)}
+                    aria-label="Cancel reply"
+                    className="flex items-center gap-0.5 font-semibold hover:text-foreground"
+                  >
+                    <X className="h-3 w-3" /> Cancel
+                  </button>
+                </div>
+              )}
+
               <ul className="mt-4 space-y-4">
-                {comments.map((c) => (
-                  <li key={c.id} className="flex gap-2">
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-bold uppercase">
-                      {c.username?.[0] ?? "?"}
-                    </span>
-                    <div className="min-w-0">
-                      <p className="text-[12px] font-semibold">
-                        @{c.username}{" "}
-                        <span className="font-normal text-muted-foreground">
-                          {timeAgo(c.created_at)}
-                        </span>
-                      </p>
-                      <p className="whitespace-pre-wrap break-words text-sm">{c.body}</p>
-                    </div>
-                  </li>
-                ))}
+                {comments
+                  .filter((c) => !c.parent_id)
+                  .map((c) => (
+                    <li key={c.id}>
+                      <CommentRow
+                        comment={c}
+                        onReply={() => setReplyTo(c)}
+                        onLike={() => void likeComment(c)}
+                      />
+                      {comments
+                        .filter((r) => r.parent_id === c.id)
+                        .slice()
+                        .reverse()
+                        .map((r) => (
+                          <div key={r.id} className="mt-3 pl-10">
+                            <CommentRow
+                              comment={r}
+                              onReply={() => setReplyTo(r)}
+                              onLike={() => void likeComment(r)}
+                            />
+                          </div>
+                        ))}
+                    </li>
+                  ))}
                 {comments.length === 0 && (
-                  <li className="text-sm text-muted-foreground">No comments yet. Start the conversation.</li>
+                  <li className="text-sm text-muted-foreground">
+                    No comments yet. Start the conversation.
+                  </li>
                 )}
               </ul>
             </section>
@@ -686,6 +761,57 @@ function WatchPage() {
           onDeleted={() => void navigate({ to: "/videos" })}
         />
       )}
+    </div>
+  );
+}
+
+/** One comment or reply, with a like toggle and a reply affordance. */
+function CommentRow({
+  comment,
+  onReply,
+  onLike,
+}: {
+  comment: FullVideoComment;
+  onReply: () => void;
+  onLike: () => void;
+}) {
+  const initial = (comment.username ?? "").trim().charAt(0).toUpperCase() || "?";
+
+  return (
+    <div className="flex gap-2">
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-bold uppercase">
+        {initial}
+      </span>
+      <div className="min-w-0">
+        <p className="text-[12px] font-semibold">
+          @{comment.username}{" "}
+          <span className="font-normal text-muted-foreground">{timeAgo(comment.created_at)}</span>
+        </p>
+        <p className="whitespace-pre-wrap break-words text-sm">{comment.body}</p>
+
+        <div className="mt-1 flex items-center gap-3">
+          <button
+            type="button"
+            onClick={onLike}
+            aria-pressed={comment.liked_by_me}
+            aria-label={comment.liked_by_me ? "Unlike comment" : "Like comment"}
+            className={`flex items-center gap-1 text-[12px] font-semibold transition ${
+              comment.liked_by_me ? "text-red-500" : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <ThumbsUp className={`h-3.5 w-3.5 ${comment.liked_by_me ? "fill-current" : ""}`} />
+            {comment.like_count > 0 ? comment.like_count : "Like"}
+          </button>
+
+          <button
+            type="button"
+            onClick={onReply}
+            className="flex items-center gap-1 text-[12px] font-semibold text-muted-foreground hover:text-foreground"
+          >
+            <CornerDownRight className="h-3.5 w-3.5" /> Reply
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

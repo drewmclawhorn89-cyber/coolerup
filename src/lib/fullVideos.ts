@@ -56,6 +56,12 @@ export type FullVideoComment = {
   username: string;
   body: string;
   created_at: string;
+  /** Set on a reply; points at the top-level comment it answers. */
+  parent_id: string | null;
+  /** How many people liked this comment. */
+  like_count: number;
+  /** Whether the current viewer has liked it. */
+  liked_by_me: boolean;
 };
 
 export type Reaction = "like" | "dislike";
@@ -300,7 +306,7 @@ export async function getMyReaction(videoId: string, userId: string): Promise<Re
     .eq("user_id", userId)
     .maybeSingle();
   if (error) throw error;
-  return ((data as { reaction: Reaction } | null)?.reaction ?? null);
+  return (data as { reaction: Reaction } | null)?.reaction ?? null;
 }
 
 /**
@@ -323,7 +329,10 @@ export async function setReaction(
   }
   const { error } = await db
     .from("full_video_likes")
-    .upsert({ video_id: videoId, user_id: userId, reaction: next }, { onConflict: "video_id,user_id" });
+    .upsert(
+      { video_id: videoId, user_id: userId, reaction: next },
+      { onConflict: "video_id,user_id" },
+    );
   if (error) throw error;
 }
 
@@ -331,14 +340,55 @@ export async function setReaction(
 /* Comments                                                            */
 /* ------------------------------------------------------------------ */
 
-export async function listComments(videoId: string): Promise<FullVideoComment[]> {
+/**
+ * Every comment on a video, newest first, with reply targets and like state.
+ *
+ * Likes are fetched in one extra query and folded in here rather than per-row,
+ * so a thread with a hundred comments still costs two round trips.
+ */
+export async function listComments(
+  videoId: string,
+  viewerId?: string | null,
+): Promise<FullVideoComment[]> {
   const { data, error } = await db
     .from("full_video_comments")
     .select("*")
     .eq("video_id", videoId)
     .order("created_at", { ascending: false });
   if (error) throw error;
-  return (data ?? []) as FullVideoComment[];
+
+  const rows = (data ?? []) as Omit<FullVideoComment, "like_count" | "liked_by_me">[];
+  if (rows.length === 0) return [];
+
+  const ids = rows.map((r) => r.id);
+  const { data: likeRows, error: likeError } = await db
+    .from("full_video_comment_likes")
+    .select("comment_id, user_id")
+    .in("comment_id", ids);
+  // A missing likes table (migration not run yet) should not blank the thread.
+  if (likeError) {
+    return rows.map((r) => ({
+      ...r,
+      parent_id: r.parent_id ?? null,
+      like_count: 0,
+      liked_by_me: false,
+    }));
+  }
+
+  const likes = (likeRows ?? []) as { comment_id: string; user_id: string }[];
+  const counts = new Map<string, number>();
+  const mine = new Set<string>();
+  for (const like of likes) {
+    counts.set(like.comment_id, (counts.get(like.comment_id) ?? 0) + 1);
+    if (viewerId && like.user_id === viewerId) mine.add(like.comment_id);
+  }
+
+  return rows.map((r) => ({
+    ...r,
+    parent_id: r.parent_id ?? null,
+    like_count: counts.get(r.id) ?? 0,
+    liked_by_me: mine.has(r.id),
+  }));
 }
 
 export async function addComment(
@@ -346,14 +396,59 @@ export async function addComment(
   userId: string,
   username: string,
   body: string,
+  parentId?: string | null,
 ): Promise<FullVideoComment> {
   const { data, error } = await db
     .from("full_video_comments")
-    .insert({ video_id: videoId, user_id: userId, username, body: body.trim() })
+    .insert({
+      video_id: videoId,
+      user_id: userId,
+      username,
+      body: body.trim(),
+      parent_id: parentId ?? null,
+    })
     .select("*")
     .single();
   if (error) throw error;
-  return data as FullVideoComment;
+  return {
+    ...(data as FullVideoComment),
+    parent_id: (data as FullVideoComment).parent_id ?? null,
+    like_count: 0,
+    liked_by_me: false,
+  };
+}
+
+/**
+ * Toggle a like on a comment. Returns the new state so the caller can settle
+ * its optimistic update on the real value.
+ */
+export async function toggleCommentLike(
+  commentId: string,
+  userId: string,
+  liked: boolean,
+): Promise<{ liked: boolean; like_count: number }> {
+  if (liked) {
+    const { error } = await db
+      .from("full_video_comment_likes")
+      .delete()
+      .eq("comment_id", commentId)
+      .eq("user_id", userId);
+    if (error) throw error;
+  } else {
+    const { error } = await db
+      .from("full_video_comment_likes")
+      .insert({ comment_id: commentId, user_id: userId });
+    // A duplicate insert means it was already liked; treat as success.
+    if (error && error.code !== "23505") throw error;
+  }
+
+  const { count, error: countError } = await db
+    .from("full_video_comment_likes")
+    .select("id", { count: "exact", head: true })
+    .eq("comment_id", commentId);
+  if (countError) throw countError;
+
+  return { liked: !liked, like_count: count ?? 0 };
 }
 
 /* ------------------------------------------------------------------ */
@@ -436,7 +531,9 @@ export async function resolveFullVideoUrl(url: string | null | undefined): Promi
 }
 
 /** Read duration (seconds) and dimensions from a local file without uploading. */
-export function probeVideo(file: File): Promise<{ duration: number; width: number; height: number }> {
+export function probeVideo(
+  file: File,
+): Promise<{ duration: number; width: number; height: number }> {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file);
     const el = document.createElement("video");
@@ -866,7 +963,8 @@ async function resumableUpload(
       await sleep(backoffMs(attempt));
     }
 
-    if (!create) throw lastErr instanceof Error ? lastErr : new Error("Could not start the upload.");
+    if (!create)
+      throw lastErr instanceof Error ? lastErr : new Error("Could not start the upload.");
     if (create.status !== 201) {
       throw new UploadError(`Could not start the upload (${create.status}).`, create.status);
     }
@@ -925,7 +1023,12 @@ async function resumableUpload(
         }
         lastErr = new UploadError(`Chunk upload failed (${patch.status}).`, patch.status);
         // 4xx other than 408/429 will not get better by retrying.
-        if (patch.status >= 400 && patch.status < 500 && patch.status !== 408 && patch.status !== 429) {
+        if (
+          patch.status >= 400 &&
+          patch.status < 500 &&
+          patch.status !== 408 &&
+          patch.status !== 429
+        ) {
           throw lastErr;
         }
       } catch (err) {
@@ -970,10 +1073,7 @@ type PgError = { message?: string; details?: string; hint?: string; code?: strin
  * it doesn't exist. Returns true when something was removed, meaning the write
  * is worth retrying.
  */
-function dropUnknownColumn(
-  payload: Record<string, unknown>,
-  error: PgError,
-): boolean {
+function dropUnknownColumn(payload: Record<string, unknown>, error: PgError): boolean {
   if (!error) return false;
   const text = `${error.message ?? ""} ${error.details ?? ""} ${error.hint ?? ""}`.toLowerCase();
   // PostgREST says: "Could not find the 'expected_bytes' column of
@@ -1165,9 +1265,7 @@ export async function uploadFullVideoFiles(
           contentType: "image/jpeg",
           upsert: true,
         })
-        .then(({ error }) =>
-          error ? null : `${STORAGE_PREFIX}${userId}/full/${stamp}-thumb.jpg`,
-        )
+        .then(({ error }) => (error ? null : `${STORAGE_PREFIX}${userId}/full/${stamp}-thumb.jpg`))
         .catch(() => null)
     : Promise.resolve(null);
 

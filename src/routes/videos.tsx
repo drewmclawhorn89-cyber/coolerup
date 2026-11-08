@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import { Loader2, Search, Upload } from "lucide-react";
 import { FullVideoCard } from "@/components/FullVideoCard";
+import { EditFullVideoDialog } from "@/components/EditFullVideoDialog";
 import { useAuth } from "@/hooks/useAuth";
 import {
   FULL_VIDEO_CATEGORIES,
@@ -35,6 +36,7 @@ function VideosPage() {
   const [videos, setVideos] = useState<FullVideo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [editing, setEditing] = useState<FullVideo | null>(null);
 
   // Debounce typing so we don't hit the API on every keystroke.
   useEffect(() => {
@@ -148,7 +150,11 @@ function VideosPage() {
         /* Two columns on phones, more as the screen grows — like YouTube's grid. */
         <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-5 sm:grid-cols-3 lg:grid-cols-4">
           {videos.map((v) => (
-            <FullVideoCard key={v.id} video={v} />
+            <FullVideoCard
+              key={v.id}
+              video={v}
+              onEdit={auth.user && v.user_id === auth.user.id ? setEditing : undefined}
+            />
           ))}
         </div>
       )}
@@ -159,6 +165,20 @@ function VideosPage() {
             Back to the feed
           </Link>
         </div>
+      )}
+
+      {/* Owner-only editor, opened from the pencil on a card. */}
+      {editing && auth.user && (
+        <EditFullVideoDialog
+          video={editing}
+          userId={auth.user.id}
+          open
+          onClose={() => setEditing(null)}
+          onSaved={(next) =>
+            setVideos((prev) => prev.map((v) => (v.id === next.id ? next : v)))
+          }
+          onDeleted={(id) => setVideos((prev) => prev.filter((v) => v.id !== id))}
+        />
       )}
     </div>
   );

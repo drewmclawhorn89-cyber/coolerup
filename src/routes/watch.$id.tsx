@@ -1,10 +1,11 @@
-import { createFileRoute, Link, useParams } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate, useParams } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowLeft,
   Bookmark,
   Check,
   Loader2,
+  Pencil,
   Repeat2,
   Share2,
   ThumbsDown,
@@ -12,6 +13,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { YouTubePlayer } from "@/components/YouTubePlayer";
+import { EditFullVideoDialog } from "@/components/EditFullVideoDialog";
 import { FullVideoCard } from "@/components/FullVideoCard";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -48,6 +50,7 @@ export const Route = createFileRoute("/watch/$id")({
 function WatchPage() {
   const { id } = useParams({ from: "/watch/$id" });
   const auth = useAuth();
+  const navigate = useNavigate();
 
   const [video, setVideo] = useState<FullVideo | null>(null);
   const [related, setRelated] = useState<FullVideo[]>([]);
@@ -67,6 +70,7 @@ function WatchPage() {
 
   const [subscribed, setSubscribed] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [editing, setEditing] = useState(false);
 
   const [comments, setComments] = useState<FullVideoComment[]>([]);
   const [commentText, setCommentText] = useState("");
@@ -154,6 +158,9 @@ function WatchPage() {
   }, [auth.user, video]);
 
   /* ---------------- actions ---------------- */
+
+  /** Only the uploader can rename, re-tag or delete their own video. */
+  const isOwner = !!auth.user && !!video && video.user_id === auth.user.id;
 
   const countView = useCallback(() => {
     if (!video || viewCounted.current) return;
@@ -337,6 +344,7 @@ function WatchPage() {
                 </span>
               </Link>
 
+              {!isOwner && (
               <button
                 type="button"
                 onClick={() => void toggleSubscribe()}
@@ -354,6 +362,7 @@ function WatchPage() {
                   "Subscribe"
                 )}
               </button>
+              )}
             </div>
 
             {/* Action row */}
@@ -384,6 +393,15 @@ function WatchPage() {
                 </button>
               </div>
 
+              {isOwner && (
+                <button
+                  type="button"
+                  onClick={() => setEditing(true)}
+                  className="flex items-center gap-1.5 rounded-full bg-secondary px-3 py-2 text-sm font-semibold text-secondary-foreground"
+                >
+                  <Pencil className="h-4 w-4" /> Edit
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => void share()}
@@ -479,6 +497,17 @@ function WatchPage() {
           </div>
         </aside>
       </div>
+
+      {video && auth.user && (
+        <EditFullVideoDialog
+          video={video}
+          userId={auth.user.id}
+          open={editing}
+          onClose={() => setEditing(false)}
+          onSaved={setVideo}
+          onDeleted={() => void navigate({ to: "/videos" })}
+        />
+      )}
     </div>
   );
 }

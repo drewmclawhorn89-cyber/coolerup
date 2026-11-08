@@ -349,8 +349,11 @@ function WatchPage() {
       void auth.signIn();
       return;
     }
-    setSaved((s) => !s);
-    toast.success(saved ? "Removed from Vault" : "Saved to Vault");
+    // Read the next value, not the stale one — otherwise the toast announces
+    // the opposite of what just happened.
+    const next = !saved;
+    setSaved(next);
+    toast.success(next ? "Saved to Vault" : "Removed from Vault");
   };
 
   const repost = () => {
@@ -590,9 +593,15 @@ function WatchPage() {
               <button
                 type="button"
                 onClick={toggleSave}
-                className="flex items-center gap-1.5 rounded-full bg-secondary px-3 py-2 text-sm font-semibold text-secondary-foreground"
+                aria-pressed={saved}
+                className={`flex items-center gap-1.5 rounded-full px-3 py-2 text-sm font-semibold transition ${
+                  saved
+                    ? "bg-yellow-400 text-black"
+                    : "bg-secondary text-secondary-foreground"
+                }`}
               >
-                <Bookmark className={`h-4 w-4 ${saved ? "fill-current" : ""}`} /> Save
+                <Bookmark className={`h-4 w-4 ${saved ? "fill-current" : ""}`} />
+                {saved ? "Saved" : "Save"}
               </button>
               <button
                 type="button"

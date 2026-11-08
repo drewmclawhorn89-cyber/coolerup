@@ -11,3 +11,5 @@
 - [ ] Restrict live mute, guest and room-state reads (waiting on intended viewer access before changing live-stream behavior).
 
 - [x] Fix Settings browser-storage render crash; build OK and signed-in Settings/feed verified. /videos is missing in this checkout due to GitHub divergence.
+
+- [ ] Return to PR #203 after checking its contents and confirming rollback scope.

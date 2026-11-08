@@ -198,6 +198,14 @@ function WatchPage() {
   /** Only the uploader can rename, re-tag or delete their own video. */
   const isOwner = !!auth.user && !!video && video.user_id === auth.user.id;
 
+  /**
+   * True when the row exists but the bytes are still in flight AND this browser
+   * isn't the one holding the file — i.e. a stranger who has nothing to play.
+   * The uploader keeps their local-copy player, so they never see this.
+   */
+  const waitingForUpload =
+    video?.status === "processing" && !getPendingVideo(video.id);
+
   const countView = useCallback(() => {
     if (!video || viewCounted.current) return;
     viewCounted.current = true;
@@ -352,21 +360,36 @@ function WatchPage() {
 
       <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_360px] lg:gap-6">
         <div className="min-w-0">
-          <YouTubePlayer
-            src={src}
-            poster={poster || undefined}
-            sources={renditions}
-            onFirstPlay={countView}
-            className="sm:rounded-xl"
-          />
+          {waitingForUpload ? (
+            // The object isn't in storage yet, so there is nothing to play.
+            // Show an honest placeholder instead of a dead player; the poll
+            // above swaps this out the moment the upload finishes.
+            <div className="mx-3 mt-2 flex aspect-video flex-col items-center justify-center gap-3 rounded-xl bg-muted text-center sm:mx-0">
+              <Loader2 className="size-7 animate-spin text-muted-foreground" />
+              <div className="px-6">
+                <p className="text-sm font-semibold">This video is still uploading</p>
+                <p className="mt-1 text-[13px] text-muted-foreground">
+                  It'll start playing here on its own — no need to refresh.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <YouTubePlayer
+              src={src}
+              poster={poster || undefined}
+              sources={renditions}
+              onFirstPlay={countView}
+              className="sm:rounded-xl"
+            />
+          )}
 
           {video.status === "processing" && (
             <div className="mx-3 mt-3 flex items-start gap-2 rounded-lg bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-400">
               <Loader2 className="mt-0.5 size-4 shrink-0 animate-spin" />
               <span>
-                {getPendingVideo(video.id)
+                {isOwner
                   ? "Still uploading — you're watching your local copy. It'll be available to everyone the moment it finishes."
-                  : "This video is still being uploaded by its owner. Check back in a moment."}
+                  : "This video is still being uploaded by its owner. This page updates automatically."}
               </span>
             </div>
           )}

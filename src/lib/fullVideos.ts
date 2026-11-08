@@ -384,19 +384,29 @@ export function probeVideo(file: File): Promise<{ duration: number; width: numbe
     const url = URL.createObjectURL(file);
     const el = document.createElement("video");
     el.preload = "metadata";
-    el.onloadedmetadata = () => {
-      const result = {
-        duration: Math.round(el.duration || 0),
-        width: el.videoWidth || 0,
-        height: el.videoHeight || 0,
-      };
+    let settled = false;
+    const finish = (fn: () => void) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
       URL.revokeObjectURL(url);
-      resolve(result);
+      fn();
     };
-    el.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error("That file could not be read as a video."));
-    };
+    // Some codecs (HEVC .mov from an iPhone, for one) load without ever firing
+    // an event. Without this the picker would hang forever.
+    const timer = setTimeout(
+      () => finish(() => reject(new Error("That video took too long to read. Try MP4 or WebM."))),
+      20_000,
+    );
+    el.onloadedmetadata = () =>
+      finish(() =>
+        resolve({
+          duration: Math.round(el.duration || 0),
+          width: el.videoWidth || 0,
+          height: el.videoHeight || 0,
+        }),
+      );
+    el.onerror = () => finish(() => reject(new Error("That file could not be read as a video.")));
     el.src = url;
   });
 }
@@ -410,10 +420,19 @@ export function captureThumbnail(file: File, atSeconds = 1): Promise<Blob | null
     el.muted = true;
     el.playsInline = true;
 
+    let settled = false;
     const done = (blob: Blob | null) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
       URL.revokeObjectURL(url);
       resolve(blob);
     };
+
+    // A poster frame is a nicety, never a blocker. If the codec won't decode or
+    // seeking stalls, give up after a few seconds and upload without one —
+    // otherwise this promise never resolves and the upload never even starts.
+    const timer = setTimeout(() => done(null), 8_000);
 
     el.onloadeddata = () => {
       el.currentTime = Math.min(atSeconds, Math.max(0, (el.duration || 1) - 0.1));
@@ -449,7 +468,40 @@ export function captureThumbnail(file: File, atSeconds = 1): Promise<Blob | null
  * Supabase's own docs recommend resumable uploads past 6 MB; 25 MB is the
  * point where a single request stops being reliably cheaper than chunking.
  */
+/**
+ * Above this size we prefer the resumable path. Below it, one PUT is faster:
+ * the browser streams the body over a single HTTP/2 connection instead of
+ * paying a round trip per 6 MB chunk.
+ */
 const RESUMABLE_THRESHOLD = 25 * 1024 * 1024;
+
+/**
+ * Hard ceiling we refuse to even attempt. Supabase's own per-object limit is
+ * configurable, but nothing sane exceeds this, and failing in 50 ms beats
+ * uploading for twenty minutes and then erroring.
+ */
+const MAX_UPLOAD_BYTES = 5 * 1024 * 1024 * 1024;
+
+/** Supabase requires resumable chunks to be a multiple of 6 MB. */
+const TUS_CHUNK_SIZE = 6 * 1024 * 1024;
+
+/** How long a single chunk may stall before we abort and retry it. */
+const CHUNK_STALL_MS = 90_000;
+
+/** Attempts per chunk before the whole upload is declared dead. */
+const CHUNK_ATTEMPTS = 5;
+
+export type UploadProgress = {
+  /** Bytes confirmed on the server. */
+  loaded: number;
+  total: number;
+  /** Smoothed throughput, bytes/second. */
+  bytesPerSecond: number;
+  /** Seconds remaining, or null while the estimate is still settling. */
+  etaSeconds: number | null;
+};
+
+export type ProgressHandler = (percent: number, info?: UploadProgress) => void;
 
 /** An upload failure that carries the HTTP status, so callers can react to it. */
 class UploadError extends Error {
@@ -471,21 +523,74 @@ function tooLargeMessage(file: File): string {
   );
 }
 
+/** Exponential backoff that also honours a Retry-After header when present. */
+function backoffMs(attempt: number, retryAfterSeconds?: number | null): number {
+  if (retryAfterSeconds && retryAfterSeconds > 0) {
+    return Math.min(retryAfterSeconds * 1000, 30_000);
+  }
+  return Math.min(1000 * 2 ** attempt, 15_000);
+}
+
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+/**
+ * Tracks throughput and ETA so a long upload can show "3.2 MB/s · 4 min left"
+ * instead of a bar that appears frozen.
+ */
+class Speedometer {
+  private samples: { at: number; loaded: number }[] = [];
+  private lastEmit = 0;
+
+  constructor(private total: number) {}
+
+  /** Returns the info object, or null if it is too soon to report again. */
+  sample(loaded: number): UploadProgress | null {
+    const now = Date.now();
+    this.samples.push({ at: now, loaded });
+    // Keep a 15s window so the estimate reacts to a connection that changes.
+    while (this.samples.length > 2 && now - this.samples[0]!.at > 15_000) this.samples.shift();
+
+    if (now - this.lastEmit < 400) return null;
+    this.lastEmit = now;
+
+    const first = this.samples[0]!;
+    const elapsed = (now - first.at) / 1000;
+    const moved = loaded - first.loaded;
+    const bytesPerSecond = elapsed > 0.5 && moved > 0 ? moved / elapsed : 0;
+    const remaining = this.total - loaded;
+    return {
+      loaded,
+      total: this.total,
+      bytesPerSecond,
+      etaSeconds: bytesPerSecond > 0 ? Math.round(remaining / bytesPerSecond) : null,
+    };
+  }
+}
+
 /**
  * Upload a file to Supabase Storage and report 0-100 progress.
  *
- * Speed matters more than elegance here, so small files go up as a **single
- * signed PUT** — one request, one round trip, the browser streams the body.
- * Anything larger uses the tus resumable path, which is also the fallback when
- * a PUT is rejected (a 413 from a bucket size limit, or a dropped connection).
+ * Small files go up as a **single signed PUT** — one request, one round trip.
+ * Anything larger uses tus resumable chunks, which is also the fallback when a
+ * PUT is rejected.
+ *
+ * Every network operation retries with backoff and a stall timeout. That is the
+ * difference between "a 15-minute video finishes" and "a 15-minute video dies
+ * at 60% because one of its 150 chunks hit a hiccup".
  */
 export async function uploadWithProgress(
   bucket: string,
   path: string,
   file: File,
-  onProgress: (percent: number) => void,
+  onProgress: ProgressHandler,
   opts: { preferResumable?: boolean } = {},
 ): Promise<void> {
+  if (file.size > MAX_UPLOAD_BYTES) {
+    throw new Error(
+      `That file is ${(file.size / (1024 * 1024 * 1024)).toFixed(1)} GB. The limit is 5 GB.`,
+    );
+  }
+
   const contentType = file.type || "application/octet-stream";
   const resumable = opts.preferResumable === true || file.size > RESUMABLE_THRESHOLD;
 
@@ -509,13 +614,13 @@ export async function uploadWithProgress(
   }
 }
 
-/** One signed PUT, progress from XHR's upload events. */
+/** One signed PUT, progress from XHR's upload events, retried once on failure. */
 async function singlePut(
   bucket: string,
   path: string,
   file: File,
   contentType: string,
-  onProgress: (percent: number) => void,
+  onProgress: ProgressHandler,
 ): Promise<void> {
   const { data: signed, error: signErr } = await supabase.storage
     .from(bucket)
@@ -524,6 +629,8 @@ async function singlePut(
     throw signErr ?? new Error("Could not start the upload.");
   }
 
+  const speedo = new Speedometer(file.size);
+
   await new Promise<void>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open("PUT", signed.signedUrl, true);
@@ -531,7 +638,9 @@ async function singlePut(
     xhr.setRequestHeader("cache-control", "3600");
     xhr.setRequestHeader("content-type", contentType);
     xhr.upload.onprogress = (e) => {
-      if (e.lengthComputable) onProgress(Math.min(99, Math.round((e.loaded / e.total) * 100)));
+      if (!e.lengthComputable) return;
+      const info = speedo.sample(e.loaded);
+      onProgress(Math.min(99, Math.round((e.loaded / e.total) * 100)), info ?? undefined);
     };
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) {
@@ -561,11 +670,6 @@ async function singlePut(
   });
 }
 
-/**
- * Tus chunk size. Supabase requires a multiple of 6 MB for resumable uploads.
- */
-const TUS_CHUNK_SIZE = 6 * 1024 * 1024;
-
 /** base64 for tus `Upload-Metadata` values (btoa can't handle raw UTF-8). */
 function b64(value: string): string {
   return btoa(unescape(encodeURIComponent(value)));
@@ -578,13 +682,69 @@ async function supabaseAccessToken(): Promise<string> {
   return token;
 }
 
-/** Resumable tus 1.0.0 upload — the safety net for big files and bad networks. */
+/**
+ * Where an in-flight upload is parked so it can be resumed.
+ *
+ * Keyed by the reserved object path, which is unique per upload. A 15-minute
+ * video can outlive a page refresh; without this, closing the tab at 80% means
+ * starting from zero.
+ */
+type ResumeState = { url: string; offset: number };
+
+function resumeKey(bucket: string, path: string): string {
+  return `coolerup:upload:${bucket}:${path}`;
+}
+
+function readResume(bucket: string, path: string): ResumeState | null {
+  try {
+    const raw = sessionStorage.getItem(resumeKey(bucket, path));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as ResumeState;
+    return typeof parsed.url === "string" && typeof parsed.offset === "number" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeResume(bucket: string, path: string, state: ResumeState): void {
+  try {
+    sessionStorage.setItem(resumeKey(bucket, path), JSON.stringify(state));
+  } catch {
+    // Private mode / quota — resuming is a nicety, not a requirement.
+  }
+}
+
+function clearResume(bucket: string, path: string): void {
+  try {
+    sessionStorage.removeItem(resumeKey(bucket, path));
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Ask the server how many bytes it already has for this upload URL. */
+async function serverOffset(url: string, token: string): Promise<number | null> {
+  try {
+    const res = await fetch(url, {
+      method: "HEAD",
+      headers: { "Tus-Resumable": "1.0.0", Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return null;
+    const raw = res.headers.get("Upload-Offset");
+    const n = raw ? Number(raw) : NaN;
+    return Number.isFinite(n) ? n : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Resumable tus 1.0.0 upload — the path every real video takes. */
 async function resumableUpload(
   bucket: string,
   path: string,
   file: File,
   contentType: string,
-  onProgress: (percent: number) => void,
+  onProgress: ProgressHandler,
 ): Promise<void> {
   const supabaseUrl = (
     import.meta.env["VITE_SUPABASE_URL"] ||
@@ -592,62 +752,148 @@ async function resumableUpload(
     ""
   ).replace(/\/+$/, "");
 
-  if (!supabaseUrl) {
-    throw new Error("Storage is not configured.");
-  }
+  if (!supabaseUrl) throw new Error("Storage is not configured.");
 
   const token = await supabaseAccessToken();
-  const metadata = [
-    `bucketName ${b64(bucket)}`,
-    `objectName ${b64(path)}`,
-    `contentType ${b64(contentType)}`,
-    `cacheControl ${b64("3600")}`,
-  ].join(",");
+  const speedo = new Speedometer(file.size);
 
-  const create = await fetch(`${supabaseUrl}/storage/v1/upload/resumable`, {
-    method: "POST",
-    headers: {
-      "Tus-Resumable": "1.0.0",
-      "Upload-Length": String(file.size),
-      "Upload-Metadata": metadata,
-      "x-upsert": "true",
-      Authorization: `Bearer ${token}`,
-    },
-  });
+  /* ---- 1. Resume an upload that was interrupted, or create a new one ---- */
 
-  if (create.status !== 201) {
-    throw new UploadError(`Could not start the upload (${create.status}).`, create.status);
+  let uploadUrl: string | null = null;
+  let offset = 0;
+
+  const parked = readResume(bucket, path);
+  if (parked) {
+    const confirmed = await serverOffset(parked.url, token);
+    if (confirmed !== null && confirmed <= file.size) {
+      uploadUrl = parked.url;
+      offset = confirmed;
+      if (offset > 0) {
+        const info = speedo.sample(offset);
+        onProgress(Math.min(99, Math.round((offset / file.size) * 100)), info ?? undefined);
+      }
+    } else {
+      clearResume(bucket, path);
+    }
   }
 
-  const location = create.headers.get("Location");
-  if (!location) throw new Error("Could not start the upload.");
+  if (!uploadUrl) {
+    const metadata = [
+      `bucketName ${b64(bucket)}`,
+      `objectName ${b64(path)}`,
+      `contentType ${b64(contentType)}`,
+      `cacheControl ${b64("3600")}`,
+    ].join(",");
 
-  const uploadUrl = location.startsWith("http")
-    ? location
-    : `${supabaseUrl}/storage/v1${location.startsWith("/") ? "" : "/"}${location}`;
-
-  let offset = 0;
-  while (offset < file.size) {
-    const chunk = file.slice(offset, Math.min(offset + TUS_CHUNK_SIZE, file.size));
-    const patch = await fetch(uploadUrl, {
-      method: "PATCH",
-      headers: {
-        "Tus-Resumable": "1.0.0",
-        "Upload-Offset": String(offset),
-        "Content-Type": "application/offset+octet-stream",
-        Authorization: `Bearer ${token}`,
-      },
-      body: chunk,
-    });
-
-    if (patch.status !== 204) {
-      throw new UploadError(`Chunk upload failed (${patch.status}).`, patch.status);
+    let create: Response | null = null;
+    let lastErr: unknown = null;
+    for (let attempt = 0; attempt < CHUNK_ATTEMPTS; attempt += 1) {
+      try {
+        create = await fetch(`${supabaseUrl}/storage/v1/upload/resumable`, {
+          method: "POST",
+          headers: {
+            "Tus-Resumable": "1.0.0",
+            "Upload-Length": String(file.size),
+            "Upload-Metadata": metadata,
+            "x-upsert": "true",
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        if (create.status === 201) break;
+        if (create.status === 413) throw new UploadError("Payload too large", 413);
+        if (create.status < 500 && create.status !== 429) break;
+      } catch (err) {
+        if (err instanceof UploadError) throw err;
+        lastErr = err;
+      }
+      await sleep(backoffMs(attempt));
     }
 
-    offset += chunk.size;
-    onProgress(Math.min(99, Math.round((offset / file.size) * 100)));
+    if (!create) throw lastErr instanceof Error ? lastErr : new Error("Could not start the upload.");
+    if (create.status !== 201) {
+      throw new UploadError(`Could not start the upload (${create.status}).`, create.status);
+    }
+
+    const location = create.headers.get("Location");
+    if (!location) throw new Error("Could not start the upload.");
+
+    uploadUrl = location.startsWith("http")
+      ? location
+      : `${supabaseUrl}/storage/v1${location.startsWith("/") ? "" : "/"}${location}`;
+    offset = 0;
+    writeResume(bucket, path, { url: uploadUrl, offset });
   }
 
+  /* ---- 2. Push the remaining bytes, retrying each chunk in place ---- */
+
+  while (offset < file.size) {
+    const end = Math.min(offset + TUS_CHUNK_SIZE, file.size);
+    const chunk = file.slice(offset, end);
+
+    let ok = false;
+    let lastErr: unknown = null;
+
+    for (let attempt = 0; attempt < CHUNK_ATTEMPTS && !ok; attempt += 1) {
+      const controller = new AbortController();
+      // A stalled chunk is worse than a failed one: abort so it can be retried
+      // rather than sitting at 62% forever.
+      const watchdog = setTimeout(() => controller.abort(), CHUNK_STALL_MS);
+      try {
+        const patch = await fetch(uploadUrl, {
+          method: "PATCH",
+          headers: {
+            "Tus-Resumable": "1.0.0",
+            "Upload-Offset": String(offset),
+            "Content-Type": "application/offset+octet-stream",
+            Authorization: `Bearer ${token}`,
+          },
+          body: chunk,
+          signal: controller.signal,
+        });
+
+        if (patch.status === 204) {
+          ok = true;
+          break;
+        }
+        if (patch.status === 413) throw new UploadError("Payload too large", 413);
+        if (patch.status === 409) {
+          // Offset drifted (a previous attempt actually landed). Re-sync.
+          const confirmed = await serverOffset(uploadUrl, token);
+          if (confirmed !== null) {
+            offset = confirmed;
+            writeResume(bucket, path, { url: uploadUrl, offset });
+            ok = true;
+            break;
+          }
+        }
+        lastErr = new UploadError(`Chunk upload failed (${patch.status}).`, patch.status);
+        // 4xx other than 408/429 will not get better by retrying.
+        if (patch.status >= 400 && patch.status < 500 && patch.status !== 408 && patch.status !== 429) {
+          throw lastErr;
+        }
+      } catch (err) {
+        if (err instanceof UploadError && err.status === 413) throw err;
+        lastErr = err;
+      } finally {
+        clearTimeout(watchdog);
+      }
+
+      if (!ok) await sleep(backoffMs(attempt));
+    }
+
+    if (!ok) {
+      throw lastErr instanceof Error
+        ? lastErr
+        : new Error("The upload kept failing. Check your connection and try again.");
+    }
+
+    if (offset < end) offset = end;
+    writeResume(bucket, path, { url: uploadUrl, offset });
+    const info = speedo.sample(offset);
+    onProgress(Math.min(99, Math.round((offset / file.size) * 100)), info ?? undefined);
+  }
+
+  clearResume(bucket, path);
   onProgress(100);
 }
 
@@ -730,7 +976,7 @@ export async function uploadFullVideoFiles(
   file: File,
   thumbnail: Blob | null,
   userId: string,
-  onProgress: (percent: number) => void,
+  onProgress: ProgressHandler,
   opts: { videoPath?: string } = {},
 ): Promise<{ videoUrl: string; thumbnailUrl: string | null }> {
   const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");

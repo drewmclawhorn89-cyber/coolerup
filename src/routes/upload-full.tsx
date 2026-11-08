@@ -24,6 +24,7 @@ import {
   fullVideoObjectPath,
   probeVideo,
   uploadFullVideoFiles,
+  type UploadProgress,
 } from "@/lib/fullVideos";
 import { clearPendingVideo, registerPendingVideo } from "@/lib/pendingUploads";
 
@@ -46,6 +47,23 @@ export const Route = createFileRoute("/upload-full")({
 
 type Stage = "idle" | "probing" | "uploading" | "saving" | "done";
 
+/** "3.4 MB/s" — throughput, so a slow upload is visibly slow, not stuck. */
+function formatSpeed(bytesPerSecond: number): string {
+  const mb = bytesPerSecond / (1024 * 1024);
+  if (mb >= 1) return `${mb.toFixed(1)} MB/s`;
+  return `${Math.max(1, Math.round(bytesPerSecond / 1024))} KB/s`;
+}
+
+/** "about 4 min left" */
+function formatEta(seconds: number | null): string {
+  if (seconds === null || !Number.isFinite(seconds)) return "estimating…";
+  if (seconds < 5) return "almost done";
+  if (seconds < 60) return `about ${Math.round(seconds)}s left`;
+  const mins = Math.round(seconds / 60);
+  if (mins < 60) return `about ${mins} min left`;
+  return `about ${(mins / 60).toFixed(1)} h left`;
+}
+
 function UploadFullPage() {
   const auth = useAuth();
   const navigate = useNavigate();
@@ -67,6 +85,7 @@ function UploadFullPage() {
 
   const [stage, setStage] = useState<Stage>("idle");
   const [progress, setProgress] = useState(0);
+  const [speed, setSpeed] = useState<UploadProgress | null>(null);
   const [uploaded, setUploaded] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -114,25 +133,28 @@ function UploadFullPage() {
     setError(null);
 
     const promise = (async () => {
-      // Grab a poster frame first (~200 ms) so the video and thumbnail can be
-      // uploaded together instead of one after the other.
-      let thumb: Blob | null = null;
-      try {
-        thumb = await captureThumbnail(next, Math.min(1, seconds / 2));
-      } catch {
-        thumb = null;
-      }
-      if (token === tokenRef.current && thumb) {
+      // Grab the poster frame *alongside* the upload, not before it. Waiting on
+      // a decode before sending the first byte delayed every upload by a
+      // noticeable beat — and for an exotic codec it could stall it entirely.
+      const thumbPromise: Promise<Blob | null> = captureThumbnail(
+        next,
+        Math.min(1, seconds / 2),
+      ).catch(() => null);
+
+      void thumbPromise.then((thumb) => {
+        if (!thumb || token !== tokenRef.current) return;
         setThumbBlob(thumb);
         setThumbPreview(URL.createObjectURL(thumb));
-      }
+      });
 
       const result = await uploadFullVideoFiles(
         next,
-        thumb,
+        await thumbPromise,
         auth.user!.id,
-        (percent) => {
-          if (token === tokenRef.current) setProgress(percent);
+        (percent, info) => {
+          if (token !== tokenRef.current) return;
+          setProgress(percent);
+          if (info) setSpeed(info);
         },
         {
           ...(videoPathRef.current ? { videoPath: videoPathRef.current } : {}),
@@ -141,6 +163,7 @@ function UploadFullPage() {
       if (token === tokenRef.current) {
         setProgress(100);
         setUploaded(true);
+        setSpeed(null);
         setStage("idle");
       }
       return result;
@@ -173,6 +196,15 @@ function UploadFullPage() {
         );
       }
       const seconds = Math.round(meta.duration);
+      // A 15-minute video is routinely 200–500 MB. Supabase's free plan caps a
+      // single object at 50 MB, so warn up front rather than letting someone
+      // watch a progress bar for twenty minutes before it fails.
+      if (next.size > 50 * 1024 * 1024) {
+        toast.warning(
+          `This file is ${(next.size / (1024 * 1024)).toFixed(0)} MB. If your Supabase project is on the free plan (50 MB per file), the upload will fail — raise the limit in Storage → Settings first.`,
+          { duration: 12_000 },
+        );
+      }
       // Reserve the destination now: the row is inserted before the upload
       // finishes, so both sides must agree on where the object will live.
       const reserved = fullVideoObjectPath(auth.user?.id ?? "anon", next.name);
@@ -567,7 +599,9 @@ function UploadFullPage() {
             <p className="text-[11px] text-muted-foreground">
               {uploaded
                 ? "Bytes are in storage. Fill in the details and hit Publish."
-                : "Uploading in the background — keep this tab open while it finishes."}
+                : speed && speed.bytesPerSecond > 0
+                  ? `${formatSpeed(speed.bytesPerSecond)} · ${formatEta(speed.etaSeconds)} · keep this tab open`
+                  : "Uploading in the background — keep this tab open while it finishes."}
             </p>
           </div>
         )}

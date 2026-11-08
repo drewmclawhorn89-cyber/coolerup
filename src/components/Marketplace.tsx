@@ -16,6 +16,7 @@ export type MarketItem = {
 };
 
 const CATEGORIES = ["All", "Vehicles", "Property", "Apparel", "Electronics", "Family", "Home", "Hobbies", "Free"];
+
 const inputCls = "w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-black outline-none";
 const EMPTY = { title: "", price: "", description: "", location: "", image: "", category: "Home" };
 type FormState = typeof EMPTY;
@@ -123,8 +124,13 @@ export function Marketplace() {
       .order("created_at", { ascending: false })
       .limit(100)
       .then(({ data, error }: { data: any[] | null; error: unknown }) => {
-        if (!live || error || !data) return;
-        const real: MarketItem[] = data.map((r) => ({
+        if (!live) return;
+        if (error) {
+          console.error("Failed to load marketplace items", error);
+          return;
+        }
+
+        const real: MarketItem[] = (data ?? []).map((r) => ({
           id: r.id,
           title: r.title,
           price: Number(r.price),
@@ -134,6 +140,7 @@ export function Marketplace() {
           category: r.category || "Home",
           description: r.description || "No description.",
         }));
+
         setItems(real);
       });
     return () => {
@@ -214,7 +221,7 @@ export function Marketplace() {
             </div>
             <div className="no-scrollbar mt-2 flex gap-2 overflow-x-auto">
               {CATEGORIES.map((c) => (
-                <button key={c} onClick={() => setCat(c)} className={`shrink-0 whitespace-nowrap rounded-full px-3 py-1 text-[13px] font-medium ${cat === c ? "bg-blue-600 text-white" : "bg-gray-100"}`}>
+                <button key={c} onClick={() => setCat(c)} className={`shrink-0 whitespace-nowrap rounded-full px-3 py-1 text-[13px] font-medium ${cat === c ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-700"}`}>
                   {c}
                 </button>
               ))}
@@ -233,7 +240,7 @@ export function Marketplace() {
               ))}
             </div>
           </div>
-          <button onClick={() => setSelling(true)} aria-label="Sell an item" className="fixed bottom-20 right-4 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-white text-black shadow-lg ring-1 ring-gray-300">
+          <button onClick={() => setSelling(true)} aria-label="Sell an item" className="fixed bottom-20 right-4 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-white text-black shadow-lg">
             <Plus className="h-7 w-7" />
           </button>
         </>
@@ -242,4 +249,3 @@ export function Marketplace() {
     </div>
   );
 }
-

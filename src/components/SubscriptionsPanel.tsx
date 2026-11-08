@@ -1,5 +1,7 @@
 import { useState } from "react";
+import { toast } from "sonner";
 import { PaymentSheet } from "@/components/PaymentSheet";
+import { RedeemCodeBox } from "@/components/RedeemCodeBox";
 import { Button } from "@/components/ui/button";
 import {
   PLANS,
@@ -9,6 +11,8 @@ import {
   useSubscription,
   type Plan,
 } from "@/lib/subscriptions";
+import { codeSubscriptionSummary } from "@/lib/codes";
+import { hasUsedTrial, startTrial, useTrial } from "@/lib/trial";
 
 function StatusBadge({ label, tone }: { label: string; tone: "active" | "pending" | "expired" }) {
   const styles = {
@@ -29,6 +33,10 @@ export function SubscriptionsPanel({
   onSignIn?: () => void;
 }) {
   const sub = useSubscription(handle);
+  // Live free-hour state: ticks every second so countdowns stay accurate and
+  // the badge clears the moment the hour ends.
+  const trial = useTrial(handle);
+  const codeSummary = codeSubscriptionSummary(sub);
 
   // Plan whose tap-to-pay sheet is open, if any.
   const [sheetPlan, setSheetPlan] = useState<Plan | null>(null);
@@ -41,12 +49,27 @@ export function SubscriptionsPanel({
     setSheetPlan(plan);
   };
 
+  /** Begin this plan's one free hour. Each plan gets its own, once. */
+  const startPlanTrial = (plan: Plan) => {
+    if (!handle) {
+      onSignIn?.();
+      return;
+    }
+    if (hasUsedTrial(handle, plan.id)) {
+      toast.error(`Your free ${plan.label} hour has already been used`);
+      return;
+    }
+    startTrial(handle, plan.id);
+    toast.success(`1-hour free ${plan.label} trial started`);
+  };
+
   return (
     <div className="mx-auto w-full max-w-2xl space-y-3 p-4 pb-24">
       <h2 className="text-xl font-bold">Subscriptions</h2>
       <p className="text-sm text-muted-foreground">
         Pick a plan and pay with Google Pay, a card, or Venmo. Your perks start as soon as the
-        payment is confirmed.
+        payment is confirmed. Every plan also comes with a one-hour free trial &mdash; no card
+        needed.
       </p>
       {!handle && <p className="text-sm">Sign in to subscribe.</p>}
 
@@ -57,12 +80,23 @@ export function SubscriptionsPanel({
         </div>
       )}
 
+      {codeSummary && sub?.status === "active" && (
+        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm">
+          <p className="font-semibold text-emerald-700 dark:text-emerald-400">{codeSummary}</p>
+          <p className="text-xs text-muted-foreground">
+            Redeeming another code adds its months on top of this one.
+          </p>
+        </div>
+      )}
+
       {PLANS.map((p) => {
         const current = sub?.planId === p.id;
         const pending = current && sub?.status === "pending";
         const active = current && sub?.status === "active";
         const expired = current && sub?.status === "expired";
-        const highlighted = pending || active;
+        const trialing = trial.active && trial.planId === p.id;
+        const trialSpent = hasUsedTrial(handle, p.id);
+        const highlighted = pending || active || trialing;
 
         return (
           <div
@@ -145,18 +179,32 @@ export function SubscriptionsPanel({
                 </Button>
               </div>
             ) : (
-              <Button
-                className="mt-3 w-full"
-                onClick={() => {
-                  if (!handle) {
-                    onSignIn?.();
-                    return;
-                  }
-                  openSheet(p);
-                }}
-              >
-                {`Get ${p.label} \u2014 $${p.price.toFixed(2)}/mo`}
-              </Button>
+              <>
+                <Button
+                  className="mt-3 w-full"
+                  variant="secondary"
+                  disabled={trialSpent}
+                  onClick={() => startPlanTrial(p)}
+                >
+                  {trialing
+                    ? `Trial running \u00b7 ${trial.label} left`
+                    : trialSpent
+                      ? "Free trial used"
+                      : "Start 1-hour free trial"}
+                </Button>
+                <Button
+                  className="mt-2 w-full"
+                  onClick={() => {
+                    if (!handle) {
+                      onSignIn?.();
+                      return;
+                    }
+                    openSheet(p);
+                  }}
+                >
+                  {`Get ${p.label} \u2014 $${p.price.toFixed(2)}/mo`}
+                </Button>
+              </>
             )}
           </div>
         );
@@ -166,6 +214,8 @@ export function SubscriptionsPanel({
         Plans renew monthly until you cancel. Cancel anytime and you keep your perks until the end
         of the period you paid for.
       </p>
+
+      <RedeemCodeBox handle={handle} onSignIn={onSignIn} className="mt-1" />
 
       <PaymentSheet
         plan={sheetPlan}

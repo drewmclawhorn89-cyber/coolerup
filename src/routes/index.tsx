@@ -4,9 +4,11 @@ import {
   Bell,
   Download,
   Heart,
+  Gift,
   Home,
   LogOut,
   MessageCircle,
+  Play,
   Plus,
   Search,
   ShoppingBag,
@@ -25,6 +27,7 @@ import { LiveNowList } from "@/components/LiveNowList";
 import { useLiveDirectory, type LiveHost } from "@/lib/liveDirectory";
 import { OnboardingBanner, useOnboardingGuard } from "@/components/OnboardingBanner";
 import { isChristmasCountdownVisible, useChristmasMode } from "@/lib/christmas";
+import { useChristmasCodesSeason } from "@/lib/christmas-codes";
 import { matchesKeyword, readBool } from "@/lib/prefs";
 // Heavy, interaction-only surfaces are split out so the initial feed bundle stays small.
 const UploadDialog = lazy(() => import("@/components/UploadDialog").then((m) => ({ default: m.UploadDialog })));
@@ -34,6 +37,9 @@ const SubscriptionsPanel = lazy(() =>
 );
 const Marketplace = lazy(() => import("@/components/Marketplace").then((m) => ({ default: m.Marketplace })));
 const GroupsPanel = lazy(() => import("@/components/GroupsPanel").then((m) => ({ default: m.GroupsPanel })));
+const ChristmasCodesPanel = lazy(() =>
+  import("@/components/ChristmasCodesPanel").then((m) => ({ default: m.ChristmasCodesPanel })),
+);
 const LiveStreamDialog = lazy(() =>
   import("@/components/LiveStreamDialog").then((m) => ({ default: m.LiveStreamDialog })),
 );
@@ -72,7 +78,7 @@ export const Route = createFileRoute("/")({
 });
 
 type Tab = "foryou" | "explore" | "following" | "liked" | "saved" | "inbox" | "shop" | "subscriptions";
-type FeedTab = "home" | "following" | "foryou" | "explore" | "marketplace" | "groups" | "live";
+type FeedTab = "home" | "following" | "foryou" | "explore" | "marketplace" | "groups" | "live" | "codes";
 type NotificationFilter = "all" | "unread";
 
 type NotificationRow = {
@@ -118,6 +124,9 @@ function Index() {
   // Nov 15 2026 -> Jan 1 2027 only. False today (Nov 1 2026), true on its own
   // once the window opens, and false again after it closes.
   const christmas = useChristmasMode();
+  // The "Codes" tab is seasonal: on Nov 15 - Jan 1, off the rest of the year.
+  // It re-appears by itself every Christmas with no deploy and no flag.
+  const codesSeason = useChristmasCodesSeason();
   // Pre-launch banner: only until Nov 15 2026, then it hides itself for good.
   // `!christmas` makes the wrapper disappear the moment the update goes live,
   // even if this component hasn't re-rendered for another reason.
@@ -585,6 +594,16 @@ function Index() {
     setTab(t === "following" || t === "explore" ? t : "foryou");
   };
 
+  // If the season ends (or the tab is opened out of season via a stale link)
+  // while "codes" is selected, fall back to the normal feed instead of showing
+  // a tab that no longer exists in the bar.
+  useEffect(() => {
+    if (!codesSeason && feedTab === "codes") {
+      setFeedTab("foryou");
+      setTab("foryou");
+    }
+  }, [codesSeason, feedTab]);
+
   // One shared top tab bar (Home | Following | For You | Marketplace | Groups | LIVE).
   // Shop stays on the end of the scrollable row so that screen is still
   // reachable on phones. Subscriptions now lives in Settings (/?tab=subscriptions
@@ -595,12 +614,24 @@ function Index() {
       <button onClick={() => pickFeedTab("home")} className={tabClass("home")}>Home</button>
       <button onClick={() => pickFeedTab("following")} className={tabClass("following")}>Following</button>
       <button onClick={() => pickFeedTab("foryou")} className={tabClass("foryou")}>For You</button>
+      {/* Full-length videos live on their own YouTube-style page, not in the feed. */}
+      <button onClick={() => void navigate({ to: "/videos" })} className={tabClass("videos")}>
+        <Play className="size-3.5 fill-current" />
+        Videos
+      </button>
       <button onClick={() => pickFeedTab("marketplace")} className={tabClass("marketplace")}>Marketplace</button>
       <button onClick={() => pickFeedTab("groups")} className={tabClass("groups")}>Groups</button>
       <button onClick={() => pickFeedTab("live")} className={tabClass("live")}>
         <span className="h-2 w-2 rounded-full bg-red-500" />
         LIVE
       </button>
+      {/* Christmas only: seasonal gift-code tab. Vanishes on Jan 2, returns Nov 15. */}
+      {codesSeason && (
+        <button onClick={() => pickFeedTab("codes")} className={tabClass("codes")}>
+          <Gift className="size-3.5" />
+          Codes
+        </button>
+      )}
       <button onClick={() => pickFeedTab("explore")} className={tabClass("explore")}>Explore</button>
       <button onClick={() => setTab("shop")} className={tabClass("shop")}>Shop</button>
     </div>
@@ -689,7 +720,7 @@ function Index() {
 
         <button
           onClick={() => guardOnboarding(() => (auth.user ? setCreateMenuOpen(true) : auth.signIn()))}
-          className="flex items-center justify-center gap-2 rounded-full bg-primary py-3.5 font-bold text-primary-foreground shadow-[0_10px_30px_-10px_var(--primary)] transition hover:brightness-95"
+          className="flex items-center justify-center gap-2 rounded-full create-pink py-3.5 font-bold shadow-[0_10px_30px_-10px_#ec4899] transition hover:brightness-95"
         >
           <Plus className="h-5 w-5" /> Create
         </button>
@@ -825,6 +856,13 @@ function Index() {
                 }
               />
             </div>
+          </div>
+        ) : feedTab === "codes" ? (
+          <div className="relative flex min-h-0 flex-1 flex-col bg-black">
+            <TopTabs className={topTabsClass} />
+            <Suspense fallback={null}>
+              <ChristmasCodesPanel handle={me} onSignIn={auth.signIn} />
+            </Suspense>
           </div>
         ) : activeTab === "foryou" && feedTab === "marketplace" && !offlineMode ? (
           <div className="relative flex min-h-0 flex-1 flex-col">
@@ -1033,7 +1071,8 @@ function Index() {
           <Button
             aria-label="Create video or go live"
             onClick={() => guardOnboarding(() => (auth.user ? setCreateMenuOpen(true) : auth.signIn()))}
-            className="m-auto h-9 w-10 rounded-lg px-0 [&_svg]:size-6"
+            style={{ backgroundColor: "#ec4899", color: "#ffffff" }}
+            className="m-auto h-9 w-10 rounded-lg px-0 hover:brightness-95 [&_svg]:size-6"
           >
             <Plus />
           </Button>

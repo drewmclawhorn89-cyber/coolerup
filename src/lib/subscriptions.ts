@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
-import { PLANS, offlinePlan, planById, planIncludesOffline, type Plan } from "@/lib/plans";
+import { PLANS, planById, planIncludesOffline, offlinePlan, type Plan } from "@/lib/plans";
+import { activeTrial, hasUsedTrial, isTrialActive } from "@/lib/trial";
 
 export type { Plan };
 export { PLANS, planById, planIncludesOffline, offlinePlan };
@@ -161,8 +162,9 @@ export function providerLabel(pm: PaymentMethod): string {
 /* -------------------------------------------------------------------------- */
 
 /**
- * `expired` also covers the old `trial` status: free trials were removed, so any
- * record still sitting on one is treated as ended and needs a paid plan.
+ * `expired` also covers the old `trial` status. Trials are no longer stored on
+ * the subscription record — they live in `@/lib/trial` as a separate one-hour
+ * grant — so any record still sitting on `trial` is treated as ended.
  */
 export type SubStatus = "pending" | "active" | "expired";
 
@@ -175,6 +177,12 @@ export type Subscription = {
   paidAt: string | null;
   /** card on file, used to renew the plan */
   paymentMethod: PaymentMethod | null;
+  /** Where the plan came from. Missing means a normal paid subscription. */
+  source?: "payment" | "code";
+  /** The gift / promo code that granted this plan, when `source` is `code`. */
+  code?: string | null;
+  /** End of the current paid or redeemed period (ISO). */
+  currentPeriodEnd?: string | null;
 };
 
 const key = (handle: string) => `subscription:${handle}`;
@@ -219,14 +227,27 @@ function migrate(raw: string): Subscription | null {
  * only ever reads as pending, active or expired.
  */
 function normalize(sub: Subscription & { trialEndsAt?: string; status?: string }): Subscription {
-  const status: SubStatus =
-    sub.status === "active" || sub.status === "pending" ? sub.status : "expired";
+  // A code redemption is a fixed-length grant, so it expires on its own even if
+  // nobody touches the record. Paid plans keep the existing pending/active
+  // behaviour.
+  const codeEnded =
+    sub.source === "code" &&
+    Boolean(sub.currentPeriodEnd) &&
+    new Date(sub.currentPeriodEnd as string).getTime() <= Date.now();
+  const status: SubStatus = codeEnded
+    ? "expired"
+    : sub.status === "active" || sub.status === "pending"
+      ? sub.status
+      : "expired";
   return {
     planId: sub.planId,
     status,
     startedAt: sub.startedAt,
     paidAt: sub.paidAt ?? null,
     paymentMethod: sub.paymentMethod ?? null,
+    source: sub.source === "code" ? "code" : "payment",
+    code: sub.code ?? null,
+    currentPeriodEnd: sub.currentPeriodEnd ?? null,
   };
 }
 
@@ -276,7 +297,55 @@ export function requestPayment(handle: string, planId: string) {
 export function confirmPayment(handle: string) {
   const existing = getSubscription(handle);
   if (!existing) return;
-  write(handle, { ...existing, status: "active", paidAt: new Date().toISOString() });
+  write(handle, {
+    ...existing,
+    status: "active",
+    paidAt: new Date().toISOString(),
+    source: "payment",
+    code: null,
+    currentPeriodEnd: null,
+  });
+}
+
+/**
+ * Grant a plan from a redeemed subscription code.
+ *
+ * Codes are fixed-length (1, 3 or 12 months). If the user already has a live
+ * code subscription, the new months stack on top of the current end date —
+ * exactly how a Netflix gift card extends an existing balance. Otherwise the
+ * period starts now.
+ */
+export function applyCodeSubscription(
+  handle: string,
+  opts: { planId: string; code: string; months: number; endsAt?: string | null },
+): Subscription {
+  const existing = getSubscription(handle);
+  const now = new Date();
+
+  const existingEnd = existing?.currentPeriodEnd ? new Date(existing.currentPeriodEnd) : null;
+  let end: Date;
+  if (existing?.source === "code" && existingEnd && existingEnd.getTime() > now.getTime()) {
+    end = new Date(existingEnd);
+    end.setMonth(end.getMonth() + opts.months);
+  } else if (opts.endsAt) {
+    end = new Date(opts.endsAt);
+  } else {
+    end = new Date(now);
+    end.setMonth(end.getMonth() + opts.months);
+  }
+
+  write(handle, {
+    planId: opts.planId,
+    status: "active",
+    startedAt: existing?.startedAt ?? now.toISOString(),
+    paidAt: now.toISOString(),
+    paymentMethod: null,
+    source: "code",
+    code: opts.code,
+    currentPeriodEnd: end.toISOString(),
+  });
+
+  return getSubscription(handle) as Subscription;
 }
 
 export function cancelSubscription(handle: string) {
@@ -293,26 +362,62 @@ export function isActive(sub: Subscription | null): boolean {
 /* -------------------------------------------------------------------------- */
 
 /**
- * Offline downloads are a paid perk that starts with the cheapest plan.
+ * The plan whose perks are live right now.
  *
- * Access requires a live subscription *and* a plan that includes the feature.
- * A `pending` or `expired` subscription does not count: the plan has to be
- * paid and active for the offline library to unlock.
+ * A paid, active subscription wins; otherwise a running free hour supplies the
+ * plan. Returns null when neither is in force.
+ */
+export function planInForce(handle?: string | null): string | null {
+  const sub = getSubscription(handle);
+  if (isActive(sub)) return sub?.planId ?? null;
+  return activeTrial(handle)?.planId ?? null;
+}
+
+/** True when this plan's perks are live — paid for, or inside its free hour. */
+export function hasPlanAccess(handle: string | null | undefined, planId: string): boolean {
+  return planInForce(handle) === planId;
+}
+
+/** True while this plan's free hour is running. */
+export function isTrialing(handle?: string | null, planId?: string | null): boolean {
+  return isTrialActive(handle, planId);
+}
+
+/**
+ * Offline downloads are a Pro-and-up perk, with a one-hour free trial.
+ *
+ * Access requires a live subscription *and* a plan that includes the feature,
+ * or a running free hour on a plan that includes it. Trialing Plus does not
+ * unlock offline mode, because Plus does not include it; trialing Pro or VIP
+ * does. A `pending` or `expired` subscription does not count: the plan has to
+ * be paid and active for the offline library to unlock.
  */
 export function hasOfflineAccess(handle?: string | null): boolean {
+  const trial = activeTrial(handle);
+  if (trial && planIncludesOffline(trial.planId)) return true;
+  const sub = getSubscription(handle);
+  if (!isActive(sub)) return false;
+  return planIncludesOffline(sub?.planId);
+}
+
+/** True when the plan alone unlocks offline mode, ignoring any trial. */
+export function planUnlocksOffline(handle?: string | null): boolean {
   const sub = getSubscription(handle);
   if (!isActive(sub)) return false;
   return planIncludesOffline(sub?.planId);
 }
 
 /** Why offline mode is locked, so the UI can say something useful. */
-export type OfflineLockReason = "signed-out" | "no-plan" | "plan-lacks-offline" | "expired";
+export type OfflineLockReason =
+  "signed-out" | "no-plan" | "plan-lacks-offline" | "expired" | "trial-ended";
 
 export function offlineLockReason(handle?: string | null): OfflineLockReason | null {
   if (hasOfflineAccess(handle)) return null;
   if (!handle) return "signed-out";
   const sub = getSubscription(handle);
-  if (!sub) return "no-plan";
+  // The offline prompt starts a trial of the cheapest offline plan, so that is
+  // the hour whose exhaustion matters here.
+  if (!sub) return hasUsedTrial(handle, offlinePlan().id) ? "trial-ended" : "no-plan";
   if (sub.status === "expired" || sub.status === "pending") return "expired";
   return "plan-lacks-offline";
 }

@@ -15,10 +15,10 @@ export type Plan = {
   /**
    * Whether the plan unlocks offline downloads.
    *
-   * Offline mode is a paid feature: it starts with the cheapest plan (Plus)
-   * and every higher tier inherits it, because Pro and VIP both include
-   * "everything in Plus". Free accounts get a locked toggle with an upgrade
-   * prompt. Never write the price into a comment — it goes stale.
+   * Offline mode starts at Pro and carries up to VIP. Plus deliberately does
+   * *not* include it — that is the upgrade hook from Plus to Pro. Free accounts
+   * and Plus subscribers see a locked toggle with an upgrade prompt. Never
+   * write the price into a comment — it goes stale.
    */
   offline: boolean;
 };
@@ -29,15 +29,20 @@ export const PLANS: Plan[] = [
     label: "Plus",
     emoji: "\u2b50",
     price: 7.99,
-    perks: ["Ad-free feed", "Plus badge on your profile", "Offline downloads"],
-    offline: true,
+    perks: ["Ad-free feed", "Plus badge on your profile"],
+    offline: false,
   },
   {
     id: "pro",
     label: "Pro",
     emoji: "\ud83d\ude80",
     price: 14.99,
-    perks: ["Everything in Plus", "Exclusive tops and names", "Priority uploads"],
+    perks: [
+      "Everything in Plus",
+      "Offline downloads",
+      "Exclusive tops and names",
+      "Priority uploads",
+    ],
     offline: true,
   },
   {
@@ -45,7 +50,7 @@ export const PLANS: Plan[] = [
     label: "VIP",
     emoji: "\ud83d\udc51",
     price: 29.99,
-    perks: ["Everything in Pro", "VIP badge", "Early access to new features"],
+    perks: ["Everything in Pro", "Offline downloads", "VIP badge", "Early access to new features"],
     offline: true,
   },
 ];
@@ -59,9 +64,15 @@ export function planIncludesOffline(id?: string | null): boolean {
   return Boolean(planById(id)?.offline);
 }
 
-/** The cheapest plan that unlocks offline mode, used by upgrade prompts. */
+/**
+ * The cheapest plan that includes offline downloads.
+ *
+ * Used by the upsell copy so the prompt always names the plan a viewer would
+ * actually have to buy. Falls back to the last plan if the catalogue ever
+ * stops marking any tier as offline-capable.
+ */
 export function offlinePlan(): Plan {
-  return PLANS.find((p) => p.offline) ?? PLANS[0]!;
+  return PLANS.find((p) => p.offline) ?? PLANS[PLANS.length - 1]!;
 }
 
 /** Authoritative price in cents, or null when the plan id is unknown. */

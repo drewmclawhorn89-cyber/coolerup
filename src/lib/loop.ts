@@ -259,19 +259,30 @@ export async function fetchMyLikes() {
  * `likes` has a single FK to `videos`, so the embed is unambiguous. Rows whose
  * video was deleted are skipped instead of leaving holes in the grid.
  */
-export async function fetchLikedVideos(userId: string, limit = 500): Promise<Video[]> {
-  const { data, error } = await supabase
-    .from("likes")
-    .select("created_at, videos(*)")
-    .eq("user_id", userId)
-    .order("created_at", { ascending: false })
-    .limit(Math.max(1, Math.min(1000, limit)));
-
-  if (error) throw error;
-  return ((data ?? []) as unknown as { videos: Video | null }[])
-    .map((row) => row.videos)
-    .filter((v): v is Video => !!v)
-    .map((v) => ({ ...v, reposts: v.reposts_count ?? 0 }));
+export async function fetchLikedVideos(userId: string, limit?: number): Promise<Video[]> {
+  // Paged with `.range()` so a heavy liker isn't truncated at the 1000 row
+  // response cap. Pass `limit` only when you genuinely want a short list.
+  const PAGE = 500;
+  const cap = limit ?? Infinity;
+  const out: Video[] = [];
+  for (let from = 0; out.length < cap; from += PAGE) {
+    const size = Math.min(PAGE, cap - out.length);
+    const { data, error } = await supabase
+      .from("likes")
+      .select("created_at, videos(*)")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .range(from, from + size - 1);
+    if (error) throw error;
+    const batch = ((data ?? []) as unknown as { videos: Video | null }[]).filter(
+      (row) => !!row.videos,
+    );
+    out.push(
+      ...batch.map((row) => ({ ...(row.videos as Video), reposts: row.videos?.reposts_count ?? 0 })),
+    );
+    if ((data ?? []).length < size) break;
+  }
+  return out;
 }
 
 /** How many videos a user has liked (cheap head count for the tab label). */
@@ -383,25 +394,45 @@ export async function setVideoSaved(videoId: string, on: boolean) {
 }
 
 export async function fetchSavedVideos(userId: string) {
-  const { data } = await supabase
-    .from("saved_videos")
-    .select("created_at, videos(*)")
-    .eq("user_id", userId)
-    .order("created_at", { ascending: false });
-  return ((data ?? []) as any[]).map((r) => r.videos).filter(Boolean);
+  // Paged, so a large vault isn't cut off at 1000 rows.
+  const PAGE = 500;
+  const out: Video[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data } = await supabase
+      .from("saved_videos")
+      .select("created_at, videos(*)")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .range(from, from + PAGE - 1);
+    const batch = ((data ?? []) as unknown as { videos: Video | null }[])
+      .map((r) => r.videos)
+      .filter((v): v is Video => !!v);
+    out.push(...batch);
+    if ((data ?? []).length < PAGE) break;
+  }
+  return out;
 }
 
 /** Videos a user has reposted, newest repost first (for the profile Reposts tab). */
 export async function fetchRepostedVideos(userId: string) {
-  const { data } = await supabase
-    .from("reposts")
-    .select("created_at, videos(*)")
-    .eq("user_id", userId)
-    .order("created_at", { ascending: false });
-  return ((data ?? []) as unknown as { videos: Video | null }[])
-    .map((r) => r.videos)
-    .filter((v): v is Video => !!v)
-    .map((v) => ({ ...v, reposts: v.reposts_count ?? 0 }));
+  // Paged, so a prolific reposter isn't truncated at 1000 rows.
+  const PAGE = 500;
+  const out: Video[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data } = await supabase
+      .from("reposts")
+      .select("created_at, videos(*)")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .range(from, from + PAGE - 1);
+    const batch = ((data ?? []) as unknown as { videos: Video | null }[])
+      .map((r) => r.videos)
+      .filter((v): v is Video => !!v)
+      .map((v) => ({ ...v, reposts: v.reposts_count ?? 0 }));
+    out.push(...batch);
+    if ((data ?? []).length < PAGE) break;
+  }
+  return out;
 }
 
 /** Reposts made by the people a user follows, for the Following feed. */

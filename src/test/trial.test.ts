@@ -82,7 +82,7 @@ describe("card validation", () => {
   });
 });
 
-describe("paid subscriptions only \u2014 no free trial", () => {
+describe("paid subscriptions \u2014 the plan record carries no trial status", () => {
   it("starts at pending and only activates once the payment is confirmed", () => {
     requestPayment(H, "pro");
     const pending = getSubscription(H);

@@ -951,6 +951,50 @@ async function resumableUpload(
   onProgress(100);
 }
 
+/**
+ * Columns added by the optional migration files. If the owner hasn't run
+ * `instant_publish_sql.sql` / `upload_recovery_sql.sql` yet these don't exist,
+ * and PostgREST rejects the *whole* write — which would break posting videos
+ * entirely. Every write below retries without the unknown column instead, so
+ * the app keeps working on an un-migrated database.
+ */
+const OPTIONAL_COLUMNS = ["status", "expected_bytes", "upload_error"] as const;
+
+type PgError = { message?: string; details?: string; hint?: string; code?: string } | null;
+
+/**
+ * Remove one optional column from `payload` if PostgREST is complaining that
+ * it doesn't exist. Returns true when something was removed, meaning the write
+ * is worth retrying.
+ */
+function dropUnknownColumn(
+  payload: Record<string, unknown>,
+  error: PgError,
+): boolean {
+  if (!error) return false;
+  const text = `${error.message ?? ""} ${error.details ?? ""} ${error.hint ?? ""}`.toLowerCase();
+  // PostgREST says: "Could not find the 'expected_bytes' column of
+  // 'full_videos' in the schema cache".
+  const missingColumn =
+    text.includes("column") || text.includes("schema cache") || error.code === "PGRST204";
+  if (!missingColumn) return false;
+
+  for (const col of OPTIONAL_COLUMNS) {
+    if (text.includes(col) && col in payload) {
+      delete payload[col];
+      return true;
+    }
+  }
+  return false;
+}
+
+/** `status = 'failed'` needs the widened check constraint to exist. */
+function isStatusConstraintError(error: PgError): boolean {
+  if (!error) return false;
+  const text = `${error.message ?? ""} ${error.details ?? ""}`.toLowerCase();
+  return error.code === "23514" || text.includes("status_check");
+}
+
 export type CreateFullVideoInput = {
   userId: string;
   username: string;
@@ -968,25 +1012,28 @@ export type CreateFullVideoInput = {
 };
 
 export async function createFullVideo(input: CreateFullVideoInput): Promise<FullVideo> {
-  const { data, error } = await db
-    .from("full_videos")
-    .insert({
-      user_id: input.userId,
-      username: input.username,
-      title: input.title.trim(),
-      description: input.description.trim(),
-      category: input.category,
-      tags: input.tags,
-      duration: Math.min(input.duration, MAX_FULL_VIDEO_SECONDS),
-      video_url: input.videoUrl,
-      thumbnail_url: input.thumbnailUrl,
-      status: input.status ?? "ready",
-      expected_bytes: input.expectedBytes ?? null,
-    })
-    .select("*")
-    .single();
-  if (error) throw error;
-  return data as FullVideo;
+  const payload: Record<string, unknown> = {
+    user_id: input.userId,
+    username: input.username,
+    title: input.title.trim(),
+    description: input.description.trim(),
+    category: input.category,
+    tags: input.tags,
+    duration: Math.min(input.duration, MAX_FULL_VIDEO_SECONDS),
+    video_url: input.videoUrl,
+    thumbnail_url: input.thumbnailUrl,
+    status: input.status ?? "ready",
+    expected_bytes: input.expectedBytes ?? null,
+  };
+
+  // Retry without any column this database doesn't have yet, so posting still
+  // works before the migrations are run.
+  for (let attempt = 0; attempt < OPTIONAL_COLUMNS.length + 1; attempt += 1) {
+    const { data, error } = await db.from("full_videos").insert(payload).select("*").single();
+    if (!error) return data as FullVideo;
+    if (!dropUnknownColumn(payload, error)) throw error;
+  }
+  throw new Error("Could not save this video. Try again.");
 }
 
 /**
@@ -996,18 +1043,28 @@ export async function createFullVideo(input: CreateFullVideoInput): Promise<Full
  * when the upload completes, which is what flips `processing` to `ready` and
  * points `video_url` at the real object.
  */
+/** Apply an update, dropping any column this database doesn't have yet. */
+async function updateTolerant(
+  id: string,
+  patch: Record<string, unknown>,
+): Promise<{ error: PgError }> {
+  for (let attempt = 0; attempt < OPTIONAL_COLUMNS.length + 1; attempt += 1) {
+    const { error } = await db.from("full_videos").update(patch).eq("id", id);
+    if (!error) return { error: null };
+    if (!dropUnknownColumn(patch, error)) return { error };
+  }
+  return { error: null };
+}
+
 export async function finalizeFullVideo(
   id: string,
   patch: { videoUrl: string; thumbnailUrl: string | null },
 ): Promise<void> {
-  const { error } = await db
-    .from("full_videos")
-    .update({
-      video_url: patch.videoUrl,
-      thumbnail_url: patch.thumbnailUrl,
-      status: "ready",
-    })
-    .eq("id", id);
+  const { error } = await updateTolerant(id, {
+    video_url: patch.videoUrl,
+    thumbnail_url: patch.thumbnailUrl,
+    status: "ready",
+  });
   if (error) throw error;
 }
 
@@ -1019,19 +1076,24 @@ export async function finalizeFullVideo(
  * it becomes `failed` with a reason the owner can act on.
  */
 export async function markFullVideoFailed(id: string, reason: string): Promise<void> {
-  const { error } = await db
-    .from("full_videos")
-    .update({ status: "failed", upload_error: reason.slice(0, 500) })
-    .eq("id", id);
+  const trimmed = reason.slice(0, 500);
+  const { error } = await updateTolerant(id, { status: "failed", upload_error: trimmed });
+
+  // If the database still has the old check constraint, `failed` is rejected.
+  // Record the reason anyway so the owner can see it, rather than losing it.
+  if (isStatusConstraintError(error)) {
+    await updateTolerant(id, { upload_error: trimmed });
+    return;
+  }
   if (error) throw error;
 }
 
 /** Put a failed video back into `processing` before a retry upload starts. */
 export async function reopenFullVideo(id: string): Promise<void> {
-  const { error } = await db
-    .from("full_videos")
-    .update({ status: "processing", upload_error: null })
-    .eq("id", id);
+  const { error } = await updateTolerant(id, {
+    status: "processing",
+    upload_error: null,
+  });
   if (error) throw error;
 }
 

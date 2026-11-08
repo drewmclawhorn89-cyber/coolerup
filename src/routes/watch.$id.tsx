@@ -242,8 +242,17 @@ function WatchPage() {
   const waitingForUpload =
     video?.status === "processing" && !getPendingVideo(video.id);
 
-  /** The upload died. Only the owner can do anything about it. */
-  const uploadFailed = video?.status === "failed";
+  /**
+   * The upload died. Only the owner can do anything about it. Also true when
+   * the row is stuck on `processing` but carries an error — that happens on a
+   * database that hasn't had `upload_recovery_sql.sql` run, where the `failed`
+   * status is rejected and only the reason is stored.
+   */
+  const uploadFailed =
+    video?.status === "failed" || (video?.status === "processing" && !!video?.upload_error);
+
+  /** Finished uploading, but there is still no playable source. */
+  const unplayable = !waitingForUpload && !uploadFailed && !!video && !src;
 
   async function removeFailed() {
     if (!video || !auth.user) return;
@@ -449,6 +458,26 @@ function WatchPage() {
                       Delete
                     </button>
                   </div>
+                )}
+              </div>
+            </div>
+          ) : unplayable ? (
+            <div className="mx-3 mt-2 flex aspect-video flex-col items-center justify-center gap-3 rounded-xl bg-muted text-center sm:mx-0">
+              <div className="px-6">
+                <p className="text-sm font-semibold">This video can't be played</p>
+                <p className="mt-1 text-[13px] text-muted-foreground">
+                  {isOwner
+                    ? "The file isn't in storage. Upload it again to fix this."
+                    : "The file is missing from storage."}
+                </p>
+                {isOwner && (
+                  <button
+                    type="button"
+                    onClick={() => void navigate({ to: "/upload-full" })}
+                    className="mt-4 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
+                  >
+                    Upload again
+                  </button>
                 )}
               </div>
             </div>

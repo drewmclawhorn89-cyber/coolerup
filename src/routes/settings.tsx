@@ -34,6 +34,7 @@ export const Route = createFileRoute("/settings")({
       { title: "Settings — Coolerup" },
       { name: "description", content: "Manage your Coolerup profile and account settings." },
       { property: "og:title", content: "Settings — Coolerup" },
+      { property: "og:description", content: "Manage your Coolerup profile and account settings." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
@@ -83,30 +84,28 @@ function Settings() {
   const [youtubeLink, setYoutubeLink] = useState("");
 const [offlineMode, setOfflineMode] = useState(false);
   // Notifications (simple toggle stored in localStorage as prototype)
-  const [notificationsEnabled, setNotificationsEnabled] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem("settings:notifications") !== "false";
-    } catch (e) {
-      return true;
-    }
-  });
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   // Live push diagnostics so a misconfiguration is visible instead of silent.
   const [pushState, setPushState] = useState<{ configured: boolean; devices: number; source?: string } | null>(null);
   const [testingPush, setTestingPush] = useState(false);
   const [deviceHint, setDeviceHint] = useState<string | null>(null);
   const [lastTest, setLastTest] = useState<string | null>(null);
-const [messagePrivacy, setMessagePrivacy] = useState(localStorage.getItem("messagePrivacy") || "everyone");
-const [messageFilter, setMessageFilter] = useState(localStorage.getItem("messageFilter") || "all");
-const [allowDM, setAllowDM] = useState(localStorage.getItem("allowDM") !== "false");
-const [readReceipts, setReadReceipts] = useState(localStorage.getItem("readReceipts") !== "false");
+const [messagePrivacy, setMessagePrivacy] = useState("everyone");
+const [messageFilter, setMessageFilter] = useState("all");
+const [allowDM, setAllowDM] = useState(true);
+const [readReceipts, setReadReceipts] = useState(true);
   // Theme
-  const [theme, setTheme] = useState<string>(() => {
+  const [theme, setTheme] = useState("dark");
+  useEffect(() => {
     try {
-      return localStorage.getItem("settings:theme") || "dark";
-    } catch (e) {
-      return "system";
-    }
-  });
+      setNotificationsEnabled(localStorage.getItem("settings:notifications") !== "false");
+      setMessagePrivacy(localStorage.getItem("messagePrivacy") || "everyone");
+      setMessageFilter(localStorage.getItem("messageFilter") || "all");
+      setAllowDM(localStorage.getItem("allowDM") !== "false");
+      setReadReceipts(localStorage.getItem("readReceipts") !== "false");
+      setTheme(localStorage.getItem("settings:theme") || "dark");
+    } catch {}
+  }, []);
 useEffect(() => {
   try {
     const savedOffline = localStorage.getItem("settings:offline") === "true";

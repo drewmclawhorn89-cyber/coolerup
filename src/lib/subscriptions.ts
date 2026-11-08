@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { PLANS, planById, planIncludesOffline, offlinePlan, type Plan } from "@/lib/plans";
-import { hasUsedTrial, isTrialActive } from "@/lib/trial";
+import { activeTrial, hasUsedTrial, isTrialActive } from "@/lib/trial";
 
 export type { Plan };
 export { PLANS, planById, planIncludesOffline, offlinePlan };
@@ -295,16 +295,39 @@ export function isActive(sub: Subscription | null): boolean {
 /* -------------------------------------------------------------------------- */
 
 /**
+ * The plan whose perks are live right now.
+ *
+ * A paid, active subscription wins; otherwise a running free hour supplies the
+ * plan. Returns null when neither is in force.
+ */
+export function planInForce(handle?: string | null): string | null {
+  const sub = getSubscription(handle);
+  if (isActive(sub)) return sub?.planId ?? null;
+  return activeTrial(handle)?.planId ?? null;
+}
+
+/** True when this plan's perks are live — paid for, or inside its free hour. */
+export function hasPlanAccess(handle: string | null | undefined, planId: string): boolean {
+  return planInForce(handle) === planId;
+}
+
+/** True while this plan's free hour is running. */
+export function isTrialing(handle?: string | null, planId?: string | null): boolean {
+  return isTrialActive(handle, planId);
+}
+
+/**
  * Offline downloads are a Pro-and-up perk, with a one-hour free trial.
  *
  * Access requires a live subscription *and* a plan that includes the feature,
- * or an unexpired trial. Plus does not include offline mode, so a Plus
- * subscriber is locked out just like a free account once their trial is spent.
- * A `pending` or `expired` subscription does not count: the plan has to be paid
- * and active for the offline library to unlock.
+ * or a running free hour on a plan that includes it. Trialing Plus does not
+ * unlock offline mode, because Plus does not include it; trialing Pro or VIP
+ * does. A `pending` or `expired` subscription does not count: the plan has to
+ * be paid and active for the offline library to unlock.
  */
 export function hasOfflineAccess(handle?: string | null): boolean {
-  if (isTrialActive(handle)) return true;
+  const trial = activeTrial(handle);
+  if (trial && planIncludesOffline(trial.planId)) return true;
   const sub = getSubscription(handle);
   if (!isActive(sub)) return false;
   return planIncludesOffline(sub?.planId);
@@ -325,7 +348,9 @@ export function offlineLockReason(handle?: string | null): OfflineLockReason | n
   if (hasOfflineAccess(handle)) return null;
   if (!handle) return "signed-out";
   const sub = getSubscription(handle);
-  if (!sub) return hasUsedTrial(handle) ? "trial-ended" : "no-plan";
+  // The offline prompt starts a trial of the cheapest offline plan, so that is
+  // the hour whose exhaustion matters here.
+  if (!sub) return hasUsedTrial(handle, offlinePlan().id) ? "trial-ended" : "no-plan";
   if (sub.status === "expired" || sub.status === "pending") return "expired";
   return "plan-lacks-offline";
 }

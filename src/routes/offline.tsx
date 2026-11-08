@@ -28,7 +28,7 @@ type FeedItem = { id: string; video: any; size: number };
 function OfflinePage() {
   const auth = useAuth();
   const unlocked = hasOfflineAccess(auth.handle);
-  const trial = useTrial(auth.handle);
+  const trial = useTrial(auth.handle, offlinePlan().id);
   const [items, setItems] = useState<FeedItem[] | null>(null);
   const [fullItems, setFullItems] = useState<SavedFullVideo[] | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);

@@ -177,6 +177,12 @@ export type Subscription = {
   paidAt: string | null;
   /** card on file, used to renew the plan */
   paymentMethod: PaymentMethod | null;
+  /** Where the plan came from. Missing means a normal paid subscription. */
+  source?: "payment" | "code";
+  /** The gift / promo code that granted this plan, when `source` is `code`. */
+  code?: string | null;
+  /** End of the current paid or redeemed period (ISO). */
+  currentPeriodEnd?: string | null;
 };
 
 const key = (handle: string) => `subscription:${handle}`;
@@ -221,14 +227,27 @@ function migrate(raw: string): Subscription | null {
  * only ever reads as pending, active or expired.
  */
 function normalize(sub: Subscription & { trialEndsAt?: string; status?: string }): Subscription {
-  const status: SubStatus =
-    sub.status === "active" || sub.status === "pending" ? sub.status : "expired";
+  // A code redemption is a fixed-length grant, so it expires on its own even if
+  // nobody touches the record. Paid plans keep the existing pending/active
+  // behaviour.
+  const codeEnded =
+    sub.source === "code" &&
+    Boolean(sub.currentPeriodEnd) &&
+    new Date(sub.currentPeriodEnd as string).getTime() <= Date.now();
+  const status: SubStatus = codeEnded
+    ? "expired"
+    : sub.status === "active" || sub.status === "pending"
+      ? sub.status
+      : "expired";
   return {
     planId: sub.planId,
     status,
     startedAt: sub.startedAt,
     paidAt: sub.paidAt ?? null,
     paymentMethod: sub.paymentMethod ?? null,
+    source: sub.source === "code" ? "code" : "payment",
+    code: sub.code ?? null,
+    currentPeriodEnd: sub.currentPeriodEnd ?? null,
   };
 }
 
@@ -278,7 +297,55 @@ export function requestPayment(handle: string, planId: string) {
 export function confirmPayment(handle: string) {
   const existing = getSubscription(handle);
   if (!existing) return;
-  write(handle, { ...existing, status: "active", paidAt: new Date().toISOString() });
+  write(handle, {
+    ...existing,
+    status: "active",
+    paidAt: new Date().toISOString(),
+    source: "payment",
+    code: null,
+    currentPeriodEnd: null,
+  });
+}
+
+/**
+ * Grant a plan from a redeemed subscription code.
+ *
+ * Codes are fixed-length (1, 3 or 12 months). If the user already has a live
+ * code subscription, the new months stack on top of the current end date —
+ * exactly how a Netflix gift card extends an existing balance. Otherwise the
+ * period starts now.
+ */
+export function applyCodeSubscription(
+  handle: string,
+  opts: { planId: string; code: string; months: number; endsAt?: string | null },
+): Subscription {
+  const existing = getSubscription(handle);
+  const now = new Date();
+
+  const existingEnd = existing?.currentPeriodEnd ? new Date(existing.currentPeriodEnd) : null;
+  let end: Date;
+  if (existing?.source === "code" && existingEnd && existingEnd.getTime() > now.getTime()) {
+    end = new Date(existingEnd);
+    end.setMonth(end.getMonth() + opts.months);
+  } else if (opts.endsAt) {
+    end = new Date(opts.endsAt);
+  } else {
+    end = new Date(now);
+    end.setMonth(end.getMonth() + opts.months);
+  }
+
+  write(handle, {
+    planId: opts.planId,
+    status: "active",
+    startedAt: existing?.startedAt ?? now.toISOString(),
+    paidAt: now.toISOString(),
+    paymentMethod: null,
+    source: "code",
+    code: opts.code,
+    currentPeriodEnd: end.toISOString(),
+  });
+
+  return getSubscription(handle) as Subscription;
 }
 
 export function cancelSubscription(handle: string) {

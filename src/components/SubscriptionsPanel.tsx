@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { PaymentSheet } from "@/components/PaymentSheet";
+import { RedeemCodeBox } from "@/components/RedeemCodeBox";
 import { Button } from "@/components/ui/button";
 import {
   PLANS,
@@ -10,6 +11,7 @@ import {
   useSubscription,
   type Plan,
 } from "@/lib/subscriptions";
+import { codeSubscriptionSummary } from "@/lib/codes";
 import { hasUsedTrial, startTrial, useTrial } from "@/lib/trial";
 
 function StatusBadge({ label, tone }: { label: string; tone: "active" | "pending" | "expired" }) {
@@ -34,6 +36,7 @@ export function SubscriptionsPanel({
   // Live free-hour state: ticks every second so countdowns stay accurate and
   // the badge clears the moment the hour ends.
   const trial = useTrial(handle);
+  const codeSummary = codeSubscriptionSummary(sub);
 
   // Plan whose tap-to-pay sheet is open, if any.
   const [sheetPlan, setSheetPlan] = useState<Plan | null>(null);
@@ -74,6 +77,15 @@ export function SubscriptionsPanel({
         <div className="rounded-xl border border-border bg-muted/50 p-3 text-sm">
           <span className="font-semibold">Your subscription isn&apos;t active.</span> Pick a plan
           below to get your perks back.
+        </div>
+      )}
+
+      {codeSummary && sub?.status === "active" && (
+        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm">
+          <p className="font-semibold text-emerald-700 dark:text-emerald-400">{codeSummary}</p>
+          <p className="text-xs text-muted-foreground">
+            Redeeming another code adds its months on top of this one.
+          </p>
         </div>
       )}
 
@@ -202,6 +214,8 @@ export function SubscriptionsPanel({
         Plans renew monthly until you cancel. Cancel anytime and you keep your perks until the end
         of the period you paid for.
       </p>
+
+      <RedeemCodeBox handle={handle} onSignIn={onSignIn} className="mt-1" />
 
       <PaymentSheet
         plan={sheetPlan}

@@ -56,6 +56,30 @@ async function headCount(table: CountTable, column: string, value: string): Prom
 }
 
 /**
+ * Exact head-count with a PostgREST `or` filter. Used for videos, which are
+ * owned by `user_id` but also carry the legacy `username` (older rows and
+ * uploads that predate the `user_id` backfill). Quoting the handle keeps dots
+ * in handles from being parsed as filter separators.
+ */
+async function headCountOr(table: CountTable, filter: string): Promise<number> {
+  const { count, error } = await supabase
+    .from(table)
+    .select("*", { count: "exact", head: true })
+    .or(filter);
+  if (error) return 0;
+  return count ?? 0;
+}
+
+/**
+ * The one predicate that defines "videos this profile owns". The count and the
+ * grid both use it, so the header number and the tab number can never disagree.
+ */
+export function videoOwnerFilter(profileId: string, username: string): string {
+  const handle = username.replace(/"/g, "");
+  return `user_id.eq.${profileId},username.eq."${handle}"`;
+}
+
+/**
  * Sum of `likes_count` across every video a user posted. Paged so the total is
  * complete even past the 1000 row response cap.
  */
@@ -86,7 +110,11 @@ export async function fetchProfileCounts(
   username: string,
 ): Promise<ProfileCounts> {
   const [videos, likes, reposts, saved, followers, following, likesReceived] = await Promise.all([
-    headCount("videos", "username", username),
+    // Same predicate as `fetchProfileVideosPage` — one source for top + tab.
+    profileId
+      ? headCountOr("videos", videoOwnerFilter(profileId, username))
+      : headCount("videos", "username", username),
+    // Likes the profile GAVE (their Liked tab), not likes received.
     headCount("likes", "user_id", profileId),
     headCount("reposts", "user_id", profileId),
     headCount("saved_videos", "user_id", profileId),
@@ -97,16 +125,22 @@ export async function fetchProfileCounts(
   return { videos, likes, reposts, saved, followers, following, likesReceived };
 }
 
-/** One page of a user's own videos, newest first. */
+/**
+ * One page of a user's own videos, newest first. Uses the exact same owner
+ * predicate as the video count, so the grid can never show a different set
+ * (or a different total) than the header.
+ */
 export async function fetchProfileVideosPage(
   username: string,
   offset: number,
   limit = PROFILE_PAGE_SIZE,
+  profileId?: string,
 ): Promise<{ rows: Video[]; hasMore: boolean }> {
-  const { data, error } = await supabase
-    .from("videos")
-    .select("*")
-    .eq("username", username)
+  let query = supabase.from("videos").select("*");
+  query = profileId
+    ? query.or(videoOwnerFilter(profileId, username))
+    : query.eq("username", username);
+  const { data, error } = await query
     .order("created_at", { ascending: false })
     .order("id", { ascending: true })
     .range(offset, offset + limit - 1);

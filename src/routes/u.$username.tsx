@@ -307,6 +307,21 @@ function Profile() {
     };
   }, [username, profile?.id, reloadKey]);
 
+  // Re-read the exact counts when the tab regains focus, so a device that was
+  // showing a stale cached number (the old "1000" cap) snaps to the same total
+  // every other device sees.
+  useEffect(() => {
+    const refresh = () => {
+      if (document.visibilityState === "visible") setReloadKey((k) => k + 1);
+    };
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, []);
+
   useEffect(() => {
     if (!username) return;
     fetchStories(username)
@@ -340,16 +355,21 @@ function Profile() {
   const loadPage = useCallback(
     async (key: TabKey, offset: number): Promise<{ rows: Video[]; hasMore: boolean }> => {
       if (!username) return { rows: [], hasMore: false };
-      if (key === "videos") return fetchProfileVideosPage(username, offset, PROFILE_PAGE_SIZE);
+      if (key === "videos")
+        return fetchProfileVideosPage(username, offset, PROFILE_PAGE_SIZE, profile?.id);
       if (!profile?.id) return { rows: [], hasMore: false };
       if (key === "liked") {
         if (!canSeeLiked) return { rows: [], hasMore: false };
         return fetchLikedVideosPage(profile.id, offset, PROFILE_PAGE_SIZE);
       }
-      if (key === "saved") return fetchSavedVideosPage(profile.id, offset, PROFILE_PAGE_SIZE);
+      // Vault/Saved is private: only the owner ever reads it.
+      if (key === "saved") {
+        if (!isOwn) return { rows: [], hasMore: false };
+        return fetchSavedVideosPage(profile.id, offset, PROFILE_PAGE_SIZE);
+      }
       return fetchRepostedVideosPage(profile.id, offset, PROFILE_PAGE_SIZE);
     },
-    [username, profile?.id, canSeeLiked],
+    [username, profile?.id, canSeeLiked, isOwn],
   );
 
   const applyRows = useCallback((key: TabKey, rows: Video[], replace: boolean) => {
@@ -420,16 +440,38 @@ function Profile() {
   useEffect(() => {
     setOpen(null);
   }, [tab]);
+  // Vault/Saved is owner-only, so a non-owner can never be left on that tab.
+  useEffect(() => {
+    if (tab === "saved" && !isOwn) setTab("videos");
+  }, [tab, isOwn]);
   useEffect(() => {
     if (open === null) return;
     const el = viewer.current;
     if (el) el.scrollTop = open * el.clientHeight;
   }, [open]);
 
-  // Exact totals from count queries — never array lengths.
-  const totalLikes = counts?.likesReceived ?? 0;
-  // TikTok shows two different numbers: likes received and videos liked.
-  const likedCount = counts?.likes ?? likedVideos?.length ?? 0;
+  // Single source of truth. The header stats and the tab labels both read these
+  // exact count-query values — never `array.length`, which is only one page and
+  // used to freeze at 1000. Header formats compact, tabs stay exact, but the
+  // underlying number is the same variable.
+  const videoCount = counts?.videos ?? 0;
+  // Liked tab is private when the owner hides it — don't leak the number either.
+  const likesGivenCount = canSeeLiked ? (counts?.likes ?? 0) : 0;
+  const likesReceivedCount = counts?.likesReceived ?? 0;
+  const repostsCount = counts?.reposts ?? 0;
+  // Vault/Saved is private, like TikTok: owner sees their real total, everyone
+  // else gets 0 and no tab at all.
+  const savedCount = isOwn ? (counts?.saved ?? 0) : 0;
+  const statCounts: ProfileCounts | null = counts
+    ? {
+        ...counts,
+        videos: videoCount,
+        likes: likesGivenCount,
+        likesReceived: likesReceivedCount,
+        reposts: repostsCount,
+        saved: savedCount,
+      }
+    : null;
   const shownVideos =
     tab === "saved"
       ? saved
@@ -569,7 +611,7 @@ function Profile() {
             </div>
           )}
           <ProfileStats
-            counts={counts}
+            counts={statCounts}
             username={username}
             onOpenFollowers={() => setFollowersOpen(true)}
             onOpenFollowing={() => setFollowingOpen(true)}
@@ -577,18 +619,19 @@ function Profile() {
         </div>
 
         <div className="mt-4 flex justify-around border-b border-border">
-          {TABS.map((t) => {
+          {TABS.filter((t) => t.key !== "saved" || isOwn).map((t) => {
             const active = tab === t.key;
             const Icon = t.icon;
-            // Exact totals from the count queries, not the loaded page size.
+            // Exact totals — the very same variables the header uses, so the
+            // top stat and the tab can never disagree.
             const n =
               t.key === "videos"
-                ? (counts?.videos ?? videos?.length ?? 0)
+                ? videoCount
                 : t.key === "reposts"
-                  ? (counts?.reposts ?? reposts.length)
+                  ? repostsCount
                   : t.key === "liked"
-                    ? likedCount
-                    : (counts?.saved ?? saved.length);
+                    ? likesGivenCount
+                    : savedCount;
             return (
               <button
                 key={t.key}
@@ -604,7 +647,9 @@ function Profile() {
                 }`}
               >
                 <Icon className={`h-5 w-5 ${active && t.key === "liked" ? "fill-current" : ""}`} />
-                <span className="text-xs font-bold tabular-nums">{n}</span>
+                <span className="text-xs font-bold tabular-nums">
+                  {counts === null ? "–" : n}
+                </span>
               </button>
             );
           })}
@@ -626,7 +671,7 @@ function Profile() {
               <div key={i} className="aspect-[3/4] animate-pulse bg-secondary" />
             ))}
           </div>
-        ) : tab === "liked" && likedCount === 0 ? (
+        ) : tab === "liked" && likesGivenCount === 0 ? (
           <div className="flex flex-col items-center gap-2 px-6 py-16 text-center">
             <span className="flex h-16 w-16 items-center justify-center rounded-full bg-secondary">
               <Heart className="h-7 w-7 text-muted-foreground" />
@@ -640,9 +685,9 @@ function Profile() {
                 : `Videos @${username} likes will appear here.`}
             </p>
           </div>
-        ) : tab === "saved" && (counts?.saved ?? saved.length) === 0 ? (
+        ) : tab === "saved" && savedCount === 0 ? (
           <p className="py-10 text-center text-sm text-muted-foreground">No saved videos yet.</p>
-        ) : tab === "reposts" && (counts?.reposts ?? reposts.length) === 0 ? (
+        ) : tab === "reposts" && repostsCount === 0 ? (
           <p className="py-10 text-center text-sm text-muted-foreground">No reposts yet.</p>
         ) : (
           <div className="grid grid-cols-3 gap-1">

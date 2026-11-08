@@ -26,6 +26,40 @@ export type YouTubePlayerProps = {
 };
 
 /**
+ * Ask the device to stay upright while the player is fullscreen.
+ *
+ * `screen.orientation.lock` only exists on mobile Chrome/Android; iOS Safari
+ * and desktop either reject it or lack it entirely, so every call is guarded
+ * and failure is silent — the 9:16 frame in the markup still gives a portrait
+ * player on a wide screen.
+ */
+type LockableOrientation = {
+  lock?: (orientation: "portrait" | "portrait-primary") => Promise<void>;
+  unlock?: () => void;
+};
+
+function orientationApi(): LockableOrientation | null {
+  if (typeof screen === "undefined") return null;
+  return (screen.orientation as unknown as LockableOrientation | undefined) ?? null;
+}
+
+async function lockPortrait(): Promise<void> {
+  try {
+    await orientationApi()?.lock?.("portrait");
+  } catch {
+    /* unsupported or blocked — the CSS frame covers it */
+  }
+}
+
+function unlockOrientation(): void {
+  try {
+    orientationApi()?.unlock?.();
+  } catch {
+    /* nothing to release */
+  }
+}
+
+/**
  * A YouTube-style player: click-to-play, a scrub bar with buffered range, a
  * volume slider, a quality menu and a fullscreen toggle.
  *
@@ -83,16 +117,31 @@ export function YouTubePlayer({ src, sources, poster, onFirstPlay, className = "
     try {
       if (!document.fullscreenElement) {
         await el.requestFullscreen();
+        // Portrait, like a phone-shaped player. Mobile browsers honour the
+        // lock; desktop has no orientation, so the CSS frame does the work.
+        await lockPortrait();
       } else {
         await document.exitFullscreen();
+        unlockOrientation();
       }
     } catch {
       /* iOS Safari refuses fullscreen on non-video elements; ignore. */
+      const video = videoRef.current as (HTMLVideoElement & { webkitEnterFullscreen?: () => void }) | null;
+      try {
+        video?.webkitEnterFullscreen?.();
+      } catch {
+        /* nothing else we can do */
+      }
     }
   };
 
   useEffect(() => {
-    const onFsChange = () => setFullscreen(Boolean(document.fullscreenElement));
+    const onFsChange = () => {
+      const active = Boolean(document.fullscreenElement);
+      setFullscreen(active);
+      if (active) void lockPortrait();
+      else unlockOrientation();
+    };
     document.addEventListener("fullscreenchange", onFsChange);
     return () => document.removeEventListener("fullscreenchange", onFsChange);
   }, []);
@@ -169,17 +218,34 @@ export function YouTubePlayer({ src, sources, poster, onFirstPlay, className = "
   return (
     <div
       ref={wrapRef}
-      className={`group relative w-full overflow-hidden bg-black ${className}`}
+      className={`group relative w-full overflow-hidden bg-black ${
+        // Drop the caller's styling (rounded corners, margins) in fullscreen so
+        // the black backdrop reaches the screen edges.
+        fullscreen ? "flex h-screen w-screen items-center justify-center" : className
+      }`}
       onMouseMove={revealControls}
       onTouchStart={revealControls}
     >
+      {/* In fullscreen this becomes a phone-shaped 9:16 frame centred on black,
+          so the player reads as portrait instead of stretching to the monitor. */}
+      <div
+        className={
+          fullscreen
+            ? "relative flex aspect-[9/16] h-full max-h-screen w-auto max-w-full items-center justify-center bg-black"
+            : "relative w-full"
+        }
+      >
       <video
         ref={videoRef}
         src={activeSrc}
         poster={poster}
         playsInline
         preload="metadata"
-        className="aspect-video w-full bg-black"
+        className={
+          fullscreen
+            ? "h-full w-full bg-black object-contain"
+            : "aspect-video w-full bg-black"
+        }
         onClick={togglePlay}
         onPlay={() => {
           setPlaying(true);
@@ -322,6 +388,7 @@ export function YouTubePlayer({ src, sources, poster, onFirstPlay, className = "
             </button>
           </div>
         </div>
+      </div>
       </div>
     </div>
   );

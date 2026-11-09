@@ -78,6 +78,13 @@
       "when": 1793994048834,
       "tag": "0010_beta_features_and_tighten_reads",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1794184088150,
+      "tag": "0011_add_youtube_full_videos",
+      "breakpoints": true
     }
   ]
 }

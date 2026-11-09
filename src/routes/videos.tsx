@@ -1,6 +1,8 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Loader2, ArrowLeft, Search, Upload, WifiOff } from "lucide-react";
+import { Loader2, ArrowLeft, Search, Upload, WifiOff, Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { AddYouTubeModal } from "@/components/AddYouTubeModal";
 import { FullVideoCard } from "@/components/FullVideoCard";
 import { EditFullVideoDialog } from "@/components/EditFullVideoDialog";
 import { useAuth } from "@/hooks/useAuth";
@@ -24,6 +26,7 @@ export const Route = createFileRoute("/videos")({
         content: "Watch full-length videos on Coolerup — music, gaming, comedy and more.",
       },
       { property: "og:title", content: "Videos — Coolerup" },
+      { property: "og:description", content: "Watch full-length videos and YouTube picks on Coolerup." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
@@ -47,6 +50,7 @@ function VideosPage() {
   const [hasMore, setHasMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<FullVideo | null>(null);
+  const [addingYouTube, setAddingYouTube] = useState(false);
   /** When true the grid shows only videos downloaded for offline viewing. */
   const [offlineOnly, setOfflineOnly] = useState(false);
   const [savedVideos, setSavedVideos] = useState<FullVideo[]>([]);
@@ -176,6 +180,13 @@ function VideosPage() {
 
   return (
     <div className="mx-auto w-full max-w-6xl px-3 pb-24 pt-3">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h1 className="text-xl font-bold">Videos</h1>
+        <Button variant="outline" onClick={() => {
+          if (!auth.user) { void auth.signIn(); return; }
+          setAddingYouTube(true);
+        }}><Plus /> Add YouTube</Button>
+      </div>
       {/* Search bar, YouTube style: a wide rounded field with the icon inside. */}
       <div className="sticky top-0 z-20 -mx-3 bg-background/95 px-3 pb-2 pt-1 backdrop-blur">
         <form
@@ -352,6 +363,9 @@ function VideosPage() {
       )}
 
       {/* Owner-only editor, opened from the pencil on a card. */}
+      {addingYouTube && <AddYouTubeModal open onClose={() => setAddingYouTube(false)} onAdded={() => {
+        setOfflineOnly(false); setCategory("All"); setSearchInput(""); setSearch(""); void load();
+      }} />}
       {editing && auth.user && (
         <EditFullVideoDialog
           video={editing}

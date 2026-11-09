@@ -52,6 +52,10 @@ export function useFullVideoOffline(video: Pick<FullVideo, "id"> & Partial<FullV
 
   /** Save when not saved, remove when saved. Returns true when state changed. */
   const toggle = useCallback(async (): Promise<boolean> => {
+    if (video.is_youtube) {
+      toast.error("YouTube videos are available online only.");
+      return false;
+    }
     if (busy || progress !== null) return false;
     setBusy(true);
     try {

@@ -79,6 +79,12 @@ export function FullVideoCard({
             </span>
           )}
 
+          {video.is_youtube && (
+            <span className="absolute bottom-1.5 left-1.5 flex items-center gap-1 rounded bg-youtube px-1.5 py-1 text-[11px] font-semibold leading-none text-youtube-foreground">
+              <Play className="size-3 fill-current" /> YouTube
+            </span>
+          )}
+
           {video.status === "processing" && (
             <span className="absolute left-1.5 top-1.5 flex items-center gap-1 rounded bg-amber-500/90 px-1.5 py-0.5 text-[11px] font-semibold leading-none text-black">
               <Loader2 className="size-3 animate-spin" />

@@ -55,6 +55,7 @@ export const Route = createFileRoute("/watch/$id")({
       { title: "Watch — Coolerup" },
       { name: "description", content: "Watch full-length videos on Coolerup." },
       { property: "og:title", content: "Watch — Coolerup" },
+      { property: "og:description", content: "Watch full-length videos and YouTube picks on Coolerup." },
       { property: "og:type", content: "video.other" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
@@ -515,6 +516,13 @@ function WatchPage() {
                 )}
               </div>
             </div>
+          ) : video.is_youtube && video.youtube_id ? (
+            <div className="aspect-video w-full overflow-hidden bg-background sm:rounded-lg">
+              <iframe className="h-full w-full" title={video.title}
+                src={`https://www.youtube-nocookie.com/embed/${encodeURIComponent(video.youtube_id)}?rel=0`}
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                referrerPolicy="strict-origin-when-cross-origin" allowFullScreen />
+            </div>
           ) : (
             <YouTubePlayer
               src={src}
@@ -637,7 +645,7 @@ function WatchPage() {
               <button
                 type="button"
                 onClick={() => void offline.toggle()}
-                disabled={offline.progress !== null}
+                disabled={offline.progress !== null || video.is_youtube}
                 aria-pressed={offline.isSaved}
                 aria-label={
                   offline.isSaved

@@ -1136,15 +1136,17 @@ function VideoCardImpl({
 
           {/* Repost lives in the long-press sheet on the ❤️, not on the rail. */}
 
-          {/* BOOKMARK */}
+          {/* BOOKMARK — yellow once saved, so it reads as "on" at a glance */}
           <RailButton
             label={isSaved ? "Saved" : ""}
             onClick={(e) => void toggleSave(e)}
             pressed={isSaved}
-            activeClass="text-white"
+            activeClass="text-yellow-400"
           >
             <Bookmark
-              className={`h-7 w-7 drop-shadow-lg ${isSaved ? "fill-white text-white" : "text-white"}`}
+              className={`h-7 w-7 drop-shadow-lg ${
+                isSaved ? "fill-yellow-400 text-yellow-400" : "text-white"
+              }`}
             />
           </RailButton>
 

@@ -638,6 +638,7 @@ export type Database = {
           description: string
           duration: number
           id: string
+          is_youtube: boolean
           status: string
           tags: string[]
           thumbnail_url: string | null
@@ -649,6 +650,7 @@ export type Database = {
           video_720_url: string | null
           video_url: string
           views: number
+          youtube_id: string | null
         }
         Insert: {
           category?: string
@@ -656,6 +658,7 @@ export type Database = {
           description?: string
           duration?: number
           id?: string
+          is_youtube?: boolean
           status?: string
           tags?: string[]
           thumbnail_url?: string | null
@@ -667,6 +670,7 @@ export type Database = {
           video_720_url?: string | null
           video_url: string
           views?: number
+          youtube_id?: string | null
         }
         Update: {
           category?: string
@@ -674,6 +678,7 @@ export type Database = {
           description?: string
           duration?: number
           id?: string
+          is_youtube?: boolean
           status?: string
           tags?: string[]
           thumbnail_url?: string | null
@@ -685,6 +690,7 @@ export type Database = {
           video_720_url?: string | null
           video_url?: string
           views?: number
+          youtube_id?: string | null
         }
         Relationships: []
       }

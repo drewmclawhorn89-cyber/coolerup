@@ -21,10 +21,19 @@ import {
 export function FullVideoCard({
   video,
   onEdit,
+  showBadge = false,
 }: {
   video: FullVideo;
   /** When provided, an owner-only pencil button appears on the thumbnail. */
   onEdit?: ((video: FullVideo) => void) | undefined;
+  /**
+   * When true, a red "YouTube" badge is drawn on the thumbnail.
+   *
+   * The /videos grid keeps this off so a YouTube pick looks exactly like a
+   * native Coolerup upload in the grid. The watch page is where the YouTube
+   * provenance is surfaced instead.
+   */
+  showBadge?: boolean;
 }) {
   const [thumb, setThumb] = useState<string>("");
 
@@ -79,7 +88,7 @@ export function FullVideoCard({
             </span>
           )}
 
-          {video.is_youtube && (
+          {video.is_youtube && showBadge && (
             <span className="absolute bottom-1.5 left-1.5 flex items-center gap-1 rounded bg-youtube px-1.5 py-1 text-[11px] font-semibold leading-none text-youtube-foreground">
               <Play className="size-3 fill-current" /> YouTube
             </span>

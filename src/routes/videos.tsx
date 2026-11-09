@@ -293,7 +293,7 @@ function VideosPage() {
         ) : (
           <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-5 sm:grid-cols-3 lg:grid-cols-4">
             {savedVideos.map((v) => (
-              <FullVideoCard key={v.id} video={v} />
+              <FullVideoCard key={v.id} video={v} showBadge={false} />
             ))}
           </div>
         )
@@ -324,6 +324,7 @@ function VideosPage() {
             <FullVideoCard
               key={v.id}
               video={v}
+              showBadge={false}
               onEdit={auth.user && v.user_id === auth.user.id ? setEditing : undefined}
             />
           ))}

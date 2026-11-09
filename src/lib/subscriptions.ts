@@ -2,6 +2,13 @@ import { useEffect, useState } from "react";
 
 import { PLANS, planById, planIncludesOffline, offlinePlan, type Plan } from "@/lib/plans";
 import { activeTrial, hasUsedTrial, isTrialActive } from "@/lib/trial";
+import {
+  LIFETIME_EVENT,
+  cachedLifetime,
+  isLifetimeActive,
+  isLifetimeRevoked,
+  refreshLifetime,
+} from "@/lib/subscription";
 
 export type { Plan };
 export { PLANS, planById, planIncludesOffline, offlinePlan };
@@ -183,6 +190,13 @@ export type Subscription = {
   code?: string | null;
   /** End of the current paid or redeemed period (ISO). */
   currentPeriodEnd?: string | null;
+  /**
+   * True for an owner-granted lifetime plan. Such a plan never expires, so
+   * `currentPeriodEnd` is always null and must never be consulted.
+   */
+  isLifetime?: boolean;
+  /** Who granted it - shown as "Given by @drewmclawhorn3". */
+  grantedBy?: string | null;
 };
 
 const key = (handle: string) => `subscription:${handle}`;
@@ -251,8 +265,36 @@ function normalize(sub: Subscription & { trialEndsAt?: string; status?: string }
   };
 }
 
+/**
+ * The subscription in force for this handle.
+ *
+ * A lifetime grant outranks everything: it is read from the server-backed cache
+ * first, and while it is active it is returned as-is with no expiry, so it still
+ * works in ten years. A *revoked* grant returns null instead of falling back to
+ * localStorage, which is what drops the user back to the paywall immediately
+ * rather than letting an old paid plan or code linger.
+ */
 export function getSubscription(handle?: string | null): Subscription | null {
   if (!handle || typeof window === "undefined") return null;
+
+  const lifetime = cachedLifetime(handle);
+  if (isLifetimeRevoked(lifetime)) return null;
+  if (isLifetimeActive(lifetime) && lifetime) {
+    return {
+      planId: lifetime.plan,
+      status: "active",
+      startedAt: lifetime.grantedAt ?? new Date().toISOString(),
+      paidAt: lifetime.grantedAt ?? null,
+      paymentMethod: null,
+      source: "payment",
+      code: null,
+      // Never expires. Deliberately null, and never read while isLifetime.
+      currentPeriodEnd: null,
+      isLifetime: true,
+      grantedBy: lifetime.grantedBy,
+    };
+  }
+
   const raw = localStorage.getItem(key(handle));
   if (!raw) return null;
   return migrate(raw);
@@ -375,7 +417,9 @@ export function planInForce(handle?: string | null): string | null {
 
 /** True when this plan's perks are live — paid for, or inside its free hour. */
 export function hasPlanAccess(handle: string | null | undefined, planId: string): boolean {
-  return planInForce(handle) === planId;
+  const inForce = planInForce(handle);
+  // A lifetime "all" grant satisfies every plan, including ones added later.
+  return inForce === planId || inForce === "all";
 }
 
 /** True while this plan's free hour is running. */
@@ -428,10 +472,15 @@ export function useSubscription(handle?: string | null) {
     const sync = () => setSub(getSubscription(handle));
     sync();
     window.addEventListener(EVT, sync);
-    // Re-check on focus so a plan cancelled elsewhere updates mid-session.
+    window.addEventListener(LIFETIME_EVENT, sync);
+    // Re-check on focus so a plan cancelled - or a lifetime grant revoked -
+    // elsewhere updates mid-session.
     window.addEventListener("focus", sync);
+    // Ask the server whether a lifetime grant exists, then re-render from cache.
+    void refreshLifetime(handle);
     return () => {
       window.removeEventListener(EVT, sync);
+      window.removeEventListener(LIFETIME_EVENT, sync);
       window.removeEventListener("focus", sync);
     };
   }, [handle]);

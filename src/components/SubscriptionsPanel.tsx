@@ -2,6 +2,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { PaymentSheet } from "@/components/PaymentSheet";
 import { RedeemCodeBox } from "@/components/RedeemCodeBox";
+import { LifetimeBanner } from "@/components/LifetimeBadge";
 import { Button } from "@/components/ui/button";
 import {
   PLANS,

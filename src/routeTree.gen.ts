@@ -28,6 +28,7 @@ import { Route as VideosRouteImport } from './routes/videos'
 import { Route as WalletRouteImport } from './routes/wallet'
 import { Route as AdminCodesRouteImport } from './routes/admin_.codes'
 import { Route as AdminPayoutsRouteImport } from './routes/admin_.payouts'
+import { Route as AdminSubscriptionsRouteImport } from './routes/admin_.subscriptions'
 import { Route as CoinsRechargeRouteImport } from './routes/coins.recharge'
 import { Route as GroupsIndexRouteImport } from './routes/groups.index'
 import { Route as GroupsGroupIdRouteImport } from './routes/groups.$groupId'
@@ -132,6 +133,11 @@ const AdminPayoutsRoute = AdminPayoutsRouteImport.update({
   path: '/admin/payouts',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminSubscriptionsRoute = AdminSubscriptionsRouteImport.update({
+  id: '/admin_/subscriptions',
+  path: '/admin/subscriptions',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CoinsRechargeRoute = CoinsRechargeRouteImport.update({
   id: '/coins/recharge',
   path: '/coins/recharge',
@@ -193,6 +199,7 @@ export interface FileRoutesByFullPath {
   '/wallet': typeof WalletRoute
   '/admin/codes': typeof AdminCodesRoute
   '/admin/payouts': typeof AdminPayoutsRoute
+  '/admin/subscriptions': typeof AdminSubscriptionsRoute
   '/coins/recharge': typeof CoinsRechargeRoute
   '/groups/$groupId': typeof GroupsGroupIdRoute
   '/live/dashboard': typeof LiveDashboardRoute
@@ -221,6 +228,7 @@ export interface FileRoutesByTo {
   '/wallet': typeof WalletRoute
   '/admin/codes': typeof AdminCodesRoute
   '/admin/payouts': typeof AdminPayoutsRoute
+  '/admin/subscriptions': typeof AdminSubscriptionsRoute
   '/coins/recharge': typeof CoinsRechargeRoute
   '/groups/$groupId': typeof GroupsGroupIdRoute
   '/live/dashboard': typeof LiveDashboardRoute
@@ -251,6 +259,7 @@ export interface FileRoutesById {
   '/wallet': typeof WalletRoute
   '/admin_/codes': typeof AdminCodesRoute
   '/admin_/payouts': typeof AdminPayoutsRoute
+  '/admin_/subscriptions': typeof AdminSubscriptionsRoute
   '/coins/recharge': typeof CoinsRechargeRoute
   '/groups/$groupId': typeof GroupsGroupIdRoute
   '/live/dashboard': typeof LiveDashboardRoute
@@ -282,6 +291,7 @@ export interface FileRouteTypes {
     | '/wallet'
     | '/admin/codes'
     | '/admin/payouts'
+    | '/admin/subscriptions'
     | '/coins/recharge'
     | '/groups/$groupId'
     | '/live/dashboard'
@@ -310,6 +320,7 @@ export interface FileRouteTypes {
     | '/wallet'
     | '/admin/codes'
     | '/admin/payouts'
+    | '/admin/subscriptions'
     | '/coins/recharge'
     | '/groups/$groupId'
     | '/live/dashboard'
@@ -339,6 +350,7 @@ export interface FileRouteTypes {
     | '/wallet'
     | '/admin_/codes'
     | '/admin_/payouts'
+    | '/admin_/subscriptions'
     | '/coins/recharge'
     | '/groups/$groupId'
     | '/live/dashboard'
@@ -369,6 +381,7 @@ export interface RootRouteChildren {
   WalletRoute: typeof WalletRoute
   AdminCodesRoute: typeof AdminCodesRoute
   AdminPayoutsRoute: typeof AdminPayoutsRoute
+  AdminSubscriptionsRoute: typeof AdminSubscriptionsRoute
   CoinsRechargeRoute: typeof CoinsRechargeRoute
   SoundSoundIdRoute: typeof SoundSoundIdRoute
   UUsernameRoute: typeof UUsernameRoute
@@ -511,6 +524,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminPayoutsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin_/subscriptions': {
+      id: '/admin_/subscriptions'
+      path: '/admin/subscriptions'
+      fullPath: '/admin/subscriptions'
+      preLoaderRoute: typeof AdminSubscriptionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/coins/recharge': {
       id: '/coins/recharge'
       path: '/coins/recharge'
@@ -613,6 +633,7 @@ const rootRouteChildren: RootRouteChildren = {
   WalletRoute: WalletRoute,
   AdminCodesRoute: AdminCodesRoute,
   AdminPayoutsRoute: AdminPayoutsRoute,
+  AdminSubscriptionsRoute: AdminSubscriptionsRoute,
   CoinsRechargeRoute: CoinsRechargeRoute,
   SoundSoundIdRoute: SoundSoundIdRoute,
   UUsernameRoute: UUsernameRoute,

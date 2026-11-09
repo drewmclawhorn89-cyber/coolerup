@@ -1,4 +1,6 @@
 # Roadmap
+- [ ] Add YouTube links to Videos with embedded playback and verify saving.
+- [ ] Review the three currently flagged public comment-like and live-mute read policies (access decision required).
 - [x] Offline viewing: save/remove in Share menu, Saved tab, offline banner
 - [x] Profile pages (/u/$username) showing all of a user's videos, linked from avatars/usernames
 - [ ] Safety & moderation system (waiting on answers: accent color, admin lock-down)

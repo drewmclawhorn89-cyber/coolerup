@@ -27,6 +27,8 @@ export type FullVideo = {
   description: string;
   video_url: string;
   thumbnail_url: string | null;
+  is_youtube?: boolean;
+  youtube_id?: string | null;
   duration: number;
   views: number;
   category: string;

@@ -5,6 +5,7 @@ import {
   Check,
   Clock,
   Coins,
+  Crown,
   Flag,
   Gift,
   Power,
@@ -224,6 +225,12 @@ function AdminPage() {
           <Link to="/admin/codes">
             <Gift className="h-4 w-4" />
             Codes
+          </Link>
+        </Button>
+        <Button asChild variant="secondary" size="sm" className="gap-2">
+          <Link to="/admin/subscriptions">
+            <Crown className="h-4 w-4" />
+            Lifetime
           </Link>
         </Button>
         <Button

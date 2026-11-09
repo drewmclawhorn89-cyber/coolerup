@@ -55,8 +55,37 @@ export const PLANS: Plan[] = [
   },
 ];
 
+/**
+ * The lifetime tier.
+ *
+ * Deliberately *not* in `PLANS`: that array is the purchasable catalogue, and
+ * nobody can buy this one. It exists so `planById("all")` resolves and every
+ * perk check (`planIncludesOffline`, `hasPlanAccess`) answers "yes" for a
+ * lifetime grant instead of falling through to the free tier.
+ */
+export const LIFETIME_PLAN: Plan = {
+  id: "all",
+  label: "Lifetime All Access",
+  emoji: "\u{1F451}",
+  price: 0,
+  perks: [
+    "Everything in Plus, Pro and VIP",
+    "Offline downloads",
+    "Beta features",
+    "1,000 coins",
+    "Never expires",
+  ],
+  offline: true,
+};
+
 export function planById(id?: string | null): Plan | undefined {
+  if (id === LIFETIME_PLAN.id) return LIFETIME_PLAN;
   return PLANS.find((p) => p.id === id);
+}
+
+/** True when this plan id is the lifetime "everything" tier. */
+export function isLifetimePlan(id?: string | null): boolean {
+  return id === LIFETIME_PLAN.id;
 }
 
 /** True when the plan unlocks offline downloads. */

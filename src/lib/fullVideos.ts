@@ -77,7 +77,6 @@ export const FULL_VIDEO_CATEGORIES = [
   "Funny",
   "LIVE Replays",
   "TV",
-  "Pranks",
 ] as const;
 
 export type FullVideoCategory = (typeof FULL_VIDEO_CATEGORIES)[number];

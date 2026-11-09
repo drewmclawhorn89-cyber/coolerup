@@ -290,6 +290,35 @@ export type Database = {
           },
         ]
       }
+      comment_likes: {
+        Row: {
+          comment_id: string
+          created_at: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          comment_id: string
+          created_at?: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          comment_id?: string
+          created_at?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comment_likes_comment_id_fkey"
+            columns: ["comment_id"]
+            isOneToOne: false
+            referencedRelation: "comments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       comments: {
         Row: {
           body: string
@@ -493,6 +522,169 @@ export type Database = {
           follower_username?: string
           following_username?: string
           id?: string
+        }
+        Relationships: []
+      }
+      full_video_comment_likes: {
+        Row: {
+          comment_id: string
+          created_at: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          comment_id: string
+          created_at?: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          comment_id?: string
+          created_at?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "full_video_comment_likes_comment_id_fkey"
+            columns: ["comment_id"]
+            isOneToOne: false
+            referencedRelation: "full_video_comments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      full_video_comments: {
+        Row: {
+          body: string
+          created_at: string
+          id: string
+          parent_id: string | null
+          user_id: string | null
+          username: string
+          video_id: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          id?: string
+          parent_id?: string | null
+          user_id?: string | null
+          username: string
+          video_id: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          id?: string
+          parent_id?: string | null
+          user_id?: string | null
+          username?: string
+          video_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "full_video_comments_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "full_video_comments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "full_video_comments_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "full_videos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      full_video_likes: {
+        Row: {
+          created_at: string
+          id: string
+          reaction: string
+          user_id: string
+          video_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          reaction: string
+          user_id: string
+          video_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          reaction?: string
+          user_id?: string
+          video_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "full_video_likes_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "full_videos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      full_videos: {
+        Row: {
+          category: string
+          created_at: string
+          description: string
+          duration: number
+          id: string
+          status: string
+          tags: string[]
+          thumbnail_url: string | null
+          title: string
+          user_id: string
+          username: string
+          video_1080_url: string | null
+          video_480_url: string | null
+          video_720_url: string | null
+          video_url: string
+          views: number
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          description?: string
+          duration?: number
+          id?: string
+          status?: string
+          tags?: string[]
+          thumbnail_url?: string | null
+          title: string
+          user_id: string
+          username: string
+          video_1080_url?: string | null
+          video_480_url?: string | null
+          video_720_url?: string | null
+          video_url: string
+          views?: number
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          description?: string
+          duration?: number
+          id?: string
+          status?: string
+          tags?: string[]
+          thumbnail_url?: string | null
+          title?: string
+          user_id?: string
+          username?: string
+          video_1080_url?: string | null
+          video_480_url?: string | null
+          video_720_url?: string | null
+          video_url?: string
+          views?: number
         }
         Relationships: []
       }
@@ -1323,6 +1515,42 @@ export type Database = {
         }
         Relationships: []
       }
+      redeemed_codes: {
+        Row: {
+          code: string
+          id: string
+          redeemed_at: string
+          user_id: string
+        }
+        Insert: {
+          code: string
+          id?: string
+          redeemed_at?: string
+          user_id: string
+        }
+        Update: {
+          code?: string
+          id?: string
+          redeemed_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "redeemed_codes_code_fkey"
+            columns: ["code"]
+            isOneToOne: false
+            referencedRelation: "subscription_codes"
+            referencedColumns: ["code"]
+          },
+          {
+            foreignKeyName: "redeemed_codes_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       reports: {
         Row: {
           action_taken: string | null
@@ -1415,6 +1643,32 @@ export type Database = {
         }
         Relationships: []
       }
+      saved_full_videos: {
+        Row: {
+          created_at: string
+          user_id: string
+          video_id: string
+        }
+        Insert: {
+          created_at?: string
+          user_id: string
+          video_id: string
+        }
+        Update: {
+          created_at?: string
+          user_id?: string
+          video_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saved_full_videos_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "full_videos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       saved_videos: {
         Row: {
           created_at: string
@@ -1479,7 +1733,7 @@ export type Database = {
           created_at: string
           creator_username: string
           id: string
-          original_video_id: string
+          original_video_id: string | null
           title: string
           uses_count: number
         }
@@ -1488,7 +1742,7 @@ export type Database = {
           created_at?: string
           creator_username: string
           id?: string
-          original_video_id: string
+          original_video_id?: string | null
           title: string
           uses_count?: number
         }
@@ -1497,7 +1751,7 @@ export type Database = {
           created_at?: string
           creator_username?: string
           id?: string
-          original_video_id?: string
+          original_video_id?: string | null
           title?: string
           uses_count?: number
         }
@@ -1572,6 +1826,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      subscription_codes: {
+        Row: {
+          active: boolean
+          code: string
+          created_at: string
+          created_by: string
+          expires_at: string | null
+          max_uses: number
+          months: number
+          plan: string
+          uses_count: number
+        }
+        Insert: {
+          active?: boolean
+          code: string
+          created_at?: string
+          created_by?: string
+          expires_at?: string | null
+          max_uses?: number
+          months: number
+          plan: string
+          uses_count?: number
+        }
+        Update: {
+          active?: boolean
+          code?: string
+          created_at?: string
+          created_by?: string
+          expires_at?: string | null
+          max_uses?: number
+          months?: number
+          plan?: string
+          uses_count?: number
+        }
+        Relationships: []
       }
       user_balance: {
         Row: {
@@ -1780,6 +2070,27 @@ export type Database = {
           },
         ]
       }
+      youtube_cache: {
+        Row: {
+          cached_at: string
+          expires_at: string
+          query: string
+          videos: Json
+        }
+        Insert: {
+          cached_at?: string
+          expires_at: string
+          query: string
+          videos?: Json
+        }
+        Update: {
+          cached_at?: string
+          expires_at?: string
+          query?: string
+          videos?: Json
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -1816,8 +2127,20 @@ export type Database = {
         }[]
       }
       admin_coin_venmo_orders: { Args: { _limit?: number }; Returns: Json }
+      admin_create_subscription_code: {
+        Args: {
+          _code: string
+          _expires_at?: string
+          _max_uses: number
+          _months: number
+          _plan: string
+        }
+        Returns: Json
+      }
+      admin_delete_subscription_code: { Args: { _code: string }; Returns: Json }
       admin_dismiss_report: { Args: { _report_id: string }; Returns: Json }
       admin_follower_payouts: { Args: { _limit?: number }; Returns: Json }
+      admin_list_subscription_codes: { Args: never; Returns: Json }
       admin_mark_creator_payout_paid: {
         Args: { p_note?: string; p_payout_id: string }
         Returns: Json
@@ -1861,6 +2184,10 @@ export type Database = {
       }
       admin_review_coin_venmo_order: {
         Args: { _action: string; _note?: string; _order_id: string }
+        Returns: Json
+      }
+      admin_set_subscription_code_active: {
+        Args: { _active: boolean; _code: string }
         Returns: Json
       }
       admin_unban: { Args: { _username: string }; Returns: Json }
@@ -1916,12 +2243,19 @@ export type Database = {
         }
         Returns: boolean
       }
+      increment_full_video_views: {
+        Args: { video_id: string }
+        Returns: undefined
+      }
       increment_share: { Args: { _video_id: string }; Returns: undefined }
       increment_sound_use: { Args: { _sound_id: string }; Returns: undefined }
       is_banned: { Args: { _username: string }; Returns: boolean }
       is_banned_uid: { Args: { _uid: string }; Returns: boolean }
       is_banned_username: { Args: { _username: string }; Returns: boolean }
-      is_group_member: { Args: { gid: string }; Returns: boolean }
+      is_codes_admin: { Args: never; Returns: boolean }
+      is_group_member:
+        | { Args: { _group_id: string; _user_id: string }; Returns: boolean }
+        | { Args: { gid: string }; Returns: boolean }
       is_group_staff: { Args: { gid: string }; Returns: boolean }
       is_live_mod: {
         Args: { p_live_id: string; p_user_id: string }
@@ -1946,6 +2280,7 @@ export type Database = {
           reason: string
         }[]
       }
+      my_code_subscriptions: { Args: never; Returns: Json }
       my_coin_venmo_orders: { Args: never; Returns: Json }
       my_creator_fund: { Args: never; Returns: Json }
       my_earnings_summary: { Args: never; Returns: Json }
@@ -1960,6 +2295,7 @@ export type Database = {
         Returns: Json
       }
       record_video_view: { Args: { p_video_id: string }; Returns: Json }
+      redeem_subscription_code: { Args: { _code: string }; Returns: Json }
       remove_live_mod: {
         Args: { p_live_id: string; p_user_id: string }
         Returns: number

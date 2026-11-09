@@ -6,9 +6,11 @@ import {
   Check,
   CornerDownRight,
   Download,
+  ExternalLink,
   Loader2,
   Lock,
   Pencil,
+  Play,
   Repeat2,
   Share2,
   ThumbsDown,
@@ -517,11 +519,40 @@ function WatchPage() {
               </div>
             </div>
           ) : video.is_youtube && video.youtube_id ? (
-            <div className="aspect-video w-full overflow-hidden bg-background sm:rounded-lg">
-              <iframe className="h-full w-full" title={video.title}
-                src={`https://www.youtube-nocookie.com/embed/${encodeURIComponent(video.youtube_id)}?rel=0`}
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                referrerPolicy="strict-origin-when-cross-origin" allowFullScreen />
+            <div className="mx-3 mt-2 sm:mx-0">
+              {/* Red provenance badge above the player, the way a YouTube embed
+                  announces itself. The grid stays clean; this is the one place
+                  we tell the viewer the bytes come from YouTube. */}
+              <div className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg bg-youtube px-3 py-2 text-youtube-foreground">
+                <span className="flex items-center gap-1.5 text-[13px] font-bold">
+                  <Play className="size-4 fill-current" /> YouTube
+                </span>
+                <span className="text-[12px] opacity-90">Playing from YouTube</span>
+              </div>
+
+              <div className="aspect-video w-full overflow-hidden bg-background sm:rounded-lg">
+                {/* The official IFrame player, with YouTube's own branding and
+                    logo kept in the control bar (modestbranding=0). */}
+                <iframe
+                  className="h-full w-full"
+                  title={video.title}
+                  src={`https://www.youtube.com/embed/${encodeURIComponent(video.youtube_id)}?rel=0&modestbranding=0&playsinline=1`}
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  referrerPolicy="strict-origin-when-cross-origin"
+                  allowFullScreen
+                />
+              </div>
+
+              <a
+                href={`https://www.youtube.com/watch?v=${encodeURIComponent(video.youtube_id)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-youtube px-4 py-2 text-sm font-semibold text-youtube-foreground transition hover:opacity-90"
+              >
+                <Play className="size-4 fill-current" />
+                Watch on YouTube
+                <ExternalLink className="size-3.5" />
+              </a>
             </div>
           ) : (
             <YouTubePlayer

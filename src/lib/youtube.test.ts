@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extractYouTubeId, youtubeThumbnail } from "./youtube";
+import { extractYouTubeId, parseIsoDuration, parseYouTubeDuration, youtubeThumbnail } from "./youtube";
 
 describe("YouTube links", () => {
   it("extracts the video ID from the requested watch URL", () => {
@@ -15,5 +15,30 @@ describe("YouTube links", () => {
     for (const url of ["https://youtube.com.evil.test/watch?v=abc123", "javascript:alert(1)", "https://youtube.com/watch", "https://youtube.com/watch?v=abc%22%3E", "not a link"]) {
       expect(extractYouTubeId(url)).toBeNull();
     }
+  });
+});
+describe("YouTube durations", () => {
+  it("reads lengthSeconds out of the player config", () => {
+    const html = '..."videoDetails":{"videoId":"abc123","lengthSeconds":"754"...';
+    expect(parseYouTubeDuration(html)).toBe(754);
+  });
+  it("falls back to approxDurationMs", () => {
+    expect(parseYouTubeDuration('"approxDurationMs":"3725000"')).toBe(3725);
+  });
+  it("falls back to the ISO 8601 microdata duration", () => {
+    expect(parseYouTubeDuration('<meta itemprop="duration" content="PT1H2M5S">')).toBe(3725);
+    expect(parseYouTubeDuration('"duration":"PT12M34S"')).toBe(754);
+  });
+  it("returns null for live streams, consent walls and junk", () => {
+    for (const html of ["", "<html>Before you continue</html>", '"lengthSeconds":"0"', '"approxDurationMs":"0"']) {
+      expect(parseYouTubeDuration(html)).toBeNull();
+    }
+  });
+  it("parses ISO durations directly", () => {
+    expect(parseIsoDuration("PT45S")).toBe(45);
+    expect(parseIsoDuration("PT2H")).toBe(7200);
+    expect(parseIsoDuration("P1DT1S")).toBe(86401);
+    expect(parseIsoDuration("PT0S")).toBeNull();
+    expect(parseIsoDuration("nonsense")).toBeNull();
   });
 });

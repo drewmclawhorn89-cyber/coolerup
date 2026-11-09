@@ -192,7 +192,7 @@ export function Comments({
       toast.error(`Couldn't post comment: ${error.message}`);
       return;
     }
-    setItems((c) => [data, ...(c ?? [])]);
+    setItems((c) => [{ ...data, like_count: 0, liked_by_me: false }, ...(c ?? [])]);
     setText("");
     setGif(null);
     setShowGifs(false);

@@ -33,5 +33,5 @@ export const addYouTubeVideo = createServerFn({ method: "POST" })
       is_youtube: true, youtube_id: data.id, status: "ready", category: "All",
     }).select("*").single();
     if (error || !row) throw new Error("Could not add the YouTube video. Please try again.");
-    return row;
+    return { ...row, status: "ready" as const };
   });

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Loader2, ArrowLeft, Search, Upload, WifiOff, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AddYouTubeModal } from "@/components/AddYouTubeModal";
+import { useYouTubeDurations, withYouTubeDurations } from "@/lib/useYouTubeDurations";
 import { FullVideoCard } from "@/components/FullVideoCard";
 import { EditFullVideoDialog } from "@/components/EditFullVideoDialog";
 import { useAuth } from "@/hooks/useAuth";
@@ -55,6 +56,17 @@ function VideosPage() {
   const [offlineOnly, setOfflineOnly] = useState(false);
   const [savedVideos, setSavedVideos] = useState<FullVideo[]>([]);
   const [savedLoading, setSavedLoading] = useState(false);
+
+  /**
+   * YouTube picks are stored with the length YouTube told us about; older rows
+   * have none, so ask for it once and patch the cards in place. Without this a
+   * YouTube card would be the only one in the grid with no duration badge.
+   */
+  const applyYouTubeDurations = useCallback((durations: Record<string, number>) => {
+    setVideos((list) => withYouTubeDurations(list, durations));
+    setSavedVideos((list) => withYouTubeDurations(list, durations));
+  }, []);
+  useYouTubeDurations(videos, applyYouTubeDurations);
 
   /** Guards against a stale page landing after the filters changed. */
   const requestRef = useRef(0);

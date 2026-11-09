@@ -23,6 +23,7 @@ import { YouTubePlayer } from "@/components/YouTubePlayer";
 import { EditFullVideoDialog } from "@/components/EditFullVideoDialog";
 import { FullVideoShareMenu } from "@/components/FullVideoShareMenu";
 import { FullVideoCard } from "@/components/FullVideoCard";
+import { useYouTubeDurations, withYouTubeDurations } from "@/lib/useYouTubeDurations";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { getPendingVideo } from "@/lib/pendingUploads";
@@ -102,6 +103,13 @@ function WatchPage() {
   const [replyTo, setReplyTo] = useState<FullVideoComment | null>(null);
 
   const viewCounted = useRef(false);
+
+  // The rail reuses the grid card, so YouTube picks there need the same
+  // backfilled duration badge the /videos grid gets.
+  const applyRelatedDurations = useCallback((durations: Record<string, number>) => {
+    setRelated((list) => withYouTubeDurations(list, durations));
+  }, []);
+  useYouTubeDurations(related, applyRelatedDurations);
 
   /* ---------------- load video ---------------- */
 

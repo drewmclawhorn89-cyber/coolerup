@@ -31,3 +31,14 @@ drop policy if exists "Users unsave their own full videos" on public.saved_full_
 create policy "Users unsave their own full videos"
   on public.saved_full_videos for delete
   using (auth.uid() = user_id);
+
+-- An upsert is `INSERT ... ON CONFLICT DO UPDATE`, and the DO UPDATE half is
+-- checked against the UPDATE policy. Without one, saving an already-saved
+-- video failed with "new row violates row-level security policy (USING
+-- expression)". The row has no mutable columns, but the policy keeps upserts
+-- working for any client that still uses them.
+drop policy if exists "Users update their own saved full videos" on public.saved_full_videos;
+create policy "Users update their own saved full videos"
+  on public.saved_full_videos for update
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);

@@ -133,10 +133,14 @@ export async function setFullVideoSaved(
   touchedDuringHydration.add(videoId);
   applyLocal(videoId, on);
 
+  // A plain insert, not an upsert. `upsert` compiles to
+  // `INSERT ... ON CONFLICT DO UPDATE`, and the update half needs an UPDATE
+  // policy on saved_full_videos — which the table never had, so every save
+  // failed with "new row violates row-level security policy (USING
+  // expression)". The row has no mutable columns anyway: if it is already
+  // there, the save is already done.
   const { error } = on
-    ? await db
-        .from("saved_full_videos")
-        .upsert({ user_id: user.id, video_id: videoId }, { onConflict: "user_id,video_id" })
+    ? await db.from("saved_full_videos").insert({ user_id: user.id, video_id: videoId })
     : await db
         .from("saved_full_videos")
         .delete()

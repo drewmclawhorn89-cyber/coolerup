@@ -30,6 +30,7 @@ import { LiveCoinSheet } from "@/components/LiveCoinSheet";
 import { CoinVenmoSheet } from "@/components/CoinVenmoSheet";
 import { myCoinVenmoOrders, type CoinVenmoOrderResult } from "@/lib/coins.functions";
 import { LiveModPanel } from "@/components/LiveModPanel";
+import { GifPicker } from "@/components/GifPicker";
 import { LiveJoinBanner, LiveJoinRequestSheet } from "@/components/LiveJoinRequest";
 import { LiveMultiGuest } from "@/components/LiveMultiGuest";
 import type { RealtimeChannel } from "@supabase/supabase-js";
@@ -93,6 +94,8 @@ type ChatMessage = {
   username: string;
   body: string;
   at: number;
+  /** Optional Giphy URL shown under the message. */
+  gif?: string;
   self?: boolean;
   /** Gift lines get the pink treatment in the chat list. */
   gift?: boolean;
@@ -186,6 +189,8 @@ export function LiveStreamDialog({
   const [ended, setEnded] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
+  const [draftGif, setDraftGif] = useState<string | null>(null);
+  const [showGifPicker, setShowGifPicker] = useState(false);
   const [chatOpen, setChatOpen] = useState(true);
   const [unread, setUnread] = useState(0);
   const chatEnd = useRef<HTMLDivElement>(null);
@@ -497,7 +502,7 @@ export function LiveStreamDialog({
 
   function sendChat() {
     const body = draft.trim().slice(0, 240);
-    if (!body) return;
+    if (!body && !draftGif) return;
     if (moderation.commentsOff && !isMod) {
       toast.error("Comments are off in this LIVE");
       return;
@@ -508,6 +513,7 @@ export function LiveStreamDialog({
       body,
       at: Date.now(),
       self: true,
+      ...(draftGif ? { gif: draftGif } : {}),
       ...(userId ? { userId } : {}),
     };
     pushMessage(message);
@@ -516,9 +522,12 @@ export function LiveStreamDialog({
       username: message.username,
       body,
       at: message.at,
+      ...(draftGif ? { gif: draftGif } : {}),
       ...(userId ? { userId } : {}),
     });
     setDraft("");
+    setDraftGif(null);
+    setShowGifPicker(false);
   }
 
   // Keep the newest message in view.
@@ -628,12 +637,13 @@ export function LiveStreamDialog({
       },
     );
     channel.on("broadcast", { event: "chat-message" }, ({ payload }: { payload: ChatMessage }) => {
-      if (!payload?.id || !payload.body) return;
+      if (!payload?.id || (!payload.body && !payload.gif)) return;
       pushMessage({
         id: payload.id,
         username: payload.username || "guest",
-        body: String(payload.body).slice(0, 240),
+        body: String(payload.body ?? "").slice(0, 240),
         at: payload.at || Date.now(),
+        ...(payload.gif ? { gif: String(payload.gif) } : {}),
         ...(payload.system ? { system: true } : {}),
         ...(payload.userId ? { userId: payload.userId } : {}),
       });
@@ -711,12 +721,13 @@ export function LiveStreamDialog({
       setRemoteStream(null);
     });
     channel.on("broadcast", { event: "chat-message" }, ({ payload }: { payload: ChatMessage }) => {
-      if (!payload?.id || !payload.body) return;
+      if (!payload?.id || (!payload.body && !payload.gif)) return;
       pushMessage({
         id: payload.id,
         username: payload.username || "guest",
-        body: String(payload.body).slice(0, 240),
+        body: String(payload.body ?? "").slice(0, 240),
         at: payload.at || Date.now(),
+        ...(payload.gif ? { gif: String(payload.gif) } : {}),
         ...(payload.system ? { system: true } : {}),
         ...(payload.userId ? { userId: payload.userId } : {}),
       });
@@ -960,7 +971,10 @@ export function LiveStreamDialog({
     }
     const mod = isModName(message.username, message.userId);
     return (
-      <p key={message.id} className="break-words rounded-2xl bg-black/45 px-3 py-1.5 text-white/90">
+      <div
+        key={message.id}
+        className="break-words rounded-2xl bg-black/45 px-3 py-1.5 text-white/90"
+      >
         <button
           type="button"
           onClick={() => void openNameMenu(message)}
@@ -970,8 +984,16 @@ export function LiveStreamDialog({
         >
           {mod && <Shield className="h-3 w-3 shrink-0" />}@{message.username}
         </button>{" "}
-        <span>{message.body}</span>
-      </p>
+        {message.body && <span>{message.body}</span>}
+        {message.gif && (
+          <img
+            src={message.gif}
+            alt="GIF"
+            loading="lazy"
+            className="mt-1 max-h-32 rounded-lg"
+          />
+        )}
+      </div>
     );
   };
 
@@ -1274,6 +1296,29 @@ export function LiveStreamDialog({
                       )}
                       <div ref={chatEnd} />
                     </div>
+                    {showGifPicker && (
+                      <GifPicker
+                        className="rounded-xl border-white/10 bg-black/60 text-white"
+                        onPick={(url) => {
+                          setDraftGif(url);
+                          setShowGifPicker(false);
+                        }}
+                        onClose={() => setShowGifPicker(false)}
+                      />
+                    )}
+                    {draftGif && (
+                      <div className="relative inline-block">
+                        <img src={draftGif} alt="Selected GIF" className="max-h-24 rounded-lg" />
+                        <button
+                          type="button"
+                          onClick={() => setDraftGif(null)}
+                          aria-label="Remove GIF"
+                          className="absolute right-1 top-1 rounded-full bg-black/70 p-1"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    )}
                     <form
                       onSubmit={(event) => {
                         event.preventDefault();
@@ -1289,9 +1334,18 @@ export function LiveStreamDialog({
                         className="min-w-0 flex-1 rounded-full bg-white/15 px-4 py-2.5 text-sm text-white outline-none placeholder:text-white/60"
                       />
                       <button
+                        type="button"
+                        onClick={() => setShowGifPicker((v) => !v)}
+                        aria-label="Add a GIF"
+                        aria-pressed={showGifPicker}
+                        className="flex h-10 shrink-0 items-center justify-center rounded-full bg-white/15 px-3 text-[11px] font-extrabold text-white"
+                      >
+                        GIF
+                      </button>
+                      <button
                         type="submit"
                         aria-label="Send chat message"
-                        disabled={!draft.trim()}
+                        disabled={!draft.trim() && !draftGif}
                         className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-white disabled:opacity-40"
                       >
                         <Send className="h-4 w-4" />
@@ -1426,6 +1480,29 @@ export function LiveStreamDialog({
                   </p>
                 )}
 
+                {showGifPicker && (
+                  <GifPicker
+                    className="rounded-xl border-white/10 bg-black/60 text-white"
+                    onPick={(url) => {
+                      setDraftGif(url);
+                      setShowGifPicker(false);
+                    }}
+                    onClose={() => setShowGifPicker(false)}
+                  />
+                )}
+                {draftGif && (
+                  <div className="relative inline-block">
+                    <img src={draftGif} alt="Selected GIF" className="max-h-24 rounded-lg" />
+                    <button
+                      type="button"
+                      onClick={() => setDraftGif(null)}
+                      aria-label="Remove GIF"
+                      className="absolute right-1 top-1 rounded-full bg-black/70 p-1"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                )}
                 <form
                   onSubmit={(event) => {
                     event.preventDefault();
@@ -1448,6 +1525,15 @@ export function LiveStreamDialog({
                   )}
                   <button
                     type="button"
+                    onClick={() => setShowGifPicker((v) => !v)}
+                    aria-label="Add a GIF"
+                    aria-pressed={showGifPicker}
+                    className="flex h-10 shrink-0 items-center justify-center rounded-full bg-white/15 px-3 text-[11px] font-extrabold text-white"
+                  >
+                    GIF
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => (userId ? setGiftOpen(true) : openAuthDialog())}
                     aria-label="Send a gift"
                     className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#fe2c55] text-white shadow-lg shadow-[#fe2c55]/40 transition active:scale-95"
@@ -1462,7 +1548,7 @@ export function LiveStreamDialog({
                   <button
                     type="submit"
                     aria-label="Send chat message"
-                    disabled={!draft.trim() || (moderation.commentsOff && !isMod)}
+                    disabled={(!draft.trim() && !draftGif) || (moderation.commentsOff && !isMod)}
                     className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-white disabled:opacity-40"
                   >
                     <Send className="h-4 w-4" />

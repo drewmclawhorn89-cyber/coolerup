@@ -558,6 +558,7 @@ export type Database = {
         Row: {
           body: string
           created_at: string
+          gif_url: string | null
           id: string
           parent_id: string | null
           user_id: string | null
@@ -567,6 +568,7 @@ export type Database = {
         Insert: {
           body: string
           created_at?: string
+          gif_url?: string | null
           id?: string
           parent_id?: string | null
           user_id?: string | null
@@ -576,6 +578,7 @@ export type Database = {
         Update: {
           body?: string
           created_at?: string
+          gif_url?: string | null
           id?: string
           parent_id?: string | null
           user_id?: string | null

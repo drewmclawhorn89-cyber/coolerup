@@ -23,6 +23,7 @@ import { YouTubePlayer } from "@/components/YouTubePlayer";
 import { EditFullVideoDialog } from "@/components/EditFullVideoDialog";
 import { FullVideoShareMenu } from "@/components/FullVideoShareMenu";
 import { FullVideoCard } from "@/components/FullVideoCard";
+import { GifPicker } from "@/components/GifPicker";
 import { useYouTubeDurations, withYouTubeDurations } from "@/lib/useYouTubeDurations";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -98,6 +99,8 @@ function WatchPage() {
 
   const [comments, setComments] = useState<FullVideoComment[]>([]);
   const [commentText, setCommentText] = useState("");
+  const [commentGif, setCommentGif] = useState<string | null>(null);
+  const [showGifs, setShowGifs] = useState(false);
   const [posting, setPosting] = useState(false);
   /** The comment being answered; null means a fresh top-level comment. */
   const [replyTo, setReplyTo] = useState<FullVideoComment | null>(null);
@@ -372,7 +375,7 @@ function WatchPage() {
       return;
     }
     const body = commentText.trim();
-    if (!body || !video) return;
+    if ((!body && !commentGif) || !video) return;
 
     setPosting(true);
     try {
@@ -385,9 +388,12 @@ function WatchPage() {
         auth.handle ?? auth.name ?? "you",
         body,
         parentId,
+        commentGif,
       );
       setComments((c) => [row, ...c]);
       setCommentText("");
+      setCommentGif(null);
+      setShowGifs(false);
       setReplyTo(null);
     } catch {
       toast.error("Could not post your comment.");
@@ -742,6 +748,29 @@ function WatchPage() {
             <section className="mt-5">
               <h2 className="text-sm font-bold">{comments.length} Comments</h2>
 
+              {commentGif && (
+                <div className="relative mt-2 inline-block">
+                  <img src={commentGif} alt="Selected GIF" className="max-h-32 rounded-lg" />
+                  <button
+                    type="button"
+                    onClick={() => setCommentGif(null)}
+                    aria-label="Remove GIF"
+                    className="absolute right-1 top-1 rounded-full bg-background/80 p-1"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              )}
+              {showGifs && (
+                <GifPicker
+                  className="mt-2 rounded-xl bg-secondary/40"
+                  onPick={(url) => {
+                    setCommentGif(url);
+                    setShowGifs(false);
+                  }}
+                  onClose={() => setShowGifs(false)}
+                />
+              )}
               <form onSubmit={submitComment} className="mt-2 flex items-start gap-2">
                 <input
                   value={commentText}
@@ -757,8 +786,16 @@ function WatchPage() {
                   className="min-w-0 flex-1 border-b bg-transparent pb-1 text-sm outline-none focus:border-foreground"
                 />
                 <button
+                  type="button"
+                  onClick={() => setShowGifs((v) => !v)}
+                  aria-pressed={showGifs}
+                  className="rounded-full bg-secondary px-3 py-1.5 text-sm font-semibold"
+                >
+                  GIF
+                </button>
+                <button
                   type="submit"
-                  disabled={!commentText.trim() || posting}
+                  disabled={(!commentText.trim() && !commentGif) || posting}
                   className="rounded-full bg-secondary px-3 py-1.5 text-sm font-semibold disabled:opacity-50"
                 >
                   {posting ? "Posting…" : replyTo ? "Reply" : "Comment"}
@@ -868,7 +905,17 @@ function CommentRow({
           @{comment.username}{" "}
           <span className="font-normal text-muted-foreground">{timeAgo(comment.created_at)}</span>
         </p>
-        <p className="whitespace-pre-wrap break-words text-sm">{comment.body}</p>
+        {comment.body && (
+          <p className="whitespace-pre-wrap break-words text-sm">{comment.body}</p>
+        )}
+        {comment.gif_url && (
+          <img
+            src={comment.gif_url}
+            alt="GIF"
+            loading="lazy"
+            className="mt-1 max-h-40 rounded-lg"
+          />
+        )}
 
         <div className="mt-1 flex items-center gap-3">
           <button

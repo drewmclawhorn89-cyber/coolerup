@@ -8,6 +8,7 @@ import {
   Home,
   LogOut,
   MessageCircle,
+  Music,
   Play,
   Plus,
   Search,
@@ -642,6 +643,12 @@ function Index() {
       <button onClick={() => void navigate({ to: "/videos" })} className={tabClass("videos")}>
         <Play className="size-3.5 fill-current" />
         Videos
+      </button>
+      {/* Music lives on its own page so the song keeps playing while you
+          browse the feed. */}
+      <button onClick={() => void navigate({ to: "/music" })} className={tabClass("music")}>
+        <Music className="size-3.5" />
+        Music
       </button>
       <button onClick={() => pickFeedTab("marketplace")} className={tabClass("marketplace")}>Marketplace</button>
       <button onClick={() => pickFeedTab("groups")} className={tabClass("groups")}>Groups</button>

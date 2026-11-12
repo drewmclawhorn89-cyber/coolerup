@@ -1789,6 +1789,39 @@ export type Database = {
           },
         ]
       }
+      saved_sounds: {
+        Row: {
+          created_at: string
+          sound_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          sound_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          sound_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saved_sounds_sound_id_fkey"
+            columns: ["sound_id"]
+            isOneToOne: false
+            referencedRelation: "sounds"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "saved_sounds_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       search_history: {
         Row: {
           created_at: string

@@ -1,6 +1,30 @@
 import { useEffect, useRef, useState } from "react";
-import { Loader2, Music, Pause, Play, Search, SkipBack, SkipForward } from "lucide-react";
-import { getAllSounds, soundAudioUrl } from "@/lib/sounds";
+import {
+  ChevronDown,
+  ChevronUp,
+  Clapperboard,
+  Heart,
+  Loader2,
+  Music,
+  Pause,
+  Play,
+  Repeat,
+  Search,
+  Share2,
+  SkipBack,
+  SkipForward,
+  Volume2,
+  VolumeX,
+  X,
+} from "lucide-react";
+import {
+  getAllSounds,
+  getSavedSoundIds,
+  saveSound,
+  soundAudioUrl,
+  unsaveSound,
+} from "@/lib/sounds";
+import { songPlayer, useSongPlayer, type PlayerTrack } from "@/lib/songPlayer";
 
 const API = "https://api.audius.co/v1";
 const APP = "coolerup";
@@ -359,6 +383,238 @@ export function MusicPlayer({
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+/* ===========================================================================
+ * Music tab — full song player
+ *
+ * A dock pinned to the bottom of the app. It is mounted once in the root
+ * layout, so switching top tabs (For You -> Music -> Videos) never stops the
+ * song: the audio element lives in `@/lib/songPlayer`, not in a route.
+ * =========================================================================== */
+
+export const USE_SOUND_EVENT = "coolerup:use-sound";
+
+/** Ask the app to open the camera with this song attached ("Use this sound"). */
+export function requestUseSound(track: PlayerTrack) {
+  window.dispatchEvent(new CustomEvent<PlayerTrack>(USE_SOUND_EVENT, { detail: track }));
+}
+
+export function SongPlayerBar() {
+  const player = useSongPlayer();
+  const [expanded, setExpanded] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [savingBusy, setSavingBusy] = useState(false);
+
+  const track = player.queue[player.index];
+  const soundId = track?.soundId ?? "";
+
+  // Reflect the heart state for whichever song is loaded.
+  useEffect(() => {
+    let alive = true;
+    setSaved(false);
+    if (!soundId) return;
+    void getSavedSoundIds()
+      .then((ids) => {
+        if (alive) setSaved(ids.has(soundId));
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [soundId]);
+
+  if (!player.active || !track) return null;
+
+  const toggleSave = async () => {
+    if (savingBusy) return;
+    setSavingBusy(true);
+    const next = !saved;
+    setSaved(next); // optimistic
+    const ok = next ? await saveSound(soundId) : await unsaveSound(soundId);
+    if (!ok) setSaved(!next);
+    setSavingBusy(false);
+  };
+
+  const share = async () => {
+    const url = `${window.location.origin}/sound/${soundId}`;
+    const data = { title: track.title, text: `${track.title} — ${track.artist} on Coolerup`, url };
+    try {
+      if (navigator.share) await navigator.share(data);
+      else await navigator.clipboard.writeText(url);
+    } catch {
+      /* user cancelled the share sheet */
+    }
+  };
+
+  const pct = player.duration > 0 ? (player.time / player.duration) * 100 : 0;
+
+  return (
+    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex justify-center px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+      <div className="pointer-events-auto w-full max-w-md overflow-hidden rounded-2xl border border-white/10 bg-zinc-900/95 shadow-2xl backdrop-blur-xl">
+        {/* Thin seek bar doubles as the progress indicator in the compact view. */}
+        <input
+          type="range"
+          min={0}
+          max={player.duration || 0}
+          step={0.1}
+          value={Math.min(player.time, player.duration || 0)}
+          onChange={(e) => songPlayer.seek(Number(e.target.value))}
+          aria-label="Seek"
+          className="block h-1 w-full cursor-pointer appearance-none bg-white/15 accent-primary [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white"
+          style={{
+            background: `linear-gradient(to right, var(--primary, #f97316) ${pct}%, rgba(255,255,255,0.15) ${pct}%)`,
+          }}
+        />
+
+        {expanded && (
+          <div className="px-4 pt-3">
+            <div className="flex items-center gap-4">
+              <div
+                className="flex h-24 w-24 shrink-0 items-center justify-center rounded-2xl text-3xl font-black text-white/90"
+                style={{ background: track.cover }}
+                aria-hidden="true"
+              >
+                {(track.title || "?").charAt(0).toUpperCase()}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-base font-bold">{track.title}</p>
+                <p className="truncate text-sm text-zinc-400">{track.artist}</p>
+                <div className="mt-1 flex justify-between text-[11px] tabular-nums text-zinc-500">
+                  <span>{fmt(player.time)}</span>
+                  <span>{fmt(player.duration)}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-3 flex items-center justify-center gap-6">
+              <button
+                type="button"
+                onClick={() => songPlayer.toggleLoop()}
+                aria-label={player.loop ? "Turn loop off" : "Loop this song"}
+                aria-pressed={player.loop}
+                className={`rounded-full p-1.5 ${player.loop ? "text-primary" : "text-zinc-400"}`}
+              >
+                <Repeat className="h-4 w-4" />
+              </button>
+              <button type="button" onClick={() => songPlayer.prev()} aria-label="Previous">
+                <SkipBack className="h-5 w-5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => songPlayer.toggle()}
+                aria-label={player.playing ? "Pause" : "Play"}
+                className="flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground"
+              >
+                {player.playing ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
+              </button>
+              <button type="button" onClick={() => songPlayer.next()} aria-label="Next">
+                <SkipForward className="h-5 w-5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => songPlayer.toggleMute()}
+                aria-label={player.muted ? "Unmute" : "Mute"}
+                className="rounded-full p-1.5 text-zinc-400"
+              >
+                {player.muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+              </button>
+            </div>
+
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.01}
+              value={player.muted ? 0 : player.volume}
+              onChange={(e) => songPlayer.setVolume(Number(e.target.value))}
+              aria-label="Volume"
+              className="mt-2 w-full accent-primary"
+            />
+
+            <div className="mt-3 flex items-center gap-2 pb-3">
+              <button
+                type="button"
+                onClick={() => requestUseSound(track)}
+                className="flex flex-1 items-center justify-center gap-1.5 rounded-full bg-primary py-2 text-xs font-bold text-primary-foreground"
+              >
+                <Clapperboard className="h-3.5 w-3.5" /> Use this sound
+              </button>
+              <button
+                type="button"
+                onClick={() => void toggleSave()}
+                aria-pressed={saved}
+                className="flex items-center justify-center gap-1.5 rounded-full border border-white/15 px-3 py-2 text-xs font-semibold"
+              >
+                <Heart className={`h-3.5 w-3.5 ${saved ? "fill-red-500 text-red-500" : ""}`} />
+                {saved ? "Saved" : "Save"}
+              </button>
+              <button
+                type="button"
+                onClick={() => void share()}
+                aria-label="Share this sound"
+                className="flex items-center justify-center rounded-full border border-white/15 px-3 py-2"
+              >
+                <Share2 className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        <div className="flex items-center gap-3 px-3 py-2">
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            className="flex min-w-0 flex-1 items-center gap-3 text-left"
+            aria-expanded={expanded}
+            aria-label={expanded ? "Collapse player" : "Expand player"}
+          >
+            <div
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-base font-black text-white/90"
+              style={{ background: track.cover }}
+              aria-hidden="true"
+            >
+              {(track.title || "?").charAt(0).toUpperCase()}
+            </div>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-semibold">{track.title}</span>
+              <span className="block truncate text-xs text-zinc-400">{track.artist}</span>
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => songPlayer.toggle()}
+            aria-label={player.playing ? "Pause" : "Play"}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-black"
+          >
+            {player.loading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : player.playing ? (
+              <Pause className="h-4 w-4" />
+            ) : (
+              <Play className="h-4 w-4 fill-current" />
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            aria-label={expanded ? "Collapse" : "Expand"}
+            className="shrink-0 text-zinc-400"
+          >
+            {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+          </button>
+          <button
+            type="button"
+            onClick={() => songPlayer.stop()}
+            aria-label="Close player"
+            className="shrink-0 text-zinc-500"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

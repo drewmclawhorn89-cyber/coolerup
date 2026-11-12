@@ -29,6 +29,7 @@ import { Route as UploadFullRouteImport } from './routes/upload-full'
 import { Route as VideosRouteImport } from './routes/videos'
 import { Route as WalletRouteImport } from './routes/wallet'
 import { Route as AdminCodesRouteImport } from './routes/admin_.codes'
+import { Route as AdminFreeCoinsRouteImport } from './routes/admin_.free-coins'
 import { Route as AdminPayoutsRouteImport } from './routes/admin_.payouts'
 import { Route as AdminSubscriptionsRouteImport } from './routes/admin_.subscriptions'
 import { Route as CoinsRechargeRouteImport } from './routes/coins.recharge'
@@ -140,6 +141,11 @@ const AdminCodesRoute = AdminCodesRouteImport.update({
   path: '/admin/codes',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminFreeCoinsRoute = AdminFreeCoinsRouteImport.update({
+  id: '/admin_/free-coins',
+  path: '/admin/free-coins',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminPayoutsRoute = AdminPayoutsRouteImport.update({
   id: '/admin_/payouts',
   path: '/admin/payouts',
@@ -212,6 +218,7 @@ export interface FileRoutesByFullPath {
   '/videos': typeof VideosRoute
   '/wallet': typeof WalletRoute
   '/admin/codes': typeof AdminCodesRoute
+  '/admin/free-coins': typeof AdminFreeCoinsRoute
   '/admin/payouts': typeof AdminPayoutsRoute
   '/admin/subscriptions': typeof AdminSubscriptionsRoute
   '/coins/recharge': typeof CoinsRechargeRoute
@@ -243,6 +250,7 @@ export interface FileRoutesByTo {
   '/videos': typeof VideosRoute
   '/wallet': typeof WalletRoute
   '/admin/codes': typeof AdminCodesRoute
+  '/admin/free-coins': typeof AdminFreeCoinsRoute
   '/admin/payouts': typeof AdminPayoutsRoute
   '/admin/subscriptions': typeof AdminSubscriptionsRoute
   '/coins/recharge': typeof CoinsRechargeRoute
@@ -276,6 +284,7 @@ export interface FileRoutesById {
   '/videos': typeof VideosRoute
   '/wallet': typeof WalletRoute
   '/admin_/codes': typeof AdminCodesRoute
+  '/admin_/free-coins': typeof AdminFreeCoinsRoute
   '/admin_/payouts': typeof AdminPayoutsRoute
   '/admin_/subscriptions': typeof AdminSubscriptionsRoute
   '/coins/recharge': typeof CoinsRechargeRoute
@@ -310,6 +319,7 @@ export interface FileRouteTypes {
     | '/videos'
     | '/wallet'
     | '/admin/codes'
+    | '/admin/free-coins'
     | '/admin/payouts'
     | '/admin/subscriptions'
     | '/coins/recharge'
@@ -341,6 +351,7 @@ export interface FileRouteTypes {
     | '/videos'
     | '/wallet'
     | '/admin/codes'
+    | '/admin/free-coins'
     | '/admin/payouts'
     | '/admin/subscriptions'
     | '/coins/recharge'
@@ -373,6 +384,7 @@ export interface FileRouteTypes {
     | '/videos'
     | '/wallet'
     | '/admin_/codes'
+    | '/admin_/free-coins'
     | '/admin_/payouts'
     | '/admin_/subscriptions'
     | '/coins/recharge'
@@ -406,6 +418,7 @@ export interface RootRouteChildren {
   VideosRoute: typeof VideosRoute
   WalletRoute: typeof WalletRoute
   AdminCodesRoute: typeof AdminCodesRoute
+  AdminFreeCoinsRoute: typeof AdminFreeCoinsRoute
   AdminPayoutsRoute: typeof AdminPayoutsRoute
   AdminSubscriptionsRoute: typeof AdminSubscriptionsRoute
   CoinsRechargeRoute: typeof CoinsRechargeRoute
@@ -557,6 +570,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminCodesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin_/free-coins': {
+      id: '/admin_/free-coins'
+      path: '/admin/free-coins'
+      fullPath: '/admin/free-coins'
+      preLoaderRoute: typeof AdminFreeCoinsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin_/payouts': {
       id: '/admin_/payouts'
       path: '/admin/payouts'
@@ -674,6 +694,7 @@ const rootRouteChildren: RootRouteChildren = {
   VideosRoute: VideosRoute,
   WalletRoute: WalletRoute,
   AdminCodesRoute: AdminCodesRoute,
+  AdminFreeCoinsRoute: AdminFreeCoinsRoute,
   AdminPayoutsRoute: AdminPayoutsRoute,
   AdminSubscriptionsRoute: AdminSubscriptionsRoute,
   CoinsRechargeRoute: CoinsRechargeRoute,

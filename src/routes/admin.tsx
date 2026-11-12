@@ -19,6 +19,7 @@ import {
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { FreeCoinClaimsPanel } from "@/components/FreeCoinClaimsPanel";
 import {
   adminCoinVenmoOrders,
   adminReviewCoinVenmoOrder,
@@ -61,7 +62,7 @@ export const Route = createFileRoute("/admin")({
   component: AdminPage,
 });
 
-type Tab = "reports" | "bans" | "log" | "coins" | "payouts" | "update";
+type Tab = "reports" | "bans" | "log" | "coins" | "free" | "payouts" | "update";
 
 const reasonLabel = (id: string) => REPORT_REASONS.find((r) => r.id === id)?.label ?? id;
 
@@ -245,13 +246,14 @@ function AdminPage() {
         </Button>
       </header>
 
-      <div className="mb-4 flex gap-1 rounded-lg bg-muted p-1">
+      <div className="mb-4 flex flex-wrap gap-1 rounded-lg bg-muted p-1">
         {(
           [
             ["reports", `Reports (${pending.length})`],
             ["bans", `Bans (${activeBans.length + activeMutes.length})`],
             ["log", "Auto-ban log"],
             ["coins", `Coins (${pendingCoins})`],
+            ["free", "Free coins"],
             ["payouts", "Payouts"],
           ] as const
         ).map(([id, label]) => (
@@ -259,7 +261,7 @@ function AdminPage() {
             key={id}
             type="button"
             onClick={() => setTab(id)}
-            className={`flex-1 rounded-md px-3 py-2 text-sm font-semibold transition ${
+            className={`flex-1 whitespace-nowrap rounded-md px-2 py-2 text-xs font-semibold transition ${
               tab === id ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"
             }`}
           >
@@ -529,6 +531,15 @@ function AdminPage() {
           {coinOrders.map((order) => (
             <CoinOrderCard key={order.id} order={order} onReviewed={() => void refresh()} />
           ))}
+        </section>
+      )}
+
+      {tab === "free" && (
+        <section className="space-y-3">
+          <p className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
+            Everyone claiming the daily 10 free coins through Venmo, newest first. Updates live.
+          </p>
+          <FreeCoinClaimsPanel />
         </section>
       )}
 

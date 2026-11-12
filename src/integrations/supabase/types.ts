@@ -290,6 +290,41 @@ export type Database = {
           },
         ]
       }
+      free_coin_claims: {
+        Row: {
+          claimed_at: string
+          coins_given: number
+          id: string
+          user_id: string | null
+          username: string | null
+          venmo_clicked: boolean
+        }
+        Insert: {
+          claimed_at?: string
+          coins_given?: number
+          id?: string
+          user_id?: string | null
+          username?: string | null
+          venmo_clicked?: boolean
+        }
+        Update: {
+          claimed_at?: string
+          coins_given?: number
+          id?: string
+          user_id?: string | null
+          username?: string | null
+          venmo_clicked?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "free_coin_claims_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       comment_likes: {
         Row: {
           comment_id: string
@@ -2455,6 +2490,9 @@ export type Database = {
       }
       check_creator_fund: { Args: { p_user_id?: string }; Returns: Json }
       coin_admin_ok: { Args: never; Returns: boolean }
+      admin_free_coin_claims: { Args: { _limit?: number }; Returns: Json }
+      claim_free_coins: { Args: never; Returns: Json }
+      my_free_coin_claim: { Args: never; Returns: Json }
       contains_banned_word: { Args: { _text: string }; Returns: boolean }
       create_sound_from_video: { Args: { _video_id: string }; Returns: string }
       end_live_session: { Args: { p_live_id: string }; Returns: undefined }

@@ -444,3 +444,205 @@ export function useCoins(userId?: string | null): CoinWallet {
     [balance, diamonds, totalEarned, loading, refresh],
   );
 }
+
+/* -------------------------------------------------------------------------- */
+/*  Free 10 coins via Venmo                                                   */
+/* -------------------------------------------------------------------------- */
+
+/** Coins handed out by the daily Venmo claim. */
+export const FREE_COINS_AMOUNT = 10;
+
+/** Where the "free coins" Venmo link points. */
+export const FREE_COINS_VENMO_HANDLE = "drewmclawhorn3";
+
+/** Note the buyer's Venmo payment shows, so claims are easy to spot. */
+export const FREE_COINS_NOTE = "Coolerup 10 free coins";
+
+/**
+ * Web link. Amount is 0 so opening it never charges anyone — it is proof of
+ * intent, and the claim itself is what grants the coins.
+ */
+export function venmoFreeCoinsWebUrl(): string {
+  return `https://venmo.com/${FREE_COINS_VENMO_HANDLE}?txn=pay&audience=private&amount=0&note=${encodeURIComponent(
+    FREE_COINS_NOTE,
+  ).replace(/%20/g, "+")}`;
+}
+
+/** App deep link, used on phones so Venmo opens instead of the browser. */
+export function venmoFreeCoinsAppUrl(): string {
+  return `venmo://users/${FREE_COINS_VENMO_HANDLE}`;
+}
+
+/** True on phones/tablets, where the venmo:// scheme should be tried first. */
+export function isMobileDevice(): boolean {
+  if (typeof navigator === "undefined") return false;
+  return /android|iphone|ipad|ipod|iemobile|blackberry|mobile/i.test(navigator.userAgent);
+}
+
+export type FreeCoinClaim = {
+  id: string;
+  user_id: string;
+  username: string | null;
+  avatar_url?: string | null;
+  claimed_at: string;
+  venmo_clicked: boolean;
+  coins_given: number;
+};
+
+export type FreeCoinClaimState = {
+  claimed: boolean;
+  claimedAt?: string;
+  coins?: number;
+  /** Midnight UTC when the next claim unlocks. */
+  nextClaimAt?: string;
+};
+
+export type ClaimFreeCoinsResult =
+  | { ok: true; coins: number; balance: number; nextClaimAt: string }
+  | { ok: false; message: string; alreadyClaimed: boolean; nextClaimAt?: string };
+
+/** Milliseconds until `iso` passes; 0 when it is already in the past. */
+export function msUntil(iso: string | null | undefined, now: number = Date.now()): number {
+  if (!iso) return 0;
+  const target = new Date(iso).getTime();
+  if (!Number.isFinite(target)) return 0;
+  return Math.max(0, target - now);
+}
+
+/** "5h 12m 03s" — or "12m 03s" under an hour. Always two digits on seconds. */
+export function formatCountdown(ms: number): string {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const seconds = total % 60;
+  const mm = String(minutes).padStart(2, "0");
+  const ss = String(seconds).padStart(2, "0");
+  return hours > 0 ? `${hours}h ${mm}m ${ss}s` : `${mm}m ${ss}s`;
+}
+
+/** Reads today's claim for the signed-in user (drives the countdown). */
+export async function myFreeCoinClaim(): Promise<FreeCoinClaimState> {
+  const { data, error } = await supabase.rpc("my_free_coin_claim");
+  if (error) return { claimed: false };
+  const row = (data ?? {}) as {
+    claimed?: boolean;
+    claimedAt?: string;
+    coins?: number;
+    nextClaimAt?: string;
+  };
+  if (!row.claimed) return { claimed: false };
+  return {
+    claimed: true,
+    ...(row.claimedAt ? { claimedAt: row.claimedAt } : {}),
+    ...(row.coins != null ? { coins: Number(row.coins) } : {}),
+    ...(row.nextClaimAt ? { nextClaimAt: row.nextClaimAt } : {}),
+  };
+}
+
+/**
+ * Claims the daily 10 coins. The server enforces once-per-day and does the
+ * wallet credit in one transaction, so this can be called safely twice.
+ */
+export async function claimFreeCoins(): Promise<ClaimFreeCoinsResult> {
+  const { data, error } = await supabase.rpc("claim_free_coins");
+
+  if (error) {
+    if (/not_signed_in|sign in/i.test(error.message)) {
+      return { ok: false, message: "Sign in to claim free coins", alreadyClaimed: false };
+    }
+    return {
+      ok: false,
+      message: error.message || "Couldn't claim your coins",
+      alreadyClaimed: false,
+    };
+  }
+
+  const row = (data ?? {}) as {
+    ok?: boolean;
+    error?: string;
+    alreadyClaimed?: boolean;
+    coins?: number;
+    balance?: number;
+    nextClaimAt?: string;
+  };
+
+  if (!row.ok) {
+    return {
+      ok: false,
+      message: row.error ?? "Couldn't claim your coins",
+      alreadyClaimed: Boolean(row.alreadyClaimed),
+      ...(row.nextClaimAt ? { nextClaimAt: row.nextClaimAt } : {}),
+    };
+  }
+
+  return {
+    ok: true,
+    coins: Number(row.coins ?? FREE_COINS_AMOUNT),
+    balance: Number(row.balance ?? 0),
+    nextClaimAt: String(row.nextClaimAt ?? ""),
+  };
+}
+
+/** Admin view: every claim, newest first. Throws when the caller isn't admin. */
+export async function adminFreeCoinClaims(limit = 200): Promise<FreeCoinClaim[]> {
+  const { data, error } = await supabase.rpc("admin_free_coin_claims", { _limit: limit });
+  if (error) throw new Error(error.message);
+  return Array.isArray(data) ? (data as FreeCoinClaim[]) : [];
+}
+
+export type FreeCoinStats = {
+  todayCount: number;
+  todayCoins: number;
+  totalCount: number;
+  totalCoins: number;
+  topClaimers: { userId: string; name: string; claims: number; coins: number }[];
+};
+
+/** Rolls a claim list into the numbers the host dashboard shows. */
+export function freeCoinStats(rows: FreeCoinClaim[], now: Date = new Date()): FreeCoinStats {
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const end = start + 24 * 60 * 60 * 1000;
+  let todayCount = 0;
+  let todayCoins = 0;
+  let totalCoins = 0;
+  const byUser = new Map<string, { userId: string; name: string; claims: number; coins: number }>();
+
+  for (const row of rows) {
+    const at = new Date(row.claimed_at).getTime();
+    const coins = Number(row.coins_given ?? FREE_COINS_AMOUNT);
+    totalCoins += coins;
+    if (at >= start && at < end) {
+      todayCount += 1;
+      todayCoins += coins;
+    }
+    const key = row.user_id;
+    const name = row.username || "guest";
+    const existing = byUser.get(key);
+    if (existing) {
+      existing.claims += 1;
+      existing.coins += coins;
+    } else {
+      byUser.set(key, { userId: key, name, claims: 1, coins });
+    }
+  }
+
+  const topClaimers = [...byUser.values()]
+    .sort((a, b) => b.claims - a.claims || b.coins - a.coins)
+    .slice(0, 3);
+
+  return { todayCount, todayCoins, totalCount: rows.length, totalCoins, topClaimers };
+}
+
+/** "just now", "4m ago", "2h ago", "3d ago". */
+export function claimAgo(iso: string, now: number = Date.now()): string {
+  const then = new Date(iso).getTime();
+  if (!Number.isFinite(then)) return "";
+  const seconds = Math.max(0, Math.floor((now - then) / 1000));
+  if (seconds < 45) return "just now";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}

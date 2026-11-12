@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 /**
  * Server-side Giphy proxy.
@@ -35,6 +36,7 @@ const MAX_QUERY = 80;
 const MAX_LIMIT = 50;
 
 export const searchGiphy = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((d: { q?: string; limit?: number } | undefined) => {
     const q = typeof d?.q === "string" ? d.q.trim().slice(0, MAX_QUERY) : "";
     const raw = Number(d?.limit ?? 24);

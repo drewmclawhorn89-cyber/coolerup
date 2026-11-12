@@ -343,12 +343,14 @@ export const purchaseGiftCard = createServerFn({ method: "POST" })
   });
 
 /** Lets the shop say honestly whether codes are delivered instantly. */
-export const giftCardStatus = createServerFn({ method: "GET" }).handler(async () => {
-  return {
-    providerConfigured: giftCardProviderConfigured(),
-    stripeConfigured: Boolean(stripeKey()),
-  };
-});
+export const giftCardStatus = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async () => {
+    return {
+      providerConfigured: giftCardProviderConfigured(),
+      stripeConfigured: Boolean(stripeKey()),
+    };
+  });
 
 /**
  * Records an order that will be paid by card outside the instant gateway flow.

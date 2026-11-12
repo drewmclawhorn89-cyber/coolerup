@@ -277,3 +277,82 @@ describe("giphy key is not shipped to the browser", () => {
     expect(picker).toContain("searchGiphy");
   });
 });
+
+describe("remaining findings follow-up migration", () => {
+  const sql = read("supabase/migrations/20261207000000_close_remaining_findings.sql");
+
+  it("takes muted_words away from anon but keeps it for signed-in readers", () => {
+    expect(sql).toContain("revoke select on public.muted_words from anon");
+    expect(sql).toContain("grant select on public.muted_words to authenticated");
+  });
+
+  it("stops anonymous reads of live_gifts", () => {
+    expect(sql).toContain("revoke select on public.live_gifts from anon");
+  });
+
+  it("revokes anon SELECT on every table outside the public allowlist", () => {
+    expect(sql).toContain("public_tables text[] := array[");
+    expect(sql).toContain("revoke select on public.%I from anon");
+    // private tables must not appear in the allowlist
+    for (const privateTable of [
+      "user_coins",
+      "user_balance",
+      "payouts",
+      "coin_purchases",
+      "gift_card_orders",
+      "direct_messages",
+      "moderation_log",
+      "muted_words",
+      "live_gifts",
+      "reports",
+    ]) {
+      expect(sql).not.toMatch(new RegExp(`'${privateTable}',`));
+    }
+  });
+
+  it("revokes anonymous EXECUTE on public functions", () => {
+    expect(sql).toContain("revoke execute on function %s from anon");
+  });
+
+  it("moves extensions out of the public schema", () => {
+    expect(sql).toContain("alter extension %I set schema extensions");
+  });
+});
+
+describe("payments fail closed when no gateway is configured", () => {
+  const payments = read("src/lib/payments.functions.ts");
+
+  it("never reports a charge as recorded without a real gateway", () => {
+    expect(payments).not.toContain('status: "recorded"');
+    expect(payments).not.toContain("configured: false, card: EMPTY_CARD");
+  });
+
+  it("requires a signed-in user for the status probe", () => {
+    expect(payments).toMatch(
+      /paymentStatus = createServerFn\(\{ method: "GET" \}\)\s*\n\s*\.middleware\(\[requireSupabaseAuth\]\)/,
+    );
+  });
+});
+
+describe("unauthenticated server functions require auth", () => {
+  it("gates the coin payment status (it exposes the Venmo handle)", () => {
+    const coins = read("src/lib/coins.functions.ts");
+    expect(coins).toMatch(
+      /coinPaymentStatus = createServerFn\(\{ method: "GET" \}\)\s*\n\s*\.middleware\(\[requireSupabaseAuth\]\)/,
+    );
+  });
+
+  it("gates the gift card status probe", () => {
+    const gift = read("src/lib/giftcards.functions.ts");
+    expect(gift).toMatch(
+      /giftCardStatus = createServerFn\(\{ method: "GET" \}\)\s*\n\s*\.middleware\(\[requireSupabaseAuth\]\)/,
+    );
+  });
+
+  it("gates the Giphy proxy so it cannot be used as an open relay", () => {
+    const giphy = read("src/lib/giphy.functions.ts");
+    expect(giphy).toMatch(
+      /searchGiphy = createServerFn\(\{ method: "GET" \}\)\s*\n\s*\.middleware\(\[requireSupabaseAuth\]\)/,
+    );
+  });
+});

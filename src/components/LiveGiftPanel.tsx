@@ -31,6 +31,8 @@ export function LiveGiftPanel({
   balance,
   signedIn,
   sending,
+  streamCoins = 0,
+  streamEarnings,
   onSend,
   onRecharge,
   onSignIn,
@@ -44,6 +46,10 @@ export function LiveGiftPanel({
   balance: number | null;
   signedIn: boolean;
   sending: boolean;
+  /** Coins gifted in this stream — shown here, never on the live screen. */
+  streamCoins?: number;
+  /** Formatted USD the stream has earned, e.g. "$0.00". */
+  streamEarnings?: string;
   onSend: (gift: LiveGift, quantity: GiftCount) => void;
   onRecharge: () => void;
   onSignIn: () => void;
@@ -154,6 +160,11 @@ export function LiveGiftPanel({
               </p>
               <p className="mt-0.5 text-[11px] text-white/50">
                 {signedIn ? "100 free coins on every new account" : "Sign in to send gifts"}
+              </p>
+              <p className="mt-1 flex items-center gap-1 text-[11px] font-bold text-white/60">
+                <Sparkles className="h-3 w-3 text-yellow-400" />
+                {streamCoins.toLocaleString()} coins this stream
+                {streamEarnings ? ` · ${streamEarnings}` : ""}
               </p>
             </div>
             <button

@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import type { Sound } from "@/lib/sounds";
 
 /**
  * One audio element for the whole app.
@@ -226,4 +227,40 @@ export const songPlayer = {
 /** Subscribe a component to the shared player. */
 export function useSongPlayer(): SongPlayerState {
   return useSyncExternalStore(songPlayer.subscribe, songPlayer.getState, songPlayer.getState);
+}
+
+/* ===========================================================================
+ * "Use this sound" bridge
+ *
+ * The mini player can be tapped from any screen, so the camera dialog listens
+ * for a window event instead of living inside a route. Kept here (rather than
+ * in a component) so `MiniPlayer` and the Music route can both import it
+ * without a circular dependency.
+ * =========================================================================== */
+
+export const USE_SOUND_EVENT = "coolerup:use-sound";
+
+/** Ask the app to open the camera with this song attached ("Use this sound"). */
+export function requestUseSound(track: PlayerTrack) {
+  window.dispatchEvent(new CustomEvent<PlayerTrack>(USE_SOUND_EVENT, { detail: track }));
+}
+
+/**
+ * The shared player only knows `PlayerTrack`, but the download control needs a
+ * `Sound` row. `audio_url` is already the resolved URL here, which is exactly
+ * what `saveSongOffline` wants to fetch.
+ */
+export function trackToSound(track: PlayerTrack): Sound {
+  return {
+    id: track.soundId,
+    original_video_id: null,
+    audio_url: track.url,
+    title: track.title,
+    creator_username: track.artist.replace(/^@/, ""),
+    uses_count: 0,
+    created_at: "",
+    source: track.source ?? "own",
+    youtube_url: track.youtubeUrl ?? null,
+    cover_url: track.coverUrl ?? null,
+  };
 }

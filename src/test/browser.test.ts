@@ -15,6 +15,9 @@ import {
   parseInput,
   prettyUrl,
   siteById,
+  stripEdges,
+  stripMaxScroll,
+  stripScrollTarget,
   tiktokVideoId,
   urlForSite,
   youtubeIdFromBrowserUrl,
@@ -217,5 +220,41 @@ describe("proxy-first framing", () => {
   it("still frames the handful of hosts that allow it", () => {
     expect(isEmbeddable("https://en.wikipedia.org/wiki/Cat")).toBe(true);
     expect(isEmbeddable("https://www.openstreetmap.org/")).toBe(true);
+  });
+});
+
+describe("top tab strip", () => {
+  const wide = { scrollLeft: 0, clientWidth: 400, scrollWidth: 1000 };
+
+  it("knows how far the strip can travel", () => {
+    expect(stripMaxScroll(wide)).toBe(600);
+    expect(stripMaxScroll({ scrollLeft: 0, clientWidth: 400, scrollWidth: 300 })).toBe(0);
+  });
+
+  it("hides arrows when there is nothing to scroll", () => {
+    expect(stripEdges({ scrollLeft: 0, clientWidth: 400, scrollWidth: 300 })).toEqual({
+      left: false,
+      right: false,
+    });
+  });
+
+  it("shows the right arrow at the start and the left arrow at the end", () => {
+    expect(stripEdges(wide)).toEqual({ left: false, right: true });
+    expect(stripEdges({ ...wide, scrollLeft: 600 })).toEqual({ left: true, right: false });
+    expect(stripEdges({ ...wide, scrollLeft: 300 })).toEqual({ left: true, right: true });
+  });
+
+  it("steps one tab-width at a time", () => {
+    expect(stripScrollTarget(wide, 1)).toBe(160);
+    expect(stripScrollTarget({ ...wide, scrollLeft: 320 }, -1)).toBe(160);
+  });
+
+  it("wraps around so you can keep tapping", () => {
+    expect(stripScrollTarget({ ...wide, scrollLeft: 600 }, 1)).toBe(0);
+    expect(stripScrollTarget(wide, -1)).toBe(600);
+  });
+
+  it("stays put when the strip is not scrollable", () => {
+    expect(stripScrollTarget({ scrollLeft: 0, clientWidth: 400, scrollWidth: 300 }, 1)).toBe(0);
   });
 });

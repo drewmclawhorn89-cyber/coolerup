@@ -449,6 +449,41 @@ export function prettyUrl(url: string): string {
 }
 
 /* -------------------------------------------------------------------------- */
+/* Horizontal tab strip                                                       */
+/* -------------------------------------------------------------------------- */
+
+export type StripMetrics = {
+  scrollLeft: number;
+  clientWidth: number;
+  scrollWidth: number;
+};
+
+/** How far the strip can travel at all. */
+export function stripMaxScroll(metrics: StripMetrics): number {
+  return Math.max(0, metrics.scrollWidth - metrics.clientWidth);
+}
+
+/** Whether there is hidden content to the left / right of the visible strip. */
+export function stripEdges(metrics: StripMetrics): { left: boolean; right: boolean } {
+  const max = stripMaxScroll(metrics);
+  if (max <= 0) return { left: false, right: false };
+  return { left: metrics.scrollLeft > 2, right: metrics.scrollLeft < max - 2 };
+}
+
+/**
+ * Where the strip should land after pressing an arrow. Wraps around at the
+ * ends so you can keep tapping right to cycle back to the first tab.
+ */
+export function stripScrollTarget(metrics: StripMetrics, direction: -1 | 1, step = 160): number {
+  const max = stripMaxScroll(metrics);
+  if (max <= 0) return 0;
+  const next = metrics.scrollLeft + direction * step;
+  if (next < 0) return max;
+  if (next > max) return 0;
+  return next;
+}
+
+/* -------------------------------------------------------------------------- */
 /* Persistence                                                                */
 /* -------------------------------------------------------------------------- */
 

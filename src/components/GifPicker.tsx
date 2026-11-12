@@ -50,10 +50,17 @@ export function GifPicker({
   onPick,
   onClose,
   className = "",
+  fill = false,
 }: {
   onPick: (url: string, meta?: GifPickMeta) => void;
   onClose: () => void;
   className?: string;
+  /**
+   * Stretch to the height of the parent instead of using a fixed max height.
+   * Used inside the comments sheet, where the picker replaces the thread and
+   * must not push its own buttons off the bottom of a phone screen.
+   */
+  fill?: boolean;
 }) {
   const { user, signIn } = useAuth();
   const [q, setQ] = useState("");
@@ -225,9 +232,10 @@ export function GifPicker({
 
   if (showMaker) {
     return (
-      <div className={`border-t p-0 ${className}`}>
+      <div className={`flex min-h-0 flex-col border-t p-0 ${fill ? "flex-1" : ""} ${className}`}>
         <MakeGif
-          className="border-t-0 p-0"
+          className="min-h-0 border-t-0 p-0"
+          expand={fill}
           onCreated={() => {
             setShowMaker(false);
             setTab("mine");
@@ -243,8 +251,8 @@ export function GifPicker({
   const showGiphy = tab === "trending";
 
   return (
-    <div className={`border-t p-3 ${className}`}>
-      <div className="mb-2 flex items-center gap-2">
+    <div className={`flex min-h-0 flex-col border-t p-3 ${fill ? "flex-1" : ""} ${className}`}>
+      <div className="mb-2 flex shrink-0 items-center gap-2">
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
@@ -362,7 +370,13 @@ export function GifPicker({
           <p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
             {tab === "mine" ? "Your GIFs" : "Made on Coolerup"}
           </p>
-          <div className="grid max-h-40 grid-cols-3 gap-1 overflow-y-auto">
+          <div
+            className={
+              fill
+                ? "grid min-h-0 flex-1 grid-cols-3 gap-1 overflow-y-auto"
+                : "grid max-h-40 grid-cols-3 gap-1 overflow-y-auto"
+            }
+          >
             {shownCustom.map((g) => {
               const isOwn = !!user && g.user_id === user.id;
               return (
@@ -418,7 +432,13 @@ export function GifPicker({
       )}
 
       {showGiphy && (
-        <div className="grid max-h-40 grid-cols-3 gap-1 overflow-y-auto">
+        <div
+          className={
+            fill
+              ? "grid min-h-0 flex-1 grid-cols-3 gap-1 overflow-y-auto"
+              : "grid max-h-40 grid-cols-3 gap-1 overflow-y-auto"
+          }
+        >
           {!resolved && <p className="col-span-3 text-xs text-muted-foreground">Loading…</p>}
           {resolved && loading && (
             <p className="col-span-3 text-xs text-muted-foreground">Loading…</p>

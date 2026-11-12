@@ -461,17 +461,15 @@ export function MakeGif({
 
   return (
     <div
-      className={`flex flex-col border-t ${expand ? "" : "max-h-[min(72vh,34rem)]"} ${className}`}
+      className={`flex min-h-0 flex-col border-t ${
+        expand ? "min-h-0 flex-1" : "max-h-[min(68dvh,30rem)]"
+      } ${className}`}
     >
       {/* The header stays put; only the step body scrolls, so a long edit form
           (or a tall list of your videos) never gets clipped on a phone. */}
       <div className="shrink-0 px-3 pb-2 pt-3">{header}</div>
 
-      <div
-        className={`min-h-0 flex-1 px-3 pb-3 [-webkit-overflow-scrolling:touch] ${
-          expand ? "" : "overflow-y-auto overscroll-contain"
-        }`}
-      >
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-3 [-webkit-overflow-scrolling:touch]">
         {!user && step === "source" && (
           <div className="mt-3 rounded-lg bg-secondary/60 p-3 text-center">
             <p className="text-xs text-muted-foreground">Sign in to make GIFs from your videos.</p>
@@ -643,13 +641,15 @@ export function MakeGif({
                     {(end - start).toFixed(1)}s selected · max 3s · GIF loops automatically
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setStep("edit")}
-                  className="w-full rounded-full bg-primary py-2 text-sm font-bold text-primary-foreground"
-                >
-                  Next: Edit
-                </button>
+                <div className="sticky bottom-0 -mx-3 mt-2 border-t bg-card px-3 pb-1 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setStep("edit")}
+                    className="w-full rounded-full bg-primary py-2.5 text-sm font-bold text-primary-foreground"
+                  >
+                    Next: Edit
+                  </button>
+                </div>
               </>
             )}
 
@@ -734,31 +734,33 @@ export function MakeGif({
                   )}
                 </div>
 
-                {busy ? (
-                  <div className="space-y-1 rounded-lg bg-secondary/60 p-3">
-                    <div className="flex items-center gap-2 text-xs font-bold">
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      {stage || "Working"} · {progress}%
+                <div className="sticky bottom-0 -mx-3 mt-2 border-t bg-card px-3 pb-1 pt-2">
+                  {busy ? (
+                    <div className="space-y-1 rounded-lg bg-secondary/60 p-3">
+                      <div className="flex items-center gap-2 text-xs font-bold">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        {stage || "Working"} · {progress}%
+                      </div>
+                      <div className="h-1.5 overflow-hidden rounded-full bg-background">
+                        <div
+                          className="h-full rounded-full bg-primary transition-all"
+                          style={{ width: `${Math.max(3, progress)}%` }}
+                        />
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">
+                        Converting on your device — nothing is uploaded until the GIF is ready.
+                      </p>
                     </div>
-                    <div className="h-1.5 overflow-hidden rounded-full bg-background">
-                      <div
-                        className="h-full rounded-full bg-primary transition-all"
-                        style={{ width: `${Math.max(3, progress)}%` }}
-                      />
-                    </div>
-                    <p className="text-[10px] text-muted-foreground">
-                      Converting on your device — nothing is uploaded until the GIF is ready.
-                    </p>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => void create()}
-                    className="flex w-full items-center justify-center gap-2 rounded-full bg-primary py-2.5 text-sm font-bold text-primary-foreground"
-                  >
-                    <Wand2 className="h-4 w-4" /> Create GIF
-                  </button>
-                )}
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => void create()}
+                      className="flex w-full items-center justify-center gap-2 rounded-full bg-primary py-2.5 text-sm font-bold text-primary-foreground"
+                    >
+                      <Wand2 className="h-4 w-4" /> Create GIF
+                    </button>
+                  )}
+                </div>
               </>
             )}
           </div>

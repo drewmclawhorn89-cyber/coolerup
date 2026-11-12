@@ -33,6 +33,9 @@ import { Route as AdminCodesRouteImport } from './routes/admin_.codes'
 import { Route as AdminFreeCoinsRouteImport } from './routes/admin_.free-coins'
 import { Route as AdminPayoutsRouteImport } from './routes/admin_.payouts'
 import { Route as AdminSubscriptionsRouteImport } from './routes/admin_.subscriptions'
+import { Route as BrowserIndexRouteImport } from './routes/browser.index'
+import { Route as BrowserBookmarksRouteImport } from './routes/browser.bookmarks'
+import { Route as BrowserHistoryRouteImport } from './routes/browser.history'
 import { Route as CoinsRechargeRouteImport } from './routes/coins.recharge'
 import { Route as GroupsIndexRouteImport } from './routes/groups.index'
 import { Route as GroupsGroupIdRouteImport } from './routes/groups.$groupId'
@@ -162,6 +165,21 @@ const AdminSubscriptionsRoute = AdminSubscriptionsRouteImport.update({
   path: '/admin/subscriptions',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BrowserIndexRoute = BrowserIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => BrowserRoute,
+} as any)
+const BrowserBookmarksRoute = BrowserBookmarksRouteImport.update({
+  id: '/bookmarks',
+  path: '/bookmarks',
+  getParentRoute: () => BrowserRoute,
+} as any)
+const BrowserHistoryRoute = BrowserHistoryRouteImport.update({
+  id: '/history',
+  path: '/history',
+  getParentRoute: () => BrowserRoute,
+} as any)
 const CoinsRechargeRoute = CoinsRechargeRouteImport.update({
   id: '/coins/recharge',
   path: '/coins/recharge',
@@ -207,7 +225,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/beta': typeof BetaRoute
-  '/browser': typeof BrowserRoute
+  '/browser': typeof BrowserRouteWithChildren
   '/creator': typeof CreatorRoute
   '/groups': typeof GroupsRouteWithChildren
   '/live': typeof LiveRouteWithChildren
@@ -228,12 +246,15 @@ export interface FileRoutesByFullPath {
   '/admin/free-coins': typeof AdminFreeCoinsRoute
   '/admin/payouts': typeof AdminPayoutsRoute
   '/admin/subscriptions': typeof AdminSubscriptionsRoute
+  '/browser/bookmarks': typeof BrowserBookmarksRoute
+  '/browser/history': typeof BrowserHistoryRoute
   '/coins/recharge': typeof CoinsRechargeRoute
   '/groups/$groupId': typeof GroupsGroupIdRoute
   '/live/dashboard': typeof LiveDashboardRoute
   '/sound/$soundId': typeof SoundSoundIdRoute
   '/u/$username': typeof UUsernameRoute
   '/watch/$id': typeof WatchIdRoute
+  '/browser/': typeof BrowserIndexRoute
   '/groups/': typeof GroupsIndexRoute
   '/watch/': typeof WatchIndexRoute
 }
@@ -241,7 +262,6 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/beta': typeof BetaRoute
-  '/browser': typeof BrowserRoute
   '/creator': typeof CreatorRoute
   '/live': typeof LiveRouteWithChildren
   '/make-gif': typeof MakeGifRoute
@@ -261,12 +281,15 @@ export interface FileRoutesByTo {
   '/admin/free-coins': typeof AdminFreeCoinsRoute
   '/admin/payouts': typeof AdminPayoutsRoute
   '/admin/subscriptions': typeof AdminSubscriptionsRoute
+  '/browser/bookmarks': typeof BrowserBookmarksRoute
+  '/browser/history': typeof BrowserHistoryRoute
   '/coins/recharge': typeof CoinsRechargeRoute
   '/groups/$groupId': typeof GroupsGroupIdRoute
   '/live/dashboard': typeof LiveDashboardRoute
   '/sound/$soundId': typeof SoundSoundIdRoute
   '/u/$username': typeof UUsernameRoute
   '/watch/$id': typeof WatchIdRoute
+  '/browser': typeof BrowserIndexRoute
   '/groups': typeof GroupsIndexRoute
   '/watch': typeof WatchIndexRoute
 }
@@ -275,7 +298,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/beta': typeof BetaRoute
-  '/browser': typeof BrowserRoute
+  '/browser': typeof BrowserRouteWithChildren
   '/creator': typeof CreatorRoute
   '/groups': typeof GroupsRouteWithChildren
   '/live': typeof LiveRouteWithChildren
@@ -296,12 +319,15 @@ export interface FileRoutesById {
   '/admin_/free-coins': typeof AdminFreeCoinsRoute
   '/admin_/payouts': typeof AdminPayoutsRoute
   '/admin_/subscriptions': typeof AdminSubscriptionsRoute
+  '/browser/bookmarks': typeof BrowserBookmarksRoute
+  '/browser/history': typeof BrowserHistoryRoute
   '/coins/recharge': typeof CoinsRechargeRoute
   '/groups/$groupId': typeof GroupsGroupIdRoute
   '/live/dashboard': typeof LiveDashboardRoute
   '/sound/$soundId': typeof SoundSoundIdRoute
   '/u/$username': typeof UUsernameRoute
   '/watch/$id': typeof WatchIdRoute
+  '/browser/': typeof BrowserIndexRoute
   '/groups/': typeof GroupsIndexRoute
   '/watch/': typeof WatchIndexRoute
 }
@@ -332,12 +358,15 @@ export interface FileRouteTypes {
     | '/admin/free-coins'
     | '/admin/payouts'
     | '/admin/subscriptions'
+    | '/browser/bookmarks'
+    | '/browser/history'
     | '/coins/recharge'
     | '/groups/$groupId'
     | '/live/dashboard'
     | '/sound/$soundId'
     | '/u/$username'
     | '/watch/$id'
+    | '/browser/'
     | '/groups/'
     | '/watch/'
   fileRoutesByTo: FileRoutesByTo
@@ -345,7 +374,6 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/beta'
-    | '/browser'
     | '/creator'
     | '/live'
     | '/make-gif'
@@ -365,12 +393,15 @@ export interface FileRouteTypes {
     | '/admin/free-coins'
     | '/admin/payouts'
     | '/admin/subscriptions'
+    | '/browser/bookmarks'
+    | '/browser/history'
     | '/coins/recharge'
     | '/groups/$groupId'
     | '/live/dashboard'
     | '/sound/$soundId'
     | '/u/$username'
     | '/watch/$id'
+    | '/browser'
     | '/groups'
     | '/watch'
   id:
@@ -399,12 +430,15 @@ export interface FileRouteTypes {
     | '/admin_/free-coins'
     | '/admin_/payouts'
     | '/admin_/subscriptions'
+    | '/browser/bookmarks'
+    | '/browser/history'
     | '/coins/recharge'
     | '/groups/$groupId'
     | '/live/dashboard'
     | '/sound/$soundId'
     | '/u/$username'
     | '/watch/$id'
+    | '/browser/'
     | '/groups/'
     | '/watch/'
   fileRoutesById: FileRoutesById
@@ -413,7 +447,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
   BetaRoute: typeof BetaRoute
-  BrowserRoute: typeof BrowserRoute
+  BrowserRoute: typeof BrowserRouteWithChildren
   CreatorRoute: typeof CreatorRoute
   GroupsRoute: typeof GroupsRouteWithChildren
   LiveRoute: typeof LiveRouteWithChildren
@@ -611,6 +645,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminSubscriptionsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/browser/': {
+      id: '/browser/'
+      path: '/'
+      fullPath: '/browser/'
+      preLoaderRoute: typeof BrowserIndexRouteImport
+      parentRoute: typeof BrowserRoute
+    }
+    '/browser/bookmarks': {
+      id: '/browser/bookmarks'
+      path: '/bookmarks'
+      fullPath: '/browser/bookmarks'
+      preLoaderRoute: typeof BrowserBookmarksRouteImport
+      parentRoute: typeof BrowserRoute
+    }
+    '/browser/history': {
+      id: '/browser/history'
+      path: '/history'
+      fullPath: '/browser/history'
+      preLoaderRoute: typeof BrowserHistoryRouteImport
+      parentRoute: typeof BrowserRoute
+    }
     '/coins/recharge': {
       id: '/coins/recharge'
       path: '/coins/recharge'
@@ -670,6 +725,21 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface BrowserRouteChildren {
+  BrowserBookmarksRoute: typeof BrowserBookmarksRoute
+  BrowserHistoryRoute: typeof BrowserHistoryRoute
+  BrowserIndexRoute: typeof BrowserIndexRoute
+}
+
+const BrowserRouteChildren: BrowserRouteChildren = {
+  BrowserBookmarksRoute: BrowserBookmarksRoute,
+  BrowserHistoryRoute: BrowserHistoryRoute,
+  BrowserIndexRoute: BrowserIndexRoute,
+}
+
+const BrowserRouteWithChildren =
+  BrowserRoute._addFileChildren(BrowserRouteChildren)
+
 interface GroupsRouteChildren {
   GroupsGroupIdRoute: typeof GroupsGroupIdRoute
   GroupsIndexRoute: typeof GroupsIndexRoute
@@ -697,7 +767,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
   BetaRoute: BetaRoute,
-  BrowserRoute: BrowserRoute,
+  BrowserRoute: BrowserRouteWithChildren,
   CreatorRoute: CreatorRoute,
   GroupsRoute: GroupsRouteWithChildren,
   LiveRoute: LiveRouteWithChildren,

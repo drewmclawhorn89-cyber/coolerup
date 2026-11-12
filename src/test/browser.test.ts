@@ -1,19 +1,23 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  BROWSER_SITES,
+  COOLERUP_TABS,
   GOOGLE_IMAGES,
   GOOGLE_SEARCH,
+  SHORTCUTS,
   displayTitle,
+  hostLabel,
   isAllowedDownload,
   isBlockedUrl,
   isEmbeddable,
+  isInternalUrl,
   parseInput,
+  prettyUrl,
   siteById,
   urlForSite,
   youtubeIdFromBrowserUrl,
   youtubeIdFromInput,
-} from "@/lib/browser";
+} from "@/lib/coolerupBrowser";
 
 describe("parseInput", () => {
   it("treats empty input as empty", () => {
@@ -35,14 +39,8 @@ describe("parseInput", () => {
     });
   });
 
-  it("turns a phrase into a Google search", () => {
-    const parsed = parseInput("mgk starman");
-    expect(parsed.kind).toBe("search");
-    if (parsed.kind !== "search") return;
-    expect(parsed.query).toBe("mgk starman");
-    expect(parsed.url).toContain("google.com/search");
-    expect(parsed.url).toContain("igu=1");
-    expect(parsed.url).toContain("safe=active");
+  it("turns a phrase into a Coolerup search, not a Google URL", () => {
+    expect(parseInput("mgk starman")).toEqual({ kind: "search", query: "mgk starman" });
   });
 });
 
@@ -54,10 +52,10 @@ describe("Google helpers", () => {
   });
 });
 
-describe("site tabs", () => {
-  it("exposes the seven requested sites", () => {
-    expect(BROWSER_SITES.map((s) => s.id)).toEqual([
-      "google",
+describe("Coolerup tabs", () => {
+  it("exposes the seven requested tabs, starting with Coolerup", () => {
+    expect(COOLERUP_TABS.map((s) => s.id)).toEqual([
+      "coolerup",
       "youtube",
       "tiktok",
       "wikipedia",
@@ -71,6 +69,30 @@ describe("site tabs", () => {
     const youtube = siteById("youtube")!;
     expect(urlForSite(youtube, "mgk")).toContain("youtube.com/results?search_query=mgk");
     expect(urlForSite(youtube)).toBe("https://www.youtube.com");
+  });
+
+  it("points the Coolerup tab at the internal home page", () => {
+    const home = siteById("coolerup")!;
+    expect(isInternalUrl(home.home)).toBe(true);
+  });
+});
+
+describe("home shortcuts", () => {
+  it("offers the six requested cards", () => {
+    expect(SHORTCUTS.map((s) => s.id)).toEqual([
+      "youtube",
+      "tiktok",
+      "wikipedia",
+      "news",
+      "music",
+      "shop",
+    ]);
+  });
+
+  it("keeps Music and Shop inside the app", () => {
+    expect(SHORTCUTS.find((s) => s.id === "music")?.internal).toBe(true);
+    expect(SHORTCUTS.find((s) => s.id === "shop")?.internal).toBe(true);
+    expect(SHORTCUTS.find((s) => s.id === "youtube")?.internal).toBeFalsy();
   });
 });
 
@@ -118,6 +140,10 @@ describe("isEmbeddable", () => {
   it("allows sites that do not block framing", () => {
     expect(isEmbeddable("https://en.wikipedia.org/wiki/Cat")).toBe(true);
   });
+
+  it("never frames internal Coolerup pages", () => {
+    expect(isEmbeddable("coolerup://home")).toBe(false);
+  });
 });
 
 describe("YouTube detection", () => {
@@ -140,9 +166,18 @@ describe("YouTube detection", () => {
   });
 });
 
-describe("displayTitle", () => {
+describe("display helpers", () => {
   it("shows the host, stripping www", () => {
     expect(displayTitle("https://www.youtube.com/watch?v=1")).toBe("youtube.com");
     expect(displayTitle("not a url")).toBe("New tab");
+  });
+
+  it("labels internal pages as Coolerup", () => {
+    expect(displayTitle("coolerup://home")).toBe("Coolerup");
+  });
+
+  it("formats a host and pretty URL for result cards", () => {
+    expect(hostLabel("https://en.wikipedia.org/wiki/Cat")).toBe("en.wikipedia.org");
+    expect(prettyUrl("https://en.wikipedia.org/wiki/Cat")).toBe("en.wikipedia.org/wiki/Cat");
   });
 });

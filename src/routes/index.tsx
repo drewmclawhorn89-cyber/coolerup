@@ -32,21 +32,33 @@ import { isChristmasCountdownVisible, useChristmasMode } from "@/lib/christmas";
 import { useChristmasCodesSeason } from "@/lib/christmas-codes";
 import { matchesKeyword, readBool } from "@/lib/prefs";
 // Heavy, interaction-only surfaces are split out so the initial feed bundle stays small.
-const UploadDialog = lazy(() => import("@/components/UploadDialog").then((m) => ({ default: m.UploadDialog })));
-const ShopPanel = lazy(() => import("@/components/ShopPanel").then((m) => ({ default: m.ShopPanel })));
+const UploadDialog = lazy(() =>
+  import("@/components/UploadDialog").then((m) => ({ default: m.UploadDialog })),
+);
+const ShopPanel = lazy(() =>
+  import("@/components/ShopPanel").then((m) => ({ default: m.ShopPanel })),
+);
 const SubscriptionsPanel = lazy(() =>
   import("@/components/SubscriptionsPanel").then((m) => ({ default: m.SubscriptionsPanel })),
 );
-const Marketplace = lazy(() => import("@/components/Marketplace").then((m) => ({ default: m.Marketplace })));
-const GroupsPanel = lazy(() => import("@/components/GroupsPanel").then((m) => ({ default: m.GroupsPanel })));
+const Marketplace = lazy(() =>
+  import("@/components/Marketplace").then((m) => ({ default: m.Marketplace })),
+);
+const GroupsPanel = lazy(() =>
+  import("@/components/GroupsPanel").then((m) => ({ default: m.GroupsPanel })),
+);
 const ChristmasCodesPanel = lazy(() =>
   import("@/components/ChristmasCodesPanel").then((m) => ({ default: m.ChristmasCodesPanel })),
 );
 const LiveStreamDialog = lazy(() =>
   import("@/components/LiveStreamDialog").then((m) => ({ default: m.LiveStreamDialog })),
 );
-const RecordDialog = lazy(() => import("@/components/RecordDialog").then((m) => ({ default: m.RecordDialog })));
-const PhotoDialog = lazy(() => import("@/components/PhotoDialog").then((m) => ({ default: m.PhotoDialog })));
+const RecordDialog = lazy(() =>
+  import("@/components/RecordDialog").then((m) => ({ default: m.RecordDialog })),
+);
+const PhotoDialog = lazy(() =>
+  import("@/components/PhotoDialog").then((m) => ({ default: m.PhotoDialog })),
+);
 import {
   fetchMyLikes,
   fetchRepostsByHandles,
@@ -69,9 +81,15 @@ export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
       { title: "Coolerup — For You" },
-      { name: "description", content: "A fresh perspective with every scroll. Less perfect, more real." },
+      {
+        name: "description",
+        content: "A fresh perspective with every scroll. Less perfect, more real.",
+      },
       { property: "og:title", content: "Coolerup — A little more you" },
-      { property: "og:description", content: "A fresh perspective with every scroll. Less perfect, more real." },
+      {
+        property: "og:description",
+        content: "A fresh perspective with every scroll. Less perfect, more real.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
@@ -79,8 +97,10 @@ export const Route = createFileRoute("/")({
   component: Index,
 });
 
-type Tab = "foryou" | "explore" | "following" | "liked" | "saved" | "inbox" | "shop" | "subscriptions";
-type FeedTab = "home" | "following" | "foryou" | "explore" | "marketplace" | "groups" | "live" | "codes";
+type Tab =
+  "foryou" | "explore" | "following" | "liked" | "saved" | "inbox" | "shop" | "subscriptions";
+type FeedTab =
+  "home" | "following" | "foryou" | "explore" | "marketplace" | "groups" | "live" | "codes";
 type NotificationFilter = "all" | "unread";
 
 type NotificationRow = {
@@ -205,7 +225,9 @@ function Index() {
   useEffect(() => {
     const sync = () => {
       try {
-        setNotInterested(new Set(JSON.parse(localStorage.getItem("loop-not-interested") || "[]") as string[]));
+        setNotInterested(
+          new Set(JSON.parse(localStorage.getItem("loop-not-interested") || "[]") as string[]),
+        );
       } catch {
         /* ignore */
       }
@@ -287,7 +309,10 @@ function Index() {
   }, [liveWatchHost]);
 
   useEffect(() => {
-    const q = query.trim().replace(/^@/, "").replace(/[%,()]/g, "");
+    const q = query
+      .trim()
+      .replace(/^@/, "")
+      .replace(/[%,()]/g, "");
     if (!q) {
       setUserResults([]);
       return;
@@ -315,32 +340,29 @@ function Index() {
   // order on screen instead of the fresh shuffle.
   const loadingRef = useRef(false);
 
-  const load = useCallback(
-    (pageNum = 0, append = false) => {
-      if (loadingRef.current) return;
-      loadingRef.current = true;
-      setLoadingMore(true);
-      fetchVideos(pageNum, feedPageSize())
-        .then((v: any) => {
-          if (!v || v.length === 0) setHasMore(false);
+  const load = useCallback((pageNum = 0, append = false) => {
+    if (loadingRef.current) return;
+    loadingRef.current = true;
+    setLoadingMore(true);
+    fetchVideos(pageNum, feedPageSize())
+      .then((v: any) => {
+        if (!v || v.length === 0) setHasMore(false);
+        else {
+          if (append) setVideos((prev: any) => [...(prev || []), ...v]);
           else {
-            if (append) setVideos((prev: any) => [...(prev || []), ...v]);
-            else {
-              setVideos(v);
-              writeFeedCache(v);
-            }
-            setPage(pageNum + 1);
+            setVideos(v);
+            writeFeedCache(v);
           }
-          setError(false);
-        })
-        .catch(() => setError(true))
-        .finally(() => {
-          loadingRef.current = false;
-          setLoadingMore(false);
-        });
-    },
-    [],
-  );
+          setPage(pageNum + 1);
+        }
+        setError(false);
+      })
+      .catch(() => setError(true))
+      .finally(() => {
+        loadingRef.current = false;
+        setLoadingMore(false);
+      });
+  }, []);
 
   const loadMore = () => {
     // `page === 0` means the first page has not landed yet — never append
@@ -354,7 +376,7 @@ function Index() {
       ([entry]) => {
         if (entry?.isIntersecting) loadMore();
       },
-      { threshold: 0.1 }
+      { threshold: 0.1 },
     );
     const el = document.getElementById("scroll-sentinel");
     if (el) observer.observe(el);
@@ -383,7 +405,9 @@ function Index() {
       if (el) el.scrollTop = 0;
     }, 300);
 
-    fetchMyLikes().then(setLiked).catch(() => {});
+    fetchMyLikes()
+      .then(setLiked)
+      .catch(() => {});
     const refresh = () =>
       listSaved()
         .then((s) => {
@@ -465,18 +489,28 @@ function Index() {
       .channel(`notifications:user=${auth.user.id}`)
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "notifications", filter: `target_user_id=eq.${auth.user.id}` },
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "notifications",
+          filter: `target_user_id=eq.${auth.user.id}`,
+        },
         (payload) => {
           setNotifications((cur) => [payload.new as NotificationRow, ...cur]);
-        }
+        },
       )
       .on(
         "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "notifications", filter: `target_user_id=eq.${auth.user.id}` },
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "notifications",
+          filter: `target_user_id=eq.${auth.user.id}`,
+        },
         (payload) => {
           const updated = payload.new as NotificationRow;
           setNotifications((cur) => cur.map((n) => (n.id === updated.id ? updated : n)));
-        }
+        },
       )
       .subscribe();
 
@@ -514,9 +548,14 @@ function Index() {
   const activeTab = offlineMode ? "saved" : tab;
 
   const shown = useMemo(() => {
-    let list = activeTab === "saved" ? saved : videos ?? [];
+    let list = activeTab === "saved" ? saved : (videos ?? []);
     const q = query.trim().toLowerCase();
-    if (q) list = list.filter((v) => parseCaption(v.caption).text.toLowerCase().includes(q) || v.username.toLowerCase().includes(q));
+    if (q)
+      list = list.filter(
+        (v) =>
+          parseCaption(v.caption).text.toLowerCase().includes(q) ||
+          v.username.toLowerCase().includes(q),
+      );
     // "Not interested" and blocked authors never come back in this browser.
     if (notInterested.size > 0) list = list.filter((v) => !notInterested.has(v.id));
     if (blocked.size > 0) list = list.filter((v) => !blocked.has(v.username));
@@ -527,7 +566,9 @@ function Index() {
       const extras = repostedFeed.filter(
         (v) =>
           !ids.has(v.id) &&
-          (!q || parseCaption(v.caption).text.toLowerCase().includes(q) || v.username.toLowerCase().includes(q)),
+          (!q ||
+            parseCaption(v.caption).text.toLowerCase().includes(q) ||
+            v.username.toLowerCase().includes(q)),
       );
       list = [...extras, ...own];
     }
@@ -535,10 +576,23 @@ function Index() {
     if (activeTab === "liked") list = list.filter((v) => liked.has(v.id));
     if (activeTab !== "saved") {
       list = list.filter((v) => v.username === me || !matchesKeyword(parseCaption(v.caption).text));
-      if (readBool("restricted")) list = list.filter((v) => !/\b(nsfw|18\+|gore|explicit)\b/i.test(v.caption ?? ""));
+      if (readBool("restricted"))
+        list = list.filter((v) => !/\b(nsfw|18\+|gore|explicit)\b/i.test(v.caption ?? ""));
     }
     return list;
-  }, [videos, saved, query, activeTab, liked, me, followingList, feedTab, repostedFeed, notInterested, blocked]);
+  }, [
+    videos,
+    saved,
+    query,
+    activeTab,
+    liked,
+    me,
+    followingList,
+    feedTab,
+    repostedFeed,
+    notInterested,
+    blocked,
+  ]);
 
   // Who reposted what — one batched query per feed page. The label names a
   // person you follow when possible, otherwise the newest reposter.
@@ -584,7 +638,9 @@ function Index() {
     key: auth.user?.id ?? null,
   });
 
-  const showTopTabs = !offlineMode && (activeTab === "foryou" || activeTab === "following" || activeTab === "explore");
+  const showTopTabs =
+    !offlineMode &&
+    (activeTab === "foryou" || activeTab === "following" || activeTab === "explore");
   const topTab =
     activeTab === "shop" || activeTab === "subscriptions"
       ? activeTab
@@ -613,9 +669,15 @@ function Index() {
   const TopTabs = ({ className = "" }: { className?: string }) => (
     <div className={`${className} ${christmas ? "christmas-tabs" : ""}`}>
       {christmas && <ChristmasLights />}
-      <button onClick={() => pickFeedTab("home")} className={tabClass("home")}>Home</button>
-      <button onClick={() => pickFeedTab("following")} className={tabClass("following")}>Following</button>
-      <button onClick={() => pickFeedTab("foryou")} className={tabClass("foryou")}>For You</button>
+      <button onClick={() => pickFeedTab("home")} className={tabClass("home")}>
+        Home
+      </button>
+      <button onClick={() => pickFeedTab("following")} className={tabClass("following")}>
+        Following
+      </button>
+      <button onClick={() => pickFeedTab("foryou")} className={tabClass("foryou")}>
+        For You
+      </button>
       {/* Full-length videos live on their own YouTube-style page, not in the feed. */}
       <button onClick={() => void navigate({ to: "/videos" })} className={tabClass("videos")}>
         <Play className="size-3.5 fill-current" />
@@ -627,13 +689,18 @@ function Index() {
         <Music className="size-3.5" />
         Music
       </button>
-      {/* The in-app browser: Google-style search, site tabs, history, bookmarks. */}
+      {/* The in-app browser: a Coolerup-branded search + web view, not a
+          Google embed. History and bookmarks live under /browser. */}
       <button onClick={() => void navigate({ to: "/browser" })} className={tabClass("browser")}>
         <Globe className="size-3.5" />
-        Browser
+        Coolerup Browser
       </button>
-      <button onClick={() => pickFeedTab("marketplace")} className={tabClass("marketplace")}>Marketplace</button>
-      <button onClick={() => pickFeedTab("groups")} className={tabClass("groups")}>Groups</button>
+      <button onClick={() => pickFeedTab("marketplace")} className={tabClass("marketplace")}>
+        Marketplace
+      </button>
+      <button onClick={() => pickFeedTab("groups")} className={tabClass("groups")}>
+        Groups
+      </button>
       <button onClick={() => pickFeedTab("live")} className={tabClass("live")}>
         <span className="h-2 w-2 rounded-full bg-red-500" />
         LIVE
@@ -645,8 +712,12 @@ function Index() {
           Codes
         </button>
       )}
-      <button onClick={() => pickFeedTab("explore")} className={tabClass("explore")}>Explore</button>
-      <button onClick={() => setTab("shop")} className={tabClass("shop")}>Shop</button>
+      <button onClick={() => pickFeedTab("explore")} className={tabClass("explore")}>
+        Explore
+      </button>
+      <button onClick={() => setTab("shop")} className={tabClass("shop")}>
+        Shop
+      </button>
     </div>
   );
   const topTabsClass =
@@ -657,7 +728,9 @@ function Index() {
   const tabClass = (t: string) =>
     `flex items-center gap-1 border-b-2 pb-1 text-[15px] ${topTab === t ? "border-white font-bold text-white" : "border-transparent text-white/60"}`;
 
-  const [title, sub] = query ? [`Results for "${query}"`, `${shown.length} videos`] : HEADERS[activeTab];
+  const [title, sub] = query
+    ? [`Results for "${query}"`, `${shown.length} videos`]
+    : HEADERS[activeTab];
 
   // Stable callbacks so memoized VideoCards don't re-render on every feed update.
   const handleLikeChange = useCallback((videoId: string, on: boolean) => {
@@ -671,7 +744,11 @@ function Index() {
   const handleToggleMute = useCallback(() => setMuted((m) => !m), []);
   const handleFollowChange = useCallback((username: string, following: boolean) => {
     setFollowingList((list) =>
-      following ? (list.includes(username) ? list : [...list, username]) : list.filter((u) => u !== username),
+      following
+        ? list.includes(username)
+          ? list
+          : [...list, username]
+        : list.filter((u) => u !== username),
     );
   }, []);
   const handleSavedChange = useCallback((videoId: string, saved: boolean) => {
@@ -696,7 +773,9 @@ function Index() {
               )}
             </span>
           </h1>
-          <p className="mt-1 text-[11px] font-bold tracking-[0.3em] text-muted-foreground">A LITTLE MORE YOU</p>
+          <p className="mt-1 text-[11px] font-bold tracking-[0.3em] text-muted-foreground">
+            A LITTLE MORE YOU
+          </p>
         </div>
 
         <button
@@ -714,7 +793,9 @@ function Index() {
               <button
                 onClick={() => setTab(id)}
                 className={`flex items-center gap-3 rounded-xl px-4 py-3 text-left font-bold transition ${
-                  activeTab === id ? "bg-primary/10 text-primary" : "text-foreground hover:bg-secondary"
+                  activeTab === id
+                    ? "bg-primary/10 text-primary"
+                    : "text-foreground hover:bg-secondary"
                 }`}
               >
                 <Icon className="h-5 w-5" />
@@ -732,7 +813,9 @@ function Index() {
         </nav>
 
         <button
-          onClick={() => guardOnboarding(() => (auth.user ? setCreateMenuOpen(true) : auth.signIn()))}
+          onClick={() =>
+            guardOnboarding(() => (auth.user ? setCreateMenuOpen(true) : auth.signIn()))
+          }
           className="flex items-center justify-center gap-2 rounded-full create-pink py-3.5 font-bold shadow-[0_10px_30px_-10px_#ec4899] transition hover:brightness-95"
         >
           <Plus className="h-5 w-5" /> Create
@@ -751,7 +834,11 @@ function Index() {
               <p className="text-muted-foreground">Signed in as</p>
               <p className="truncate font-bold">{auth.name}</p>
             </div>
-            <button onClick={auth.signOut} aria-label="Sign out" className="text-muted-foreground hover:text-foreground">
+            <button
+              onClick={auth.signOut}
+              aria-label="Sign out"
+              className="text-muted-foreground hover:text-foreground"
+            >
               <LogOut className="h-4 w-4" />
             </button>
           </div>
@@ -824,7 +911,9 @@ function Index() {
 
         {query.trim() && userResults.length > 0 && (
           <div className="shrink-0 border-b bg-sidebar px-4 py-3 md:px-10">
-            <p className="mb-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">Users</p>
+            <p className="mb-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">
+              Users
+            </p>
             <div className="flex flex-col gap-1">
               {userResults.map((u) => (
                 <Link
@@ -835,14 +924,20 @@ function Index() {
                 >
                   <span className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-secondary font-bold uppercase">
                     {u.avatar_url ? (
-                      <img src={u.avatar_url} alt={u.display_name || u.handle!} className="h-full w-full object-cover" />
+                      <img
+                        src={u.avatar_url}
+                        alt={u.display_name || u.handle!}
+                        className="h-full w-full object-cover"
+                      />
                     ) : (
                       u.handle![0]
                     )}
                   </span>
                   <span className="min-w-0">
                     <span className="block truncate font-bold">{u.display_name || u.handle}</span>
-                    <span className="block truncate text-sm text-muted-foreground">@{u.handle}</span>
+                    <span className="block truncate text-sm text-muted-foreground">
+                      @{u.handle}
+                    </span>
                   </span>
                 </Link>
               ))}
@@ -888,15 +983,15 @@ function Index() {
           <div className="flex min-h-0 flex-1 flex-col">
             <TopTabs className="flex shrink-0 justify-center gap-3 overflow-x-auto bg-black px-3 pb-2 pt-[calc(env(safe-area-inset-top)+5.5rem)] no-scrollbar [&>button]:shrink-0 [&>button]:whitespace-nowrap md:hidden" />
             <div className="min-h-0 flex-1 overflow-y-auto">
-            {activeTab === "subscriptions" ? (
-              <Suspense fallback={null}>
-                <SubscriptionsPanel handle={me} onSignIn={auth.signIn} />
-              </Suspense>
-            ) : (
-              <Suspense fallback={null}>
-                <ShopPanel handle={me} posts={myPostCount} />
-              </Suspense>
-            )}
+              {activeTab === "subscriptions" ? (
+                <Suspense fallback={null}>
+                  <SubscriptionsPanel handle={me} onSignIn={auth.signIn} />
+                </Suspense>
+              ) : (
+                <Suspense fallback={null}>
+                  <ShopPanel handle={me} posts={myPostCount} />
+                </Suspense>
+              )}
             </div>
           </div>
         ) : activeTab === "foryou" && feedTab === "groups" && !offlineMode ? (
@@ -935,7 +1030,10 @@ function Index() {
                       Mark all read
                     </Button>
                   )}
-                  <Link to="/messages" className="flex items-center gap-3 rounded-xl px-4 py-3 font-bold transition hover:bg-secondary">
+                  <Link
+                    to="/messages"
+                    className="flex items-center gap-3 rounded-xl px-4 py-3 font-bold transition hover:bg-secondary"
+                  >
                     <MessageCircle className="h-5 w-5" />
                     Messages
                   </Link>
@@ -978,114 +1076,130 @@ function Index() {
           </div>
         ) : (
           <>
-            <header className={`shrink-0 px-4 pb-2 pt-[calc(env(safe-area-inset-top)+5.75rem)] md:px-10 md:pb-2 md:pt-6 ${showTopTabs ? "hidden md:block" : ""}`}>
+            <header
+              className={`shrink-0 px-4 pb-2 pt-[calc(env(safe-area-inset-top)+5.75rem)] md:px-10 md:pb-2 md:pt-6 ${showTopTabs ? "hidden md:block" : ""}`}
+            >
               <h2 className="break-words font-display text-base md:text-3xl">{title}</h2>
               <p className="hidden text-sm text-muted-foreground md:block">{sub}</p>
             </header>
 
-            {christmas && !challengeHidden && activeTab === "foryou" && feedTab === "foryou" && !offlineMode && !query.trim() && (
-              <div className="christmas-banner relative mx-3 mb-2 flex shrink-0 items-center gap-2.5 rounded-2xl px-3 py-2.5 text-white shadow-lg md:mx-10">
-                <span className="text-2xl" aria-hidden>
-                  🎄
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-[13px] font-bold leading-tight">
-                    #CoolerupChristmas Challenge: Post Christmas video!
-                  </p>
-                  <p className="text-[11px] leading-tight text-white/80">Nov 15 2026 – Jan 1 2027</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => guardOnboarding(() => (auth.user ? setRecordingOpen(true) : auth.signIn()))}
-                  className="shrink-0 rounded-full bg-white px-3 py-1.5 text-[11px] font-bold text-black transition hover:bg-white/90"
-                >
-                  Post
-                </button>
-                <button
-                  type="button"
-                  aria-label="Dismiss Christmas challenge"
-                  onClick={() => {
-                    setChallengeHidden(true);
-                    try {
-                      window.sessionStorage.setItem("loop-christmas-challenge-hidden", "1");
-                    } catch {
-                      /* ignore */
+            {christmas &&
+              !challengeHidden &&
+              activeTab === "foryou" &&
+              feedTab === "foryou" &&
+              !offlineMode &&
+              !query.trim() && (
+                <div className="christmas-banner relative mx-3 mb-2 flex shrink-0 items-center gap-2.5 rounded-2xl px-3 py-2.5 text-white shadow-lg md:mx-10">
+                  <span className="text-2xl" aria-hidden>
+                    🎄
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[13px] font-bold leading-tight">
+                      #CoolerupChristmas Challenge: Post Christmas video!
+                    </p>
+                    <p className="text-[11px] leading-tight text-white/80">
+                      Nov 15 2026 – Jan 1 2027
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      guardOnboarding(() => (auth.user ? setRecordingOpen(true) : auth.signIn()))
                     }
-                  }}
-                  className="shrink-0 text-white/70 transition hover:text-white"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-            )}
+                    className="shrink-0 rounded-full bg-white px-3 py-1.5 text-[11px] font-bold text-black transition hover:bg-white/90"
+                  >
+                    Post
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Dismiss Christmas challenge"
+                    onClick={() => {
+                      setChallengeHidden(true);
+                      try {
+                        window.sessionStorage.setItem("loop-christmas-challenge-hidden", "1");
+                      } catch {
+                        /* ignore */
+                      }
+                    }}
+                    className="shrink-0 text-white/70 transition hover:text-white"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
 
             <div className="relative flex min-h-0 flex-1 flex-col">
-            {showTopTabs && (
-              <TopTabs className={`${topTabsClass} md:hidden`} />
-            )}
-            <div
-              className="no-scrollbar min-h-0 flex-1 snap-y snap-mandatory overflow-y-scroll overscroll-contain scroll-smooth"
-            >
-              {error && !offlineMode && !(videos && videos.length > 0) && (
-                <Empty text="Couldn't load videos. Refresh to try again." />
-              )}
-              {!error && videos === null && activeTab !== "saved" && <Empty text="Loading your feed..." />}
-              {(videos || activeTab === "saved") && shown.length === 0 && (
-                <Empty
-                  text={
-                    activeTab === "saved"
-                      ? "No saved videos yet. Tap Share → Save for offline on any video."
-                      : activeTab === "foryou" && feedTab === "live"
-                        ? "No LIVE now"
-                        : activeTab === "following"
-                          ? "Follow creators to see their videos here."
-                          : "Nothing here yet."
-                  }
-                />
-              )}
-              {shown.map((v) => (
-                <VideoCard
-                  key={`${activeTab}-${v.id}`}
-                  video={v}
-                  liked={liked.has(v.id)}
-                  muted={muted}
-                  onToggleMute={handleToggleMute}
-                  onLikeChange={handleLikeChange}
-                  isFollowing={followingList.includes(v.username)}
-                  onFollowChange={handleFollowChange}
-                  isSaved={savedIds.has(v.id)}
-                  onSavedChange={handleSavedChange}
-                  repostedBy={repostBy.get(v.id) ?? v.reposted_by ?? null}
-                  posterUsername={v.poster_username ?? v.username}
-                />
-              ))}
-              <div id="scroll-sentinel" className="h-10 w-full" />
-            </div>
+              {showTopTabs && <TopTabs className={`${topTabsClass} md:hidden`} />}
+              <div className="no-scrollbar min-h-0 flex-1 snap-y snap-mandatory overflow-y-scroll overscroll-contain scroll-smooth">
+                {error && !offlineMode && !(videos && videos.length > 0) && (
+                  <Empty text="Couldn't load videos. Refresh to try again." />
+                )}
+                {!error && videos === null && activeTab !== "saved" && (
+                  <Empty text="Loading your feed..." />
+                )}
+                {(videos || activeTab === "saved") && shown.length === 0 && (
+                  <Empty
+                    text={
+                      activeTab === "saved"
+                        ? "No saved videos yet. Tap Share → Save for offline on any video."
+                        : activeTab === "foryou" && feedTab === "live"
+                          ? "No LIVE now"
+                          : activeTab === "following"
+                            ? "Follow creators to see their videos here."
+                            : "Nothing here yet."
+                    }
+                  />
+                )}
+                {shown.map((v) => (
+                  <VideoCard
+                    key={`${activeTab}-${v.id}`}
+                    video={v}
+                    liked={liked.has(v.id)}
+                    muted={muted}
+                    onToggleMute={handleToggleMute}
+                    onLikeChange={handleLikeChange}
+                    isFollowing={followingList.includes(v.username)}
+                    onFollowChange={handleFollowChange}
+                    isSaved={savedIds.has(v.id)}
+                    onSavedChange={handleSavedChange}
+                    repostedBy={repostBy.get(v.id) ?? v.reposted_by ?? null}
+                    posterUsername={v.poster_username ?? v.username}
+                  />
+                ))}
+                <div id="scroll-sentinel" className="h-10 w-full" />
+              </div>
             </div>
           </>
         )}
 
-        <nav aria-label="Phone navigation" className="mobile-top-nav grid shrink-0 grid-cols-5 place-items-center w-full gap-0 border-0 bg-black px-0 rounded-none md:hidden">
-          {NAV.filter((n) => n.id === "foryou" || n.id === "following").map(({ id, label, icon: Icon }) => (
-            <Button
-              key={id}
-              variant="ghost"
-              onClick={() => {
-                setTab(id);
-                if (id === "foryou") setFeedTab("foryou");
-              }}
-              aria-current={activeTab === id ? "page" : undefined}
-              className={`h-14 min-w-0 flex-col gap-1 rounded-none px-0 text-[9px] ${
-                activeTab === id ? "text-primary" : "text-muted-foreground"
-              }`}
-            >
-              <Icon className="h-5 w-5" />
-              {label}
-            </Button>
-          ))}
+        <nav
+          aria-label="Phone navigation"
+          className="mobile-top-nav grid shrink-0 grid-cols-5 place-items-center w-full gap-0 border-0 bg-black px-0 rounded-none md:hidden"
+        >
+          {NAV.filter((n) => n.id === "foryou" || n.id === "following").map(
+            ({ id, label, icon: Icon }) => (
+              <Button
+                key={id}
+                variant="ghost"
+                onClick={() => {
+                  setTab(id);
+                  if (id === "foryou") setFeedTab("foryou");
+                }}
+                aria-current={activeTab === id ? "page" : undefined}
+                className={`h-14 min-w-0 flex-col gap-1 rounded-none px-0 text-[9px] ${
+                  activeTab === id ? "text-primary" : "text-muted-foreground"
+                }`}
+              >
+                <Icon className="h-5 w-5" />
+                {label}
+              </Button>
+            ),
+          )}
           <Button
             aria-label="Create video or go live"
-            onClick={() => guardOnboarding(() => (auth.user ? setCreateMenuOpen(true) : auth.signIn()))}
+            onClick={() =>
+              guardOnboarding(() => (auth.user ? setCreateMenuOpen(true) : auth.signIn()))
+            }
             style={{ backgroundColor: "#ec4899", color: "#ffffff" }}
             className="m-auto h-9 w-10 rounded-lg px-0 hover:brightness-95 [&_svg]:size-6"
           >
@@ -1190,30 +1304,40 @@ function Index() {
         </Suspense>
       )}
 
-      {photoOpen && <Suspense fallback={null}><PhotoDialog
-        open={photoOpen}
-        onOpenChange={setPhotoOpen}
-        username={auth.handle}
-        onPosted={() => {
-          setTab("foryou");
-          load();
-        }}
-      /></Suspense>}
+      {photoOpen && (
+        <Suspense fallback={null}>
+          <PhotoDialog
+            open={photoOpen}
+            onOpenChange={setPhotoOpen}
+            username={auth.handle}
+            onPosted={() => {
+              setTab("foryou");
+              load();
+            }}
+          />
+        </Suspense>
+      )}
 
-      {recordingOpen && <Suspense fallback={null}><RecordDialog
-        open={recordingOpen}
-        onOpenChange={setRecordingOpen}
-        username={auth.handle}
-        onUploadInstead={() => setUploading(true)}
-        onPosted={() => {
-          setTab("foryou");
-          load();
-        }}
-      /></Suspense>}
+      {recordingOpen && (
+        <Suspense fallback={null}>
+          <RecordDialog
+            open={recordingOpen}
+            onOpenChange={setRecordingOpen}
+            username={auth.handle}
+            onUploadInstead={() => setUploading(true)}
+            onPosted={() => {
+              setTab("foryou");
+              load();
+            }}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }
 
 function Empty({ text }: { text: string }) {
-  return <div className="flex h-full items-center justify-center text-muted-foreground">{text}</div>;
+  return (
+    <div className="flex h-full items-center justify-center text-muted-foreground">{text}</div>
+  );
 }

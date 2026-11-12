@@ -5,6 +5,8 @@ import {
   ArrowLeft,
   ArrowRight,
   Bookmark,
+  ChevronLeft,
+  ChevronRight,
   Clock,
   ExternalLink,
   Globe2,
@@ -36,6 +38,8 @@ import {
   prettyUrl,
   saveHistory,
   siteById,
+  stripEdges,
+  stripStep,
   urlForSite,
   youtubeIdFromBrowserUrl,
   type BrowserBookmarkRow,
@@ -330,21 +334,89 @@ export function CoolerupBrowser() {
   const activeSiteId = useMemo(() => {
     if (!entry || entry.kind === "home" || entry.kind === "results") return "coolerup";
     try {
-      const host = new URL(entry.url).hostname.replace(/^www\./, "");
-      const match = COOLERUP_TABS.find((site) => {
-        if (site.id === "coolerup") return false;
+      const url = new URL(entry.url);
+      const host = url.hostname.replace(/^www\./, "");
+      // Several taps share a host (google.com serves Images and Maps), so a path
+      // match has to beat a bare host match.
+      let best: { id: string; score: number } | null = null;
+      let candidates = 0;
+      for (const site of COOLERUP_TABS) {
+        if (site.id === "coolerup") continue;
+        let home: URL;
         try {
-          const home = new URL(site.home).hostname.replace(/^www\./, "");
-          return host === home || host.endsWith(`.${home}`);
+          home = new URL(site.home);
         } catch {
-          return false;
+          continue;
         }
-      });
-      return match?.id ?? "coolerup";
+        const homeHost = home.hostname.replace(/^www\./, "");
+        if (host !== homeHost && !host.endsWith(`.${homeHost}`)) continue;
+        candidates += 1;
+        const prefix = home.pathname.replace(/\/$/, "");
+        const score = prefix && url.pathname.startsWith(prefix) ? prefix.length + 100 : 0;
+        if (!best || score > best.score) best = { id: site.id, score };
+      }
+      if (!best) return "coolerup";
+      if (best.score > 0 || candidates === 1) return best.id;
+      return "coolerup";
     } catch {
       return "coolerup";
     }
   }, [entry]);
+
+  /* ---- Top tab strip: one row, scrolls left/right with visible arrows ---- */
+
+  const stripRef = useRef<HTMLDivElement | null>(null);
+  const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const [stripEnds, setStripEnds] = useState({ atStart: true, atEnd: false });
+
+  const measureStrip = useCallback(() => {
+    const strip = stripRef.current;
+    if (!strip) return;
+    setStripEnds(stripEdges(strip.scrollLeft, strip.scrollWidth, strip.clientWidth));
+  }, []);
+
+  useEffect(() => {
+    measureStrip();
+    const strip = stripRef.current;
+    if (!strip || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measureStrip);
+    observer.observe(strip);
+    return () => observer.disconnect();
+  }, [measureStrip]);
+
+  // Keep the active tap in view whenever the site changes.
+  useEffect(() => {
+    const strip = stripRef.current;
+    const index = COOLERUP_TABS.findIndex((site) => site.id === activeSiteId);
+    const tab = tabRefs.current[index];
+    if (!strip || !tab) return;
+    const stripRect = strip.getBoundingClientRect();
+    const tabRect = tab.getBoundingClientRect();
+    const tabStart = tabRect.left - stripRect.left + strip.scrollLeft;
+    const target = tabStart - (strip.clientWidth - tabRect.width) / 2;
+    strip.scrollTo({ left: Math.max(0, target), behavior: "smooth" });
+  }, [activeSiteId]);
+
+  const stepStrip = (direction: "left" | "right") => {
+    const strip = stripRef.current;
+    if (!strip) return;
+    // Measure against the strip itself: offsetLeft is relative to the page, not the scroller.
+    const stripRect = strip.getBoundingClientRect();
+    const tabs = tabRefs.current.map((tab) => {
+      if (!tab) return { left: 0, width: 0 };
+      const rect = tab.getBoundingClientRect();
+      return { left: rect.left - stripRect.left + strip.scrollLeft, width: rect.width };
+    });
+    const next = stripStep(tabs, strip.clientWidth, strip.scrollLeft, direction);
+    strip.scrollTo({ left: next.scrollLeft, behavior: "smooth" });
+  };
+
+  const stripMask = `linear-gradient(to right, ${
+    stripEnds.atStart ? "black" : "transparent"
+  } 0, black 22px, black calc(100% - 22px), ${stripEnds.atEnd ? "black" : "transparent"} 100%)`;
+
+  const arrowClass =
+    "flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/15 text-white transition hover:bg-white/25 disabled:bg-white/5 disabled:text-white/30";
 
   const controlClass =
     "flex h-8 w-8 items-center justify-center rounded-full bg-[#2563EB] text-white shadow-sm ring-1 ring-white/10 transition hover:bg-[#1d4fc4] disabled:bg-white/10 disabled:text-white/25 disabled:ring-0";
@@ -432,16 +504,36 @@ export function CoolerupBrowser() {
           </form>
         </div>
 
-        {/* Site strip — wraps, so no tap is ever cut off */}
-        <div className="mx-auto max-w-2xl px-3 pb-2">
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-            {COOLERUP_TABS.map((site) => (
+        {/* Site strip — one row, stepped left/right with the arrows on each end */}
+        <div className="mx-auto flex max-w-2xl items-center gap-1 px-2 pb-2">
+          <button
+            type="button"
+            onClick={() => stepStrip("left")}
+            disabled={stripEnds.atStart}
+            aria-label="Show earlier tabs"
+            data-tab-arrow="left"
+            className={arrowClass}
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+
+          <div
+            ref={stripRef}
+            data-testid="tab-strip"
+            onScroll={measureStrip}
+            style={{ maskImage: stripMask, WebkitMaskImage: stripMask }}
+            className="no-scrollbar flex flex-1 snap-x snap-mandatory items-center gap-1 overflow-x-auto scroll-smooth"
+          >
+            {COOLERUP_TABS.map((site, index) => (
               <button
                 key={site.id}
+                ref={(node) => {
+                  tabRefs.current[index] = node;
+                }}
                 type="button"
                 onClick={() => pickTab(site.id)}
                 aria-pressed={activeSiteId === site.id}
-                className={`shrink-0 border-b-2 pb-1.5 text-[13px] font-semibold ${
+                className={`shrink-0 snap-start whitespace-nowrap border-b-2 px-2 pb-1.5 text-[13px] font-semibold ${
                   activeSiteId === site.id
                     ? "border-white text-white"
                     : "border-transparent text-white/60"
@@ -456,6 +548,17 @@ export function CoolerupBrowser() {
               </button>
             ))}
           </div>
+
+          <button
+            type="button"
+            onClick={() => stepStrip("right")}
+            disabled={stripEnds.atEnd}
+            aria-label="Show later tabs"
+            data-tab-arrow="right"
+            className={arrowClass}
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
         </div>
       </div>
 

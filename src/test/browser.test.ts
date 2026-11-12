@@ -2,11 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import {
   COOLERUP_TABS,
-  GOOGLE_IMAGES,
-  GOOGLE_SEARCH,
-  SHORTCUTS,
   displayTitle,
   embedUrlFor,
+  GOOGLE_IMAGES,
+  GOOGLE_SEARCH,
   hostLabel,
   isAllowedDownload,
   isBlockedUrl,
@@ -14,7 +13,11 @@ import {
   isInternalUrl,
   parseInput,
   prettyUrl,
+  SHORTCUTS,
   siteById,
+  stripEdges,
+  stripMaxScroll,
+  stripStep,
   tiktokVideoId,
   urlForSite,
   youtubeIdFromBrowserUrl,
@@ -217,5 +220,53 @@ describe("proxy-first framing", () => {
   it("still frames the handful of hosts that allow it", () => {
     expect(isEmbeddable("https://en.wikipedia.org/wiki/Cat")).toBe(true);
     expect(isEmbeddable("https://www.openstreetmap.org/")).toBe(true);
+  });
+});
+
+describe("top tab strip", () => {
+  // Seven taps, ~78px each, in a 200px window: only the first two and a bit fit.
+  const tabs = Array.from({ length: 7 }, (_, i) => ({ left: i * 78, width: 78 }));
+  const contentWidth = 7 * 78;
+
+  it("knows how far it can scroll", () => {
+    expect(stripMaxScroll(contentWidth, 200)).toBe(contentWidth - 200);
+    expect(stripMaxScroll(200, 400)).toBe(0);
+  });
+
+  it("reports the ends so the arrows can disable themselves", () => {
+    expect(stripEdges(0, contentWidth, 200)).toEqual({ atStart: true, atEnd: false });
+    expect(stripEdges(stripMaxScroll(contentWidth, 200), contentWidth, 200)).toEqual({
+      atStart: false,
+      atEnd: true,
+    });
+    expect(stripEdges(100, contentWidth, 200)).toEqual({ atStart: false, atEnd: false });
+  });
+
+  it("steps right to the first tab that is not fully visible", () => {
+    // 0..200 shows tabs 0 and 1 fully (tab 1 ends at 156), tab 2 is clipped.
+    expect(stripStep(tabs, 200, 0, "right")).toEqual({ scrollLeft: 156, index: 2 });
+  });
+
+  it("steps left back to the previous hidden tab", () => {
+    expect(stripStep(tabs, 200, 156, "left")).toEqual({ scrollLeft: 78, index: 1 });
+    expect(stripStep(tabs, 200, 78, "left")).toEqual({ scrollLeft: 0, index: 0 });
+  });
+
+  it("clamps at both ends instead of scrolling into empty space", () => {
+    const max = stripMaxScroll(contentWidth, 200);
+    expect(stripStep(tabs, 200, 0, "left").scrollLeft).toBe(0);
+    expect(stripStep(tabs, 200, max, "right").scrollLeft).toBe(max);
+  });
+
+  it("walks all the way to the last tab", () => {
+    let scrollLeft = 0;
+    const visited = new Set<number>([0]);
+    for (let i = 0; i < 10; i += 1) {
+      const next = stripStep(tabs, 200, scrollLeft, "right");
+      visited.add(next.index);
+      if (next.scrollLeft === scrollLeft) break;
+      scrollLeft = next.scrollLeft;
+    }
+    expect(visited.has(6)).toBe(true);
   });
 });

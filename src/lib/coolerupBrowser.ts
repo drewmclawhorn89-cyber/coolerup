@@ -111,6 +111,65 @@ export function urlForSite(site: BrowserSite, query = ""): string {
 }
 
 /* -------------------------------------------------------------------------- */
+/* Top tab strip — horizontal stepping                                        */
+/* -------------------------------------------------------------------------- */
+
+/** One tab as the strip lays it out: distance from the content's left edge, plus width. */
+export type StripTab = { left: number; width: number };
+
+/** How far the strip can scroll before it hits the end. */
+export function stripMaxScroll(contentWidth: number, viewport: number): number {
+  return Math.max(0, contentWidth - viewport);
+}
+
+/** Whether the strip is already hard against either end. */
+export function stripEdges(
+  scrollLeft: number,
+  contentWidth: number,
+  viewport: number,
+): { atStart: boolean; atEnd: boolean } {
+  const max = stripMaxScroll(contentWidth, viewport);
+  return { atStart: scrollLeft <= 1, atEnd: scrollLeft >= max - 1 };
+}
+
+/**
+ * Where the strip should scroll to when the user taps the left or right arrow.
+ *
+ * "right" jumps to the first tab that is not fully visible at the right edge;
+ * "left" jumps to the last tab that is not fully visible at the left edge.
+ * Either way the target tab is aligned with the start of the viewport and the
+ * result is clamped so the strip never scrolls past its ends.
+ */
+export function stripStep(
+  tabs: StripTab[],
+  viewport: number,
+  scrollLeft: number,
+  direction: "left" | "right",
+): { scrollLeft: number; index: number } {
+  const max = stripMaxScroll(
+    tabs.reduce((end, tab) => Math.max(end, tab.left + tab.width), 0),
+    viewport,
+  );
+  const clamped = Math.min(Math.max(scrollLeft, 0), max);
+
+  if (direction === "right") {
+    const index = tabs.findIndex((tab) => tab.left + tab.width > clamped + viewport + 1);
+    if (index === -1) return { scrollLeft: max, index: tabs.length - 1 };
+    return { scrollLeft: Math.min(max, tabs[index]!.left), index };
+  }
+
+  // "left" mirrors it: jump back to the last tab that has scrolled fully past the
+  // left edge, so one tap back undoes roughly one tap forward.
+  let index = -1;
+  for (let i = 0; i < tabs.length; i += 1) {
+    if (tabs[i]!.left + tabs[i]!.width <= clamped + 1) index = i;
+    else break;
+  }
+  if (index === -1) return { scrollLeft: 0, index: 0 };
+  return { scrollLeft: Math.min(max, tabs[index]!.left), index };
+}
+
+/* -------------------------------------------------------------------------- */
 /* Home page shortcuts                                                        */
 /* -------------------------------------------------------------------------- */
 

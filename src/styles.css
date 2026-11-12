@@ -506,8 +506,13 @@
 }
 
 @keyframes gta6-palm-sway {
-  0%, 100% { transform: rotate(-7deg); }
-  50% { transform: rotate(7deg); }
+  0%,
+  100% {
+    transform: rotate(-7deg);
+  }
+  50% {
+    transform: rotate(7deg);
+  }
 }
 
 .gta6-countdown-cell {
@@ -530,7 +535,9 @@
 }
 
 .gta6-filter-chip {
-  box-shadow: 0 0 0 1px rgba(255, 46, 136, 0.65), 0 0 10px rgba(255, 46, 136, 0.45);
+  box-shadow:
+    0 0 0 1px rgba(255, 46, 136, 0.65),
+    0 0 10px rgba(255, 46, 136, 0.45);
 }
 
 /* Permanent "GTA 6 OG" badge on profiles. Kept after the event ends, so it is
@@ -740,8 +747,31 @@
   }
 }
 
+/* Floating hearts from the LIVE heart button — TikTok-style tap feedback. */
+.live-heart {
+  animation: live-heart-float 2.2s ease-out forwards;
+  will-change: transform, opacity;
+}
+@keyframes live-heart-float {
+  0% {
+    transform: translate3d(0, 0, 0) scale(0.4) rotate(-12deg);
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+    transform: translate3d(0, -10px, 0) scale(1.1) rotate(6deg);
+  }
+  100% {
+    transform: translate3d(var(--heart-drift, 0px), -220px, 0) scale(0.8) rotate(-8deg);
+    opacity: 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .gift-particle {
+    animation-duration: 1.2s;
+  }
+  .live-heart {
     animation-duration: 1.2s;
   }
   .gift-fly,

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, Pencil, X } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { EditProfileDialog, resolveAvatarUrl } from "@/components/EditProfileDialog";
+import { isImageUrl } from "@/lib/loop";
 import type { Profile as ProfileRow } from "@/hooks/useAuth";
 
 export const Route = createFileRoute("/u/$username")({
@@ -66,7 +67,11 @@ function Profile() {
         <div className="grid grid-cols-3 gap-1">
           {videos?.map((v, i) => (
             <button key={v.id} onClick={() => setOpen(i)} className="relative aspect-[9/16] overflow-hidden rounded-md bg-zinc-800">
-              <video src={`${v.video_url}#t=0.5`} muted playsInline preload="metadata" className="h-full w-full object-cover" />
+              {isImageUrl(v.video_url) ? (
+                <img src={v.video_url} alt={v.caption || ""} className="h-full w-full object-cover" />
+              ) : (
+                <video src={`${v.video_url}#t=0.5`} muted playsInline preload="metadata" className="h-full w-full object-cover" />
+              )}
               <div className="absolute bottom-1 left-1 text- text-white bg-black/50 px-1 rounded">♥ {v.likes_count || 0}</div>
             </button>
           ))}
@@ -81,7 +86,11 @@ function Profile() {
           <div className="h-dvh overflow-y-scroll snap-y snap-mandatory">
             {videos.map((v) => (
               <div key={v.id} className="h-dvh snap-start flex items-center justify-center">
-                <video src={v.video_url} className="h-full w-full object-cover" controls loop playsInline />
+                {isImageUrl(v.video_url) ? (
+                  <img src={v.video_url} alt={v.caption || ""} className="h-full w-full object-cover" />
+                ) : (
+                  <video src={v.video_url} className="h-full w-full object-cover" controls loop playsInline />
+                )}
               </div>
             ))}
           </div>

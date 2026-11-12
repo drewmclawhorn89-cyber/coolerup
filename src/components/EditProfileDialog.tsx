@@ -43,8 +43,14 @@ export function EditProfileDialog({ open, onOpenChange }: { open: boolean; onOpe
 
   const pickPhoto = (file: File | null) => {
     if (!file) return;
-    if (!file.type.startsWith("image/")) return toast.error("Pick an image file");
-    if (file.size > 5 * 1024 * 1024) return toast.error("Photos must be under 5 MB");
+    if (!file.type.startsWith("image/")) {
+      toast.error("Pick an image file");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Photos must be under 5 MB");
+      return;
+    }
     setPhoto(file);
     setPreview(URL.createObjectURL(file));
   };
@@ -52,8 +58,14 @@ export function EditProfileDialog({ open, onOpenChange }: { open: boolean; onOpe
   const save = async () => {
     if (!auth.user || !auth.profile) return;
     const name = displayName.trim();
-    if (name.length > 60) return toast.error("Display name must be 60 characters or less");
-    if (bio.length > 160) return toast.error("Bio must be 160 characters or less");
+    if (name.length > 60) {
+      toast.error("Display name must be 60 characters or less");
+      return;
+    }
+    if (bio.length > 160) {
+      toast.error("Bio must be 160 characters or less");
+      return;
+    }
     setSaving(true);
     try {
       let avatarUrl = auth.profile.avatar_url;
@@ -81,7 +93,7 @@ export function EditProfileDialog({ open, onOpenChange }: { open: boolean; onOpe
     }
   };
 
-  const initial = (displayName || auth.handle || "?")[0].toUpperCase();
+  const initial = (displayName || auth.handle || "?").charAt(0).toUpperCase() || "?";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

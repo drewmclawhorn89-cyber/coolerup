@@ -22,15 +22,16 @@ export const Route = createFileRoute("/")({
   component: Index,
 });
 
-type Tab = "foryou" | "explore" | "following" | "liked" | "saved" | "mine";
 
+type Tab = "foryou" | "explore" | "following" | "liked" | "offline" | "profile" | "messages" | "live";
 const NAV: { id: Tab; label: string; icon: typeof Home }[] = [
   { id: "foryou", label: "For You", icon: Home },
   { id: "explore", label: "Explore", icon: Compass },
+   { id: "live", label: "LIVE", icon: Radio },
   { id: "following", label: "Following", icon: Users },
-  { id: "liked", label: "Liked", icon: Heart },
-  { id: "saved", label: "Saved", icon: Download },
-  { id: "mine", label: "Your videos", icon: User },
+    { id: "messages", label: "Messages", icon: MessageCircle },
+  { id: "saved", label: "offline", icon: Download },
+  { id: "mine", label: "Profile", icon: User },
 ];
 
 
@@ -38,9 +39,9 @@ const HEADERS: Record<Tab, [string, string]> = {
   foryou: ["For You", "A fresh perspective with every scroll"],
   explore: ["Explore", "Most loved right now"],
   following: ["Following", "Creators you keep coming back to"],
-  liked: ["Liked", "Everything you've hearted"],
+  Liked: ["Liked", "Everything you've hearted"],
   saved: ["Saved", "Watch anytime, even without a connection"],
-  mine: ["Your videos", "Your point of view, on loop"],
+  mine: ["Profile", "Your loop"],
 };
 
 function Index() {
@@ -56,11 +57,23 @@ function Index() {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
-
-  const load = () =>
+{activeTab === "live" && (
+  <div className="w-full h-[calc(100vh-80px)] bg-black flex flex-col items-center justify-center text-white">
+    <div className="w-20 h-20 bg-red-600 rounded-full flex items-center justify-center animate-pulse mb-4">
+      <Radio className="w-10 h-10" />
+    </div>
+    <h2 className="text-2xl font-bold">LIVE</h2>
+    <p className="text-gray-400 mt-2">No one is live right now</p>
+    <button className="mt-6 px-6 py-2 bg-red-600 rounded-full font-bold">
+      Go Live
+    </button>
+  </div>
+)}
+  const load = () => 
     fetchVideos()
       .then((v) => {
-        setVideos(v);
+        const shuffled = [...v].sort(() => Math.random() - 0.5);
+        setVideos(shuffled);
         setError(false);
       })
       .catch(() => setError(true));

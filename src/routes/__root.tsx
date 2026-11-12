@@ -12,6 +12,8 @@ import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
+import { CallProvider } from "../lib/calls";
+import { CallOverlay } from "../components/CallOverlay";
 import { Toaster } from "sonner";
 
 function NotFoundComponent() {
@@ -127,8 +129,11 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-      <Outlet />
+      <CallProvider>
+        {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+        <Outlet />
+        <CallOverlay />
+      </CallProvider>
       <Toaster theme="dark" position="top-center" />
     </QueryClientProvider>
   );

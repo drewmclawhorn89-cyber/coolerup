@@ -220,34 +220,53 @@ export function Comments({
             <X className="h-5 w-5" />
           </button>
         </header>
-        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
-          {items === null && <p className="text-sm text-muted-foreground">Loading…</p>}
-          {loadError && (
-            <div className="space-y-2">
-              <p className="text-sm text-muted-foreground">Couldn't load comments: {loadError}</p>
-              <button
-                type="button"
-                onClick={() => void load()}
-                className="rounded-full bg-secondary px-4 py-1.5 text-xs font-bold"
-              >
-                Try again
-              </button>
-            </div>
-          )}
-          {!loadError && items?.length === 0 && (
-            <p className="text-sm text-muted-foreground">No comments yet. Be the first.</p>
-          )}
-          {topLevel.map((c) => (
-            <div key={c.id} className="space-y-3">
-              <CommentRow c={c} onReply={setReplyTo} onLike={likeComment} />
-              {repliesTo(c.id).map((r) => (
-                <div key={r.id} className="ml-11">
-                  <CommentRow c={r} onReply={setReplyTo} onLike={likeComment} />
-                </div>
-              ))}
-            </div>
-          ))}
-        </div>
+        {/* While the GIF picker (or the GIF maker inside it) is open it takes
+            the sheet's free space and the thread is hidden. Before this the
+            two shared a flex column, so on a phone the maker was squeezed
+            below the fold and its Create button could not be reached. */}
+        {showGifs ? (
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <GifPicker
+              fill
+              className="min-h-0 flex-1 overflow-hidden"
+              onPick={(u, meta) => {
+                setGif(u);
+                setGifCredit(meta?.username ? `@${meta.username}` : null);
+                setShowGifs(false);
+              }}
+              onClose={() => setShowGifs(false)}
+            />
+          </div>
+        ) : (
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
+            {items === null && <p className="text-sm text-muted-foreground">Loading…</p>}
+            {loadError && (
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">Couldn't load comments: {loadError}</p>
+                <button
+                  type="button"
+                  onClick={() => void load()}
+                  className="rounded-full bg-secondary px-4 py-1.5 text-xs font-bold"
+                >
+                  Try again
+                </button>
+              </div>
+            )}
+            {!loadError && items?.length === 0 && (
+              <p className="text-sm text-muted-foreground">No comments yet. Be the first.</p>
+            )}
+            {topLevel.map((c) => (
+              <div key={c.id} className="space-y-3">
+                <CommentRow c={c} onReply={setReplyTo} onLike={likeComment} />
+                {repliesTo(c.id).map((r) => (
+                  <div key={r.id} className="ml-11">
+                    <CommentRow c={r} onReply={setReplyTo} onLike={likeComment} />
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        )}
         {!handle ? (
           <div className="border-t p-4">
             <button
@@ -259,16 +278,6 @@ export function Comments({
           </div>
         ) : (
           <>
-            {showGifs && (
-              <GifPicker
-                onPick={(u, meta) => {
-                  setGif(u);
-                  setGifCredit(meta?.username ? `@${meta.username}` : null);
-                  setShowGifs(false);
-                }}
-                onClose={() => setShowGifs(false)}
-              />
-            )}
             {replyTo && (
               <div className="flex items-center justify-between border-t px-4 pt-3 text-xs text-muted-foreground">
                 <span>Replying to @{replyTo.username}</span>
@@ -298,28 +307,30 @@ export function Comments({
                 </button>
               </div>
             )}
-            <form onSubmit={submit} className="flex gap-2 border-t p-4">
-              <input
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                maxLength={300}
-                placeholder={replyTo ? `Reply to @${replyTo.username}…` : "Add a comment…"}
-                className="min-w-0 flex-1 rounded-full bg-secondary px-4 py-2 text-base outline-none focus:ring-2 focus:ring-ring sm:text-sm"
-              />
-              <button
-                type="button"
-                onClick={() => setShowGifs((v) => !v)}
-                className="rounded-full bg-secondary px-3 text-xs font-bold"
-              >
-                GIF
-              </button>
-              <button
-                disabled={busy || (!text.trim() && !gif)}
-                className="rounded-full bg-primary px-4 text-sm font-bold text-primary-foreground disabled:opacity-50"
-              >
-                Post
-              </button>
-            </form>
+            {!showGifs && (
+              <form onSubmit={submit} className="flex gap-2 border-t p-4">
+                <input
+                  value={text}
+                  onChange={(e) => setText(e.target.value)}
+                  maxLength={300}
+                  placeholder={replyTo ? `Reply to @${replyTo.username}…` : "Add a comment…"}
+                  className="min-w-0 flex-1 rounded-full bg-secondary px-4 py-2 text-base outline-none focus:ring-2 focus:ring-ring sm:text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowGifs((v) => !v)}
+                  className="rounded-full bg-secondary px-3 text-xs font-bold"
+                >
+                  GIF
+                </button>
+                <button
+                  disabled={busy || (!text.trim() && !gif)}
+                  className="rounded-full bg-primary px-4 text-sm font-bold text-primary-foreground disabled:opacity-50"
+                >
+                  Post
+                </button>
+              </form>
+            )}
           </>
         )}
       </aside>

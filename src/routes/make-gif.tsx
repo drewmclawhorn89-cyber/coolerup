@@ -40,7 +40,7 @@ function MakeGifPage() {
         </div>
       </div>
       <div className="rounded-2xl border bg-card">
-        <MakeGif onClose={() => navigate({ to: "/" })} className="border-t-0" />
+        <MakeGif onClose={() => navigate({ to: "/" })} className="border-t-0" expand />
       </div>
     </main>
   );

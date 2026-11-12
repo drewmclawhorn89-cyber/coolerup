@@ -45,6 +45,11 @@ const SubscriptionsPanel = lazy(() =>
 );
 
 export const Route = createFileRoute("/settings")({
+  // `?subscriptions=1` opens the plans screen directly — used by upgrade CTAs
+  // elsewhere in the app (e.g. the Music tab's locked Downloaded tab).
+  validateSearch: (search: Record<string, unknown>): { subscriptions?: boolean } => ({
+    subscriptions: search["subscriptions"] === true || search["subscriptions"] === "1",
+  }),
   head: () => ({
     meta: [
       { title: "Settings — Coolerup" },
@@ -73,7 +78,8 @@ function Settings() {
   const trialRunning = trial.active && !planUnlocked;
   const [editing, setEditing] = useState(false);
   // Subscriptions used to be its own top tab; it now opens from inside Settings.
-  const [showSubscriptions, setShowSubscriptions] = useState(false);
+  const { subscriptions: openSubscriptions } = Route.useSearch();
+  const [showSubscriptions, setShowSubscriptions] = useState(Boolean(openSubscriptions));
   const savePhone = () => {
     try {
       localStorage.setItem("settings:phone", phone);

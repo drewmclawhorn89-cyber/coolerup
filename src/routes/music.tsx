@@ -7,6 +7,7 @@ import {
   HardDriveDownload,
   Heart,
   Loader2,
+  Lock,
   Music2,
   Pause,
   Play,
@@ -29,6 +30,8 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { requestUseSound, YouTubeSongPlayer } from "@/components/MusicPlayer";
 import { songPlayer, useSongPlayer, type PlayerTrack } from "@/lib/songPlayer";
+import { hasOfflineAccess, offlinePlan } from "@/lib/subscriptions";
+import { useTrial } from "@/lib/trial";
 import {
   FULL_SONG_SECONDS,
   getAllSounds,
@@ -117,6 +120,10 @@ function MusicPage() {
   const [downloadBytes, setDownloadBytes] = useState(0);
   /** Downloaded songs untouched for 30 days — offered up for deletion. */
   const [staleSongs, setStaleSongs] = useState<SavedSong[]>([]);
+  // Offline music downloads are a subscription perk (Pro and up), matching the
+  // Offline Videos tab. Plus and free accounts see an upgrade prompt instead.
+  const offlineUnlocked = hasOfflineAccess(auth.handle);
+  const offlineTrial = useTrial(auth.handle, offlinePlan().id);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -425,7 +432,15 @@ function MusicPage() {
                   : "border-transparent text-muted-foreground"
               }`}
             >
-              {t.label}
+              <span className="inline-flex items-center gap-1">
+                {t.label}
+                {t.id === "downloaded" && !offlineUnlocked && (
+                  <Lock
+                    className="h-3 w-3 text-muted-foreground"
+                    aria-label="Subscription required"
+                  />
+                )}
+              </span>
             </button>
           ))}
         </div>
@@ -536,6 +551,51 @@ function MusicPage() {
             <p className="mt-2 px-1 text-[11px] text-muted-foreground">
               A song is marked “Full song” once its file runs longer than {FULL_SONG_SECONDS}s.
               Shorter ones are 15-second clips.
+            </p>
+          </section>
+        ) : tab === "downloaded" && !offlineUnlocked ? (
+          <section className="py-8 text-center">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
+              <Lock className="h-6 w-6 text-primary" />
+            </div>
+            <h2 className="mt-4 text-base font-bold">Offline music is a subscriber perk</h2>
+            <p className="mx-auto mt-1 max-w-xs text-sm leading-relaxed text-muted-foreground">
+              {offlineTrial.used
+                ? `Your free trial has ended. Offline music downloads are part of ${offlinePlan().label} and VIP — Plus does not include them.`
+                : `Try offline music free for one hour, or subscribe to ${offlinePlan().label} to keep songs on your phone and play them with 0 signal.`}
+            </p>
+            <div className="mt-5 flex flex-col items-center gap-2">
+              {!offlineTrial.used && (
+                <Button
+                  className="w-full max-w-xs"
+                  variant="secondary"
+                  onClick={() => {
+                    if (!auth.user) {
+                      auth.signIn();
+                      return;
+                    }
+                    offlineTrial.start(offlinePlan().id);
+                    toast.success("1-hour free trial started");
+                  }}
+                >
+                  Start 1-hour free trial
+                </Button>
+              )}
+              <Button
+                className="w-full max-w-xs"
+                onClick={() => {
+                  if (!auth.user) {
+                    auth.signIn();
+                    return;
+                  }
+                  void navigate({ to: "/settings", search: { subscriptions: true } });
+                }}
+              >
+                {`Subscribe to ${offlinePlan().label} — $${offlinePlan().price.toFixed(2)}/mo`}
+              </Button>
+            </div>
+            <p className="mt-3 text-[11px] text-muted-foreground">
+              Already subscribed? Refresh after your payment confirms.
             </p>
           </section>
         ) : (

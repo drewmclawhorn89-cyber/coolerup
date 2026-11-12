@@ -50,7 +50,14 @@ export const PLANS: Plan[] = [
     label: "VIP",
     emoji: "\ud83d\udc51",
     price: 29.99,
-    perks: ["Everything in Pro", "Offline downloads", "VIP badge", "Early access to new features"],
+    perks: [
+      "Everything in Pro",
+      "Offline video downloads",
+      "Offline music downloads",
+      "Background play",
+      "VIP badge",
+      "Early access to new features",
+    ],
     offline: true,
   },
 ];
@@ -70,7 +77,9 @@ export const LIFETIME_PLAN: Plan = {
   price: 0,
   perks: [
     "Everything in Plus, Pro and VIP",
-    "Offline downloads",
+    "Offline video downloads",
+    "Offline music downloads",
+    "Background play",
     "Beta features",
     "1,000 coins",
     "Never expires",

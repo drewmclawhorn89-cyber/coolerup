@@ -1522,6 +1522,7 @@ export type Database = {
           display_name: string | null
           handle: string
           id: string
+          is_admin: boolean
           links: Json
           onboarding_complete: boolean
           show_liked: boolean
@@ -1536,6 +1537,7 @@ export type Database = {
           display_name?: string | null
           handle: string
           id: string
+          is_admin?: boolean
           links?: Json
           onboarding_complete?: boolean
           show_liked?: boolean
@@ -1550,6 +1552,7 @@ export type Database = {
           display_name?: string | null
           handle?: string
           id?: string
+          is_admin?: boolean
           links?: Json
           onboarding_complete?: boolean
           show_liked?: boolean
@@ -1865,6 +1868,7 @@ export type Database = {
           source: string
           title: string
           uses_count: number
+          user_id: string | null
           youtube_url: string | null
         }
         Insert: {
@@ -1877,6 +1881,7 @@ export type Database = {
           source?: string
           title: string
           uses_count?: number
+          user_id?: string | null
           youtube_url?: string | null
         }
         Update: {
@@ -1889,6 +1894,7 @@ export type Database = {
           source?: string
           title?: string
           uses_count?: number
+          user_id?: string | null
           youtube_url?: string | null
         }
         Relationships: [

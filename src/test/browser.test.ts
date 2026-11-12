@@ -6,6 +6,7 @@ import {
   GOOGLE_SEARCH,
   SHORTCUTS,
   displayTitle,
+  embedUrlFor,
   hostLabel,
   isAllowedDownload,
   isBlockedUrl,
@@ -14,6 +15,7 @@ import {
   parseInput,
   prettyUrl,
   siteById,
+  tiktokVideoId,
   urlForSite,
   youtubeIdFromBrowserUrl,
   youtubeIdFromInput,
@@ -126,9 +128,8 @@ describe("safety", () => {
 
 describe("isEmbeddable", () => {
   it("rejects hosts known to refuse framing", () => {
-    expect(isEmbeddable("https://www.youtube.com/watch?v=abc")).toBe(false);
-    expect(isEmbeddable("https://www.tiktok.com/@x")).toBe(false);
     expect(isEmbeddable("https://www.instagram.com/x")).toBe(false);
+    expect(isEmbeddable("https://www.reddit.com/r/all")).toBe(false);
   });
 
   it("lets Google's frame-friendly endpoints through", () => {
@@ -179,5 +180,42 @@ describe("display helpers", () => {
   it("formats a host and pretty URL for result cards", () => {
     expect(hostLabel("https://en.wikipedia.org/wiki/Cat")).toBe("en.wikipedia.org");
     expect(prettyUrl("https://en.wikipedia.org/wiki/Cat")).toBe("en.wikipedia.org/wiki/Cat");
+  });
+});
+
+describe("inline players", () => {
+  it("turns a YouTube link into an embeddable player", () => {
+    expect(embedUrlFor("https://www.youtube.com/watch?v=dQw4w9WgXcQ")).toBe(
+      "https://www.youtube.com/embed/dQw4w9WgXcQ?rel=0&playsinline=1",
+    );
+    expect(embedUrlFor("https://youtu.be/dQw4w9WgXcQ")).toContain("/embed/dQw4w9WgXcQ");
+  });
+
+  it("turns a TikTok video link into an embeddable player", () => {
+    const url = "https://www.tiktok.com/@scout2015/video/6718335390845095173";
+    expect(tiktokVideoId(url)).toBe("6718335390845095173");
+    expect(embedUrlFor(url)).toBe("https://www.tiktok.com/embed/v2/6718335390845095173");
+  });
+
+  it("returns null when there is no video", () => {
+    expect(embedUrlFor("https://www.tiktok.com/@tiktok")).toBeNull();
+    expect(embedUrlFor("https://example.com/post")).toBeNull();
+  });
+
+  it("treats player URLs as embeddable even though the host blocks framing", () => {
+    expect(isEmbeddable("https://www.tiktok.com/@a/video/6718335390845095173")).toBe(true);
+    expect(isEmbeddable("https://www.youtube.com/watch?v=dQw4w9WgXcQ")).toBe(true);
+  });
+});
+
+describe("proxy-first framing", () => {
+  it("sends ordinary sites through the Coolerup proxy", () => {
+    expect(isEmbeddable("https://www.theverge.com/")).toBe(false);
+    expect(isEmbeddable("https://www.imdb.com/title/tt0111161/")).toBe(false);
+  });
+
+  it("still frames the handful of hosts that allow it", () => {
+    expect(isEmbeddable("https://en.wikipedia.org/wiki/Cat")).toBe(true);
+    expect(isEmbeddable("https://www.openstreetmap.org/")).toBe(true);
   });
 });

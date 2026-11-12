@@ -5,6 +5,8 @@ import {
   ArrowLeft,
   ArrowRight,
   Bookmark,
+  ChevronLeft,
+  ChevronRight,
   Clock,
   ExternalLink,
   Globe2,
@@ -36,6 +38,8 @@ import {
   prettyUrl,
   saveHistory,
   siteById,
+  stripEdges,
+  stripScrollTarget,
   urlForSite,
   youtubeIdFromBrowserUrl,
   type BrowserBookmarkRow,
@@ -100,6 +104,8 @@ export function CoolerupBrowser() {
   const [bookmarks, setBookmarks] = useState<BrowserBookmarkRow[]>([]);
   const [musicUrl, setMusicUrl] = useState("");
   const [addingSong, setAddingSong] = useState(false);
+  const stripRef = useRef<HTMLDivElement | null>(null);
+  const [stripNav, setStripNav] = useState({ left: false, right: false });
 
   const activeTab = tabs.find((tab) => tab.id === activeId) ?? tabs[0]!;
   const entry = activeTab.entries[activeTab.index];
@@ -346,6 +352,59 @@ export function CoolerupBrowser() {
     }
   }, [entry]);
 
+  const syncStrip = useCallback(() => {
+    const node = stripRef.current;
+    if (!node) {
+      setStripNav({ left: false, right: false });
+      return;
+    }
+    const next = stripEdges({
+      scrollLeft: node.scrollLeft,
+      clientWidth: node.clientWidth,
+      scrollWidth: node.scrollWidth,
+    });
+    setStripNav((prev) => (prev.left === next.left && prev.right === next.right ? prev : next));
+  }, []);
+
+  const nudgeStrip = useCallback((direction: -1 | 1) => {
+    const node = stripRef.current;
+    if (!node) return;
+    const target = stripScrollTarget(
+      {
+        scrollLeft: node.scrollLeft,
+        clientWidth: node.clientWidth,
+        scrollWidth: node.scrollWidth,
+      },
+      direction,
+    );
+    node.scrollTo({ left: target, behavior: "smooth" });
+  }, []);
+
+  useEffect(() => {
+    syncStrip();
+    const node = stripRef.current;
+    if (!node) return;
+    node.addEventListener("scroll", syncStrip, { passive: true });
+    const observer = new ResizeObserver(syncStrip);
+    observer.observe(node);
+    window.addEventListener("resize", syncStrip);
+    return () => {
+      node.removeEventListener("scroll", syncStrip);
+      observer.disconnect();
+      window.removeEventListener("resize", syncStrip);
+    };
+  }, [syncStrip]);
+
+  // Keep the active tab visible when it changes (e.g. after a search or deep link).
+  useEffect(() => {
+    const node = stripRef.current;
+    if (!node) return;
+    const active = node.querySelector<HTMLElement>('[data-active="true"]');
+    if (!active) return;
+    const left = active.offsetLeft - node.clientWidth / 2 + active.clientWidth / 2;
+    node.scrollTo({ left: Math.max(0, left), behavior: "smooth" });
+  }, [activeSiteId]);
+
   const controlClass =
     "flex h-8 w-8 items-center justify-center rounded-full bg-[#2563EB] text-white shadow-sm ring-1 ring-white/10 transition hover:bg-[#1d4fc4] disabled:bg-white/10 disabled:text-white/25 disabled:ring-0";
 
@@ -433,27 +492,71 @@ export function CoolerupBrowser() {
         </div>
 
         {/* Site strip */}
-        <div className="no-scrollbar mx-auto flex max-w-2xl gap-4 overflow-x-auto px-3 pb-2">
-          {COOLERUP_TABS.map((site) => (
-            <button
-              key={site.id}
-              type="button"
-              onClick={() => pickTab(site.id)}
-              aria-pressed={activeSiteId === site.id}
-              className={`shrink-0 border-b-2 pb-1.5 text-[13px] font-semibold ${
-                activeSiteId === site.id
-                  ? "border-white text-white"
-                  : "border-transparent text-white/60"
-              }`}
-            >
-              <span className="inline-flex items-center gap-1">
-                <span aria-hidden className="text-[12px] leading-none">
-                  {site.emoji}
+        <div className="relative mx-auto max-w-2xl px-3 pb-2">
+          <button
+            type="button"
+            onClick={() => nudgeStrip(-1)}
+            aria-label="Scroll tabs left"
+            disabled={!stripNav.left}
+            className="absolute top-0 left-0 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-[#2563EB] text-white shadow ring-1 ring-white/20 transition hover:bg-[#1d4fc4] disabled:pointer-events-none disabled:opacity-0"
+          >
+            <ChevronLeft className="h-3.5 w-3.5" />
+          </button>
+          <div
+            ref={stripRef}
+            onPointerDown={(event) => {
+              const node = stripRef.current;
+              if (!node || event.pointerType === "touch") return;
+              const startX = event.clientX;
+              const startScroll = node.scrollLeft;
+              node.setPointerCapture(event.pointerId);
+              node.style.cursor = "grabbing";
+              const move = (moveEvent: PointerEvent) => {
+                node.scrollLeft = startScroll - (moveEvent.clientX - startX);
+              };
+              const up = () => {
+                node.style.cursor = "";
+                node.removeEventListener("pointermove", move);
+                node.removeEventListener("pointerup", up);
+                node.removeEventListener("pointercancel", up);
+              };
+              node.addEventListener("pointermove", move);
+              node.addEventListener("pointerup", up);
+              node.addEventListener("pointercancel", up);
+            }}
+            className="no-scrollbar flex cursor-grab gap-4 overflow-x-auto px-7 select-none"
+          >
+            {COOLERUP_TABS.map((site) => (
+              <button
+                key={site.id}
+                type="button"
+                onClick={() => pickTab(site.id)}
+                aria-pressed={activeSiteId === site.id}
+                data-active={activeSiteId === site.id ? "true" : "false"}
+                className={`shrink-0 border-b-2 pb-1.5 text-[13px] font-semibold ${
+                  activeSiteId === site.id
+                    ? "border-white text-white"
+                    : "border-transparent text-white/60"
+                }`}
+              >
+                <span className="inline-flex items-center gap-1">
+                  <span aria-hidden className="text-[12px] leading-none">
+                    {site.emoji}
+                  </span>
+                  {site.label}
                 </span>
-                {site.label}
-              </span>
-            </button>
-          ))}
+              </button>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={() => nudgeStrip(1)}
+            aria-label="Scroll tabs right"
+            disabled={!stripNav.right}
+            className="absolute top-0 right-0 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-[#2563EB] text-white shadow ring-1 ring-white/20 transition hover:bg-[#1d4fc4] disabled:pointer-events-none disabled:opacity-0"
+          >
+            <ChevronRight className="h-3.5 w-3.5" />
+          </button>
         </div>
       </div>
 

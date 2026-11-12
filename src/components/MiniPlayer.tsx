@@ -23,8 +23,8 @@ import {
 import { DownloadButton } from "@/components/DownloadButton";
 import {
   attachBackgroundPlay,
-  canBackgroundPlay,
   isBackgroundPlayEnabled,
+  isYouTubeTrack,
   setBackgroundPlayEntitled,
   YOUTUBE_BACKGROUND_SHORT,
   YOUTUBE_BACKGROUND_WARNING,
@@ -100,7 +100,7 @@ export function MiniPlayer() {
 
   if (!player.active || !track) return null;
 
-  const isYouTube = !canBackgroundPlay(track);
+  const isYouTube = isYouTubeTrack(track);
   const backgroundOn = isBackgroundPlayEnabled();
   const backgroundEntitled = hasBackgroundPlayAccess(auth.handle);
   const onMusicTab = pathname === "/music";
@@ -152,8 +152,8 @@ export function MiniPlayer() {
           }}
         />
 
-        {/* YouTube songs can't survive the app going to the background. Say so
-            instead of letting the song silently stop. */}
+        {/* iOS suspends background web audio, so YouTube songs still stop
+            there. Everywhere else they keep playing for VIPs. */}
         {isYouTube && (
           <div className="flex items-start gap-2 border-b border-amber-500/20 bg-amber-500/10 px-3 py-1.5">
             <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-400" />
@@ -161,14 +161,14 @@ export function MiniPlayer() {
               className="text-[11px] leading-tight text-amber-200"
               title={YOUTUBE_BACKGROUND_WARNING}
             >
-              {YOUTUBE_BACKGROUND_SHORT} — use your own MP3 or a royalty-free song.
+              {YOUTUBE_BACKGROUND_SHORT} — background play works on Chrome, Edge and Android.
             </p>
           </div>
         )}
 
         {/* Background play is a VIP perk. Tell non-VIP listeners why the song
             stops when they leave the app, and give them a way to unlock it. */}
-        {!backgroundEntitled && !isYouTube && (
+        {!backgroundEntitled && (
           <button
             type="button"
             onClick={() => void navigate({ to: "/settings", search: { subscriptions: true } })}
@@ -176,8 +176,7 @@ export function MiniPlayer() {
           >
             <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
             <span className="text-[11px] leading-tight text-primary">
-              Background play is a VIP perk — upgrade to keep music playing when you leave the
-              app.
+              Background play is a VIP perk — upgrade to keep music playing when you leave the app.
             </span>
           </button>
         )}
@@ -309,7 +308,7 @@ export function MiniPlayer() {
               <span className="block truncate text-sm font-semibold">{track.title}</span>
               <span className="block truncate text-xs text-zinc-400">
                 {track.artist}
-                {backgroundOn && !isYouTube && (
+                {backgroundOn && (
                   <span className="ml-1.5 inline-flex items-center gap-1 text-[10px] text-emerald-400">
                     <Music className="h-2.5 w-2.5" /> background
                   </span>

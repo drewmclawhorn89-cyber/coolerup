@@ -1,5 +1,15 @@
 import { useSyncExternalStore } from "react";
 import type { Sound } from "@/lib/sounds";
+import { extractYouTubeId } from "@/lib/youtube";
+import {
+  loadYouTubeAudio,
+  pauseYouTubeAudio,
+  playYouTubeAudio,
+  seekYouTubeAudio,
+  setYouTubeAudioListeners,
+  setYouTubeVolume,
+  stopYouTubeAudio,
+} from "@/lib/youtubeAudio";
 
 /**
  * One audio element for the whole app.
@@ -8,6 +18,16 @@ import type { Sound } from "@/lib/sounds";
  * change tap"), so the state lives at module scope instead of inside a React
  * component. `<SongPlayerBar />` is mounted once in the root layout and simply
  * subscribes to this store.
+ *
+ * Two backends sit behind the same state:
+ *
+ * - Coolerup-owned audio (own uploads, royalty-free songs, downloaded blobs)
+ *   plays through the shared `<audio>` element.
+ * - YouTube songs play through the hidden IFrame player in `@/lib/youtubeAudio`,
+ *   which lives outside the route tree so switching tabs never stops the song.
+ *
+ * Everything above that — queue, next/prev, seek, volume, the mini player and
+ * the lock-screen controls — is backend-agnostic.
  */
 
 export type PlayerTrack = {
@@ -107,16 +127,89 @@ function ensureAudio(): HTMLAudioElement | null {
   return el;
 }
 
+/** True when this track streams from YouTube rather than a real audio file. */
+export function isYouTubeTrack(track: PlayerTrack | null | undefined): boolean {
+  if (!track) return false;
+  return track.source === "youtube" && Boolean(extractYouTubeId(track.youtubeUrl ?? ""));
+}
+
+/** The YouTube video id behind a track, or null. */
+export function trackYouTubeId(track: PlayerTrack | null | undefined): string | null {
+  if (!track) return null;
+  return extractYouTubeId(track.youtubeUrl ?? "");
+}
+
+/** Stop whichever backend is currently making noise. */
+function silenceAudio() {
+  if (audio) {
+    audio.pause();
+    audio.removeAttribute("src");
+    audio.load();
+  }
+}
+
 function playAt(i: number) {
-  const el = ensureAudio();
   const track = state.queue[i];
-  if (!el || !track) return;
+  if (!track) return;
+
+  // YouTube songs go through the hidden IFrame player. The shared <audio>
+  // element is silenced first so the two backends never overlap.
+  if (isYouTubeTrack(track)) {
+    silenceAudio();
+    set({ index: i, time: 0, duration: 0, error: "", loading: true, active: true });
+    const videoId = trackYouTubeId(track);
+    if (!videoId) {
+      set({ error: "This YouTube song can't be played here. Try another.", loading: false });
+      return;
+    }
+    setYouTubeVolume(state.volume * 100);
+    void loadYouTubeAudio(videoId, true).catch(() =>
+      set({ error: "Couldn't load the YouTube player. Check your connection.", loading: false }),
+    );
+    return;
+  }
+
+  const el = ensureAudio();
+  if (!el) return;
+  stopYouTubeAudio();
   set({ index: i, time: 0, duration: 0, error: "", loading: true, active: true });
   el.src = track.url;
   el.volume = state.volume;
   el.muted = state.muted;
   void el.play().catch(() => set({ playing: false, loading: false }));
 }
+
+/**
+ * Bridge the hidden YouTube player into this store, once.
+ *
+ * Kept at module scope so it is wired the first time a song is played, whether
+ * that happens from the Music tab or from the mini player.
+ */
+let youtubeBridgeInstalled = false;
+
+function installYouTubeBridge() {
+  if (youtubeBridgeInstalled || typeof window === "undefined") return;
+  youtubeBridgeInstalled = true;
+  setYouTubeAudioListeners({
+    onProgress: (time, duration) => set({ time, duration }),
+    onPlayingChange: (playing) => set({ playing, loading: false }),
+    onLoadingChange: (loading) => set({ loading }),
+    onEnded: () => {
+      if (state.loop) {
+        const track = state.queue[state.index];
+        const videoId = trackYouTubeId(track);
+        if (videoId) {
+          void loadYouTubeAudio(videoId, true);
+          return;
+        }
+      }
+      songPlayer.next();
+    },
+    onError: (message) => set({ error: message, playing: false, loading: false }),
+  });
+}
+
+installYouTubeBridge();
 
 export const songPlayer = {
   subscribe(fn: () => void) {
@@ -149,6 +242,12 @@ export const songPlayer = {
   },
 
   toggle() {
+    const track = state.queue[state.index];
+    if (isYouTubeTrack(track)) {
+      if (state.playing) pauseYouTubeAudio();
+      else playYouTubeAudio();
+      return;
+    }
     const el = ensureAudio();
     if (!el) return;
     if (!el.src) {
@@ -180,6 +279,11 @@ export const songPlayer = {
   },
 
   seek(seconds: number) {
+    if (isYouTubeTrack(state.queue[state.index])) {
+      seekYouTubeAudio(Math.max(0, seconds));
+      set({ time: Math.max(0, seconds) });
+      return;
+    }
     const el = ensureAudio();
     if (!el) return;
     el.currentTime = Math.max(0, seconds);
@@ -193,14 +297,15 @@ export const songPlayer = {
       el.volume = volume;
       el.muted = volume === 0 ? true : el.muted;
     }
+    setYouTubeVolume(volume * 100);
     set({ volume, muted: volume === 0 ? true : state.muted });
   },
 
   toggleMute() {
     const el = ensureAudio();
-    if (!el) return;
-    const muted = !el.muted;
-    el.muted = muted;
+    const muted = !state.muted;
+    if (el) el.muted = muted;
+    setYouTubeVolume(muted ? 0 : state.volume * 100);
     set({ muted });
   },
 
@@ -219,6 +324,7 @@ export const songPlayer = {
       el.removeAttribute("src");
       el.load();
     }
+    stopYouTubeAudio();
     state = { ...initial, volume: state.volume, muted: state.muted };
     emit();
   },

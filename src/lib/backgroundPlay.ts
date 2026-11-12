@@ -20,9 +20,16 @@ import { songPlayer, type PlayerTrack } from "@/lib/songPlayer";
  *    is what draws the lock-screen / notification-shade controls (play, pause,
  *    next, previous, scrubber).
  *
- * YouTube is the one exception. YouTube's own IFrame player refuses to play
- * while the page is hidden, and there is no supported way around it — so we
- * detect those tracks and tell the user instead of pretending it works.
+ * YouTube songs play through a hidden IFrame player (see `@/lib/youtubeAudio`).
+ * That player pauses itself whenever it thinks the page is hidden, so while a
+ * VIP listener has background play on we spoof the Page Visibility API
+ * (`document.hidden` / `document.visibilityState`). YouTube's own script then
+ * keeps playing instead of pausing itself. The spoof is only ever active while
+ * the perk is live and a YouTube song is playing, and it is removed the moment
+ * either stops being true.
+ *
+ * iOS is still the exception: Safari suspends backgrounded pages outright, so
+ * no web audio of any kind survives there. We say so instead of pretending.
  *
  * Background play is a VIP perk. `setBackgroundPlayEntitled` is called by the
  * app whenever the signed-in user's plan changes; while it is false the feature
@@ -34,16 +41,22 @@ import { songPlayer, type PlayerTrack } from "@/lib/songPlayer";
 /** localStorage key (stored as `settings:background-play`). */
 export const BACKGROUND_PLAY_KEY = "background-play";
 
-/** Shown wherever a YouTube-backed song is playing. */
+/**
+ * Shown wherever a YouTube-backed song is playing.
+ *
+ * YouTube used to be a hard "no" for background play. It now works on browsers
+ * that keep background pages alive (Chrome, Edge, Android), but iOS suspends
+ * backgrounded web pages entirely, so the honest warning is device-specific.
+ */
 export const YOUTUBE_BACKGROUND_WARNING =
-  "YouTube songs pause in background — YouTube blocks background play. Use your own MP3 or a royalty-free song for background play.";
+  "YouTube songs now keep playing in the background on Chrome, Edge and Android. iPhone and iPad still pause them — iOS suspends background web audio.";
 
 /** Short version for the compact mini player. */
-export const YOUTUBE_BACKGROUND_SHORT = "YouTube blocks background play";
+export const YOUTUBE_BACKGROUND_SHORT = "May pause on iPhone/iPad";
 
 /** Shown next to the toggle in Settings. */
 export const BACKGROUND_PLAY_HELP =
-  "Keep music playing when you switch tabs, lock your phone, or open another app. Works with your own MP3s, royalty-free songs, and anything you downloaded for offline.";
+  "Keep music playing when you switch tabs, lock your phone, or open another app. Works with your own MP3s, royalty-free songs, downloaded songs and YouTube songs (iPhone/iPad may still pause YouTube).";
 
 /** Default ON, per the spec — but only ever honoured for VIP listeners. */
 const prefEnabled = (): boolean => readBool(BACKGROUND_PLAY_KEY, true);
@@ -85,6 +98,7 @@ export function setBackgroundPlayEntitled(next: boolean) {
     if (state.playing) songPlayer.toggle();
   }
   syncMediaSession();
+  syncVisibilitySpoof();
 }
 
 export function subscribeBackgroundPlay(fn: () => void) {
@@ -111,6 +125,7 @@ export function setBackgroundPlayEnabled(enabled: boolean): boolean {
     if (state.playing) songPlayer.toggle();
   }
   syncMediaSession();
+  syncVisibilitySpoof();
   return true;
 }
 
@@ -124,12 +139,100 @@ export function useBackgroundPlayEntitled(): boolean {
   return useSyncExternalStore(subscribeBackgroundPlay, isBackgroundPlayEntitled, () => false);
 }
 
-/** True when the track can keep playing with the screen off. */
+/**
+ * True when the track can keep playing with the screen off.
+ *
+ * YouTube songs count now: the hidden player keeps decoding and the visibility
+ * spoof below stops YouTube from pausing itself. iOS still suspends the page,
+ * which is a platform limit rather than a track limit.
+ */
 export function canBackgroundPlay(track: PlayerTrack | null | undefined): boolean {
   if (!track) return false;
-  // Anything with a real audio file (own upload, royalty-free, downloaded blob)
-  // is fine. YouTube streams are not.
-  return track.source !== "youtube";
+  return Boolean(track.url || track.youtubeUrl || track.source === "youtube");
+}
+
+/** True when this track streams from YouTube rather than a real audio file. */
+export function isYouTubeTrack(track: PlayerTrack | null | undefined): boolean {
+  return track?.source === "youtube";
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Page Visibility spoof                                                     */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * YouTube's player listens for `visibilitychange` and pauses itself. Convincing
+ * it the page is still visible is the only way to keep a YouTube song going in
+ * the background, so while the perk is live we redefine the visibility getters
+ * on the `document` instance. `Document.prototype` is left untouched, so the
+ * real values are still reachable — which is what our own enforcement uses.
+ */
+let spoofInstalled = false;
+
+function realHidden(): boolean {
+  if (typeof document === "undefined") return false;
+  const desc = Object.getOwnPropertyDescriptor(Document.prototype, "hidden");
+  if (desc?.get) return Boolean(desc.get.call(document));
+  return Boolean(document.hidden);
+}
+
+function realVisibilityState(): DocumentVisibilityState {
+  if (typeof document === "undefined") return "visible";
+  const desc = Object.getOwnPropertyDescriptor(Document.prototype, "visibilityState");
+  if (desc?.get) return desc.get.call(document) as DocumentVisibilityState;
+  return document.visibilityState;
+}
+
+/** Pretend the page is visible so YouTube keeps playing. */
+export function installVisibilitySpoof() {
+  if (spoofInstalled || typeof document === "undefined") return;
+  spoofInstalled = true;
+  try {
+    Object.defineProperty(document, "hidden", { configurable: true, get: () => false });
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      get: () => "visible" as DocumentVisibilityState,
+    });
+    // Also cover the old webkit-prefixed getters some embedded scripts read.
+    Object.defineProperty(document, "webkitHidden", { configurable: true, get: () => false });
+    Object.defineProperty(document, "webkitVisibilityState", {
+      configurable: true,
+      get: () => "visible",
+    });
+  } catch {
+    /* some browsers refuse to redefine these — playback still works in-tab */
+  }
+}
+
+/** Put the real Page Visibility values back. */
+export function removeVisibilitySpoof() {
+  if (!spoofInstalled || typeof document === "undefined") return;
+  spoofInstalled = false;
+  for (const key of ["hidden", "visibilityState", "webkitHidden", "webkitVisibilityState"]) {
+    try {
+      delete (document as unknown as Record<string, unknown>)[key];
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+/** True while the spoof is in place (tests + diagnostics). */
+export function isVisibilitySpoofed() {
+  return spoofInstalled;
+}
+
+/**
+ * Decide whether the spoof should be on right now: perk live, toggle on, and a
+ * YouTube song actually playing. Called from the player subscription and from
+ * the entitlement/preference setters.
+ */
+export function syncVisibilitySpoof() {
+  const state = songPlayer.getState();
+  const track = state.queue[state.index];
+  const shouldSpoof = entitled && prefEnabled() && state.playing && isYouTubeTrack(track);
+  if (shouldSpoof) installVisibilitySpoof();
+  else removeVisibilitySpoof();
 }
 
 /** Does this browser expose the Media Session API? */
@@ -178,8 +281,8 @@ export function syncMediaSession() {
   const state = songPlayer.getState();
   const track = state.queue[state.index];
 
-  // Nothing playing, feature off, or a YouTube track: clear the lock screen so
-  // it never shows a control that cannot work.
+  // Nothing playing, or the perk is off: clear the lock screen so it never
+  // shows a control that cannot work.
   if (!state.active || !track || !isBackgroundPlayEnabled() || !canBackgroundPlay(track)) {
     session.metadata = null;
     session.playbackState = "none";
@@ -273,14 +376,28 @@ export function attachBackgroundPlay(): () => void {
 
   installActionHandlers();
   syncMediaSession();
+  syncVisibilitySpoof();
 
-  const unsubscribe = songPlayer.subscribe(() => syncMediaSession());
-  const unsubscribePref = subscribeBackgroundPlay(() => syncMediaSession());
+  const unsubscribe = songPlayer.subscribe(() => {
+    syncMediaSession();
+    syncVisibilitySpoof();
+  });
+  const unsubscribePref = subscribeBackgroundPlay(() => {
+    syncMediaSession();
+    syncVisibilitySpoof();
+  });
 
   const onVisibility = () => {
-    if (!document.hidden) return;
+    // Read the *real* visibility: the spoof above makes document.hidden lie.
+    if (!realHidden()) {
+      syncVisibilitySpoof();
+      return;
+    }
     // Off, or no VIP plan: hiding the app stops the music.
-    if (isBackgroundPlayEnabled()) return;
+    if (isBackgroundPlayEnabled()) {
+      syncVisibilitySpoof();
+      return;
+    }
     const state = songPlayer.getState();
     if (state.playing) songPlayer.toggle();
   };
@@ -290,6 +407,7 @@ export function attachBackgroundPlay(): () => void {
     unsubscribe();
     unsubscribePref();
     document.removeEventListener("visibilitychange", onVisibility);
+    removeVisibilitySpoof();
     clearMediaSession();
   };
 }

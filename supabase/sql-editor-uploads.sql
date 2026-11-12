@@ -53,22 +53,34 @@ create policy "public update videos bucket"
 -- ----------------------------------------------------------------------------
 -- RLS on public.videos must let a signed-in user insert. The app does not send
 -- a user_id, so the check is simply "you are authenticated".
-alter table public.videos enable row level security;
+--
+-- Wrapped in a guard so the script never aborts halfway if the table has not
+-- been created yet in this project.
+do $$
+begin
+  if to_regclass('public.videos') is null then
+    raise notice 'public.videos does not exist - skipping table policies.';
+    return;
+  end if;
 
-drop policy if exists "authenticated can post videos" on public.videos;
-create policy "authenticated can post videos"
-  on public.videos for insert
-  to authenticated
-  with check (true);
+  execute 'alter table public.videos enable row level security';
 
-drop policy if exists "anyone can read videos" on public.videos;
-create policy "anyone can read videos"
-  on public.videos for select
-  to anon, authenticated
-  using (true);
+  execute 'drop policy if exists "authenticated can post videos" on public.videos';
+  execute 'create policy "authenticated can post videos"
+             on public.videos for insert
+             to authenticated
+             with check (true)';
 
-grant select, insert on public.videos to authenticated;
-grant select on public.videos to anon;
+  execute 'drop policy if exists "anyone can read videos" on public.videos';
+  execute 'create policy "anyone can read videos"
+             on public.videos for select
+             to anon, authenticated
+             using (true)';
+
+  execute 'grant select, insert on public.videos to authenticated';
+  execute 'grant select on public.videos to anon';
+end
+$$;
 
 -- ----------------------------------------------------------------------------
 -- 4. Report what you have
@@ -89,6 +101,10 @@ from pg_policies
 where (schemaname = 'storage' and tablename = 'objects' and policyname ilike '%videos%')
    or (schemaname = 'public'  and tablename = 'videos')
 order by schemaname, policyname;
+
+-- Does the table the app inserts into actually exist?
+-- Expect: videos_table_exists = true
+select to_regclass('public.videos') is not null as videos_table_exists;
 
 -- ----------------------------------------------------------------------------
 -- 5. If uploads still fail

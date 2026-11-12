@@ -59,7 +59,7 @@ export function songStreamUrl(id: string) {
 
 export function withSong(caption: string, song?: Song | null) {
   if (!song) return caption;
-  const clean = (v: string) => v.replace(/[|\[\]]/g, "").slice(0, 80);
+  const clean = (v: string) => v.replace(/[|[\]]/g, "").slice(0, 80);
   return `${caption}[[song:${song.id}|${clean(song.title)}|${clean(song.artist)}]]`;
 }
 
@@ -89,6 +89,14 @@ export function parseCaption(raw: string): {
 }
 
 const STORAGE_PREFIX = "storage:";
+
+/**
+ * Per-object cap on the `videos` bucket, mirrored here so the client can reject
+ * an oversized file before spending minutes uploading it. Keep in sync with
+ * `supabase/migrations/20261122000000_videos_bucket_size_limit.sql`.
+ */
+export const MAX_FEED_UPLOAD_BYTES = 1024 * 1024 * 1024;
+export const MAX_FEED_UPLOAD_MB = Math.round(MAX_FEED_UPLOAD_BYTES / (1024 * 1024));
 
 export function getDeviceId() {
   let id = localStorage.getItem("loop-device");
@@ -294,7 +302,10 @@ export async function fetchLikedVideos(userId: string, limit?: number): Promise<
       (row) => !!row.videos,
     );
     out.push(
-      ...batch.map((row) => ({ ...(row.videos as Video), reposts: row.videos?.reposts_count ?? 0 })),
+      ...batch.map((row) => ({
+        ...(row.videos as Video),
+        reposts: row.videos?.reposts_count ?? 0,
+      })),
     );
     if ((data ?? []).length < size) break;
   }
@@ -325,6 +336,18 @@ export async function uploadVideo(
   full = false,
   soundId?: string | null,
 ): Promise<string | null> {
+  // Fail before the bytes leave the device. The `videos` bucket caps objects at
+  // 1 GiB (see 20261122000000_videos_bucket_size_limit.sql); without this guard
+  // the browser streams the whole file and only then gets a 413, which surfaced
+  // as the useless "Upload failed. Try again."
+  if (file.size > MAX_FEED_UPLOAD_BYTES) {
+    throw new Error(
+      `That file is ${(file.size / (1024 * 1024)).toFixed(0)} MB. The limit is ${MAX_FEED_UPLOAD_MB} MB.`,
+    );
+  }
+  if (file.size === 0) {
+    throw new Error("That file is empty. Pick another one.");
+  }
   const ext = file.name.split(".").pop() || "mp4";
   const path = `${crypto.randomUUID()}.${ext}`;
   const { error: upErr } = await supabase.storage

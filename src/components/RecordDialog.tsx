@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { describeUploadError, withUploadRetry } from "@/lib/uploadErrors";
 import { uploadRecording } from "@/lib/loop";
 import { FilterBar } from "@/components/FilterBar";
 import { AnimalOverlay } from "@/components/AnimalOverlay";
@@ -370,19 +371,21 @@ export function RecordDialog({
     setPosting(true);
     try {
       const finalCaption = caption.trim().slice(0, 500);
-      await uploadRecording(
-        recordedBlob,
-        username,
-        finalCaption,
-        chosenSound?.id ?? null,
-        bakedRef.current,
+      await withUploadRetry(() =>
+        uploadRecording(
+          recordedBlob,
+          username,
+          finalCaption,
+          chosenSound?.id ?? null,
+          bakedRef.current,
+        ),
       );
       toast.success("Your video is posted!");
       reset();
       onOpenChange(false);
       onPosted?.();
-    } catch {
-      toast.error("Upload failed. Try again.");
+    } catch (error) {
+      toast.error(describeUploadError(error));
       setPosting(false);
     }
   }

@@ -1,6 +1,11 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { extractYouTubeId, parseYouTubeDuration, youtubeThumbnail, youtubeWatchUrl } from "./youtube";
+import {
+  extractYouTubeId,
+  parseYouTubeDuration,
+  youtubeThumbnail,
+  youtubeWatchUrl,
+} from "./youtube";
 
 /** A desktop UA — the mobile page omits the player config we parse. */
 const YOUTUBE_UA =
@@ -36,14 +41,19 @@ async function fetchYouTubeDuration(id: string): Promise<number | null> {
 export const addYouTubeVideo = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: { url: string }) => {
-    if (typeof input?.url !== "string" || input.url.length > 2048) throw new Error("Paste a valid YouTube link.");
+    if (typeof input?.url !== "string" || input.url.length > 2048)
+      throw new Error("Paste a valid YouTube link.");
     const id = extractYouTubeId(input.url);
     if (!id) throw new Error("Paste a valid YouTube video link.");
     return { id };
   })
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-    const { data: profile } = await supabase.from("profiles").select("handle").eq("id", userId).single();
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("handle")
+      .eq("id", userId)
+      .single();
     if (!profile) throw new Error("Finish setting up your profile first.");
 
     let title = `YouTube video · ${data.id}`;
@@ -59,7 +69,12 @@ export const addYouTubeVideo = createServerFn({ method: "POST" })
           );
           if (!response.ok) throw new Error("metadata unavailable");
           const json: unknown = await response.json();
-          if (json && typeof json === "object" && "title" in json && typeof json.title === "string") {
+          if (
+            json &&
+            typeof json === "object" &&
+            "title" in json &&
+            typeof json.title === "string"
+          ) {
             return json.title.slice(0, 500);
           }
         } catch {
@@ -103,6 +118,7 @@ export const addYouTubeVideo = createServerFn({ method: "POST" })
  * and the response is a plain id -> seconds map.
  */
 export const refreshYouTubeDurations = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((input: { ids: string[] }) => {
     if (!Array.isArray(input?.ids)) throw new Error("Nothing to look up.");
     const ids = input.ids
@@ -110,9 +126,13 @@ export const refreshYouTubeDurations = createServerFn({ method: "POST" })
       .slice(0, 24);
     return { ids: [...new Set(ids)] };
   })
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
     const durations: Record<string, number> = {};
     if (data.ids.length === 0) return durations;
+
+    // Only the caller's own rows are ever written. `userId` comes from the
+    // verified bearer token, never from the request body.
+    const userId = context.userId;
 
     // The admin client is optional here: without a service key we can still
     // hand the lengths back for this session, we just can't cache them.
@@ -130,6 +150,7 @@ export const refreshYouTubeDurations = createServerFn({ method: "POST" })
           await admin
             ?.from("full_videos")
             .update({ duration: seconds })
+            .eq("user_id", userId)
             .eq("is_youtube", true)
             .eq("youtube_id", id);
         } catch {
@@ -150,6 +171,7 @@ export const refreshYouTubeDurations = createServerFn({ method: "POST" })
  * rows already flagged `is_youtube` are touched.
  */
 export const saveYouTubeDurations = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((input: { durations: Record<string, number> }) => {
     const entries = Object.entries(input?.durations ?? {}).filter(
       ([id, seconds]) =>
@@ -162,9 +184,12 @@ export const saveYouTubeDurations = createServerFn({ method: "POST" })
     ) as [string, number][];
 
     if (entries.length === 0) throw new Error("Nothing to save.");
-    return { entries: entries.slice(0, 24).map(([id, seconds]) => [id, Math.round(seconds)] as const) };
+    return {
+      entries: entries.slice(0, 24).map(([id, seconds]) => [id, Math.round(seconds)] as const),
+    };
   })
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
+    const userId = context.userId;
     const admin = await import("@/integrations/supabase/client.server")
       .then((mod) => mod.supabaseAdmin)
       .catch(() => null);
@@ -176,6 +201,7 @@ export const saveYouTubeDurations = createServerFn({ method: "POST" })
           await admin
             .from("full_videos")
             .update({ duration: seconds })
+            .eq("user_id", userId)
             .eq("is_youtube", true)
             .eq("youtube_id", id);
         } catch {

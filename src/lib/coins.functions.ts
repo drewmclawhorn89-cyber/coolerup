@@ -567,3 +567,52 @@ export const requestCashout = createServerFn({ method: "POST" })
 
     return { ok: true, diamonds: data.diamonds, cents };
   });
+
+/**
+ * Admin-only wallet credit.
+ *
+ * There is deliberately no client-side path that can mint coins or cash: the
+ * Stripe/Venmo flows credit only after the server verifies a real payment, and
+ * this function is the sole manual adjustment. It re-checks the caller's admin
+ * flag on the server (and the database RPC checks it again), so a normal user
+ * cannot call it directly even if they discover the endpoint.
+ */
+export const adminCreditCoins = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(
+    (input: { userId: string; coins?: number; diamonds?: number; reason?: string }) => {
+      if (!input?.userId || typeof input.userId !== "string") throw new Error("Pick a user.");
+      const coins = Math.trunc(Number(input.coins ?? 0));
+      const diamonds = Math.trunc(Number(input.diamonds ?? 0));
+      if (!Number.isFinite(coins) || !Number.isFinite(diamonds)) throw new Error("Invalid amount.");
+      if (coins === 0 && diamonds === 0) throw new Error("Enter an amount to credit.");
+      if (coins < 0 || diamonds < 0) throw new Error("Amounts must be positive.");
+      return { userId: input.userId, coins, diamonds, reason: (input.reason ?? "").slice(0, 500) };
+    },
+  )
+  .handler(async ({ data, context }) => {
+    const { data: profile } = await context.supabase
+      .from("profiles")
+      .select("is_admin")
+      .eq("id", context.userId)
+      .maybeSingle();
+    if (!profile?.is_admin) throw new Error("Admins only.");
+
+    const rpc = context.supabase.rpc as unknown as (
+      fn: string,
+      args: Record<string, unknown>,
+    ) => Promise<{ data: unknown; error: { message?: string } | null }>;
+    const { data: row, error } = await rpc("admin_credit_coins", {
+      _user_id: data.userId,
+      _coins: data.coins,
+      _diamonds: data.diamonds,
+      _reason: data.reason || null,
+    });
+    if (error) throw new Error(error.message ?? "Couldn't credit that wallet.");
+    const credited = row as { balance?: number | null; diamonds?: number | null } | null;
+    return {
+      ok: true as const,
+      balance: credited?.balance ?? null,
+      diamonds: credited?.diamonds ?? null,
+    };
+  });

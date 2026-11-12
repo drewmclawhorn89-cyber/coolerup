@@ -8,6 +8,7 @@ import { resolveMediaUrl } from "@/lib/media";
  * The generated Supabase types don't know about these tables yet, so every
  * query goes through a loosely typed handle instead of `supabase.from(...)`.
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
 
 export type GroupPrivacy = "public" | "private";
@@ -98,7 +99,11 @@ export async function fetchGroups(): Promise<Group[]> {
 }
 
 export async function fetchGroup(groupId: string): Promise<Group | null> {
-  const { data, error } = await db.from("groups").select(GROUP_COLUMNS).eq("id", groupId).maybeSingle();
+  const { data, error } = await db
+    .from("groups")
+    .select(GROUP_COLUMNS)
+    .eq("id", groupId)
+    .maybeSingle();
   if (error) throw error;
   const group = (data ?? null) as Group | null;
   return group ? hydrateGroupMedia(group) : null;
@@ -186,7 +191,10 @@ export async function createGroup(
  * Public groups: instant membership.
  * Private groups: the row is stored with role "pending" until an admin approves.
  */
-export async function joinGroup(group: Group, user: { id: string; username: string }): Promise<GroupRole> {
+export async function joinGroup(
+  group: Group,
+  user: { id: string; username: string },
+): Promise<GroupRole> {
   const role: GroupRole = group.privacy === "private" ? "pending" : "member";
   const { error } = await db.from("group_members").insert({
     group_id: group.id,
@@ -201,19 +209,74 @@ export async function joinGroup(group: Group, user: { id: string; username: stri
 }
 
 export async function leaveGroup(groupId: string, userId: string, role?: GroupRole): Promise<void> {
-  const { error } = await db.from("group_members").delete().eq("group_id", groupId).eq("user_id", userId);
+  const { error } = await db
+    .from("group_members")
+    .delete()
+    .eq("group_id", groupId)
+    .eq("user_id", userId);
   if (error) throw error;
   if (role === "member" || role === "moderator" || role === "admin") await bumpMembers(groupId, -1);
 }
 
+/**
+ * Defence in depth for the role-management helpers below.
+ *
+ * The database enforces this too (RLS + the `group_member_role_guard` trigger),
+ * but checking here means a non-admin gets a clean error instead of a raw
+ * Postgres permission failure — and it makes the intent obvious to readers.
+ */
+async function assertGroupAdmin(groupId: string): Promise<string> {
+  const { data: auth } = await supabase.auth.getUser();
+  const uid = auth?.user?.id;
+  if (!uid) throw new Error("Sign in first.");
+
+  const { data: group } = await db
+    .from("groups")
+    .select("creator_id")
+    .eq("id", groupId)
+    .maybeSingle();
+  if (group?.creator_id === uid) return uid;
+
+  const { data: member } = await db
+    .from("group_members")
+    .select("role")
+    .eq("group_id", groupId)
+    .eq("user_id", uid)
+    .maybeSingle();
+  if (member?.role === "admin") return uid;
+
+  throw new Error("Only a group admin can manage members.");
+}
+
 export async function approveMember(groupId: string, userId: string): Promise<void> {
-  const { error } = await db.from("group_members").update({ role: "member" }).eq("group_id", groupId).eq("user_id", userId);
+  await assertGroupAdmin(groupId);
+  const { error } = await db
+    .from("group_members")
+    .update({ role: "member" })
+    .eq("group_id", groupId)
+    .eq("user_id", userId);
   if (error) throw error;
   await bumpMembers(groupId, 1);
 }
 
-export async function setMemberRole(groupId: string, userId: string, role: GroupRole): Promise<void> {
-  const { error } = await db.from("group_members").update({ role }).eq("group_id", groupId).eq("user_id", userId);
+export async function setMemberRole(
+  groupId: string,
+  userId: string,
+  role: GroupRole,
+): Promise<void> {
+  const callerId = await assertGroupAdmin(groupId);
+
+  // A member can never rewrite their own role; only another admin may. The
+  // database trigger rejects this too, but failing fast keeps the UI honest.
+  if (callerId === userId) {
+    throw new Error("You can't change your own role.");
+  }
+
+  const { error } = await db
+    .from("group_members")
+    .update({ role })
+    .eq("group_id", groupId)
+    .eq("user_id", userId);
   if (error) throw error;
 }
 
@@ -223,10 +286,15 @@ export async function removeMember(
   userId: string,
   opts: { ban?: boolean; role?: GroupRole } = {},
 ): Promise<void> {
+  await assertGroupAdmin(groupId);
   if (opts.ban) {
     await setMemberRole(groupId, userId, "banned");
   } else {
-    const { error } = await db.from("group_members").delete().eq("group_id", groupId).eq("user_id", userId);
+    const { error } = await db
+      .from("group_members")
+      .delete()
+      .eq("group_id", groupId)
+      .eq("user_id", userId);
     if (error) throw error;
   }
   if (opts.role === "member" || opts.role === "moderator") await bumpMembers(groupId, -1);
@@ -277,7 +345,10 @@ export async function likeGroupPost(post: GroupPost, liked: boolean): Promise<nu
     // Idempotent: liking twice is a no-op instead of double counting.
     const { error } = await db
       .from("group_post_likes")
-      .upsert({ post_id: post.id, user_id: user.id }, { onConflict: "post_id,user_id", ignoreDuplicates: true });
+      .upsert(
+        { post_id: post.id, user_id: user.id },
+        { onConflict: "post_id,user_id", ignoreDuplicates: true },
+      );
     if (error) throw error;
   } else {
     const { error } = await db
@@ -353,10 +424,16 @@ async function bumpMembers(groupId: string, delta: number) {
  * `storage:<path>` reference and sign it on read, because the bucket is not
  * publicly readable.
  */
-export async function uploadGroupImage(file: File, userId: string, kind: "cover" | "avatar"): Promise<string> {
+export async function uploadGroupImage(
+  file: File,
+  userId: string,
+  kind: "cover" | "avatar",
+): Promise<string> {
   const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
   const path = `${userId}/groups/${kind}-${Date.now()}-${safe}`;
-  const { error } = await supabase.storage.from("videos").upload(path, file, { contentType: file.type });
+  const { error } = await supabase.storage
+    .from("videos")
+    .upload(path, file, { contentType: file.type });
   if (error) throw error;
   return `storage:${path}`;
 }
@@ -368,7 +445,9 @@ export async function uploadGroupMedia(
 ): Promise<{ url: string; previewUrl: string; kind: "image" | "video" }> {
   const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
   const path = `${userId}/groups/post-${Date.now()}-${safe}`;
-  const { error } = await supabase.storage.from("videos").upload(path, file, { contentType: file.type });
+  const { error } = await supabase.storage
+    .from("videos")
+    .upload(path, file, { contentType: file.type });
   if (error) throw error;
   const url = `storage:${path}`;
   return {

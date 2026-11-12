@@ -130,3 +130,47 @@ describe("coin credit", () => {
     expect(coinsFn).toContain('rpc("admin_credit_coins"');
   });
 });
+
+describe("migration schema prerequisites", () => {
+  // Regression guard for the bug that made the first security pass a no-op:
+  // the script referenced `profiles.is_admin` and `sounds.user_id` but never
+  // created them, so Postgres aborted the whole transaction on statement one.
+  const firstUse = (needle: string) => migration.indexOf(needle);
+  const firstCreate = (needle: string) => migration.indexOf(needle);
+
+  it("creates profiles.is_admin before any function reads it", () => {
+    const addColumn = firstCreate("add column if not exists is_admin boolean");
+    const readColumn = firstUse("coalesce(p.is_admin, false)");
+    expect(addColumn).toBeGreaterThan(-1);
+    expect(readColumn).toBeGreaterThan(-1);
+    expect(addColumn).toBeLessThan(readColumn);
+  });
+
+  it("creates sounds.user_id before the owner policies use it", () => {
+    const addColumn = firstCreate("add column if not exists user_id uuid");
+    const policy = firstUse('create policy "owner insert sounds"');
+    expect(addColumn).toBeGreaterThan(-1);
+    expect(policy).toBeGreaterThan(-1);
+    expect(addColumn).toBeLessThan(policy);
+  });
+
+  it("backfills ownership from the source video and the creator handle", () => {
+    expect(migration).toContain("update public.sounds s");
+    expect(migration).toContain("from public.videos v");
+    expect(migration).toContain(
+      "where lower(coalesce(p.handle, '')) = lower(coalesce(s.creator_username, ''))",
+    );
+  });
+
+  it("keeps the helper functions creatable even if optional tables are missing", () => {
+    // plpgsql + to_regclass guards instead of a sql function that resolves
+    // columns at CREATE time.
+    expect(migration).toContain("language plpgsql\nstable\nsecurity definer");
+    expect(migration).toContain("to_regclass('public.user_roles') is not null");
+  });
+
+  it("does not write audit rows to columns moderation_log lacks", () => {
+    expect(migration).toContain("insert into public.moderation_log (action)");
+    expect(migration).not.toContain("insert into public.moderation_log (actor_id");
+  });
+});

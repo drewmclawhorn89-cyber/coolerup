@@ -1,0 +1,10 @@
+export const BANNED_WORDS = ["porn","xxx","nude","sex","fuck","shit","bitch","asshole","slur1","slur2","kill yourself","kys","nigger","faggot","retard","whore","slut"];
+export function containsBannedWord(text: string) {
+  const low = text.toLowerCase();
+  return BANNED_WORDS.some(w => low.includes(w));
+}
+export function isSpam(texts: string[]) {
+  if(texts.length < 5) return false;
+  const last5 = texts.slice(-5);
+  return last5.every(t => t === last5[0]);
+}

@@ -19,6 +19,12 @@ export type PlayerTrack = {
   url: string;
   /** CSS gradient used as the cover. */
   cover: string;
+  /** "own" = Coolerup audio file, "youtube" = streamed from YouTube. */
+  source?: "own" | "youtube";
+  /** Watch link when the track is a YouTube song. */
+  youtubeUrl?: string | null;
+  /** Real cover image (YouTube thumbnail) when there is one. */
+  coverUrl?: string | null;
 };
 
 export type SongPlayerState = {

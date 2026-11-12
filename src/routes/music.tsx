@@ -6,14 +6,21 @@ import {
   Heart,
   Loader2,
   Music2,
+  Plus,
   Search,
   ShieldAlert,
   Sparkles,
+  Youtube,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useServerFn } from "@tanstack/react-start";
 import { useAuth } from "@/hooks/useAuth";
 import { SongCard, SongRow } from "@/components/SongCard";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { requestUseSound, YouTubeSongPlayer } from "@/components/MusicPlayer";
 import { songPlayer, useSongPlayer, type PlayerTrack } from "@/lib/songPlayer";
 import {
   FULL_SONG_SECONDS,
@@ -23,6 +30,7 @@ import {
   getTopSounds,
   getTrendingSoundsThisWeek,
   isFullSong,
+  isYouTubeSound,
   probeSoundDurations,
   saveSound,
   soundAudioUrl,
@@ -30,6 +38,12 @@ import {
   unsaveSound,
   type Sound,
 } from "@/lib/sounds";
+import {
+  addYouTubeSong,
+  getYouTubeSongs,
+  incrementSoundPlay,
+  youtubeSongId,
+} from "@/lib/youtubeSongs";
 
 export const Route = createFileRoute("/music")({
   component: MusicPage,
@@ -45,12 +59,16 @@ const TABS: { id: MusicTab; label: string }[] = [
 ];
 
 function toTrack(sound: Sound, url: string): PlayerTrack {
+  const youtube = isYouTubeSound(sound);
   return {
     soundId: sound.id,
     title: sound.title,
-    artist: `@${sound.creator_username}`,
+    artist: youtube ? sound.creator_username : `@${sound.creator_username}`,
     url,
     cover: soundCoverGradient(sound.id),
+    source: youtube ? "youtube" : "own",
+    youtubeUrl: sound.youtube_url ?? null,
+    coverUrl: sound.cover_url ?? null,
   };
 }
 
@@ -62,6 +80,7 @@ function MusicPage() {
   const [tab, setTab] = useState<MusicTab>("top");
   const [query, setQuery] = useState("");
   const [all, setAll] = useState<Sound[]>([]);
+  const [youtubeSongs, setYoutubeSongs] = useState<Sound[]>([]);
   const [top, setTop] = useState<Sound[]>([]);
   const [trending, setTrending] = useState<Sound[]>([]);
   const [saved, setSaved] = useState<Sound[]>([]);
@@ -70,19 +89,24 @@ function MusicPage() {
   const [error, setError] = useState("");
   const [probing, setProbing] = useState(false);
   const [durationVersion, setDurationVersion] = useState(0);
+  /** The YouTube song open in the full-song player, if any. */
+  const [activeYouTube, setActiveYouTube] = useState<Sound | null>(null);
+  const [addingYouTube, setAddingYouTube] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      const [allSounds, topSounds, trendingSounds] = await Promise.all([
+      const [allSounds, topSounds, trendingSounds, youTube] = await Promise.all([
         getAllSounds(200),
         getTopSounds(10),
         getTrendingSoundsThisWeek(20),
+        getYouTubeSongs(50).catch(() => [] as Sound[]),
       ]);
       setAll(allSounds);
       setTop(topSounds);
       setTrending(trendingSounds);
+      setYoutubeSongs(youTube);
 
       if (auth.user) {
         const mine = await getSavedSounds();
@@ -121,10 +145,10 @@ function MusicPage() {
   const searchResults = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return null;
-    return all.filter(
+    return [...all, ...youtubeSongs].filter(
       (s) => s.title.toLowerCase().includes(q) || s.creator_username.toLowerCase().includes(q),
     );
-  }, [all, query]);
+  }, [all, youtubeSongs, query]);
 
   const fullSongs = useMemo(() => {
     // Song lengths live in a module-level cache, not in React state, so
@@ -173,6 +197,13 @@ function MusicPage() {
    * 40 signed URLs up front makes the tap feel broken on a phone.
    */
   const openSong = useCallback(async (sound: Sound, list: Sound[]) => {
+    // YouTube songs stream from YouTube's embed player, never a stored file.
+    if (isYouTubeSound(sound)) {
+      songPlayer.stop();
+      setActiveYouTube(sound);
+      void incrementSoundPlay(sound.id);
+      return;
+    }
     try {
       const url = await soundAudioUrl(sound);
       if (!url) {
@@ -268,6 +299,19 @@ function MusicPage() {
           <h1 className="flex items-center gap-1.5 text-lg font-black tracking-tight">
             <Music2 className="h-5 w-5 text-primary" /> Music
           </h1>
+          <button
+            type="button"
+            onClick={() => {
+              if (!auth.user) {
+                void auth.signIn();
+                return;
+              }
+              setAddingYouTube(true);
+            }}
+            className="ml-auto flex items-center gap-1 rounded-full bg-red-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-red-500"
+          >
+            <Plus className="h-3.5 w-3.5" /> Add YouTube Song
+          </button>
         </div>
 
         {/* Search */}
@@ -352,6 +396,12 @@ function MusicPage() {
               saved,
               auth.user ? "Tap the heart on a song to save it here." : "Sign in to save sounds.",
             )}
+            {renderRow(
+              "YouTube Songs",
+              <Youtube className="h-4 w-4 text-red-600" />,
+              youtubeSongs,
+              "No YouTube songs yet. Tap + Add YouTube Song to paste a link.",
+            )}
             <section className="mb-6">
               <div className="mb-2 flex items-center gap-1.5 px-1">
                 <Music2 className="h-4 w-4 text-sky-400" />
@@ -361,7 +411,17 @@ function MusicPage() {
             </section>
           </>
         ) : tab === "trending" ? (
-          <section>{renderList(trending, "Nothing trending this week.")}</section>
+          <section>
+            {renderList(trending, "Nothing trending this week.")}
+            <div className="mt-6">
+              <div className="mb-2 flex items-center gap-1.5 px-1">
+                <Youtube className="h-4 w-4 text-red-600" />
+                <h2 className="text-sm font-bold">YouTube Songs</h2>
+                <span className="text-[11px] text-muted-foreground">{youtubeSongs.length}</span>
+              </div>
+              {renderList(youtubeSongs, "No YouTube songs yet.")}
+            </div>
+          </section>
         ) : tab === "mine" ? (
           <section>
             {renderList(
@@ -401,6 +461,139 @@ function MusicPage() {
           </section>
         )}
       </div>
+
+      {/* Full-song YouTube player — streams from YouTube, not a stored file. */}
+      {activeYouTube && (
+        <div className="fixed inset-x-0 bottom-0 z-[60] flex justify-center px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+          <div className="w-full max-w-md">
+            <YouTubeSongPlayer
+              key={activeYouTube.id}
+              sound={activeYouTube}
+              videoId={youtubeSongId(activeYouTube) ?? ""}
+              saved={savedIds.has(activeYouTube.id)}
+              onToggleSave={() => void toggleSave(activeYouTube)}
+              onUse={() => {
+                requestUseSound(toTrack(activeYouTube, ""));
+                setActiveYouTube(null);
+              }}
+              onPrev={
+                youtubeSongs.length > 1
+                  ? () => {
+                      const i = youtubeSongs.findIndex((s) => s.id === activeYouTube.id);
+                      const prev =
+                        youtubeSongs[(i - 1 + youtubeSongs.length) % youtubeSongs.length];
+                      if (prev) setActiveYouTube(prev);
+                    }
+                  : undefined
+              }
+              onNext={
+                youtubeSongs.length > 1
+                  ? () => {
+                      const i = youtubeSongs.findIndex((s) => s.id === activeYouTube.id);
+                      const next = youtubeSongs[(i + 1) % youtubeSongs.length];
+                      if (next) setActiveYouTube(next);
+                    }
+                  : undefined
+              }
+              onClose={() => setActiveYouTube(null)}
+            />
+          </div>
+        </div>
+      )}
+
+      <AddYouTubeSongDialog
+        open={addingYouTube}
+        onClose={() => setAddingYouTube(false)}
+        onAdded={(song) => {
+          setYoutubeSongs((prev) => [song, ...prev.filter((s) => s.id !== song.id)]);
+          setAll((prev) => prev.filter((s) => s.id !== song.id));
+          toast.success("YouTube song added to Music.");
+        }}
+      />
     </div>
+  );
+}
+
+/**
+ * "Paste a YouTube link" popup — the Music tab's twin of the Videos tab's
+ * Add YouTube dialog. The server reads the title, channel and thumbnail from
+ * YouTube and stores them on a `sounds` row with `source = 'youtube'`.
+ */
+function AddYouTubeSongDialog({
+  open,
+  onClose,
+  onAdded,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onAdded: (song: Sound) => void;
+}) {
+  const [url, setUrl] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const add = useServerFn(addYouTubeSong);
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next && !busy) onClose();
+      }}
+    >
+      <DialogContent className="w-[calc(100%-2rem)] rounded-lg" aria-describedby={undefined}>
+        <DialogHeader>
+          <DialogTitle>Paste YouTube link</DialogTitle>
+        </DialogHeader>
+        <form
+          className="space-y-4"
+          onSubmit={async (event) => {
+            event.preventDefault();
+            if (busy) return;
+            if (!url.trim()) {
+              setError("Paste a YouTube link first.");
+              return;
+            }
+            setBusy(true);
+            setError("");
+            try {
+              const song = await add({ data: { url } });
+              onAdded(song);
+              setUrl("");
+              onClose();
+            } catch (err) {
+              setError(err instanceof Error ? err.message : "Could not add this song.");
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          <Input
+            aria-label="YouTube link"
+            placeholder="https://youtube.com/watch?v=…"
+            value={url}
+            onChange={(event) => {
+              setUrl(event.target.value);
+              setError("");
+            }}
+            disabled={busy}
+            autoFocus
+          />
+          <p className="text-xs text-muted-foreground">
+            The title, channel and thumbnail are saved automatically. The song plays from YouTube —
+            nothing is downloaded.
+          </p>
+          {error && (
+            <p role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
+          )}
+          <div className="flex justify-end">
+            <Button type="submit" disabled={busy || !url.trim()}>
+              {busy ? <Loader2 className="animate-spin" /> : <Plus />} {busy ? "Adding…" : "Add"}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -222,7 +222,10 @@ function VideoCardImpl({
   // Recordings made with a sound have it baked into the file ([[baked]]), so
   // they must not overlay it again.
   const soundBakedIn = parseCaption(video.caption).baked;
-  const hasBorrowedSound = !!sound && sound.original_video_id !== video.id && !soundBakedIn;
+  // YouTube songs stream from YouTube and have no audio file, so there is
+  // nothing for the <audio> overlay to play — the Short carries its own audio.
+  const hasBorrowedSound =
+    !!sound && sound.source !== "youtube" && sound.original_video_id !== video.id && !soundBakedIn;
 
   // --- moderation -----------------------------------------------------------
   const [isBanned, setIsBanned] = useState(false);
@@ -324,7 +327,7 @@ function VideoCardImpl({
 
   // Resolve the audio source for a borrowed sound (handles storage: URLs).
   useEffect(() => {
-    if (!sound?.audio_url) {
+    if (!sound?.audio_url || sound.source === "youtube") {
       setSoundSrc("");
       return;
     }
@@ -335,7 +338,7 @@ function VideoCardImpl({
     return () => {
       active = false;
     };
-  }, [sound?.id, sound?.audio_url]);
+  }, [sound?.id, sound?.audio_url, sound?.source]);
 
   // Keep the overlay audio in step with the video.
   const syncSound = useCallback(

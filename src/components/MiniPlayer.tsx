@@ -6,7 +6,6 @@ import {
   Clapperboard,
   Heart,
   Loader2,
-  Lock,
   Music,
   Pause,
   Play,
@@ -14,7 +13,6 @@ import {
   Share2,
   SkipBack,
   SkipForward,
-  TriangleAlert,
   Volume2,
   VolumeX,
   X,
@@ -24,10 +22,7 @@ import { DownloadButton } from "@/components/DownloadButton";
 import {
   attachBackgroundPlay,
   isBackgroundPlayEnabled,
-  isYouTubeTrack,
   setBackgroundPlayEntitled,
-  YOUTUBE_BACKGROUND_SHORT,
-  YOUTUBE_BACKGROUND_WARNING,
 } from "@/lib/backgroundPlay";
 import { useAuth } from "@/hooks/useAuth";
 import { hasBackgroundPlayAccess, SUBSCRIPTION_EVENT } from "@/lib/subscriptions";
@@ -100,9 +95,7 @@ export function MiniPlayer() {
 
   if (!player.active || !track) return null;
 
-  const isYouTube = isYouTubeTrack(track);
   const backgroundOn = isBackgroundPlayEnabled();
-  const backgroundEntitled = hasBackgroundPlayAccess(auth.handle);
   const onMusicTab = pathname === "/music";
 
   const toggleSave = async () => {
@@ -151,35 +144,6 @@ export function MiniPlayer() {
             background: `linear-gradient(to right, var(--primary, #f97316) ${pct}%, rgba(255,255,255,0.15) ${pct}%)`,
           }}
         />
-
-        {/* iOS suspends background web audio, so YouTube songs still stop
-            there. Everywhere else they keep playing for VIPs. */}
-        {isYouTube && (
-          <div className="flex items-start gap-2 border-b border-amber-500/20 bg-amber-500/10 px-3 py-1.5">
-            <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-400" />
-            <p
-              className="text-[11px] leading-tight text-amber-200"
-              title={YOUTUBE_BACKGROUND_WARNING}
-            >
-              {YOUTUBE_BACKGROUND_SHORT} — background play works on Chrome, Edge and Android.
-            </p>
-          </div>
-        )}
-
-        {/* Background play is a VIP perk. Tell non-VIP listeners why the song
-            stops when they leave the app, and give them a way to unlock it. */}
-        {!backgroundEntitled && (
-          <button
-            type="button"
-            onClick={() => void navigate({ to: "/settings", search: { subscriptions: true } })}
-            className="flex w-full items-start gap-2 border-b border-primary/20 bg-primary/10 px-3 py-1.5 text-left"
-          >
-            <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
-            <span className="text-[11px] leading-tight text-primary">
-              Background play is a VIP perk — upgrade to keep music playing when you leave the app.
-            </span>
-          </button>
-        )}
 
         {expanded && (
           <div className="px-4 pt-3">

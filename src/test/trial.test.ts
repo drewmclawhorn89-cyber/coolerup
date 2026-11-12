@@ -146,10 +146,15 @@ describe("paid subscriptions \u2014 the plan record carries no trial status", ()
     );
     const sub = getSubscription(H);
     expect(sub).not.toBeNull();
+    // `trialEndsAt` is retired; `normalize()` always fills the canonical set.
+    expect(sub).not.toHaveProperty("trialEndsAt");
     expect(Object.keys(sub!).sort()).toEqual([
+      "code",
+      "currentPeriodEnd",
       "paidAt",
       "paymentMethod",
       "planId",
+      "source",
       "startedAt",
       "status",
     ]);

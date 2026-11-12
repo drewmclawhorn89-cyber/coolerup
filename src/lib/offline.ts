@@ -131,3 +131,45 @@ export async function removeOffline(id: string) {
 export function formatBytes(n: number) {
   return n > 1e6 ? `${(n / 1e6).toFixed(1)} MB` : `${Math.round(n / 1e3)} KB`;
 }
+
+/* ------------------------------------------------------------------ */
+/* Offline storage budget + meter                                      */
+/* ------------------------------------------------------------------ */
+
+/** Hard budget for downloaded videos: 500 MB, matching the offline page. */
+export const MAX_OFFLINE_BYTES = 500 * 1024 * 1024;
+
+export type OfflineUsage = { used: number; max: number; count: number };
+
+/**
+ * Bytes currently taken by downloaded videos, the budget, and how many there
+ * are. Both stores are counted so the meter matches what "Clear all" frees.
+ */
+export async function getOfflineUsage(): Promise<OfflineUsage> {
+  try {
+    const [full, shorts] = await Promise.all([
+      tx<SavedFullVideo[]>(FULL_STORE, "readonly", (s) => s.getAll()),
+      tx<Saved[]>(STORE, "readonly", (s) => s.getAll()),
+    ]);
+    const used = [...full, ...shorts].reduce((sum, row) => sum + (row.size || 0), 0);
+    return { used, max: MAX_OFFLINE_BYTES, count: full.length + shorts.length };
+  } catch {
+    return { used: 0, max: MAX_OFFLINE_BYTES, count: 0 };
+  }
+}
+
+/** Human-readable storage figure for the meter ("200 MB", "1.2 GB"). */
+export function formatStorage(n: number): string {
+  if (!n || n <= 0) return "0 MB";
+  if (n >= 1024 ** 3) return `${(n / 1024 ** 3).toFixed(1)} GB`;
+  if (n >= 1024 ** 2) return `${Math.round(n / 1024 ** 2)} MB`;
+  if (n >= 1024) return `${Math.round(n / 1024)} KB`;
+  return `${n} B`;
+}
+
+/** Free every download: both metadata stores, in one transaction each. */
+export async function clearAllDownloads(): Promise<void> {
+  await tx(FULL_STORE, "readwrite", (s) => s.clear());
+  await tx(STORE, "readwrite", (s) => s.clear());
+  emit();
+}

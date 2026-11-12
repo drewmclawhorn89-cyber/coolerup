@@ -545,11 +545,21 @@ begin
 end $$;
 
 -- 6e. Any remaining public table with RLS on but no SELECT policy would be
---     unreadable. Give it public read so the app keeps working; sensitive
---     tables were already handled above and have their own policies.
+--     unreadable. Content tables get public read so the app keeps working;
+--     sensitive tables get an admin-only read instead of leaking to the world,
+--     and the secret-bearing tables stay completely closed.
 do $$
 declare
   r record;
+  sensitive text[] := array[
+    'user_coins', 'user_balance', 'coin_purchases', 'coin_cashouts',
+    'coin_venmo_orders', 'free_coin_claims', 'payouts',
+    'creator_fund_earnings', 'follower_rewards', 'moderation_log',
+    'banned_words', 'reserved_usernames', 'subscription_codes',
+    'redeemed_codes', 'gift_card_orders', 'gift_claims', 'live_gifts',
+    'video_views', 'gta6_badges', 'gta6_challenge_claims', 'banned_users'
+  ];
+  sealed text[] := array['push_config', 'push_subscriptions'];
 begin
   for r in
     select c.relname
@@ -562,10 +572,15 @@ begin
         select 1 from pg_policies p
         where p.schemaname = 'public' and p.tablename = c.relname and p.cmd = 'SELECT'
       )
-      and c.relname <> 'push_config'
+      and c.relname <> all (sealed)
   loop
-    execute format('create policy %I on public.%I for select to anon, authenticated using (true)',
-                   'public read ' || r.relname, r.relname);
+    if r.relname = any (sensitive) then
+      execute format('create policy %I on public.%I for select to authenticated using (public.is_admin())',
+                     'admins read ' || r.relname, r.relname);
+    else
+      execute format('create policy %I on public.%I for select to anon, authenticated using (true)',
+                     'public read ' || r.relname, r.relname);
+    end if;
   end loop;
 end $$;
 

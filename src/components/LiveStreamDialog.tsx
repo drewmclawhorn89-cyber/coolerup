@@ -96,8 +96,10 @@ type ChatMessage = {
   username: string;
   body: string;
   at: number;
-  /** Optional Giphy URL shown under the message. */
+  /** Optional GIF URL (Giphy or user-made) shown under the message. */
   gif?: string;
+  /** "Made by @handle" for user-made GIFs. */
+  gifCredit?: string;
   self?: boolean;
   /** Gift lines get the pink treatment in the chat list. */
   gift?: boolean;
@@ -192,6 +194,7 @@ export function LiveStreamDialog({
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [draftGif, setDraftGif] = useState<string | null>(null);
+  const [draftGifCredit, setDraftGifCredit] = useState<string | null>(null);
   const [showGifPicker, setShowGifPicker] = useState(false);
   const [chatOpen, setChatOpen] = useState(true);
   const [unread, setUnread] = useState(0);
@@ -524,6 +527,7 @@ export function LiveStreamDialog({
       at: Date.now(),
       self: true,
       ...(draftGif ? { gif: draftGif } : {}),
+      ...(draftGifCredit ? { gifCredit: draftGifCredit } : {}),
       ...(userId ? { userId } : {}),
     };
     pushMessage(message);
@@ -533,10 +537,12 @@ export function LiveStreamDialog({
       body,
       at: message.at,
       ...(draftGif ? { gif: draftGif } : {}),
+      ...(draftGifCredit ? { gifCredit: draftGifCredit } : {}),
       ...(userId ? { userId } : {}),
     });
     setDraft("");
     setDraftGif(null);
+    setDraftGifCredit(null);
     setShowGifPicker(false);
   }
 
@@ -659,6 +665,7 @@ export function LiveStreamDialog({
         body: String(payload.body ?? "").slice(0, 240),
         at: payload.at || Date.now(),
         ...(payload.gif ? { gif: String(payload.gif) } : {}),
+        ...(payload.gifCredit ? { gifCredit: String(payload.gifCredit).slice(0, 60) } : {}),
         ...(payload.system ? { system: true } : {}),
         ...(payload.userId ? { userId: payload.userId } : {}),
       });
@@ -743,6 +750,7 @@ export function LiveStreamDialog({
         body: String(payload.body ?? "").slice(0, 240),
         at: payload.at || Date.now(),
         ...(payload.gif ? { gif: String(payload.gif) } : {}),
+        ...(payload.gifCredit ? { gifCredit: String(payload.gifCredit).slice(0, 60) } : {}),
         ...(payload.system ? { system: true } : {}),
         ...(payload.userId ? { userId: payload.userId } : {}),
       });
@@ -1091,7 +1099,14 @@ export function LiveStreamDialog({
         </button>{" "}
         {message.body && <span className="font-medium">{message.body}</span>}
         {message.gif && (
-          <img src={message.gif} alt="GIF" loading="lazy" className="mt-1 max-h-32 rounded-lg" />
+          <>
+            <img src={message.gif} alt="GIF" loading="lazy" className="mt-1 max-h-32 rounded-lg" />
+            {message.gifCredit && (
+              <span className="mt-0.5 block text-[9px] font-semibold text-white/70">
+                Made by {message.gifCredit}
+              </span>
+            )}
+          </>
         )}
       </div>
     );
@@ -1598,8 +1613,9 @@ export function LiveStreamDialog({
                   {showGifPicker && (
                     <GifPicker
                       className="mb-2 rounded-xl border-white/10 bg-black/70 text-white"
-                      onPick={(url) => {
+                      onPick={(url, meta) => {
                         setDraftGif(url);
+                        setDraftGifCredit(meta?.username ? `@${meta.username}` : null);
                         setShowGifPicker(false);
                       }}
                       onClose={() => setShowGifPicker(false)}
@@ -1610,7 +1626,10 @@ export function LiveStreamDialog({
                       <img src={draftGif} alt="Selected GIF" className="max-h-24 rounded-lg" />
                       <button
                         type="button"
-                        onClick={() => setDraftGif(null)}
+                        onClick={() => {
+                          setDraftGif(null);
+                          setDraftGifCredit(null);
+                        }}
                         aria-label="Remove GIF"
                         className="absolute right-1 top-1 rounded-full bg-black/70 p-1"
                       >

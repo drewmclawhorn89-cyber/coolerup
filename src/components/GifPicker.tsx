@@ -1,6 +1,19 @@
-import { useEffect, useState } from "react";
-import { X } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { Flag, Loader2, Plus, Trash2, X } from "lucide-react";
+import { toast } from "sonner";
 import { getGiphyKey } from "@/lib/giphy.functions";
+import { useAuth } from "@/hooks/useAuth";
+import { MakeGif } from "@/components/MakeGif";
+import {
+  bumpGifUse,
+  deleteGif,
+  listMyGifs,
+  listTrendingGifs,
+  reportGif,
+  searchGifs,
+  type GifPickMeta,
+  type GifRow,
+} from "@/lib/gif";
 
 // Bracket access: `import.meta.env` is typed with an index signature, so
 // `env.VITE_GIPHY_API_KEY` fails `tsc --noEmit` (TS4111).
@@ -19,30 +32,41 @@ type GiphyResult = {
 
 type Failure = { kind: "missing-key" | "bad-key" | "network"; detail?: string | undefined };
 
+type Tab = "trending" | "mine";
+
 /**
- * Giphy search/trending picker. Shared by feed comments, full-video comments
- * and LIVE chat so every place you can post a message can post a GIF too.
+ * GIF picker shared by feed comments, full-video comments, LIVE chat and DMs.
  *
- * The key is resolved in two steps: the build-time `VITE_GIPHY_API_KEY` if the
- * bundle was built with one, otherwise `getGiphyKey()` asks the server at
- * request time. The second path means setting `GIPHY_API_KEY` on the host and
- * restarting is enough — no rebuild. Giphy's retired public beta key is never
- * used as a fallback; it returns 403 BANNED and only produced a vague
- * "Couldn't load GIFs" toast.
+ * Two sources live side by side:
+ *  - Giphy (search + trending), exactly as before
+ *  - Coolerup GIFs made by users ("Make Your Own GIFs")
+ *
+ * The search bar and the grid are the same UI the screenshot had; `+ Make GIF`
+ * sits beside the search box, and the tabs switch between Trending and My GIFs.
+ * Picking a user-made GIF also returns its author so the composer can show
+ * "Made by @handle".
  */
 export function GifPicker({
   onPick,
   onClose,
   className = "",
 }: {
-  onPick: (url: string) => void;
+  onPick: (url: string, meta?: GifPickMeta) => void;
   onClose: () => void;
   className?: string;
 }) {
+  const { user, signIn } = useAuth();
   const [q, setQ] = useState("");
+  const [tab, setTab] = useState<Tab>("trending");
   const [gifs, setGifs] = useState<Gif[]>([]);
   const [loading, setLoading] = useState(false);
   const [failure, setFailure] = useState<Failure | null>(null);
+  const [mine, setMine] = useState<GifRow[]>([]);
+  const [custom, setCustom] = useState<GifRow[]>([]);
+  const [customLoading, setCustomLoading] = useState(false);
+  const [customError, setCustomError] = useState<string | null>(null);
+  const [showMaker, setShowMaker] = useState(false);
+  const [busyId, setBusyId] = useState<string | null>(null);
 
   // Empty until resolved. `resolved` separates "still asking the server" from
   // "the server says there is no key", so we never flash a config error.
@@ -130,6 +154,94 @@ export function GifPicker({
     };
   }, [q, key, resolved]);
 
+  const loadCustom = useCallback(async () => {
+    if (!user) {
+      setMine([]);
+      setCustom([]);
+      return;
+    }
+    setCustomLoading(true);
+    setCustomError(null);
+    try {
+      const [trending, own] = await Promise.all([
+        q.trim() ? searchGifs(q, 24) : listTrendingGifs(24),
+        listMyGifs(user.id),
+      ]);
+      setCustom(trending);
+      setMine(own);
+    } catch (err) {
+      setCustom([]);
+      setMine([]);
+      setCustomError(err instanceof Error ? err.message : "Couldn't load Coolerup GIFs.");
+    } finally {
+      setCustomLoading(false);
+    }
+  }, [user, q]);
+
+  useEffect(() => {
+    if (showMaker) return;
+    void loadCustom();
+  }, [loadCustom, showMaker]);
+
+  const pickCustom = (gif: GifRow) => {
+    bumpGifUse(gif.id);
+    onPick(gif.gif_url, {
+      id: gif.id,
+      title: gif.title,
+      username: gif.username ?? null,
+    });
+  };
+
+  const remove = async (gif: GifRow) => {
+    if (!window.confirm("Delete this GIF? It will disappear from comments and LIVE chat.")) return;
+    setBusyId(gif.id);
+    try {
+      await deleteGif(gif);
+      setMine((rows) => rows.filter((r) => r.id !== gif.id));
+      setCustom((rows) => rows.filter((r) => r.id !== gif.id));
+      toast.success("GIF deleted");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't delete that GIF.");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const report = async (gif: GifRow) => {
+    if (!user) {
+      void signIn();
+      return;
+    }
+    setBusyId(gif.id);
+    try {
+      await reportGif(gif.id, user.id);
+      toast.success("Reported — thanks. We'll review this GIF.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't report that GIF.");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  if (showMaker) {
+    return (
+      <div className={`border-t p-3 ${className}`}>
+        <MakeGif
+          className="border-t-0 p-0"
+          onCreated={() => {
+            setShowMaker(false);
+            setTab("mine");
+            void loadCustom();
+          }}
+          onClose={() => setShowMaker(false)}
+        />
+      </div>
+    );
+  }
+
+  const shownCustom = tab === "mine" ? mine : custom;
+  const showGiphy = tab === "trending";
+
   return (
     <div className={`border-t p-3 ${className}`}>
       <div className="mb-2 flex items-center gap-2">
@@ -140,12 +252,49 @@ export function GifPicker({
           disabled={!resolved || !key}
           className="min-w-0 flex-1 rounded-full bg-secondary px-4 py-2 text-base outline-none disabled:opacity-50 sm:text-sm"
         />
+        <button
+          type="button"
+          onClick={() => {
+            if (!user) {
+              void signIn();
+              return;
+            }
+            setShowMaker(true);
+          }}
+          className="flex shrink-0 items-center gap-1 rounded-full bg-primary px-3 py-2 text-xs font-bold text-primary-foreground"
+          aria-label="Make your own GIF"
+        >
+          <Plus className="h-3.5 w-3.5" /> Make GIF
+        </button>
         <button type="button" onClick={onClose} aria-label="Close GIF picker">
           <X className="h-4 w-4" />
         </button>
       </div>
 
-      {failure && (
+      <div className="mb-2 flex gap-1 rounded-full bg-secondary/60 p-0.5 text-xs font-bold">
+        <button
+          type="button"
+          onClick={() => setTab("trending")}
+          aria-pressed={tab === "trending"}
+          className={`flex-1 rounded-full py-1.5 ${
+            tab === "trending" ? "bg-background shadow-sm" : "text-muted-foreground"
+          }`}
+        >
+          Trending
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab("mine")}
+          aria-pressed={tab === "mine"}
+          className={`flex-1 rounded-full py-1.5 ${
+            tab === "mine" ? "bg-background shadow-sm" : "text-muted-foreground"
+          }`}
+        >
+          My GIFs{mine.length > 0 ? ` (${mine.length})` : ""}
+        </button>
+      </div>
+
+      {failure && showGiphy && (
         <div className="mb-2 space-y-1 rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">
           {failure.kind === "missing-key" && (
             <>
@@ -189,23 +338,106 @@ export function GifPicker({
         </div>
       )}
 
-      <div className="grid max-h-40 grid-cols-3 gap-1 overflow-y-auto">
-        {!resolved && <p className="col-span-3 text-xs text-muted-foreground">Loading…</p>}
-        {resolved && loading && <p className="col-span-3 text-xs text-muted-foreground">Loading…</p>}
-        {resolved && !loading && !failure && gifs.length === 0 && (
-          <p className="col-span-3 text-xs text-muted-foreground">No GIFs found.</p>
-        )}
-        {gifs.map((g) => (
-          <button type="button" key={g.id} onClick={() => onPick(g.url)} aria-label="Pick GIF">
-            <img
-              src={g.preview}
-              alt="GIF"
-              loading="lazy"
-              className="h-20 w-full rounded object-cover"
-            />
+      {customError && (
+        <p className="mb-2 rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">
+          {customError}
+        </p>
+      )}
+
+      {tab === "mine" && !user && (
+        <div className="mb-2 rounded-lg bg-secondary/60 p-3 text-center text-xs text-muted-foreground">
+          Sign in to make and keep your own GIFs.
+          <button
+            type="button"
+            onClick={() => void signIn()}
+            className="ml-2 rounded-full bg-primary px-3 py-1 text-[11px] font-bold text-primary-foreground"
+          >
+            Sign in
           </button>
-        ))}
-      </div>
+        </div>
+      )}
+
+      {shownCustom.length > 0 && (
+        <div className="mb-2">
+          <p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+            {tab === "mine" ? "Your GIFs" : "Made on Coolerup"}
+          </p>
+          <div className="grid max-h-40 grid-cols-3 gap-1 overflow-y-auto">
+            {shownCustom.map((g) => {
+              const isOwn = !!user && g.user_id === user.id;
+              return (
+                <div key={g.id} className="group relative">
+                  <button
+                    type="button"
+                    onClick={() => pickCustom(g)}
+                    aria-label={`Pick ${g.title}`}
+                    className="block w-full"
+                  >
+                    <img
+                      src={g.gif_url}
+                      alt={g.title}
+                      loading="lazy"
+                      className="h-20 w-full rounded object-cover"
+                    />
+                    <span className="absolute inset-x-0 bottom-0 truncate rounded-b bg-black/60 px-1 py-0.5 text-left text-[9px] font-semibold text-white">
+                      {g.username ? `Made by @${g.username}` : g.title}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => (isOwn ? void remove(g) : void report(g))}
+                    disabled={busyId === g.id}
+                    aria-label={isOwn ? `Delete ${g.title}` : `Report ${g.title}`}
+                    className="absolute right-1 top-1 rounded-full bg-black/60 p-1 text-white opacity-0 transition group-hover:opacity-100 focus:opacity-100 disabled:opacity-50"
+                  >
+                    {busyId === g.id ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : isOwn ? (
+                      <Trash2 className="h-3 w-3" />
+                    ) : (
+                      <Flag className="h-3 w-3" />
+                    )}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {tab === "mine" && user && !customLoading && mine.length === 0 && (
+        <p className="mb-2 rounded-lg bg-secondary/50 px-3 py-2 text-xs text-muted-foreground">
+          No GIFs yet. Tap <strong>+ Make GIF</strong> to cut one from your videos.
+        </p>
+      )}
+
+      {customLoading && (
+        <p className="mb-2 flex items-center gap-1 text-xs text-muted-foreground">
+          <Loader2 className="h-3 w-3 animate-spin" /> Loading Coolerup GIFs…
+        </p>
+      )}
+
+      {showGiphy && (
+        <div className="grid max-h-40 grid-cols-3 gap-1 overflow-y-auto">
+          {!resolved && <p className="col-span-3 text-xs text-muted-foreground">Loading…</p>}
+          {resolved && loading && (
+            <p className="col-span-3 text-xs text-muted-foreground">Loading…</p>
+          )}
+          {resolved && !loading && !failure && gifs.length === 0 && (
+            <p className="col-span-3 text-xs text-muted-foreground">No GIFs found.</p>
+          )}
+          {gifs.map((g) => (
+            <button type="button" key={g.id} onClick={() => onPick(g.url)} aria-label="Pick GIF">
+              <img
+                src={g.preview}
+                alt="GIF"
+                loading="lazy"
+                className="h-20 w-full rounded object-cover"
+              />
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

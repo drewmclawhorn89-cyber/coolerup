@@ -12,13 +12,14 @@ type Comment = {
   body: string;
   created_at: string;
   gif_url: string | null;
+  gif_credit: string | null;
   parent_id: string | null;
   /** Folded in after the comments load; not a column on `comments`. */
   like_count: number;
   liked_by_me: boolean;
 };
 
-const COLS = "id, username, body, created_at, gif_url, parent_id";
+const COLS = "id, username, body, created_at, gif_url, gif_credit, parent_id";
 
 export function Comments({
   videoId,
@@ -34,6 +35,7 @@ export function Comments({
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [gif, setGif] = useState<string | null>(null);
+  const [gifCredit, setGifCredit] = useState<string | null>(null);
   const [showGifs, setShowGifs] = useState(false);
   const [replyTo, setReplyTo] = useState<Comment | null>(null);
   const { handle, signIn, user } = useAuth();
@@ -107,6 +109,7 @@ export function Comments({
         username: handle ?? "guest",
         body: body.slice(0, 300),
         gif_url: gif,
+        gif_credit: gifCredit,
         parent_id: replyTo ? (replyTo.parent_id ?? replyTo.id) : null,
       })
       .select(COLS)
@@ -120,6 +123,7 @@ export function Comments({
     setItems((c) => [{ ...data, like_count: 0, liked_by_me: false }, ...(c ?? [])]);
     setText("");
     setGif(null);
+    setGifCredit(null);
     setShowGifs(false);
     setReplyTo(null);
     onAdded();
@@ -257,8 +261,9 @@ export function Comments({
           <>
             {showGifs && (
               <GifPicker
-                onPick={(u) => {
+                onPick={(u, meta) => {
                   setGif(u);
+                  setGifCredit(meta?.username ? `@${meta.username}` : null);
                   setShowGifs(false);
                 }}
                 onClose={() => setShowGifs(false)}
@@ -275,9 +280,17 @@ export function Comments({
             {gif && (
               <div className="relative border-t px-4 pt-3">
                 <img src={gif} alt="Selected GIF" className="max-h-32 rounded-lg" />
+                {gifCredit && (
+                  <p className="mt-1 text-[10px] font-semibold text-muted-foreground">
+                    Made by {gifCredit}
+                  </p>
+                )}
                 <button
                   type="button"
-                  onClick={() => setGif(null)}
+                  onClick={() => {
+                    setGif(null);
+                    setGifCredit(null);
+                  }}
                   aria-label="Remove GIF"
                   className="absolute left-5 top-5 rounded-full bg-background/80 p-1"
                 >
@@ -335,7 +348,14 @@ function CommentRow({
         <p className="text-xs font-bold text-muted-foreground">@{c.username}</p>
         {c.body && <p className="text-sm">{c.body}</p>}
         {c.gif_url && (
-          <img src={c.gif_url} alt="GIF" loading="lazy" className="mt-1 max-h-40 rounded-lg" />
+          <>
+            <img src={c.gif_url} alt="GIF" loading="lazy" className="mt-1 max-h-40 rounded-lg" />
+            {c.gif_credit && (
+              <p className="mt-0.5 text-[10px] font-semibold text-muted-foreground">
+                Made by {c.gif_credit}
+              </p>
+            )}
+          </>
         )}
         <div className="mt-1 flex items-center gap-3">
           <button

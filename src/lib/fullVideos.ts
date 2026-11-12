@@ -58,8 +58,10 @@ export type FullVideoComment = {
   username: string;
   body: string;
   created_at: string;
-  /** Optional GIF attached to the comment (Giphy URL). */
+  /** Optional GIF attached to the comment (Giphy or user-made URL). */
   gif_url: string | null;
+  /** "Made by @handle" for user-made GIFs; null for Giphy. */
+  gif_credit: string | null;
   /** Set on a reply; points at the top-level comment it answers. */
   parent_id: string | null;
   /** How many people liked this comment. */
@@ -403,6 +405,7 @@ export async function addComment(
   body: string,
   parentId?: string | null,
   gifUrl?: string | null,
+  gifCredit?: string | null,
 ): Promise<FullVideoComment> {
   const { data, error } = await db
     .from("full_video_comments")
@@ -413,6 +416,7 @@ export async function addComment(
       body: body.trim(),
       parent_id: parentId ?? null,
       gif_url: gifUrl ?? null,
+      gif_credit: gifCredit ?? null,
     })
     .select("*")
     .single();
@@ -421,6 +425,7 @@ export async function addComment(
     ...(data as FullVideoComment),
     parent_id: (data as FullVideoComment).parent_id ?? null,
     gif_url: (data as FullVideoComment).gif_url ?? null,
+    gif_credit: (data as FullVideoComment).gif_credit ?? null,
     like_count: 0,
     liked_by_me: false,
   };

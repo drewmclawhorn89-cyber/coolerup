@@ -23,7 +23,7 @@ import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
 import { useAuth } from "@/hooks/useAuth";
 import { SongCard, SongRow, SoundCover } from "@/components/SongCard";
-import { RemoveDownloadButton } from "@/components/DownloadButton";
+import { RemoveDownloadButton, ReplaceAudioButton } from "@/components/DownloadButton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -728,9 +728,13 @@ function DownloadedTab({
                   </span>
                   <span className="block truncate text-xs text-muted-foreground">
                     {saved.sound.creator_username} · {formatStorage(saved.size)}
+                    {saved.file_name ? ` · ${saved.file_name}` : ""}
                   </span>
                 </span>
               </button>
+              {isYouTubeSound(saved.sound) && (
+                <ReplaceAudioButton sound={saved.sound} onReplaced={onChanged} />
+              )}
               <RemoveDownloadButton sound={saved.sound} onRemoved={onChanged} />
             </div>
           ))}
@@ -750,7 +754,8 @@ function DownloadedTab({
         <ShieldAlert className="h-4 w-4 shrink-0 text-muted-foreground" />
         <p className="text-[11px] leading-relaxed text-muted-foreground">
           Coolerup sounds download directly. YouTube songs can't be fetched, so tap Download on one
-          and pick an audio file you already have — it's stored here and plays offline.
+          and add an audio file you already have — it's stored here, labelled with the file name,
+          and plays offline. Picked the wrong song? Tap <span className="font-semibold">Swap</span>.
         </p>
       </div>
     </section>

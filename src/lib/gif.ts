@@ -13,6 +13,7 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { loadFfmpeg, type FfmpegLike } from "@/lib/videoCompression";
+import { convertVideoToGifCanvas } from "@/lib/gifEncode";
 
 export const MAX_GIF_SECONDS = 3;
 export const MIN_GIF_SECONDS = 0.5;
@@ -270,6 +271,53 @@ const ATTEMPTS: Attempt[] = [
 /**
  * Convert a video clip to an animated GIF.
  *
+ * Two encoders, tried in order:
+ *
+ * 1. `convertVideoToGifCanvas` — decodes with the browser's `<video>` element
+ *    and writes the GIF with gifenc. No wasm download, works on iOS Safari,
+ *    and is what nearly every device actually uses.
+ * 2. ffmpeg.wasm (below) — only when the browser cannot decode the file at
+ *    all (e.g. a codec Safari won't touch). Heavier, but has its own decoders.
+ *
+ * Both handle trim, speed (0.5×/1×/2×, clamped so the output stays ≤ 3s),
+ * centre square crop, and the text/sticker PNG overlay.
+ */
+export async function convertVideoToGif(
+  file: File,
+  edit: GifEdit,
+  onProgress?: (percent: number, stage: string) => void,
+): Promise<GifResult> {
+  if (file.size > MAX_GIF_SOURCE_BYTES) {
+    throw new Error("That video is too large to turn into a GIF. Pick a shorter one.");
+  }
+
+  try {
+    return await convertVideoToGifCanvas(file, edit, onProgress);
+  } catch (canvasErr) {
+    // Keep the reason visible in the console — the toast stays short.
+    console.warn("canvas GIF encoder failed, falling back to ffmpeg", canvasErr);
+    try {
+      return await convertVideoToGifFfmpeg(file, edit, onProgress);
+    } catch (ffmpegErr) {
+      console.error("ffmpeg GIF encoder failed", ffmpegErr);
+      const reason =
+        ffmpegErr instanceof Error
+          ? ffmpegErr.message
+          : canvasErr instanceof Error
+            ? canvasErr.message
+            : "";
+      throw new Error(
+        reason && /5 MB|too large|half a second|decode|length/i.test(reason)
+          ? reason
+          : "GIF conversion failed on this device. Try a shorter clip, or record a new 3s video.",
+      );
+    }
+  }
+}
+
+/**
+ * ffmpeg.wasm fallback encoder.
+ *
  * - trim: `-ss`/`-t` before `-i` (fast seek)
  * - speed: `setpts` (0.5× slow, 2× fast) with the source length clamped so the
  *   *output* never exceeds 3 seconds
@@ -277,7 +325,7 @@ const ATTEMPTS: Attempt[] = [
  * - text/sticker: a transparent PNG overlay drawn in the editor
  * - palettegen/paletteuse: proper GIF colours, not banded mush
  */
-export async function convertVideoToGif(
+export async function convertVideoToGifFfmpeg(
   file: File,
   edit: GifEdit,
   onProgress?: (percent: number, stage: string) => void,
@@ -375,10 +423,10 @@ export async function convertVideoToGif(
 
     throw new Error("Couldn't fit this clip under 5 MB. Try a shorter clip.");
   } catch (err) {
-    if (err instanceof Error && /5 MB|too large|half a second/.test(err.message)) throw err;
-    throw new Error(
-      "GIF conversion failed on this device. Try a shorter clip, or record a new 3s video.",
-    );
+    // Let the caller decide how to phrase this; it also has the canvas
+    // encoder's error to compare against.
+    if (err instanceof Error) throw err;
+    throw new Error(String(err));
   } finally {
     try {
       if (ffmpeg && handler) ffmpeg.off("progress", handler);

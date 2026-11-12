@@ -1,33 +1,70 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { Fragment, Suspense, lazy, useEffect, useMemo, useState } from "react";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { Fragment, Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Bell,
   Download,
   Heart,
+  Gift,
   Home,
   LogOut,
   MessageCircle,
+  Music,
+  Play,
   Plus,
   Search,
   ShoppingBag,
   User,
   Users,
+  Wifi,
   WifiOff,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { VideoCard } from "@/components/VideoCard";
+import { SantaHat } from "@/components/SantaHat";
+import { ChristmasLights } from "@/components/ChristmasLights";
+import { ChristmasCountdown } from "@/components/ChristmasCountdown";
+import { LiveNowList } from "@/components/LiveNowList";
+import { useLiveDirectory, type LiveHost } from "@/lib/liveDirectory";
+import { OnboardingBanner, useOnboardingGuard } from "@/components/OnboardingBanner";
+import { isChristmasCountdownVisible, useChristmasMode } from "@/lib/christmas";
+import { stripGTA6TestParam, useGTA6Mode } from "@/lib/gta6";
+import { GTA6Banner } from "@/components/GTA6Banner";
+import { GTA6ChallengeCard } from "@/components/GTA6ChallengeCard";
+import { useChristmasCodesSeason } from "@/lib/christmas-codes";
 import { matchesKeyword, readBool } from "@/lib/prefs";
-import { UploadDialog } from "@/components/UploadDialog";
+// Heavy, interaction-only surfaces are split out so the initial feed bundle stays small.
+const UploadDialog = lazy(() => import("@/components/UploadDialog").then((m) => ({ default: m.UploadDialog })));
+const ShopPanel = lazy(() => import("@/components/ShopPanel").then((m) => ({ default: m.ShopPanel })));
+const SubscriptionsPanel = lazy(() =>
+  import("@/components/SubscriptionsPanel").then((m) => ({ default: m.SubscriptionsPanel })),
+);
+const Marketplace = lazy(() => import("@/components/Marketplace").then((m) => ({ default: m.Marketplace })));
+const GroupsPanel = lazy(() => import("@/components/GroupsPanel").then((m) => ({ default: m.GroupsPanel })));
+const ChristmasCodesPanel = lazy(() =>
+  import("@/components/ChristmasCodesPanel").then((m) => ({ default: m.ChristmasCodesPanel })),
+);
+const LiveStreamDialog = lazy(() =>
+  import("@/components/LiveStreamDialog").then((m) => ({ default: m.LiveStreamDialog })),
+);
 const RecordDialog = lazy(() => import("@/components/RecordDialog").then((m) => ({ default: m.RecordDialog })));
-import { ShopPanel } from "@/components/ShopPanel";
-import { SubscriptionsPanel } from "@/components/SubscriptionsPanel";
 const PhotoDialog = lazy(() => import("@/components/PhotoDialog").then((m) => ({ default: m.PhotoDialog })));
-import { Marketplace } from "@/components/Marketplace";
-import { LiveStreamDialog } from "@/components/LiveStreamDialog";
-import { fetchMyLikes, fetchVideos, parseCaption, type Video } from "@/lib/loop";
+import {
+  fetchMyLikes,
+  fetchRepostsByHandles,
+  fetchVideoCounts,
+  fetchVideos,
+  parseCaption,
+  resetFeedOrder,
+  type Video,
+} from "@/lib/loop";
 import { listSaved, onOfflineChange } from "@/lib/offline";
+import { readFeedCache, writeFeedCache } from "@/lib/feed-cache";
+import { feedPageSize, isLiteMode, useNetwork } from "@/lib/network";
+import { useBlocked } from "@/lib/safety";
+import { fetchRepostAttribution, REPOST_EVENT } from "@/lib/reposts";
 import { useAuth } from "@/hooks/useAuth";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/")({
@@ -44,7 +81,8 @@ export const Route = createFileRoute("/")({
   component: Index,
 });
 
-type Tab = "foryou" | "explore" | "following" | "liked" | "saved" | "mine" | "inbox" | "shop" | "subscriptions";
+type Tab = "foryou" | "explore" | "following" | "liked" | "saved" | "inbox" | "shop" | "subscriptions";
+type FeedTab = "home" | "following" | "foryou" | "explore" | "marketplace" | "groups" | "live" | "codes";
 type NotificationFilter = "all" | "unread";
 
 type NotificationRow = {
@@ -64,7 +102,6 @@ const NAV: { id: Tab; label: string; icon: typeof Home }[] = [
   { id: "following", label: "Following", icon: Users },
   { id: "inbox", label: "Inbox", icon: Bell },
   { id: "shop", label: "Shop", icon: ShoppingBag },
-  { id: "mine", label: "You", icon: Users },
 ];
 
 const HEADERS: Record<Tab, [string, string]> = {
@@ -73,7 +110,6 @@ const HEADERS: Record<Tab, [string, string]> = {
   following: ["Following", "Creators you keep coming back to"],
   liked: ["Liked", "Everything you've hearted"],
   saved: ["Offline", "Watch anytime, even without a connection"],
-  mine: ["Profile", "Your loop"],
   inbox: ["Inbox", "All your notifications"],
   shop: ["Shop", "Unlock tops and names"],
   subscriptions: ["Subscriptions", "Paid plans and perks"],
@@ -81,36 +117,141 @@ const HEADERS: Record<Tab, [string, string]> = {
 
 function Index() {
   const auth = useAuth();
+  const navigate = useNavigate();
   const me = auth.handle;
+  const net = useNetwork();
+  const lite = isLiteMode(net);
+  // Incomplete accounts can still browse, but posting/liking opens a modal.
+  const guardOnboarding = useOnboardingGuard();
+  const showOnboardingBanner =
+    !!auth.user && auth.onboarding.ready && auth.onboarding.needsOnboarding;
+  // Nov 15 2026 -> Jan 1 2027 only. False today (Nov 1 2026), true on its own
+  // once the window opens, and false again after it closes.
+  const christmas = useChristmasMode();
+  // GTA 6 update: Nov 8 - Nov 15 2026 only. One-way door — after Nov 15
+  // `useGTA6Mode()` is false forever and nothing below ever renders again.
+  const gta6 = useGTA6Mode();
+  // The "Codes" tab is seasonal: on Nov 15 - Jan 1, off the rest of the year.
+  // It re-appears by itself every Christmas with no deploy and no flag.
+  const codesSeason = useChristmasCodesSeason();
+  // Pre-launch banner: only until Nov 15 2026, then it hides itself for good.
+  // `!christmas` makes the wrapper disappear the moment the update goes live,
+  // even if this component hasn't re-rendered for another reason.
+  const showCountdown = isChristmasCountdownVisible() && !christmas;
 
-  useEffect(() => {
-    if (!me) return;
-    supabase
-      .from("banned_users")
-      .select("*")
-      .eq("username", me)
-      .maybeSingle()
-      .then(async ({ data }) => {
-        if (!data) return;
-        const isStillBanned = data.is_permanent || (data.expires_at && new Date(data.expires_at) > new Date());
-        if (isStillBanned) {
-          alert(`You are banned: ${data.reason}`);
-          await supabase.auth.signOut();
-          window.location.href = "/";
-        }
-      });
-  }, [me]);
+  // Ban enforcement now lives in <BanGate /> (mounted in __root.tsx), which
+  // covers every route and shows a proper blocked screen instead of an alert.
 
   const [videos, setVideos] = useState<Video[] | null>(null);
+  const [myPostCount, setMyPostCount] = useState(0);
+  // After Nov 15 2026 the ?gta=test preview param is dead: physically remove it
+  // from the URL so it can't be shared, bookmarked or re-used.
+  useEffect(() => {
+    stripGTA6TestParam();
+  }, []);
+  useEffect(() => {
+    if (!me) {
+      setMyPostCount(0);
+      return;
+    }
+    supabase
+      .from("videos")
+      .select("id", { count: "exact", head: true })
+      .eq("username", me)
+      .then(({ count }) => setMyPostCount(count ?? 0));
+  }, [me, videos]);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [saved, setSaved] = useState<Video[]>([]);
   const [online, setOnline] = useState(true);
   const [liked, setLiked] = useState<Set<string>>(new Set());
-  const [tab, setTab] = useState<Tab>("foryou");
-  const [feedTab, setFeedTab] = useState<"foryou" | "following" | "explore" | "marketplace" | "live">("foryou");
+  const [tab, setTab] = useState<Tab>(() => {
+    // Deep link support: /?tab=subscriptions lets upgrade prompts land the
+    // user straight on the plans instead of the feed.
+    if (typeof window !== "undefined") {
+      const wanted = new URLSearchParams(window.location.search).get("tab");
+      if (wanted === "subscriptions" || wanted === "shop") return wanted;
+    }
+    return "foryou";
+  });
+  const [feedTab, setFeedTab] = useState<FeedTab>(() => {
+    // Deep link support: /?feed=groups (and friends) lands on that top tab.
+    if (typeof window !== "undefined") {
+      const wanted = new URLSearchParams(window.location.search).get("feed");
+      if (
+        wanted === "home" ||
+        wanted === "following" ||
+        wanted === "foryou" ||
+        wanted === "explore" ||
+        wanted === "marketplace" ||
+        wanted === "groups" ||
+        wanted === "live"
+      ) {
+        return wanted;
+      }
+    }
+    return "foryou";
+  });
   const [followingList, setFollowingList] = useState<string[]>([]);
+  const [repostedFeed, setRepostedFeed] = useState<Video[]>([]);
+  /** videoId -> handle of whoever reposted it, for the "@name reposted" label. */
+  const [repostBy, setRepostBy] = useState<Map<string, string>>(new Map());
+  const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
+  const [challengeHidden, setChallengeHidden] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.sessionStorage.getItem("loop-christmas-challenge-hidden") === "1";
+  });
+  const [gta6BannerHidden, setGTA6BannerHidden] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.sessionStorage.getItem("loop-gta6-banner-hidden") === "1";
+  });
+  const [gta6ChallengeHidden, setGTA6ChallengeHidden] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.sessionStorage.getItem("loop-gta6-challenge-hidden") === "1";
+  });
+  // Bumped after every post so the GTA 6 challenge card refetches its count.
+  const [gta6ChallengeRefresh, setGta6ChallengeRefresh] = useState(0);
+
+  // Moderation: videos the user tapped "Not interested" on, plus blocked authors.
+  const { blocked } = useBlocked();
+  const [notInterested, setNotInterested] = useState<Set<string>>(() => {
+    try {
+      return new Set(JSON.parse(localStorage.getItem("loop-not-interested") || "[]") as string[]);
+    } catch {
+      return new Set<string>();
+    }
+  });
+  useEffect(() => {
+    const sync = () => {
+      try {
+        setNotInterested(new Set(JSON.parse(localStorage.getItem("loop-not-interested") || "[]") as string[]));
+      } catch {
+        /* ignore */
+      }
+    };
+    window.addEventListener("loop-not-interested-changed", sync);
+    return () => window.removeEventListener("loop-not-interested-changed", sync);
+  }, []);
+
+  // Load all saved video ids once instead of one query per card.
+  useEffect(() => {
+    if (!auth.user) {
+      setSavedIds(new Set());
+      return;
+    }
+    let active = true;
+    supabase
+      .from("saved_videos")
+      .select("video_id")
+      .eq("user_id", auth.user.id)
+      .then(({ data }) => {
+        if (active) setSavedIds(new Set((data ?? []).map((r) => r.video_id)));
+      });
+    return () => {
+      active = false;
+    };
+  }, [auth.user?.id]);
 
   useEffect(() => {
     if (!auth.user) {
@@ -123,17 +264,47 @@ function Index() {
       .eq("follower_id", auth.user.id)
       .then(({ data }) => setFollowingList((data ?? []).map((r) => r.following_username)));
   }, [auth.user?.id]);
+
+  // Reposts by people you follow show up in the Following feed.
+  useEffect(() => {
+    if (!auth.user || followingList.length === 0) {
+      setRepostedFeed([]);
+      return;
+    }
+    let active = true;
+    fetchRepostsByHandles(followingList)
+      .then((v) => {
+        if (active) setRepostedFeed(v);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [auth.user?.id, followingList]);
   const [query, setQuery] = useState("");
   const [photoOpen, setPhotoOpen] = useState(false);
   const [muted, setMuted] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadFull, setUploadFull] = useState(false);
   const [recordingOpen, setRecordingOpen] = useState(false);
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
+  /** Set when a viewer taps a card on the LIVE tab; opens that room. */
+  const [liveWatchHost, setLiveWatchHost] = useState<LiveHost | null>(null);
+  // Keep the create menu mounted after its first open. "Go live" closes the
+  // menu before switching to the broadcast view, so unmounting here would
+  // throw away the live-stream state and the broadcast screen would never show.
+  const [createMenuMounted, setCreateMenuMounted] = useState(false);
   const [error, setError] = useState(false);
-  const [searchOpen, setSearchOpen] = useState(false);
   const [userResults, setUserResults] = useState<
     { id: string; handle: string | null; display_name: string | null; avatar_url: string | null }[]
   >([]);
+
+  useEffect(() => {
+    if (createMenuOpen) setCreateMenuMounted(true);
+  }, [createMenuOpen]);
+  useEffect(() => {
+    if (liveWatchHost) setCreateMenuMounted(true);
+  }, [liveWatchHost]);
 
   useEffect(() => {
     const q = query.trim().replace(/^@/, "").replace(/[%,()]/g, "");
@@ -155,40 +326,46 @@ function Index() {
       clearTimeout(t);
     };
   }, [query]);
-  const [quality, setQuality] = useState<"1080p" | "720p" | "480p">("720p");
   const [notifications, setNotifications] = useState<NotificationRow[]>([]);
   const [notificationFilter, setNotificationFilter] = useState<NotificationFilter>("all");
 
-  useEffect(() => {
-    const conn = (navigator as any).connection;
-    if (conn?.effectiveType === "2g" || conn?.effectiveType === "slow-2g") {
-      setQuality("480p");
-    } else if (conn?.effectiveType === "3g") {
-      setQuality("720p");
-    } else {
-      setQuality("1080p");
-    }
-  }, []);
+  // Ref guard (not just state) so two loads can never overlap: a stale
+  // `loadingMore` closure used to let the sentinel append a page while the
+  // first page was still in flight, which left the previous session's cached
+  // order on screen instead of the fresh shuffle.
+  const loadingRef = useRef(false);
 
-  const load = (pageNum = 0, append = false) => {
-    if (loadingMore) return;
-    setLoadingMore(true);
-    fetchVideos(pageNum)
-      .then((v: any) => {
-        if (!v || v.length === 0) setHasMore(false);
-        else {
-          if (append) setVideos((prev: any) => [...(prev || []), ...v]);
-          else setVideos(v);
-          setPage(pageNum + 1);
-        }
-        setError(false);
-      })
-      .catch(() => setError(true))
-      .finally(() => setLoadingMore(false));
-  };
+  const load = useCallback(
+    (pageNum = 0, append = false) => {
+      if (loadingRef.current) return;
+      loadingRef.current = true;
+      setLoadingMore(true);
+      fetchVideos(pageNum, feedPageSize())
+        .then((v: any) => {
+          if (!v || v.length === 0) setHasMore(false);
+          else {
+            if (append) setVideos((prev: any) => [...(prev || []), ...v]);
+            else {
+              setVideos(v);
+              writeFeedCache(v);
+            }
+            setPage(pageNum + 1);
+          }
+          setError(false);
+        })
+        .catch(() => setError(true))
+        .finally(() => {
+          loadingRef.current = false;
+          setLoadingMore(false);
+        });
+    },
+    [],
+  );
 
   const loadMore = () => {
-    if (!hasMore || loadingMore) return;
+    // `page === 0` means the first page has not landed yet — never append
+    // before it does or the cached order survives the refresh.
+    if (!hasMore || loadingRef.current || page === 0) return;
     load(page, true);
   };
 
@@ -205,6 +382,20 @@ function Index() {
   }, [page, hasMore, loadingMore]);
 
   useEffect(() => {
+    // Every visit gets a fresh mix: drop the previous shuffle before loading.
+    resetFeedOrder();
+    // Show the last feed instantly only when the network is slow or we're
+    // offline. On a normal connection the cache would put the *same* videos
+    // first on every launch, which is exactly what made the feed feel static.
+    const cached = !navigator.onLine || lite ? readFeedCache() : null;
+    if (cached) {
+      const mixed = [...cached];
+      for (let i = mixed.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [mixed[i], mixed[j]] = [mixed[j]!, mixed[i]!];
+      }
+      setVideos((cur) => cur ?? mixed);
+    }
     load(0, false);
 
     setTimeout(() => {
@@ -213,7 +404,26 @@ function Index() {
     }, 300);
 
     fetchMyLikes().then(setLiked).catch(() => {});
-    const refresh = () => listSaved().then((s) => setSaved(s.map((x) => x.video))).catch(() => {});
+    const refresh = () =>
+      listSaved()
+        .then((s) => {
+          const vids = s.map((x) => x.video);
+          setSaved(vids);
+          // Saved rows are snapshots; pull live counters so a video liked or
+          // reposted after saving doesn't keep showing 0 in the saved tab.
+          if (!navigator.onLine || vids.length === 0) return;
+          return fetchVideoCounts(vids.map((v) => v.id))
+            .then((counts) =>
+              setSaved((prev) =>
+                prev.map((v) => {
+                  const c = counts.get(v.id);
+                  return c ? { ...v, ...c, reposts: c.reposts_count } : v;
+                }),
+              ),
+            )
+            .catch(() => {});
+        })
+        .catch(() => {});
     refresh();
     const off = onOfflineChange(refresh);
     const update = () => {
@@ -229,6 +439,31 @@ function Index() {
       window.removeEventListener("offline", update);
     };
   }, []);
+
+  // "Every time you go in the app" — an installed PWA can stay mounted for
+  // days, so a mount-only shuffle isn't enough. When the app comes back to the
+  // foreground after being away for a while, drop the old order and re-mix the
+  // whole library. Short tab hops are ignored so watching isn't interrupted.
+  useEffect(() => {
+    let hiddenAt = 0;
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        hiddenAt = Date.now();
+        return;
+      }
+      if (!hiddenAt || Date.now() - hiddenAt < 60_000) return;
+      hiddenAt = 0;
+      if (!navigator.onLine) return;
+      resetFeedOrder();
+      setHasMore(true);
+      setPage(0);
+      load(0, false);
+      const el = document.querySelector(".no-scrollbar") as HTMLElement | null;
+      if (el) el.scrollTop = 0;
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, [load]);
 
   useEffect(() => {
     if (!auth.user) return;
@@ -302,48 +537,196 @@ function Index() {
     let list = activeTab === "saved" ? saved : videos ?? [];
     const q = query.trim().toLowerCase();
     if (q) list = list.filter((v) => parseCaption(v.caption).text.toLowerCase().includes(q) || v.username.toLowerCase().includes(q));
+    // "Not interested" and blocked authors never come back in this browser.
+    if (notInterested.size > 0) list = list.filter((v) => !notInterested.has(v.id));
+    if (blocked.size > 0) list = list.filter((v) => !blocked.has(v.username));
     if (activeTab === "explore") list = [...list].sort((a, b) => b.likes_count - a.likes_count);
-    if (activeTab === "following") list = list.filter((v) => followingList.includes(v.username));
+    if (activeTab === "following") {
+      const own = list.filter((v) => followingList.includes(v.username));
+      const ids = new Set(own.map((v) => v.id));
+      const extras = repostedFeed.filter(
+        (v) =>
+          !ids.has(v.id) &&
+          (!q || parseCaption(v.caption).text.toLowerCase().includes(q) || v.username.toLowerCase().includes(q)),
+      );
+      list = [...extras, ...own];
+    }
     if (activeTab === "foryou" && feedTab === "live") list = list.filter((v) => v.is_live);
     if (activeTab === "liked") list = list.filter((v) => liked.has(v.id));
-    if (activeTab === "mine") list = me ? list.filter((v) => v.username === me) : [];
-    if (activeTab !== "mine" && activeTab !== "saved") {
+    if (activeTab !== "saved") {
       list = list.filter((v) => v.username === me || !matchesKeyword(parseCaption(v.caption).text));
       if (readBool("restricted")) list = list.filter((v) => !/\b(nsfw|18\+|gore|explicit)\b/i.test(v.caption ?? ""));
     }
     return list;
-  }, [videos, saved, query, activeTab, liked, me, followingList, feedTab]);
+  }, [videos, saved, query, activeTab, liked, me, followingList, feedTab, repostedFeed, notInterested, blocked]);
 
-  const showTopTabs = !offlineMode && (activeTab === "foryou" || activeTab === "following" || activeTab === "explore" || activeTab === "mine");
-  const topTab = activeTab === "shop" || activeTab === "subscriptions" || activeTab === "mine" ? activeTab : activeTab === "following" || activeTab === "explore" ? activeTab : feedTab === "live" || feedTab === "marketplace" ? feedTab : "foryou";
-  const pickFeedTab = (t: "foryou" | "following" | "explore" | "marketplace" | "live") => {
+  // Who reposted what — one batched query per feed page. The label names a
+  // person you follow when possible, otherwise the newest reposter.
+  const shownIdsKey = useMemo(() => shown.map((v) => v.id).join(","), [shown]);
+  useEffect(() => {
+    if (!shownIdsKey) {
+      setRepostBy(new Map());
+      return;
+    }
+    let active = true;
+    const ids = shownIdsKey.split(",");
+    fetchRepostAttribution(ids, followingList)
+      .then((map) => {
+        if (active) setRepostBy(map);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [shownIdsKey, followingList]);
+
+  // Reposting from a card updates the label immediately, without a refetch.
+  useEffect(() => {
+    const onRepost = (e: Event) => {
+      const detail = (e as CustomEvent<{ videoId: string; handle: string | null }>).detail;
+      if (!detail?.videoId) return;
+      setRepostBy((prev) => {
+        const next = new Map(prev);
+        if (detail.handle) next.set(detail.videoId, detail.handle);
+        else next.delete(detail.videoId);
+        return next;
+      });
+    };
+    window.addEventListener(REPOST_EVENT, onRepost);
+    return () => window.removeEventListener(REPOST_EVENT, onRepost);
+  }, []);
+
+  // The LIVE top tab lists real broadcasters from the presence directory
+  // (a `videos.is_live` row filter can't see people who are streaming now).
+  const onLiveTab = activeTab === "foryou" && feedTab === "live" && !offlineMode;
+  const { hosts: liveHosts } = useLiveDirectory({
+    enabled: onLiveTab,
+    key: auth.user?.id ?? null,
+  });
+
+  const showTopTabs = !offlineMode && (activeTab === "foryou" || activeTab === "following" || activeTab === "explore");
+  const topTab =
+    activeTab === "shop" || activeTab === "subscriptions"
+      ? activeTab
+      : activeTab === "following" || activeTab === "explore"
+        ? activeTab
+        : feedTab;
+  const pickFeedTab = (t: FeedTab) => {
     setFeedTab(t);
     setTab(t === "following" || t === "explore" ? t : "foryou");
   };
+
+  // If the season ends (or the tab is opened out of season via a stale link)
+  // while "codes" is selected, fall back to the normal feed instead of showing
+  // a tab that no longer exists in the bar.
+  useEffect(() => {
+    if (!codesSeason && feedTab === "codes") {
+      setFeedTab("foryou");
+      setTab("foryou");
+    }
+  }, [codesSeason, feedTab]);
+
+  // One shared top tab bar (Home | Following | For You | Marketplace | Groups | LIVE).
+  // Shop stays on the end of the scrollable row so that screen is still
+  // reachable on phones. Subscriptions now lives in Settings (/?tab=subscriptions
+  // deep links still resolve for upgrade prompts).
+  const TopTabs = ({ className = "" }: { className?: string }) => (
+    <div className={`${className} ${christmas ? "christmas-tabs" : ""}`}>
+      {christmas && <ChristmasLights />}
+      <button onClick={() => pickFeedTab("home")} className={tabClass("home")}>Home</button>
+      <button onClick={() => pickFeedTab("following")} className={tabClass("following")}>Following</button>
+      <button onClick={() => pickFeedTab("foryou")} className={tabClass("foryou")}>For You</button>
+      {/* Full-length videos live on their own YouTube-style page, not in the feed. */}
+      <button onClick={() => void navigate({ to: "/videos" })} className={tabClass("videos")}>
+        <Play className="size-3.5 fill-current" />
+        Videos
+      </button>
+      {/* Music lives on its own page so the song keeps playing while you
+          browse the feed. */}
+      <button onClick={() => void navigate({ to: "/music" })} className={tabClass("music")}>
+        <Music className="size-3.5" />
+        Music
+      </button>
+      <button onClick={() => pickFeedTab("marketplace")} className={tabClass("marketplace")}>Marketplace</button>
+      <button onClick={() => pickFeedTab("groups")} className={tabClass("groups")}>Groups</button>
+      <button onClick={() => pickFeedTab("live")} className={tabClass("live")}>
+        <span className="h-2 w-2 rounded-full bg-red-500" />
+        LIVE
+      </button>
+      {/* Christmas only: seasonal gift-code tab. Vanishes on Jan 2, returns Nov 15. */}
+      {codesSeason && (
+        <button onClick={() => pickFeedTab("codes")} className={tabClass("codes")}>
+          <Gift className="size-3.5" />
+          Codes
+        </button>
+      )}
+      <button onClick={() => pickFeedTab("explore")} className={tabClass("explore")}>Explore</button>
+      <button onClick={() => setTab("shop")} className={tabClass("shop")}>Shop</button>
+    </div>
+  );
+  const topTabsClass =
+    "absolute inset-x-0 top-0 z-40 flex justify-center gap-3 overflow-x-auto bg-gradient-to-b from-black/80 to-transparent px-3 pb-2 no-scrollbar [&>button]:shrink-0 [&>button]:whitespace-nowrap " +
+    (christmas
+      ? "pt-[calc(max(0.5rem,env(safe-area-inset-top))+0.65rem)]"
+      : "pt-[max(0.5rem,env(safe-area-inset-top))]");
   const tabClass = (t: string) =>
     `flex items-center gap-1 border-b-2 pb-1 text-[15px] ${topTab === t ? "border-white font-bold text-white" : "border-transparent text-white/60"}`;
 
   const [title, sub] = query ? [`Results for "${query}"`, `${shown.length} videos`] : HEADERS[activeTab];
 
+  // Stable callbacks so memoized VideoCards don't re-render on every feed update.
+  const handleLikeChange = useCallback((videoId: string, on: boolean) => {
+    setLiked((s) => {
+      const n = new Set(s);
+      if (on) n.add(videoId);
+      else n.delete(videoId);
+      return n;
+    });
+  }, []);
+  const handleToggleMute = useCallback(() => setMuted((m) => !m), []);
+  const handleFollowChange = useCallback((username: string, following: boolean) => {
+    setFollowingList((list) =>
+      following ? (list.includes(username) ? list : [...list, username]) : list.filter((u) => u !== username),
+    );
+  }, []);
+  const handleSavedChange = useCallback((videoId: string, saved: boolean) => {
+    setSavedIds((prev) => {
+      const n = new Set(prev);
+      if (saved) n.add(videoId);
+      else n.delete(videoId);
+      return n;
+    });
+  }, []);
+
   return (
     <div className="flex h-dvh overflow-hidden bg-background">
       <aside className="hidden w-72 shrink-0 flex-col gap-6 border-r bg-sidebar p-6 md:flex">
         <div>
-          <h1 className="font-display text-4xl tracking-tight">
-            loop<span className="text-primary">.</span>
+          <h1 className={`font-display text-4xl tracking-tight ${gta6 ? "gta6-logo-glow" : ""}`}>
+            coolerup
+            <span className="relative inline-block text-primary">
+              .
+              {christmas && (
+                <SantaHat className="pointer-events-none absolute -top-[0.62em] left-1/2 h-[0.7em] w-[0.8em] -translate-x-1/2 rotate-[8deg] drop-shadow-[0_2px_3px_rgba(0,0,0,0.45)]" />
+              )}
+            </span>
+            {gta6 && (
+              <span className="gta6-palm ml-1 text-2xl" aria-hidden>
+                🌴
+              </span>
+            )}
           </h1>
           <p className="mt-1 text-[11px] font-bold tracking-[0.3em] text-muted-foreground">A LITTLE MORE YOU</p>
         </div>
 
-        <label className="flex items-center gap-2 rounded-full bg-secondary px-4 py-2.5">
+        <button
+          type="button"
+          onClick={() => void navigate({ to: "/search" })}
+          className="flex items-center gap-2 rounded-full bg-secondary px-4 py-2.5 text-left transition hover:bg-accent"
+        >
           <Search className="h-4 w-4 text-muted-foreground" />
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search videos"
-            className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-          />
-        </label>
+          <span className="text-sm text-muted-foreground">Search videos</span>
+        </button>
 
         <nav className="flex flex-col gap-1">
           {NAV.map(({ id, label, icon: Icon }) => (
@@ -369,8 +752,8 @@ function Index() {
         </nav>
 
         <button
-          onClick={() => (auth.user ? setCreateMenuOpen(true) : auth.signIn())}
-          className="flex items-center justify-center gap-2 rounded-full bg-primary py-3.5 font-bold text-primary-foreground shadow-[0_10px_30px_-10px_var(--primary)] transition hover:brightness-95"
+          onClick={() => guardOnboarding(() => (auth.user ? setCreateMenuOpen(true) : auth.signIn()))}
+          className="flex items-center justify-center gap-2 rounded-full create-pink py-3.5 font-bold shadow-[0_10px_30px_-10px_#ec4899] transition hover:brightness-95"
         >
           <Plus className="h-5 w-5" /> Create
         </button>
@@ -402,59 +785,60 @@ function Index() {
         )}
       </aside>
 
-      <main className="mx-auto flex h-[100dvh] w-full min-w-0 max-w-[430px] flex-1 flex-col bg-black md:h-auto md:max-w-none md:bg-transparent">
-        <div className="mobile-topbar grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b bg-sidebar px-4 md:hidden">
-          <h1 className="min-w-0 font-display text-2xl">
-            loop<span className="text-primary">.</span>
-          </h1>
-          <div className="flex shrink-0 items-center gap-2">
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label={searchOpen ? "Close search" : "Search videos"}
-              onClick={() => setSearchOpen((open) => !open)}
-            >
-              {searchOpen ? <X /> : <Search />}
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label={auth.user ? "Sign out" : "Sign in"}
-              onClick={auth.user ? auth.signOut : auth.signIn}
-            >
-              {auth.avatar ? (
-                <img src={auth.avatar} alt="" className="h-8 w-8 rounded-full object-cover" />
-              ) : auth.user ? (
-                <LogOut />
-              ) : (
-                <User />
-              )}
-            </Button>
-          </div>
-        </div>
-
-        {searchOpen && (
-          <label className="flex shrink-0 items-center gap-3 border-b bg-sidebar px-4 py-3 md:hidden">
-            <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
-            <input
-              autoFocus
-              aria-label="Search videos"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search videos"
-              className="min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground"
-            />
-            {query && (
-              <Button variant="ghost" size="icon" aria-label="Clear search" onClick={() => setQuery("")}>
-                <X />
-              </Button>
+      <main className="relative mx-auto flex h-[100dvh] w-full min-w-0 max-w-[430px] flex-1 flex-col bg-black md:h-auto md:max-w-none md:bg-transparent">
+        {/* Floating controls: no bar and no logo, just search + profile over the video. */}
+        <div
+          className={`pointer-events-none absolute inset-x-0 z-50 flex items-center justify-end gap-2 px-3 md:hidden ${
+            showCountdown
+              ? "top-[calc(env(safe-area-inset-top)+5rem)]"
+              : "top-[calc(env(safe-area-inset-top)+2.75rem)]"
+          }`}
+        >
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Search videos"
+            onClick={() => void navigate({ to: "/search" })}
+            className="pointer-events-auto rounded-full bg-black/35 text-white backdrop-blur-sm hover:bg-black/55 hover:text-white"
+          >
+            <Search />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={auth.user ? "Sign out" : "Sign in"}
+            onClick={auth.user ? auth.signOut : auth.signIn}
+            className="pointer-events-auto rounded-full bg-black/35 text-white backdrop-blur-sm hover:bg-black/55 hover:text-white"
+          >
+            {auth.avatar ? (
+              <img src={auth.avatar} alt="" className="h-8 w-8 rounded-full object-cover" />
+            ) : auth.user ? (
+              <LogOut />
+            ) : (
+              <User />
             )}
-          </label>
-        )}
+          </Button>
+        </div>
 
         {offlineMode && (
           <div className="flex shrink-0 items-center gap-2 bg-primary/10 px-4 py-2 text-sm font-bold text-primary md:px-10">
             <WifiOff className="h-4 w-4" /> You're offline — watching saved videos
+          </div>
+        )}
+
+        {!offlineMode && lite && (
+          <div className="flex shrink-0 items-center gap-2 bg-secondary px-4 py-1.5 text-xs font-bold text-muted-foreground md:px-10">
+            <Wifi className="h-3.5 w-3.5" /> Lite mode — saving data on a slow connection
+          </div>
+        )}
+
+        {/* Yellow onboarding banner — never blocks watching or Lite mode. */}
+        {!offlineMode && <OnboardingBanner />}
+
+        {/* Countdown to the Christmas update — sits above the top tabs. */}
+        {!offlineMode && showCountdown && (
+          <div className="shrink-0 bg-red-600 pt-[env(safe-area-inset-top)]">
+            <ChristmasCountdown />
           </div>
         )}
 
@@ -486,68 +870,100 @@ function Index() {
           </div>
         )}
 
-        {activeTab === "foryou" && feedTab === "marketplace" && !offlineMode ? (
-          <div className="relative flex min-h-0 flex-1 flex-col">
-            <div className="absolute left-0 right-0 top-0 z-50 flex gap-5 overflow-x-auto bg-black px-4 pb-2 pt-3 no-scrollbar [&>button]:shrink-0 [&>button]:whitespace-nowrap">
-              <button onClick={() => pickFeedTab("following")} className={tabClass("following")}>Following</button>
-              <button onClick={() => pickFeedTab("foryou")} className={tabClass("foryou")}>For You</button>
-              <button onClick={() => pickFeedTab("explore")} className={tabClass("explore")}>Explore</button>
-              <button onClick={() => pickFeedTab("marketplace")} className={tabClass("marketplace")}>Marketplace</button>
-              <button onClick={() => pickFeedTab("live")} className={tabClass("live")}>LIVE</button>
-              <button onClick={() => setTab("shop")} className={tabClass("shop")}>Shop</button>
-              <button onClick={() => setTab("subscriptions")} className={tabClass("subscriptions")}>Subscriptions</button>
-              <button onClick={() => setTab("mine")} className={tabClass("mine")}>Mine</button>
+        {onLiveTab ? (
+          <div className="relative flex min-h-0 flex-1 flex-col bg-black">
+            <TopTabs className={topTabsClass} />
+            <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto pt-[calc(env(safe-area-inset-top)+5.5rem)]">
+              <LiveNowList
+                hosts={liveHosts}
+                onWatch={(host) => {
+                  setLiveWatchHost(host);
+                  setCreateMenuOpen(true);
+                }}
+                onGoLive={() =>
+                  guardOnboarding(() => {
+                    setLiveWatchHost(null);
+                    if (auth.user) setCreateMenuOpen(true);
+                    else auth.signIn();
+                  })
+                }
+              />
             </div>
-            <Marketplace />
+          </div>
+        ) : feedTab === "codes" ? (
+          <div className="relative flex min-h-0 flex-1 flex-col bg-black">
+            <TopTabs className={topTabsClass} />
+            <Suspense fallback={null}>
+              <ChristmasCodesPanel handle={me} onSignIn={auth.signIn} />
+            </Suspense>
+          </div>
+        ) : activeTab === "foryou" && feedTab === "marketplace" && !offlineMode ? (
+          <div className="relative flex min-h-0 flex-1 flex-col">
+            <TopTabs className={topTabsClass} />
+            <Suspense fallback={null}>
+              <Marketplace />
+            </Suspense>
           </div>
         ) : activeTab === "shop" || activeTab === "subscriptions" ? (
           <div className="flex min-h-0 flex-1 flex-col">
-            <div className="flex shrink-0 gap-4 bg-black no-scrollbar overflow-x-auto px-4 [&>button]:shrink-0 [&>button]:whitespace-nowrap [&>button:first-child]:ml-auto [&>button:last-child]:mr-auto pb-2 pt-3 md:hidden">
-              <button onClick={() => pickFeedTab("following")} className={tabClass("following")}>Following</button>
-              <button onClick={() => pickFeedTab("foryou")} className={tabClass("foryou")}>For You</button>
-              <button onClick={() => pickFeedTab("explore")} className={tabClass("explore")}>Explore</button>
-              <button onClick={() => pickFeedTab("marketplace")} className={tabClass("marketplace")}>Marketplace</button>
-              <button onClick={() => pickFeedTab("live")} className={tabClass("live")}>LIVE</button>
-              <button onClick={() => setTab("shop")} className={tabClass("shop")}>Shop</button>
-              <button onClick={() => setTab("subscriptions")} className={tabClass("subscriptions")}>Subscriptions</button>
-              <button onClick={() => setTab("mine")} className={tabClass("mine")}>Mine</button>
-            </div>
+            <TopTabs className="flex shrink-0 justify-center gap-3 overflow-x-auto bg-black px-3 pb-2 pt-[calc(env(safe-area-inset-top)+5.5rem)] no-scrollbar [&>button]:shrink-0 [&>button]:whitespace-nowrap md:hidden" />
             <div className="min-h-0 flex-1 overflow-y-auto">
             {activeTab === "subscriptions" ? (
-              <SubscriptionsPanel handle={me} />
+              <Suspense fallback={null}>
+                <SubscriptionsPanel handle={me} onSignIn={auth.signIn} />
+              </Suspense>
             ) : (
-              <ShopPanel handle={me} posts={me ? (videos ?? []).filter((v) => v.username === me).length : 0} />
+              <Suspense fallback={null}>
+                <ShopPanel handle={me} posts={myPostCount} />
+              </Suspense>
             )}
             </div>
           </div>
+        ) : activeTab === "foryou" && feedTab === "groups" && !offlineMode ? (
+          <div className="relative flex min-h-0 flex-1 flex-col bg-black">
+            <TopTabs className={topTabsClass} />
+            <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto pt-[calc(env(safe-area-inset-top)+5.5rem)]">
+              <Suspense fallback={null}>
+                <GroupsPanel />
+              </Suspense>
+            </div>
+          </div>
         ) : activeTab === "inbox" ? (
-          <div className="p-6">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <h2 className="text-2xl font-display font-bold">Inbox</h2>
-                <p className="mt-1 text-sm text-muted-foreground">All your notifications in one place</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant={notificationFilter === "unread" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setNotificationFilter((f) => (f === "all" ? "unread" : "all"))}
-                >
-                  {notificationFilter === "all" ? "Unread only" : "Show all"}
-                </Button>
-                {unreadCount > 0 && (
-                  <Button variant="ghost" size="sm" onClick={markAllRead}>
-                    Mark all read
+          <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain">
+            <div className="sticky top-0 z-10 border-b bg-black/85 px-6 pb-4 pt-[calc(env(safe-area-inset-top)+5.75rem)] backdrop-blur">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-2xl font-display font-bold">Inbox</h2>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {notifications.length === 0
+                      ? "All your notifications in one place"
+                      : `${notifications.length} notification${notifications.length === 1 ? "" : "s"}${
+                          unreadCount > 0 ? ` \u00b7 ${unreadCount} unread` : ""
+                        }`}
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    variant={notificationFilter === "unread" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setNotificationFilter((f) => (f === "all" ? "unread" : "all"))}
+                  >
+                    {notificationFilter === "all" ? "Unread only" : "Show all"}
                   </Button>
-                )}
-                <Link to="/messages" className="flex items-center gap-3 rounded-xl px-4 py-3 font-bold transition hover:bg-secondary">
-                  <MessageCircle className="h-5 w-5" />
-                  Messages
-                </Link>
+                  {unreadCount > 0 && (
+                    <Button variant="ghost" size="sm" onClick={markAllRead}>
+                      Mark all read
+                    </Button>
+                  )}
+                  <Link to="/messages" className="flex items-center gap-3 rounded-xl px-4 py-3 font-bold transition hover:bg-secondary">
+                    <MessageCircle className="h-5 w-5" />
+                    Messages
+                  </Link>
+                </div>
               </div>
             </div>
 
-            <div className="mt-6 max-w-2xl space-y-3">
+            <div className="mx-auto w-full max-w-2xl space-y-3 px-6 pb-28 pt-6">
               {filteredNotifications.length === 0 ? (
                 <div className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">
                   {notificationFilter === "unread" ? "No unread notifications" : "No notifications"}
@@ -560,7 +976,13 @@ function Index() {
                     onClick={() => !n.read && markRead(n.id)}
                   >
                     <div className="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-500/10 text-lg">
-                      {n.type === "like" ? "❤️" : n.type === "follow" ? "👤" : "💬"}
+                      {n.type === "like"
+                        ? "❤️"
+                        : n.type === "follow"
+                          ? "👤"
+                          : n.type === "gift"
+                            ? "🎁"
+                            : "💬"}
                     </div>
                     <div className="flex-1">
                       <p className="text-sm">{n.text}</p>
@@ -576,29 +998,89 @@ function Index() {
           </div>
         ) : (
           <>
-            <header className={`shrink-0 px-4 py-2 md:px-10 md:pb-2 md:pt-6 ${showTopTabs ? "hidden md:block" : ""}`}>
+            <header className={`shrink-0 px-4 pb-2 pt-[calc(env(safe-area-inset-top)+5.75rem)] md:px-10 md:pb-2 md:pt-6 ${showTopTabs ? "hidden md:block" : ""}`}>
               <h2 className="break-words font-display text-base md:text-3xl">{title}</h2>
               <p className="hidden text-sm text-muted-foreground md:block">{sub}</p>
             </header>
 
-            <div className="relative flex min-h-0 flex-1 flex-col">
-            {showTopTabs && (
-              <div className="absolute inset-x-0 top-0 z-50 flex gap-4 bg-gradient no-scrollbar overflow-x-auto px-4 [&>button]:shrink-0 [&>button]:whitespace-nowrap [&>button:first-child]:ml-auto [&>button:last-child]:mr-auto-to-b from-black/60 to-transparent pb-2 pt-3 md:hidden">
-                <button onClick={() => pickFeedTab("following")} className={tabClass("following")}>Following</button>
-                <button onClick={() => pickFeedTab("foryou")} className={tabClass("foryou")}>For You</button>
-                <button onClick={() => pickFeedTab("explore")} className={tabClass("explore")}>Explore</button>
-                <button onClick={() => pickFeedTab("marketplace")} className={tabClass("marketplace")}>Marketplace</button>
-                <button onClick={() => pickFeedTab("live")} className={tabClass("live")}>
-                  <span className="h-2 w-2 rounded-full bg-red-500" />
-                  LIVE
+            {gta6 && !gta6BannerHidden && activeTab === "foryou" && feedTab === "foryou" && !offlineMode && !query.trim() && (
+              <GTA6Banner
+                onPost={() => guardOnboarding(() => (auth.user ? setRecordingOpen(true) : auth.signIn()))}
+                onDismiss={() => {
+                  setGTA6BannerHidden(true);
+                  try {
+                    window.sessionStorage.setItem("loop-gta6-banner-hidden", "1");
+                  } catch {
+                    /* ignore */
+                  }
+                }}
+              />
+            )}
+
+            {gta6 && !gta6ChallengeHidden && activeTab === "foryou" && feedTab === "foryou" && !offlineMode && !query.trim() && (
+              <GTA6ChallengeCard
+                handle={auth.handle}
+                refreshKey={gta6ChallengeRefresh}
+                onPost={() => guardOnboarding(() => (auth.user ? setRecordingOpen(true) : auth.signIn()))}
+                onDismiss={() => {
+                  setGTA6ChallengeHidden(true);
+                  try {
+                    window.sessionStorage.setItem("loop-gta6-challenge-hidden", "1");
+                  } catch {
+                    /* ignore */
+                  }
+                }}
+              />
+            )}
+
+            {christmas && !challengeHidden && activeTab === "foryou" && feedTab === "foryou" && !offlineMode && !query.trim() && (
+              <div className="christmas-banner relative mx-3 mb-2 flex shrink-0 items-center gap-2.5 rounded-2xl px-3 py-2.5 text-white shadow-lg md:mx-10">
+                <span className="text-2xl" aria-hidden>
+                  🎄
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[13px] font-bold leading-tight">
+                    #CoolerupChristmas Challenge: Post Christmas video!
+                  </p>
+                  <p className="text-[11px] leading-tight text-white/80">Nov 15 2026 – Jan 1 2027</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => guardOnboarding(() => (auth.user ? setRecordingOpen(true) : auth.signIn()))}
+                  className="shrink-0 rounded-full bg-white px-3 py-1.5 text-[11px] font-bold text-black transition hover:bg-white/90"
+                >
+                  Post
                 </button>
-                <button onClick={() => setTab("shop")} className={tabClass("shop")}>Shop</button>
-                <button onClick={() => setTab("subscriptions")} className={tabClass("subscriptions")}>Subscriptions</button>
-                <button onClick={() => setTab("mine")} className={tabClass("mine")}>Mine</button>
+                <button
+                  type="button"
+                  aria-label="Dismiss Christmas challenge"
+                  onClick={() => {
+                    setChallengeHidden(true);
+                    try {
+                      window.sessionStorage.setItem("loop-christmas-challenge-hidden", "1");
+                    } catch {
+                      /* ignore */
+                    }
+                  }}
+                  className="shrink-0 text-white/70 transition hover:text-white"
+                >
+                  <X className="h-4 w-4" />
+                </button>
               </div>
             )}
-            <div className="no-scrollbar min-h-0 flex-1 snap-y snap-mandatory overflow-y-scroll overscroll-contain scroll-smooth">
-              {error && !offlineMode && <Empty text="Couldn't load videos. Refresh to try again." />}
+
+            <div className="relative flex min-h-0 flex-1 flex-col">
+            {showTopTabs && (
+              <TopTabs className={`${topTabsClass} md:hidden`} />
+            )}
+            <div
+              className={`no-scrollbar min-h-0 flex-1 snap-y snap-mandatory overflow-y-scroll overscroll-contain scroll-smooth ${
+                gta6 && activeTab === "foryou" && feedTab === "foryou" ? "gta6-foryou-bg" : ""
+              }`}
+            >
+              {error && !offlineMode && !(videos && videos.length > 0) && (
+                <Empty text="Couldn't load videos. Refresh to try again." />
+              )}
               {!error && videos === null && activeTab !== "saved" && <Empty text="Loading your feed..." />}
               {(videos || activeTab === "saved") && shown.length === 0 && (
                 <Empty
@@ -619,15 +1101,14 @@ function Index() {
                   video={v}
                   liked={liked.has(v.id)}
                   muted={muted}
-                  onToggleMute={() => setMuted((m) => !m)}
-                  onLikeChange={(on) => {
-                    setLiked((s) => {
-                      const n = new Set(s);
-                      if (on) n.add(v.id);
-                      else n.delete(v.id);
-                      return n;
-                    });
-                  }}
+                  onToggleMute={handleToggleMute}
+                  onLikeChange={handleLikeChange}
+                  isFollowing={followingList.includes(v.username)}
+                  onFollowChange={handleFollowChange}
+                  isSaved={savedIds.has(v.id)}
+                  onSavedChange={handleSavedChange}
+                  repostedBy={repostBy.get(v.id) ?? v.reposted_by ?? null}
+                  posterUsername={v.poster_username ?? v.username}
                 />
               ))}
               <div id="scroll-sentinel" className="h-10 w-full" />
@@ -641,7 +1122,10 @@ function Index() {
             <Button
               key={id}
               variant="ghost"
-              onClick={() => setTab(id)}
+              onClick={() => {
+                setTab(id);
+                if (id === "foryou") setFeedTab("foryou");
+              }}
               aria-current={activeTab === id ? "page" : undefined}
               className={`h-14 min-w-0 flex-col gap-1 rounded-none px-0 text-[9px] ${
                 activeTab === id ? "text-primary" : "text-muted-foreground"
@@ -653,8 +1137,9 @@ function Index() {
           ))}
           <Button
             aria-label="Create video or go live"
-            onClick={() => (auth.user ? setCreateMenuOpen(true) : auth.signIn())}
-            className="m-auto h-9 w-10 rounded-lg px-0 [&_svg]:size-6"
+            onClick={() => guardOnboarding(() => (auth.user ? setCreateMenuOpen(true) : auth.signIn()))}
+            style={{ backgroundColor: "#ec4899", color: "#ffffff" }}
+            className="m-auto h-9 w-10 rounded-lg px-0 hover:brightness-95 [&_svg]:size-6"
           >
             <Plus />
           </Button>
@@ -707,7 +1192,9 @@ function Index() {
           </p>
           <p className="mt-6 text-muted-foreground">The world wants your point of view</p>
           <button
-            onClick={() => (auth.user ? setRecordingOpen(true) : auth.signIn())}
+            onClick={() =>
+              guardOnboarding(() => (auth.user ? setRecordingOpen(true) : auth.signIn()))
+            }
             className="mt-8 w-full rounded-full border border-primary py-3 font-bold text-primary transition hover:bg-primary hover:text-primary-foreground"
           >
             Share yours
@@ -715,26 +1202,45 @@ function Index() {
         </div>
       </aside>
 
-      <LiveStreamDialog
-        open={createMenuOpen}
-        onOpenChange={setCreateMenuOpen}
-        userId={auth.user?.id}
-        username={auth.handle}
-        onRecord={() => setRecordingOpen(true)}
-        onPhoto={() => setPhotoOpen(true)}
-        onUpload={() => setUploading(true)}
-      />
+      {createMenuMounted && (
+        <Suspense fallback={null}>
+          <LiveStreamDialog
+            open={createMenuOpen}
+            onOpenChange={(next) => {
+              setCreateMenuOpen(next);
+              if (!next) setLiveWatchHost(null);
+            }}
+            {...(auth.user?.id ? { userId: auth.user.id } : {})}
+            username={auth.handle}
+            {...(liveWatchHost
+              ? { initialHost: { userId: liveWatchHost.userId, username: liveWatchHost.username } }
+              : {})}
+            onRecord={() => setRecordingOpen(true)}
+            onPhoto={() => setPhotoOpen(true)}
+            onUpload={() =>
+              guardOnboarding(() => {
+                setUploadFull(false);
+                setUploading(true);
+              })
+            }
+          />
+        </Suspense>
+      )}
 
       {uploading && auth.handle && (
-        <UploadDialog
-          defaultUsername={auth.handle}
-          onClose={() => setUploading(false)}
-          onDone={() => {
-            setUploading(false);
-            setTab("mine");
-            load();
-          }}
-        />
+        <Suspense fallback={null}>
+          <UploadDialog
+            defaultUsername={auth.handle}
+            full={uploadFull}
+            onClose={() => setUploading(false)}
+            onDone={() => {
+              setUploading(false);
+              setTab("foryou");
+              setGta6ChallengeRefresh((n) => n + 1);
+              load();
+            }}
+          />
+        </Suspense>
       )}
 
       {photoOpen && <Suspense fallback={null}><PhotoDialog
@@ -742,7 +1248,8 @@ function Index() {
         onOpenChange={setPhotoOpen}
         username={auth.handle}
         onPosted={() => {
-          setTab("mine");
+          setTab("foryou");
+          setGta6ChallengeRefresh((n) => n + 1);
           load();
         }}
       /></Suspense>}
@@ -753,7 +1260,8 @@ function Index() {
         username={auth.handle}
         onUploadInstead={() => setUploading(true)}
         onPosted={() => {
-          setTab("mine");
+          setTab("foryou");
+          setGta6ChallengeRefresh((n) => n + 1);
           load();
         }}
       /></Suspense>}

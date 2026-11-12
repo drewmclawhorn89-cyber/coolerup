@@ -1,8 +1,10 @@
-import { useEffect, useState } from "react";
-import { CornerDownRight, X } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { CornerDownRight, Heart, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { notifyUser, profileIdForHandle } from "@/lib/notify";
+import { GifPicker } from "@/components/GifPicker";
 
 type Comment = {
   id: string;
@@ -10,72 +12,14 @@ type Comment = {
   body: string;
   created_at: string;
   gif_url: string | null;
+  gif_credit: string | null;
   parent_id: string | null;
+  /** Folded in after the comments load; not a column on `comments`. */
+  like_count: number;
+  liked_by_me: boolean;
 };
 
-const COLS = "id, username, body, created_at, gif_url, parent_id";
-const GIPHY_KEY = (import.meta.env.VITE_GIPHY_API_KEY as string | undefined) ?? "";
-
-type Gif = { id: string; url: string; preview: string };
-
-function GifPicker({ onPick, onClose }: { onPick: (url: string) => void; onClose: () => void }) {
-  const [q, setQ] = useState("");
-  const [gifs, setGifs] = useState<Gif[]>([]);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    const t = setTimeout(async () => {
-      if (!GIPHY_KEY) {
-        toast.error("GIFs need a Giphy API key (VITE_GIPHY_API_KEY)");
-        return;
-      }
-      setLoading(true);
-      try {
-        const base = q.trim() ? "search" : "trending";
-        const params = new URLSearchParams({ api_key: GIPHY_KEY, limit: "24", rating: "pg-13" });
-        if (q.trim()) params.set("q", q.trim());
-        const res = await fetch(`https://api.giphy.com/v1/gifs/${base}?${params}`);
-        const json = await res.json();
-        if (!res.ok) throw new Error(json?.meta?.msg ?? `HTTP ${res.status}`);
-        setGifs(
-          (json.data ?? []).map((g: any) => ({
-            id: g.id,
-            url: g.images.fixed_height.url,
-            preview: g.images.fixed_height_small?.url ?? g.images.fixed_height.url,
-          })),
-        );
-      } catch (err) {
-        toast.error(`Couldn't load GIFs: ${err instanceof Error ? err.message : "unknown error"}`);
-      }
-      setLoading(false);
-    }, 300);
-    return () => clearTimeout(t);
-  }, [q]);
-
-  return (
-    <div className="border-t p-3">
-      <div className="mb-2 flex items-center gap-2">
-        <input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Search GIFs…"
-          className="min-w-0 flex-1 rounded-full bg-secondary px-4 py-2 text-base outline-none sm:text-sm"
-        />
-        <button type="button" onClick={onClose} aria-label="Close GIF picker">
-          <X className="h-4 w-4" />
-        </button>
-      </div>
-      <div className="grid max-h-40 grid-cols-3 gap-1 overflow-y-auto">
-        {loading && <p className="col-span-3 text-xs text-muted-foreground">Loading…</p>}
-        {gifs.map((g) => (
-          <button type="button" key={g.id} onClick={() => onPick(g.url)}>
-            <img src={g.preview} alt="GIF" loading="lazy" className="h-20 w-full rounded object-cover" />
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
+const COLS = "id, username, body, created_at, gif_url, gif_credit, parent_id";
 
 export function Comments({
   videoId,
@@ -87,21 +31,71 @@ export function Comments({
   onAdded: () => void;
 }) {
   const [items, setItems] = useState<Comment[] | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [gif, setGif] = useState<string | null>(null);
+  const [gifCredit, setGifCredit] = useState<string | null>(null);
   const [showGifs, setShowGifs] = useState(false);
   const [replyTo, setReplyTo] = useState<Comment | null>(null);
-  const { handle, signIn } = useAuth();
+  const { handle, signIn, user } = useAuth();
 
-  useEffect(() => {
-    supabase
+  const load = useCallback(async () => {
+    setLoadError(null);
+    setItems(null);
+    const { data, error } = await supabase
       .from("comments")
       .select(COLS)
       .eq("video_id", videoId)
-      .order("created_at", { ascending: false })
-      .then(({ data }) => setItems(data ?? []));
-  }, [videoId]);
+      .order("created_at", { ascending: false });
+    if (error) {
+      // An empty list and a failed query used to look identical ("No comments
+      // yet"), which hid real RLS/network failures. Surface it instead.
+      setLoadError(error.message);
+      setItems([]);
+      return;
+    }
+
+    const rows = (data ?? []) as Omit<Comment, "like_count" | "liked_by_me">[];
+    if (rows.length === 0) {
+      setItems([]);
+      return;
+    }
+
+    // One extra query for every like on the thread, then fold the counts in.
+    // A missing table (migration not applied yet) must not blank the thread.
+    const { data: likeRows, error: likeError } = await supabase
+      .from("comment_likes")
+      .select("comment_id, user_id")
+      .in(
+        "comment_id",
+        rows.map((r) => r.id),
+      );
+
+    if (likeError) {
+      setItems(rows.map((r) => ({ ...r, like_count: 0, liked_by_me: false })));
+      return;
+    }
+
+    const counts = new Map<string, number>();
+    const mine = new Set<string>();
+    for (const like of (likeRows ?? []) as { comment_id: string; user_id: string }[]) {
+      counts.set(like.comment_id, (counts.get(like.comment_id) ?? 0) + 1);
+      if (user?.id && like.user_id === user.id) mine.add(like.comment_id);
+    }
+
+    setItems(
+      rows.map((r) => ({
+        ...r,
+        like_count: counts.get(r.id) ?? 0,
+        liked_by_me: mine.has(r.id),
+      })),
+    );
+  }, [videoId, user?.id]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -110,9 +104,12 @@ export function Comments({
     setBusy(true);
     const { data, error } = await supabase
       .from("comments")
-      .insert({ video_id: videoId, username: handle ?? "guest",
+      .insert({
+        video_id: videoId,
+        username: handle ?? "guest",
         body: body.slice(0, 300),
         gif_url: gif,
+        gif_credit: gifCredit,
         parent_id: replyTo ? (replyTo.parent_id ?? replyTo.id) : null,
       })
       .select(COLS)
@@ -123,16 +120,96 @@ export function Comments({
       toast.error(`Couldn't post comment: ${error.message}`);
       return;
     }
-    setItems((c) => [data, ...(c ?? [])]);
+    setItems((c) => [{ ...data, like_count: 0, liked_by_me: false }, ...(c ?? [])]);
     setText("");
     setGif(null);
+    setGifCredit(null);
     setShowGifs(false);
     setReplyTo(null);
     onAdded();
+
+    // Let the video owner know — in the bell and on their phone.
+    void (async () => {
+      try {
+        if (!user?.id) return;
+        const { data: video } = await supabase
+          .from("videos")
+          .select("username")
+          .eq("id", videoId)
+          .maybeSingle();
+        if (!video?.username) return;
+        const ownerId = await profileIdForHandle(video.username);
+        if (!ownerId) return;
+        await notifyUser({
+          targetUserId: ownerId,
+          actorUserId: user.id,
+          type: "comment",
+          videoId,
+          text: `${handle ?? "Someone"} commented: ${body.slice(0, 80)}`,
+          url: "/",
+        });
+      } catch {
+        // Notifications are best-effort; the comment itself already saved.
+      }
+    })();
+  };
+
+  const topLevel = items?.filter((c) => !c.parent_id) ?? [];
+  const repliesTo = (id: string) => (items ?? []).filter((r) => r.parent_id === id).reverse();
+
+  /** Optimistically flip a comment's like, then settle on the server value. */
+  const likeComment = async (comment: Comment) => {
+    if (!user?.id) {
+      void signIn();
+      return;
+    }
+    const nextLiked = !comment.liked_by_me;
+
+    setItems((list) =>
+      (list ?? []).map((c) =>
+        c.id === comment.id
+          ? {
+              ...c,
+              liked_by_me: nextLiked,
+              like_count: Math.max(0, c.like_count + (nextLiked ? 1 : -1)),
+            }
+          : c,
+      ),
+    );
+
+    try {
+      if (nextLiked) {
+        const { error } = await supabase
+          .from("comment_likes")
+          .insert({ comment_id: comment.id, user_id: user.id });
+        // 23505 = already liked; treat as success.
+        if (error && error.code !== "23505") throw error;
+      } else {
+        const { error } = await supabase
+          .from("comment_likes")
+          .delete()
+          .eq("comment_id", comment.id)
+          .eq("user_id", user.id);
+        if (error) throw error;
+      }
+    } catch {
+      // Put it back the way it was.
+      setItems((list) =>
+        (list ?? []).map((c) =>
+          c.id === comment.id
+            ? { ...c, liked_by_me: comment.liked_by_me, like_count: comment.like_count }
+            : c,
+        ),
+      );
+      toast.error("Couldn't save your like");
+    }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-end bg-overlay sm:items-stretch" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-end bg-overlay sm:items-stretch"
+      onClick={onClose}
+    >
       <aside
         onClick={(e) => e.stopPropagation()}
         className="mobile-comments flex h-[75dvh] w-full max-w-md flex-col rounded-t-2xl border bg-card sm:h-full sm:rounded-none sm:border-l"
@@ -143,27 +220,53 @@ export function Comments({
             <X className="h-5 w-5" />
           </button>
         </header>
-        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
-          {items === null && <p className="text-sm text-muted-foreground">Loading…</p>}
-          {items?.length === 0 && (
-            <p className="text-sm text-muted-foreground">No comments yet. Be the first.</p>
-          )}
-          {items
-            ?.filter((c) => !c.parent_id)
-            .map((c) => (
+        {/* While the GIF picker (or the GIF maker inside it) is open it takes
+            the sheet's free space and the thread is hidden. Before this the
+            two shared a flex column, so on a phone the maker was squeezed
+            below the fold and its Create button could not be reached. */}
+        {showGifs ? (
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <GifPicker
+              fill
+              className="min-h-0 flex-1 overflow-hidden"
+              onPick={(u, meta) => {
+                setGif(u);
+                setGifCredit(meta?.username ? `@${meta.username}` : null);
+                setShowGifs(false);
+              }}
+              onClose={() => setShowGifs(false)}
+            />
+          </div>
+        ) : (
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
+            {items === null && <p className="text-sm text-muted-foreground">Loading…</p>}
+            {loadError && (
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">Couldn't load comments: {loadError}</p>
+                <button
+                  type="button"
+                  onClick={() => void load()}
+                  className="rounded-full bg-secondary px-4 py-1.5 text-xs font-bold"
+                >
+                  Try again
+                </button>
+              </div>
+            )}
+            {!loadError && items?.length === 0 && (
+              <p className="text-sm text-muted-foreground">No comments yet. Be the first.</p>
+            )}
+            {topLevel.map((c) => (
               <div key={c.id} className="space-y-3">
-                <CommentRow c={c} onReply={setReplyTo} />
-                {items
-                  .filter((r) => r.parent_id === c.id)
-                  .reverse()
-                  .map((r) => (
-                    <div key={r.id} className="ml-11">
-                      <CommentRow c={r} onReply={setReplyTo} />
-                    </div>
-                  ))}
+                <CommentRow c={c} onReply={setReplyTo} onLike={likeComment} />
+                {repliesTo(c.id).map((r) => (
+                  <div key={r.id} className="ml-11">
+                    <CommentRow c={r} onReply={setReplyTo} onLike={likeComment} />
+                  </div>
+                ))}
               </div>
             ))}
-        </div>
+          </div>
+        )}
         {!handle ? (
           <div className="border-t p-4">
             <button
@@ -175,58 +278,59 @@ export function Comments({
           </div>
         ) : (
           <>
-          {showGifs && (
-            <GifPicker
-              onPick={(u) => {
-                setGif(u);
-                setShowGifs(false);
-              }}
-              onClose={() => setShowGifs(false)}
-            />
-          )}
-          {replyTo && (
-            <div className="flex items-center justify-between border-t px-4 pt-3 text-xs text-muted-foreground">
-              <span>Replying to @{replyTo.username}</span>
-              <button type="button" onClick={() => setReplyTo(null)} aria-label="Cancel reply">
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-          )}
-          {gif && (
-            <div className="relative border-t px-4 pt-3">
-              <img src={gif} alt="Selected GIF" className="max-h-32 rounded-lg" />
-              <button
-                type="button"
-                onClick={() => setGif(null)}
-                aria-label="Remove GIF"
-                className="absolute left-5 top-5 rounded-full bg-background/80 p-1"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </div>
-          )}
-          <form onSubmit={submit} className="flex gap-2 border-t p-4">
-            <input
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              maxLength={300}
-              placeholder={replyTo ? `Reply to @${replyTo.username}…` : "Add a comment…"}
-              className="min-w-0 flex-1 rounded-full bg-secondary px-4 py-2 text-base outline-none focus:ring-2 focus:ring-ring sm:text-sm"
-            />
-            <button
-              type="button"
-              onClick={() => setShowGifs((v) => !v)}
-              className="rounded-full bg-secondary px-3 text-xs font-bold"
-            >
-              GIF
-            </button>
-            <button
-              disabled={busy || (!text.trim() && !gif)}
-              className="rounded-full bg-primary px-4 text-sm font-bold text-primary-foreground disabled:opacity-50"
-            >
-              Post
-            </button>
-          </form>
+            {replyTo && (
+              <div className="flex items-center justify-between border-t px-4 pt-3 text-xs text-muted-foreground">
+                <span>Replying to @{replyTo.username}</span>
+                <button type="button" onClick={() => setReplyTo(null)} aria-label="Cancel reply">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            )}
+            {gif && (
+              <div className="relative border-t px-4 pt-3">
+                <img src={gif} alt="Selected GIF" className="max-h-32 rounded-lg" />
+                {gifCredit && (
+                  <p className="mt-1 text-[10px] font-semibold text-muted-foreground">
+                    Made by {gifCredit}
+                  </p>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setGif(null);
+                    setGifCredit(null);
+                  }}
+                  aria-label="Remove GIF"
+                  className="absolute left-5 top-5 rounded-full bg-background/80 p-1"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            )}
+            {!showGifs && (
+              <form onSubmit={submit} className="flex gap-2 border-t p-4">
+                <input
+                  value={text}
+                  onChange={(e) => setText(e.target.value)}
+                  maxLength={300}
+                  placeholder={replyTo ? `Reply to @${replyTo.username}…` : "Add a comment…"}
+                  className="min-w-0 flex-1 rounded-full bg-secondary px-4 py-2 text-base outline-none focus:ring-2 focus:ring-ring sm:text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowGifs((v) => !v)}
+                  className="rounded-full bg-secondary px-3 text-xs font-bold"
+                >
+                  GIF
+                </button>
+                <button
+                  disabled={busy || (!text.trim() && !gif)}
+                  className="rounded-full bg-primary px-4 text-sm font-bold text-primary-foreground disabled:opacity-50"
+                >
+                  Post
+                </button>
+              </form>
+            )}
           </>
         )}
       </aside>
@@ -234,22 +338,57 @@ export function Comments({
   );
 }
 
-function CommentRow({ c, onReply }: { c: Comment; onReply: (c: Comment) => void }) {
+function CommentRow({
+  c,
+  onReply,
+  onLike,
+}: {
+  c: Comment;
+  onReply: (c: Comment) => void;
+  onLike: (c: Comment) => void;
+}) {
+  // `username` is NOT NULL in the database, but a trimmed empty string would
+  // still make `c.username[0]` render nothing; fall back to "?".
+  const initial = (c.username ?? "").trim().charAt(0).toUpperCase() || "?";
   return (
     <div className="flex gap-3">
       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-bold uppercase">
-        {c.username[0]}
+        {initial}
       </div>
       <div className="min-w-0 break-words">
         <p className="text-xs font-bold text-muted-foreground">@{c.username}</p>
         {c.body && <p className="text-sm">{c.body}</p>}
-        {c.gif_url && <img src={c.gif_url} alt="GIF" loading="lazy" className="mt-1 max-h-40 rounded-lg" />}
-        <button
-          onClick={() => onReply(c)}
-          className="mt-1 flex items-center gap-1 text-xs font-semibold text-muted-foreground"
-        >
-          <CornerDownRight className="h-3 w-3" /> Reply
-        </button>
+        {c.gif_url && (
+          <>
+            <img src={c.gif_url} alt="GIF" loading="lazy" className="mt-1 max-h-40 rounded-lg" />
+            {c.gif_credit && (
+              <p className="mt-0.5 text-[10px] font-semibold text-muted-foreground">
+                Made by {c.gif_credit}
+              </p>
+            )}
+          </>
+        )}
+        <div className="mt-1 flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => onLike(c)}
+            aria-pressed={c.liked_by_me}
+            aria-label={c.liked_by_me ? "Unlike comment" : "Like comment"}
+            className={`flex items-center gap-1 text-xs font-semibold transition ${
+              c.liked_by_me ? "text-red-500" : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Heart className={`h-3.5 w-3.5 ${c.liked_by_me ? "fill-current" : ""}`} />
+            {c.like_count > 0 ? c.like_count : "Like"}
+          </button>
+          <button
+            type="button"
+            onClick={() => onReply(c)}
+            className="flex items-center gap-1 text-xs font-semibold text-muted-foreground hover:text-foreground"
+          >
+            <CornerDownRight className="h-3 w-3" /> Reply
+          </button>
+        </div>
       </div>
     </div>
   );

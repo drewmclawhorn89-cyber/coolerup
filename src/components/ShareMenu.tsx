@@ -1,23 +1,58 @@
 import { useEffect, useState } from "react";
-import { Check, Download, Link2, Share2, Trash2, X } from "lucide-react";
+import { Check, Download, Gauge, Link2, Lock, Share2, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { deleteVideo, resolveVideoUrl, type Video } from "@/lib/loop";
 import { formatBytes, getSaved, removeOffline, saveOffline } from "@/lib/offline";
+import { hasOfflineAccess, offlinePlan } from "@/lib/subscriptions";
+import { useTrial } from "@/lib/trial";
 
-export function ShareMenu({ video, onClose, onShared, onDeleted }: { video: Video; onClose: () => void; onShared: () => void; onDeleted?: () => void }) {
+export function ShareMenu({
+  video,
+  onClose,
+  onShared,
+  onDeleted,
+  qualityLabel,
+  onOpenQuality,
+}: {
+  video: Video;
+  onClose: () => void;
+  onShared: () => void;
+  onDeleted?: () => void;
+  qualityLabel?: string;
+  onOpenQuality?: () => void;
+}) {
   const [savedSize, setSavedSize] = useState<number | null>(null);
   const [progress, setProgress] = useState<number | null>(null);
   const auth = useAuth();
+  // Offline mode ships with Pro and VIP, with one free hour to try it.
+  const trial = useTrial(auth.handle, offlinePlan().id);
+  const offlineUnlocked = hasOfflineAccess(auth.handle);
   const isOwner = !!auth.user && !!auth.handle && auth.handle === video.username;
-  const url = typeof window!== "undefined"? `${window.location.origin}/v/${video.id}` : "";
+  const url = typeof window !== "undefined" ? `${window.location.origin}/v/${video.id}` : "";
 
   useEffect(() => {
-    getSaved(video.id).then((s) => setSavedSize(s?.size?? null)).catch(() => {});
+    getSaved(video.id)
+      .then((s) => setSavedSize(s?.size ?? null))
+      .catch(() => {});
   }, [video.id]);
 
   const save = async () => {
+    if (!offlineUnlocked) {
+      // A first-time viewer gets the hour instead of a paywall; once it is
+      // spent, saving is a paid feature again.
+      if (trial.used) {
+        const plan = offlinePlan();
+        toast.error(
+          `Your free trial has ended. Offline mode is part of ${plan.label} ($${plan.price.toFixed(2)}/mo)`,
+        );
+        window.location.href = "/?tab=subscriptions";
+        return;
+      }
+      trial.start();
+      toast.success("1-hour free trial started");
+    }
     setProgress(0);
     try {
       const size = await saveOffline(video, setProgress);
@@ -57,13 +92,20 @@ export function ShareMenu({ video, onClose, onShared, onDeleted }: { video: Vide
       if (!resp.ok) throw new Error("Network response was not ok");
       const blob = await resp.blob();
       const extMatch = (video.video_url || "").match(/\.([a-z0-9]{2,4})(?:[?#]|$)/i);
-      const ext = extMatch?.[1] ?? (blob.type.includes("webm") ? "webm" : blob.type.startsWith("image/") ? blob.type.split("/")[1] : "mp4");
+      const ext =
+        extMatch?.[1] ??
+        (blob.type.includes("webm")
+          ? "webm"
+          : blob.type.startsWith("image/")
+            ? blob.type.split("/")[1]
+            : "mp4");
       const filename = `${video.id}.${ext}`;
       const type = blob.type || `video/${ext}`;
       const file = new File([blob], filename, { type });
 
       // On phones, the share sheet is the way to save to the camera roll / Files.
-      const isTouch = typeof navigator !== "undefined" && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      const isTouch =
+        typeof navigator !== "undefined" && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
       if (isTouch && navigator.canShare?.({ files: [file] })) {
         try {
           await navigator.share({ files: [file] });
@@ -95,11 +137,20 @@ export function ShareMenu({ video, onClose, onShared, onDeleted }: { video: Vide
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end justify-center p-0" onClick={onClose}>
-      <div className="bg-zinc-900 w-full max-w-md rounded-t- p-6 space-y-5" onClick={(e) => e.stopPropagation()}>
+    <div
+      className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end justify-center p-0"
+      onClick={onClose}
+    >
+      <div
+        className="bg-zinc-900 w-full max-w-md rounded-t- p-6 space-y-5"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center justify-between">
           <h3 className="font-bold text-lg text-white">Share</h3>
-          <button onClick={onClose} className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center">
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center"
+          >
             <X size={18} />
           </button>
         </div>
@@ -138,10 +189,7 @@ export function ShareMenu({ video, onClose, onShared, onDeleted }: { video: Vide
             <span className="text-xs text-zinc-300">Copy link</span>
           </button>
 
-          <button
-            className="flex flex-col items-center gap-2"
-            onClick={download}
-          >
+          <button className="flex flex-col items-center gap-2" onClick={download}>
             <div className="w-14 h-14 rounded-full bg-zinc-800 flex items-center justify-center">
               <Download size={22} />
             </div>
@@ -159,11 +207,40 @@ export function ShareMenu({ video, onClose, onShared, onDeleted }: { video: Vide
               }
             }}
           >
-            <div className="w-14 h-14 rounded-full bg-zinc-800 flex items-center justify-center">
-              {savedSize ? <Trash2 size={22} /> : <Check size={22} />}
+            <div
+              className={`w-14 h-14 rounded-full flex items-center justify-center ${
+                offlineUnlocked || savedSize ? "bg-zinc-800" : "bg-zinc-800/60"
+              }`}
+            >
+              {savedSize ? (
+                <Trash2 size={22} />
+              ) : offlineUnlocked ? (
+                <Check size={22} />
+              ) : (
+                <Lock size={22} />
+              )}
             </div>
-            <span className="text-xs text-zinc-300">{savedSize ? `Remove (${formatBytes(savedSize)})` : "Save offline"}</span>
+            <span className="text-xs text-zinc-300">
+              {savedSize
+                ? `Remove (${formatBytes(savedSize)})`
+                : offlineUnlocked
+                  ? trial.active
+                    ? `Trial · ${trial.label}`
+                    : "Save offline"
+                  : `${offlinePlan().label} only`}
+            </span>
           </button>
+
+          {onOpenQuality && (
+            <button className="flex flex-col items-center gap-2" onClick={onOpenQuality}>
+              <div className="w-14 h-14 rounded-full bg-zinc-800 flex items-center justify-center">
+                <Gauge size={22} />
+              </div>
+              <span className="text-xs text-zinc-300">
+                Quality{qualityLabel ? ` · ${qualityLabel}` : ""}
+              </span>
+            </button>
+          )}
 
           {isOwner && (
             <button className="flex flex-col items-center gap-2" onClick={deleteMine}>
@@ -175,7 +252,7 @@ export function ShareMenu({ video, onClose, onShared, onDeleted }: { video: Vide
           )}
         </div>
 
-        {progress!== null && (
+        {progress !== null && (
           <div className="w-full bg-zinc-800 h-2 rounded-full overflow-hidden">
             <div className="h-full bg-white transition-all" style={{ width: `${progress}%` }} />
           </div>

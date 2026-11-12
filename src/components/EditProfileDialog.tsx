@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import { Camera, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -41,13 +42,20 @@ export async function resolveAvatarUrl(url: string | null | undefined) {
   return data?.signedUrl ?? null;
 }
 
-export function EditProfileDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
+export function EditProfileDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+}) {
   const auth = useAuth();
   const fileRef = useRef<HTMLInputElement>(null);
   const [displayName, setDisplayName] = useState("");
   const [bio, setBio] = useState("");
   const [links, setLinks] = useState<Record<string, string>>({});
   const [preview, setPreview] = useState<string | null>(null);
+  const [showLiked, setShowLiked] = useState(true);
   const [photo, setPhoto] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   useEffect(() => {
@@ -55,6 +63,7 @@ export function EditProfileDialog({ open, onOpenChange }: { open: boolean; onOpe
     setDisplayName(auth.profile?.display_name || auth.name || "");
     setBio(auth.profile?.bio || "");
     setLinks({ ...(auth.profile?.links ?? {}) });
+    setShowLiked(auth.profile?.show_liked !== false);
     setPhoto(null);
     let revoked: string | null = null;
     resolveAvatarUrl(auth.profile?.avatar_url).then((u) => setPreview(u));
@@ -113,7 +122,13 @@ export function EditProfileDialog({ open, onOpenChange }: { open: boolean; onOpe
       }
       const { error } = await supabase
         .from("profiles")
-        .update({ display_name: name || null, bio: bio.trim() || null, avatar_url: avatarUrl, links: cleanLinks })
+        .update({
+          display_name: name || null,
+          bio: bio.trim() || null,
+          avatar_url: avatarUrl,
+          links: cleanLinks,
+          show_liked: showLiked,
+        })
         .eq("id", auth.user.id);
       if (error) throw error;
       refreshProfile();
@@ -191,6 +206,19 @@ export function EditProfileDialog({ open, onOpenChange }: { open: boolean; onOpe
                 />
               </div>
             ))}
+            <div className="flex items-start justify-between gap-3 rounded-lg border border-border p-3">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold">Show liked videos</p>
+                <p className="text-xs text-muted-foreground">
+                  Let people see the videos you've liked on your profile.
+                </p>
+              </div>
+              <Switch
+                checked={showLiked}
+                onCheckedChange={setShowLiked}
+                aria-label="Show liked videos on your profile"
+              />
+            </div>
             <p className="text-xs text-muted-foreground">Username: @{auth.handle}</p>
           </div>
 

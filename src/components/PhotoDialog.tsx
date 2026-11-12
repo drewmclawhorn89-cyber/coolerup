@@ -8,6 +8,7 @@ import { getAnimal, drawAnimal, mirrorFace } from "@/lib/animals";
 import { useFaceTracker } from "@/lib/face";
 import { canBakeFilters, filterById } from "@/lib/filters";
 import { awardGTA6Badge, useGTA6Mode } from "@/lib/gta6";
+import { withGTA6Hashtag } from "@/lib/gta6-challenge";
 import { songStreamUrl, uploadVideo, type Song } from "@/lib/loop";
 import { fetchTracks, type Track } from "@/components/MusicPlayer";
 
@@ -92,7 +93,10 @@ export function PhotoDialog({
     setReady(false);
     setError("");
     navigator.mediaDevices
-      .getUserMedia({ video: { facingMode, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false })
+      .getUserMedia({
+        video: { facingMode, width: { ideal: 1920 }, height: { ideal: 1080 } },
+        audio: false,
+      })
       .then((stream) => {
         if (cancelled) {
           stream.getTracks().forEach((t) => t.stop());
@@ -106,7 +110,8 @@ export function PhotoDialog({
         setReady(true);
       })
       .catch(() => {
-        if (!cancelled) setError("Camera access was blocked. Allow it in your browser settings and try again.");
+        if (!cancelled)
+          setError("Camera access was blocked. Allow it in your browser settings and try again.");
       });
     return () => {
       cancelled = true;
@@ -139,7 +144,12 @@ export function PhotoDialog({
       ctx.scale(-1, 1);
     }
     ctx.drawImage(v, 0, 0);
-    if (faceRef.current) drawAnimal(ctx, animal, facingMode === "user" ? mirrorFace(faceRef.current, canvas.width) : faceRef.current);
+    if (faceRef.current)
+      drawAnimal(
+        ctx,
+        animal,
+        facingMode === "user" ? mirrorFace(faceRef.current, canvas.width) : faceRef.current,
+      );
     canvas.toBlob((b) => b && setPhoto(b), "image/jpeg", 0.92);
   }
 
@@ -171,7 +181,9 @@ export function PhotoDialog({
     setPosting(true);
     try {
       const file = new File([photo], `photo-${Date.now()}.jpg`, { type: "image/jpeg" });
-      await uploadVideo(file, username, caption.trim().slice(0, 500), song);
+      const finalCaption =
+        gta6 && filterId === "gta6" ? withGTA6Hashtag(caption) : caption.trim().slice(0, 500);
+      await uploadVideo(file, username, finalCaption, song);
       // Posting during the GTA 6 window mints the permanent OG badge.
       void awardGTA6Badge(username);
       toast.success("Your photo is posted!");
@@ -188,7 +200,9 @@ export function PhotoDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="block h-[100dvh] w-screen max-w-none gap-0 overflow-hidden border-0 bg-black p-0 text-white sm:aspect-[9/16] sm:h-[min(100dvh,56rem)] sm:w-auto sm:rounded-2xl [&>button:last-child]:hidden">
         <DialogTitle className="sr-only">Take a photo</DialogTitle>
-        <DialogDescription className="sr-only">Take a photo, pick a filter, and post it to your feed.</DialogDescription>
+        <DialogDescription className="sr-only">
+          Take a photo, pick a filter, and post it to your feed.
+        </DialogDescription>
         <div className="relative h-full w-full bg-black">
           {!photo ? (
             <video
@@ -200,17 +214,30 @@ export function PhotoDialog({
               className={`h-full w-full object-cover ${facingMode === "user" ? "-scale-x-100" : ""} ${ready ? "opacity-100" : "opacity-0"}`}
             />
           ) : (
-            previewUrl && <img src={previewUrl} alt="Your photo" className="h-full w-full object-cover" />
+            previewUrl && (
+              <img src={previewUrl} alt="Your photo" className="h-full w-full object-cover" />
+            )
           )}
 
-          {!photo && <AnimalOverlay animal={animal} videoRef={videoRef} faceRef={faceRef} mirror={facingMode === "user"} />}
+          {!photo && (
+            <AnimalOverlay
+              animal={animal}
+              videoRef={videoRef}
+              faceRef={faceRef}
+              mirror={facingMode === "user"}
+            />
+          )}
 
           {!photo && !ready && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 px-8 text-center">
               <Camera className="h-8 w-8" />
               <p className="text-sm text-white/80">{error || "Starting your camera…"}</p>
               {error && (
-                <button type="button" onClick={() => setAttempt((n) => n + 1)} className="rounded-full bg-white px-6 py-2.5 font-bold text-black">
+                <button
+                  type="button"
+                  onClick={() => setAttempt((n) => n + 1)}
+                  className="rounded-full bg-white px-6 py-2.5 font-bold text-black"
+                >
                   Try again
                 </button>
               )}
@@ -218,7 +245,13 @@ export function PhotoDialog({
           )}
 
           <div className="absolute inset-x-0 top-0 flex items-center justify-between bg-gradient-to-b from-black/60 to-transparent p-4 pt-[max(1rem,env(safe-area-inset-top))]">
-            <button type="button" onClick={() => handleOpenChange(false)} aria-label="Close" disabled={posting} className="flex h-10 w-10 items-center justify-center rounded-full bg-black/40 disabled:opacity-50">
+            <button
+              type="button"
+              onClick={() => handleOpenChange(false)}
+              aria-label="Close"
+              disabled={posting}
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-black/40 disabled:opacity-50"
+            >
               <X className="h-6 w-6" />
             </button>
             {!photo ? (
@@ -239,7 +272,11 @@ export function PhotoDialog({
           <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-12">
             {!photo ? (
               <>
-                {!bake && <p className="pb-2 text-center text-xs text-white/70">Filters can't be saved on this browser, so photos will post unfiltered.</p>}
+                {!bake && (
+                  <p className="pb-2 text-center text-xs text-white/70">
+                    Filters can't be saved on this browser, so photos will post unfiltered.
+                  </p>
+                )}
                 <FilterBar
                   value={filterId}
                   onChange={setFilterId}
@@ -248,7 +285,13 @@ export function PhotoDialog({
                   gta6={gta6}
                 />
                 <div className="flex justify-center">
-                  <button type="button" onClick={snap} disabled={!ready} aria-label="Take photo" className="flex h-20 w-20 items-center justify-center rounded-full border-4 border-white transition disabled:opacity-40">
+                  <button
+                    type="button"
+                    onClick={snap}
+                    disabled={!ready}
+                    aria-label="Take photo"
+                    className="flex h-20 w-20 items-center justify-center rounded-full border-4 border-white transition disabled:opacity-40"
+                  >
                     <span className="h-16 w-16 rounded-full bg-white" />
                   </button>
                 </div>
@@ -264,35 +307,96 @@ export function PhotoDialog({
                   className="w-full rounded-full bg-white/15 px-4 py-3 text-base text-white outline-none placeholder:text-white/60 focus:ring-2 focus:ring-white/70"
                 />
                 <div className="flex items-center gap-2">
-                  <button type="button" onClick={() => setPickerOpen((v) => !v)} className="flex min-w-0 items-center gap-2 rounded-full bg-white/15 px-4 py-2 text-sm font-semibold">
-                    <Music className="h-4 w-4 shrink-0" /> <span className="truncate">{song ? song.title : "Add a song"}</span>
+                  <button
+                    type="button"
+                    onClick={() => setPickerOpen((v) => !v)}
+                    className="flex min-w-0 items-center gap-2 rounded-full bg-white/15 px-4 py-2 text-sm font-semibold"
+                  >
+                    <Music className="h-4 w-4 shrink-0" />{" "}
+                    <span className="truncate">{song ? song.title : "Add a song"}</span>
                   </button>
-                  {song && <button type="button" onClick={() => { audioRef.current?.pause(); setSong(null); }} aria-label="Remove song" className="flex h-8 w-8 items-center justify-center rounded-full bg-white/15"><X className="h-4 w-4" /></button>}
+                  {song && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        audioRef.current?.pause();
+                        setSong(null);
+                      }}
+                      aria-label="Remove song"
+                      className="flex h-8 w-8 items-center justify-center rounded-full bg-white/15"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
                 </div>
                 {pickerOpen && (
                   <div className="rounded-2xl bg-black/60 p-2 text-sm">
                     <div className="mb-2 flex gap-2">
-                      <button type="button" onClick={() => void findSongs(MGK_QUERY)} className="rounded-full bg-primary px-3 py-1 text-xs font-bold text-primary-foreground">MGK</button>
+                      <button
+                        type="button"
+                        onClick={() => void findSongs(MGK_QUERY)}
+                        className="rounded-full bg-primary px-3 py-1 text-xs font-bold text-primary-foreground"
+                      >
+                        MGK
+                      </button>
                       <div className="flex min-w-0 flex-1 items-center gap-2 rounded-full bg-white/15 px-3">
                         <Search className="h-4 w-4 shrink-0" />
-                        <input value={songQ} onChange={(e) => setSongQ(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void findSongs(songQ); } }} placeholder="Search songs" aria-label="Search songs" className="h-8 w-full bg-transparent text-base outline-none placeholder:text-white/60" />
+                        <input
+                          value={songQ}
+                          onChange={(e) => setSongQ(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              void findSongs(songQ);
+                            }
+                          }}
+                          placeholder="Search songs"
+                          aria-label="Search songs"
+                          className="h-8 w-full bg-transparent text-base outline-none placeholder:text-white/60"
+                        />
                       </div>
                     </div>
                     <div className="max-h-[28dvh] space-y-1 overflow-y-auto">
-                      {searching ? <p className="py-2 text-center text-white/70">Loading…</p> : results.map((t) => (
-                        <button type="button" key={t.id} onClick={() => chooseSong(t)} className={`flex w-full items-center gap-2 rounded-lg p-2 text-left ${song?.id === t.id ? "bg-white/25" : "hover:bg-white/10"}`}>
-                          <span className="min-w-0 flex-1"><span className="block truncate font-semibold">{t.title}</span><span className="block truncate text-xs text-white/70">{t.artist}</span></span>
-                          {song?.id === t.id && <span className="text-xs font-bold">Selected</span>}
-                        </button>
-                      ))}
+                      {searching ? (
+                        <p className="py-2 text-center text-white/70">Loading…</p>
+                      ) : (
+                        results.map((t) => (
+                          <button
+                            type="button"
+                            key={t.id}
+                            onClick={() => chooseSong(t)}
+                            className={`flex w-full items-center gap-2 rounded-lg p-2 text-left ${song?.id === t.id ? "bg-white/25" : "hover:bg-white/10"}`}
+                          >
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate font-semibold">{t.title}</span>
+                              <span className="block truncate text-xs text-white/70">
+                                {t.artist}
+                              </span>
+                            </span>
+                            {song?.id === t.id && (
+                              <span className="text-xs font-bold">Selected</span>
+                            )}
+                          </button>
+                        ))
+                      )}
                     </div>
                   </div>
                 )}
                 <div className="grid grid-cols-2 gap-3">
-                  <button type="button" onClick={() => setPhoto(null)} disabled={posting} className="flex items-center justify-center gap-2 rounded-full border border-white/70 py-3 font-bold disabled:opacity-50">
+                  <button
+                    type="button"
+                    onClick={() => setPhoto(null)}
+                    disabled={posting}
+                    className="flex items-center justify-center gap-2 rounded-full border border-white/70 py-3 font-bold disabled:opacity-50"
+                  >
                     <RotateCcw className="h-5 w-5" /> Retake
                   </button>
-                  <button type="button" onClick={post} disabled={posting} className="flex items-center justify-center gap-2 rounded-full bg-primary py-3 font-bold text-primary-foreground disabled:opacity-50">
+                  <button
+                    type="button"
+                    onClick={post}
+                    disabled={posting}
+                    className="flex items-center justify-center gap-2 rounded-full bg-primary py-3 font-bold text-primary-foreground disabled:opacity-50"
+                  >
                     <Send className="h-5 w-5" /> {posting ? "Posting…" : "Post"}
                   </button>
                 </div>

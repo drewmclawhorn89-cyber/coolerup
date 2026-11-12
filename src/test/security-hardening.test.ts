@@ -174,3 +174,35 @@ describe("migration schema prerequisites", () => {
     expect(migration).not.toContain("insert into public.moderation_log (actor_id");
   });
 });
+
+describe("security advisor hardening migration", () => {
+  const advisor = read("supabase/migrations/20261205000000_security_advisor_hardening.sql");
+
+  it("pins search_path on every public function", () => {
+    expect(advisor).toContain("alter function %s set search_path = public, pg_temp");
+    expect(advisor).toContain("cfg like 'search_path=%'");
+  });
+
+  it("makes banned_words admin-only", () => {
+    expect(advisor).toContain('create policy "admins read banned words"');
+    expect(advisor).toContain("revoke all on public.banned_words from anon");
+  });
+
+  it("keeps muted_words readable but admin-writable", () => {
+    expect(advisor).toContain('create policy "muted words are public"');
+    expect(advisor).toContain('create policy "admins manage muted words"');
+    expect(advisor).toContain(
+      "revoke insert, update, delete on public.muted_words from anon, authenticated",
+    );
+  });
+
+  it("removes EXECUTE from trigger functions", () => {
+    expect(advisor).toContain("p.prorettype = 'trigger'::regtype");
+    expect(advisor).toContain("revoke all on function %s from anon, authenticated");
+  });
+
+  it("guards every optional table with to_regclass", () => {
+    expect(advisor).toContain("to_regclass('public.banned_words') is not null");
+    expect(advisor).toContain("to_regclass('public.muted_words') is not null");
+  });
+});

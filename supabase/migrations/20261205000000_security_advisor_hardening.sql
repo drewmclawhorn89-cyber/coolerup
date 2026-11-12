@@ -23,8 +23,9 @@
 -- 1. Pin search_path on every function in the public schema.
 -- ---------------------------------------------------------------------------
 -- `alter function` only accepts normal and window functions; aggregates and
--- procedures are skipped. `public, pg_temp` keeps pg_temp last so a caller
--- cannot shadow a table by creating a temp table of the same name.
+-- procedures are skipped. `extensions` is included so functions that call
+-- pgcrypto helpers (crypt, gen_salt) keep working on Supabase, and `pg_temp`
+-- is last so a caller cannot shadow a table with a temp table of the same name.
 do $$
 declare
   r record;
@@ -42,7 +43,7 @@ begin
        )
   loop
     begin
-      execute format('alter function %s set search_path = public, pg_temp', r.sig);
+      execute format('alter function %s set search_path = public, extensions, pg_temp', r.sig);
     exception
       when others then
         -- A function we cannot alter (extension-owned, etc.) must not abort
@@ -65,7 +66,6 @@ begin
     execute 'alter table public.banned_words enable row level security';
 
     -- Remove every permissive read policy, whatever it was called.
-    perform 1;
     declare
       pol record;
     begin

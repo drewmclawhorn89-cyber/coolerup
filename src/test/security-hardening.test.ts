@@ -179,7 +179,7 @@ describe("security advisor hardening migration", () => {
   const advisor = read("supabase/migrations/20261205000000_security_advisor_hardening.sql");
 
   it("pins search_path on every public function", () => {
-    expect(advisor).toContain("alter function %s set search_path = public, pg_temp");
+    expect(advisor).toContain("alter function %s set search_path = public, extensions, pg_temp");
     expect(advisor).toContain("cfg like 'search_path=%'");
   });
 

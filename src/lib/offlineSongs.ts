@@ -95,7 +95,7 @@ export function canDownloadSong(sound: Sound | null | undefined): boolean {
 /** Message shown when a download is refused. */
 export function downloadBlockedMessage(reason: DownloadBlockReason): string {
   return reason === "copyright"
-    ? "Can't download — copyright. This song only streams."
+    ? "YouTube songs stream only. Add your own audio file to play this one offline."
     : "Can't download — this song has no audio file.";
 }
 
@@ -203,6 +203,59 @@ export async function saveSongOffline(
   }
 
   const blob = new Blob(chunks, { type: resp.headers.get("content-type") || "audio/mpeg" });
+  const now = Date.now();
+  const record: SavedSong = {
+    id: sound.id,
+    sound,
+    blob,
+    size: blob.size,
+    saved_at: now,
+    last_played_at: now,
+  };
+
+  await tx("readwrite", (s) => s.put(record));
+  forgetUrl(sound.id);
+  onProgress?.(100);
+  emit();
+  return blob.size;
+}
+
+/**
+ * Store an audio file the user picked from their phone.
+ *
+ * This is how a YouTube song becomes playable offline: we never fetch anything
+ * from YouTube, the user supplies a file they already have, and it is kept in
+ * IndexedDB exactly like an own-sound download.
+ */
+export async function saveSongFileOffline(
+  sound: Sound,
+  file: File,
+  onProgress?: (pct: number) => void,
+): Promise<number> {
+  const looksAudio =
+    (file.type && file.type.startsWith("audio/")) ||
+    /\.(mp3|m4a|aac|wav|ogg|oga|opus|flac|webm|mp4)$/i.test(file.name);
+  if (!looksAudio) throw new Error("Pick an audio file (MP3, M4A, WAV…).");
+
+  const total = file.size || 0;
+  let blob: Blob;
+
+  if (typeof file.stream === "function") {
+    const reader = file.stream().getReader();
+    const chunks: BlobPart[] = [];
+    let got = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+      got += value.length;
+      if (total) onProgress?.(Math.min(99, Math.round((got / total) * 100)));
+    }
+    blob = new Blob(chunks, { type: file.type || "audio/mpeg" });
+  } else {
+    blob = file;
+  }
+
   const now = Date.now();
   const record: SavedSong = {
     id: sound.id,

@@ -290,41 +290,6 @@ export type Database = {
           },
         ]
       }
-      free_coin_claims: {
-        Row: {
-          claimed_at: string
-          coins_given: number
-          id: string
-          user_id: string | null
-          username: string | null
-          venmo_clicked: boolean
-        }
-        Insert: {
-          claimed_at?: string
-          coins_given?: number
-          id?: string
-          user_id?: string | null
-          username?: string | null
-          venmo_clicked?: boolean
-        }
-        Update: {
-          claimed_at?: string
-          coins_given?: number
-          id?: string
-          user_id?: string | null
-          username?: string | null
-          venmo_clicked?: boolean
-        }
-        Relationships: [
-          {
-            foreignKeyName: "free_coin_claims_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       comment_likes: {
         Row: {
           comment_id: string
@@ -774,6 +739,13 @@ export type Database = {
             referencedRelation: "gifs"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "gif_reports_reporter_id_fkey"
+            columns: ["reporter_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
         ]
       }
       gifs: {
@@ -813,6 +785,13 @@ export type Database = {
             columns: ["source_video_id"]
             isOneToOne: false
             referencedRelation: "videos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gifs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -1096,44 +1075,6 @@ export type Database = {
           handle?: string
         }
         Relationships: []
-      }
-      gta6_challenge_claims: {
-        Row: {
-          claimed_at: string
-          ends_at: string
-          handle: string
-          months: number
-          plan: string
-          user_id: string
-          videos_count: number
-        }
-        Insert: {
-          claimed_at?: string
-          ends_at: string
-          handle: string
-          months?: number
-          plan?: string
-          user_id: string
-          videos_count?: number
-        }
-        Update: {
-          claimed_at?: string
-          ends_at?: string
-          handle?: string
-          months?: number
-          plan?: string
-          user_id?: string
-          videos_count?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "gta6_challenge_claims_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: true
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       likes: {
         Row: {
@@ -1839,32 +1780,6 @@ export type Database = {
           },
         ]
       }
-      saved_videos: {
-        Row: {
-          created_at: string
-          user_id: string
-          video_id: string
-        }
-        Insert: {
-          created_at?: string
-          user_id: string
-          video_id: string
-        }
-        Update: {
-          created_at?: string
-          user_id?: string
-          video_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "saved_videos_video_id_fkey"
-            columns: ["video_id"]
-            isOneToOne: false
-            referencedRelation: "videos"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       saved_sounds: {
         Row: {
           created_at: string
@@ -1894,6 +1809,32 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      saved_videos: {
+        Row: {
+          created_at: string
+          user_id: string
+          video_id: string
+        }
+        Insert: {
+          created_at?: string
+          user_id: string
+          video_id: string
+        }
+        Update: {
+          created_at?: string
+          user_id?: string
+          video_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saved_videos_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "videos"
             referencedColumns: ["id"]
           },
         ]
@@ -1932,7 +1873,7 @@ export type Database = {
       }
       sounds: {
         Row: {
-          audio_url: string
+          audio_url: string | null
           cover_url: string | null
           created_at: string
           creator_username: string
@@ -1940,12 +1881,12 @@ export type Database = {
           original_video_id: string | null
           source: string
           title: string
-          uses_count: number
           user_id: string | null
+          uses_count: number
           youtube_url: string | null
         }
         Insert: {
-          audio_url?: string
+          audio_url?: string | null
           cover_url?: string | null
           created_at?: string
           creator_username: string
@@ -1953,12 +1894,12 @@ export type Database = {
           original_video_id?: string | null
           source?: string
           title: string
-          uses_count?: number
           user_id?: string | null
+          uses_count?: number
           youtube_url?: string | null
         }
         Update: {
-          audio_url?: string
+          audio_url?: string | null
           cover_url?: string | null
           created_at?: string
           creator_username?: string
@@ -1966,8 +1907,8 @@ export type Database = {
           original_video_id?: string | null
           source?: string
           title?: string
-          uses_count?: number
           user_id?: string | null
+          uses_count?: number
           youtube_url?: string | null
         }
         Relationships: [
@@ -1976,6 +1917,13 @@ export type Database = {
             columns: ["original_video_id"]
             isOneToOne: true
             referencedRelation: "videos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sounds_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -2077,6 +2025,53 @@ export type Database = {
           uses_count?: number
         }
         Relationships: []
+      }
+      subscriptions: {
+        Row: {
+          created_at: string
+          current_period_end: string | null
+          granted_by: string | null
+          id: string
+          is_lifetime: boolean
+          plan: string
+          revoked_at: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          current_period_end?: string | null
+          granted_by?: string | null
+          id?: string
+          is_lifetime?: boolean
+          plan?: string
+          revoked_at?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          current_period_end?: string | null
+          granted_by?: string | null
+          id?: string
+          is_lifetime?: boolean
+          plan?: string
+          revoked_at?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscriptions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_balance: {
         Row: {
@@ -2311,10 +2306,6 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      increment_gif_use: {
-        Args: { p_gif_id: string }
-        Returns: undefined
-      }
       add_live_mod: {
         Args: { p_live_id: string; p_user_id: string }
         Returns: number
@@ -2356,9 +2347,39 @@ export type Database = {
         }
         Returns: Json
       }
+      admin_credit_coins: {
+        Args: {
+          _coins: number
+          _diamonds?: number
+          _reason?: string
+          _user_id: string
+        }
+        Returns: {
+          balance: number
+          diamonds: number
+          last_gift_id: string | null
+          paid_balance: number
+          total_earned: number
+          total_recharged: number
+          total_spent: number
+          updated_at: string
+          user_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "user_coins"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       admin_delete_subscription_code: { Args: { _code: string }; Returns: Json }
       admin_dismiss_report: { Args: { _report_id: string }; Returns: Json }
       admin_follower_payouts: { Args: { _limit?: number }; Returns: Json }
+      admin_grant_lifetime: {
+        Args: { _handle: string; _plan: string }
+        Returns: Json
+      }
+      admin_list_lifetime: { Args: never; Returns: Json }
       admin_list_subscription_codes: { Args: never; Returns: Json }
       admin_mark_creator_payout_paid: {
         Args: { p_note?: string; p_payout_id: string }
@@ -2405,6 +2426,8 @@ export type Database = {
         Args: { _action: string; _note?: string; _order_id: string }
         Returns: Json
       }
+      admin_revoke_lifetime: { Args: { _user_id: string }; Returns: Json }
+      admin_search_users: { Args: { _q: string }; Returns: Json }
       admin_set_subscription_code_active: {
         Args: { _active: boolean; _code: string }
         Returns: Json
@@ -2441,44 +2464,6 @@ export type Database = {
         Returns: Json
       }
       award_gta6_badge: { Args: never; Returns: boolean }
-      claim_gta6_challenge: {
-        Args: never
-        Returns: {
-          ok: boolean
-          error?: string
-          plan?: string
-          months?: number
-          ends_at?: string
-          posted?: number
-          required?: number
-        }
-      }
-      gta6_challenge_progress: {
-        Args: never
-        Returns: {
-          ok: boolean
-          error?: string
-          posted: number
-          required: number
-          eligible: boolean
-          claimed: boolean
-          plan?: string
-          months?: number
-          claimed_ends_at?: string | null
-          ends_at?: string | null
-        }
-      }
-      my_gta6_challenge_reward: {
-        Args: never
-        Returns: {
-          ok: boolean
-          error?: string
-          plan?: string
-          months?: number
-          claimed_at?: string
-          ends_at?: string
-        }
-      }
       ban_status_for_handle: {
         Args: { _handle: string }
         Returns: {
@@ -2488,11 +2473,9 @@ export type Database = {
           reason: string
         }[]
       }
+      can_notify: { Args: { _target: string }; Returns: boolean }
       check_creator_fund: { Args: { p_user_id?: string }; Returns: Json }
       coin_admin_ok: { Args: never; Returns: boolean }
-      admin_free_coin_claims: { Args: { _limit?: number }; Returns: Json }
-      claim_free_coins: { Args: never; Returns: Json }
-      my_free_coin_claim: { Args: never; Returns: Json }
       contains_banned_word: { Args: { _text: string }; Returns: boolean }
       create_sound_from_video: { Args: { _video_id: string }; Returns: string }
       end_live_session: { Args: { p_live_id: string }; Returns: undefined }
@@ -2507,17 +2490,21 @@ export type Database = {
         Args: { video_id: string }
         Returns: undefined
       }
+      increment_gif_use: { Args: { p_gif_id: string }; Returns: undefined }
       increment_share: { Args: { _video_id: string }; Returns: undefined }
       increment_sound_play: { Args: { _sound_id: string }; Returns: undefined }
       increment_sound_use: { Args: { _sound_id: string }; Returns: undefined }
+      is_admin: { Args: never; Returns: boolean }
       is_banned: { Args: { _username: string }; Returns: boolean }
       is_banned_uid: { Args: { _uid: string }; Returns: boolean }
       is_banned_username: { Args: { _username: string }; Returns: boolean }
       is_codes_admin: { Args: never; Returns: boolean }
+      is_group_admin: { Args: { _group_id: string }; Returns: boolean }
       is_group_member:
         | { Args: { _group_id: string; _user_id: string }; Returns: boolean }
         | { Args: { gid: string }; Returns: boolean }
       is_group_staff: { Args: { gid: string }; Returns: boolean }
+      is_lifetime_admin: { Args: never; Returns: boolean }
       is_live_mod: {
         Args: { p_live_id: string; p_user_id: string }
         Returns: boolean
@@ -2547,10 +2534,16 @@ export type Database = {
       my_earnings_summary: { Args: never; Returns: Json }
       my_follower_reward: { Args: never; Returns: Json }
       my_gift_earnings: { Args: { p_limit?: number }; Returns: Json }
+      my_lifetime_subscription: { Args: never; Returns: Json }
       my_payouts: { Args: { p_limit?: number }; Returns: Json }
       my_real_balance: { Args: never; Returns: number }
       my_wallet: { Args: never; Returns: Json }
       norm_handle: { Args: { _handle: string }; Returns: string }
+      owner_grant_lifetime: {
+        Args: { _handle: string; _plan?: string }
+        Returns: Json
+      }
+      owner_revoke_lifetime: { Args: { _handle: string }; Returns: Json }
       pin_live_message: {
         Args: { p_live_id: string; p_message: Json }
         Returns: Json

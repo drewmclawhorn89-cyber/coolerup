@@ -8,6 +8,7 @@ import { getAnimal, drawAnimal, mirrorFace } from "@/lib/animals";
 import { useFaceTracker } from "@/lib/face";
 import { canBakeFilters, filterById } from "@/lib/filters";
 import { songStreamUrl, uploadVideo, type Song } from "@/lib/loop";
+import { describeUploadError, withUploadRetry } from "@/lib/uploadErrors";
 import { fetchTracks, type Track } from "@/components/MusicPlayer";
 
 const MGK_QUERY = "mgk machine gun kelly";
@@ -178,13 +179,13 @@ export function PhotoDialog({
     try {
       const file = new File([photo], `photo-${Date.now()}.jpg`, { type: "image/jpeg" });
       const finalCaption = caption.trim().slice(0, 500);
-      await uploadVideo(file, username, finalCaption, song);
+      await withUploadRetry(() => uploadVideo(file, username, finalCaption, song));
       toast.success("Your photo is posted!");
       reset();
       onOpenChange(false);
       onPosted?.();
-    } catch {
-      toast.error("Upload failed. Try again.");
+    } catch (error) {
+      toast.error(describeUploadError(error));
       setPosting(false);
     }
   }

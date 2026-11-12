@@ -3,7 +3,8 @@ import { Music, Search, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 import { readBool } from "@/lib/prefs";
 import { isCellularConnection } from "@/lib/network";
-import { songStreamUrl, uploadVideo, type Song } from "@/lib/loop";
+import { MAX_FEED_UPLOAD_MB, songStreamUrl, uploadVideo, type Song } from "@/lib/loop";
+import { describeUploadError, withUploadRetry } from "@/lib/uploadErrors";
 import { fetchTracks, type Track } from "@/components/MusicPlayer";
 import { SoundPickerDialog } from "@/components/SoundPickerDialog";
 import type { Sound } from "@/lib/sounds";
@@ -128,6 +129,13 @@ export function UploadDialog({
     if (!file || !username.trim()) return;
     if (readBool("wifi-upload") && isCellularConnection()) {
       toast.error("Upload over Wi-Fi only is on. Connect to Wi-Fi to post.");
+      return;
+    }
+    const tooBig = files.find((f) => f.size > MAX_FEED_UPLOAD_MB * 1024 * 1024);
+    if (tooBig) {
+      toast.error(
+        `${tooBig.name} is ${(tooBig.size / (1024 * 1024)).toFixed(0)} MB. The limit is ${MAX_FEED_UPLOAD_MB} MB.`,
+      );
       return;
     }
     const name = username.trim().replace(/^@/, "").slice(0, 40);

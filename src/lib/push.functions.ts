@@ -46,17 +46,26 @@ async function loadVapidConfig(): Promise<VapidConfig | null> {
 
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data } = await (supabaseAdmin as unknown as {
-      from: (t: string) => {
-        select: (c: string) => {
-          eq: (col: string, v: string) => {
-            maybeSingle: () => PromiseLike<{
-              data: { subject?: string | null; public_key?: string | null; private_key?: string | null } | null;
-            }>;
+    const { data } = await (
+      supabaseAdmin as unknown as {
+        from: (t: string) => {
+          select: (c: string) => {
+            eq: (
+              col: string,
+              v: string,
+            ) => {
+              maybeSingle: () => PromiseLike<{
+                data: {
+                  subject?: string | null;
+                  public_key?: string | null;
+                  private_key?: string | null;
+                } | null;
+              }>;
+            };
           };
         };
-      };
-    })
+      }
+    )
       .from("push_config")
       .select("subject, public_key, private_key")
       .eq("id", "default")
@@ -159,22 +168,91 @@ export const removePushSubscription = createServerFn({ method: "POST" })
  * the in-app `notifications` row is written, so the bell and the OS tray stay in
  * sync. The caller must be signed in, and can't notify themselves.
  */
+/**
+ * Server-side gate for notification delivery.
+ *
+ * A signed-in user may only notify themselves, someone they follow (or who
+ * follows them), or anyone at all if they are an admin. This is the authority
+ * that stops a random account from pushing to a stranger's phone; the database
+ * `notifs insert as actor` policy enforces the same rule for the in-app row.
+ */
+async function canNotify(
+  client: {
+    rpc: (
+      fn: string,
+      args: Record<string, unknown>,
+    ) => PromiseLike<{ data: unknown; error: unknown }>;
+  },
+  actorId: string,
+  targetId: string,
+): Promise<boolean> {
+  if (!targetId || targetId === actorId) return true;
+
+  try {
+    const { data, error } = await client.rpc("can_notify", { _target: targetId });
+    if (!error && typeof data === "boolean") return data;
+  } catch {
+    // Function not deployed yet — fall through to the query-based check.
+  }
+
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data: me } = await supabaseAdmin
+    .from("profiles")
+    .select("handle, is_admin")
+    .eq("id", actorId)
+    .maybeSingle();
+  if (!me) return false;
+  if (me.is_admin === true) return true;
+
+  const { data: them } = await supabaseAdmin
+    .from("profiles")
+    .select("handle")
+    .eq("id", targetId)
+    .maybeSingle();
+  if (!me.handle || !them?.handle) return false;
+
+  const mine = String(me.handle).toLowerCase();
+  const theirs = String(them.handle).toLowerCase();
+  const { data: follow } = await supabaseAdmin
+    .from("follows")
+    .select("id")
+    .or(
+      `and(follower_username.eq.${mine},following_username.eq.${theirs}),and(follower_username.eq.${theirs},following_username.eq.${mine})`,
+    )
+    .limit(1)
+    .maybeSingle();
+  return Boolean(follow);
+}
+
 export const sendNotificationPush = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { targetUserId: string; kind: string; title?: string; body?: string; url?: string; tag?: string }) => {
-    if (!d?.targetUserId || typeof d.targetUserId !== "string") throw new Error("Invalid target");
-    if (!d?.kind || typeof d.kind !== "string") throw new Error("Invalid kind");
-    return {
-      targetUserId: d.targetUserId,
-      kind: d.kind.slice(0, 40),
-      title: (d.title ?? "Coolerup").slice(0, 120),
-      body: (d.body ?? "").slice(0, 240),
-      url: (d.url ?? "/").slice(0, 500),
-      tag: d.tag ? d.tag.slice(0, 80) : undefined,
-    };
-  })
+  .inputValidator(
+    (d: {
+      targetUserId: string;
+      kind: string;
+      title?: string;
+      body?: string;
+      url?: string;
+      tag?: string;
+    }) => {
+      if (!d?.targetUserId || typeof d.targetUserId !== "string") throw new Error("Invalid target");
+      if (!d?.kind || typeof d.kind !== "string") throw new Error("Invalid kind");
+      return {
+        targetUserId: d.targetUserId,
+        kind: d.kind.slice(0, 40),
+        title: (d.title ?? "Coolerup").slice(0, 120),
+        body: (d.body ?? "").slice(0, 240),
+        url: (d.url ?? "/").slice(0, 500),
+        tag: d.tag ? d.tag.slice(0, 80) : undefined,
+      };
+    },
+  )
   .handler(async ({ data, context }) => {
     if (data.targetUserId === context.userId) return { sent: 0, configured: true };
+
+    const allowed = await canNotify(context.supabase as never, context.userId, data.targetUserId);
+    if (!allowed) throw new Error("You can only notify people you follow.");
+
     return sendPushToUser(
       data.targetUserId,
       {
@@ -234,8 +312,8 @@ export const getPushStatus = createServerFn({ method: "POST" })
     const config = await loadVapidConfig();
     const fromEnv = Boolean(
       process.env["VAPID_SUBJECT"] &&
-        process.env["VAPID_SERVER_PUBLIC_KEY"] &&
-        process.env["VAPID_SERVER_PRIVATE_KEY"],
+      process.env["VAPID_SERVER_PUBLIC_KEY"] &&
+      process.env["VAPID_SERVER_PRIVATE_KEY"],
     );
     let devices = 0;
     try {

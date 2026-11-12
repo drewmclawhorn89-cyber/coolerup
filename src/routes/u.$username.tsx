@@ -42,12 +42,7 @@ import { VideoCard } from "@/components/VideoCard";
 import { StoryViewer } from "@/components/StoryViewer";
 import { fetchStories, postStory, type Story } from "@/lib/stories";
 import { useChristmasMode } from "@/lib/christmas";
-import {
-  GTA6_BADGE,
-  GTA6_BADGE_EVENT,
-  fetchGTA6Badges,
-  hasGTA6BadgeCached,
-} from "@/lib/gta6";
+import { GTA6_BADGE, GTA6_BADGE_EVENT, fetchGTA6Badges, hasGTA6BadgeCached } from "@/lib/gta6";
 import { toast } from "sonner";
 import { followUser, isFollowing as checkIsFollowing, unfollowUser } from "@/lib/follow";
 import type { Profile as ProfileRow } from "@/hooks/useAuth";
@@ -88,7 +83,13 @@ function Thumb({ url, caption }: { url: string; caption: string }) {
   if (!src) return <div ref={boxRef} className="h-full w-full" />;
   const isImage = isImageUrl(url) || /\.(jpe?g|png|webp|gif|avif)$/i.test(url);
   return isImage ? (
-    <img src={src} alt={caption} className="h-full w-full object-cover" />
+    <img
+      src={src}
+      alt={caption}
+      loading="lazy"
+      decoding="async"
+      className="h-full w-full object-cover"
+    />
   ) : (
     <video
       src={`${src}#t=0.5`}
@@ -680,9 +681,7 @@ function Profile() {
                 }`}
               >
                 <Icon className={`h-5 w-5 ${active && t.key === "liked" ? "fill-current" : ""}`} />
-                <span className="text-xs font-bold tabular-nums">
-                  {counts === null ? "–" : n}
-                </span>
+                <span className="text-xs font-bold tabular-nums">{counts === null ? "–" : n}</span>
               </button>
             );
           })}

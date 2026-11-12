@@ -89,7 +89,6 @@ export type ChargeResult =
       amountCents: number;
       card: CardSummary;
     }
-  | { ok: true; configured: false; status: "recorded"; amountCents: number; card: CardSummary }
   | { ok: false; configured: boolean; message: string };
 
 /**
@@ -113,9 +112,14 @@ export const chargePlanWithGooglePay = createServerFn({ method: "POST" })
     }
 
     if (!stripeConfigured()) {
-      // No gateway keys: the sheet still worked, so record the intent rather
-      // than pretending a charge happened.
-      return { ok: true, configured: false, status: "recorded", amountCents, card: EMPTY_CARD };
+      // No gateway keys. Returning `ok: true` here used to let the client record
+      // a payment request for money that was never charged, so a plan could be
+      // marked paid without a real transaction. Fail closed instead.
+      return {
+        ok: false,
+        configured: false,
+        message: "Card payments aren't set up yet — pay with Venmo instead.",
+      };
     }
 
     try {
@@ -164,7 +168,6 @@ export const chargePlanWithGooglePay = createServerFn({ method: "POST" })
 
 export type SaveCardResult =
   | { ok: true; configured: true; customerId: string; paymentMethodId: string; card: CardSummary }
-  | { ok: true; configured: false; card: CardSummary }
   | { ok: false; configured: boolean; message: string };
 
 /**
@@ -188,7 +191,13 @@ export const saveCardForTrial = createServerFn({ method: "POST" })
     if (!plan) return { ok: false, configured: stripeConfigured(), message: "Unknown plan" };
 
     if (!stripeConfigured()) {
-      return { ok: true, configured: false, card: EMPTY_CARD };
+      // Same reasoning as `chargePlanWithGooglePay`: never report a card as
+      // vaulted when no gateway exists to vault it.
+      return {
+        ok: false,
+        configured: false,
+        message: "Card payments aren't set up yet — pay with Venmo instead.",
+      };
     }
 
     try {
@@ -224,6 +233,8 @@ export const saveCardForTrial = createServerFn({ method: "POST" })
   });
 
 /** Whether the deployment can take real money — lets the UI say so honestly. */
-export const paymentStatus = createServerFn({ method: "GET" }).handler(async () => {
-  return { configured: stripeConfigured() };
-});
+export const paymentStatus = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async () => {
+    return { configured: stripeConfigured() };
+  });

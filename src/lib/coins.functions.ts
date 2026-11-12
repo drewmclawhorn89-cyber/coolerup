@@ -109,8 +109,9 @@ function venmoRecipient(): string | null {
   );
 }
 
-export const coinPaymentStatus = createServerFn({ method: "GET" }).handler(
-  async (): Promise<CoinPaymentStatus> => ({
+export const coinPaymentStatus = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async (): Promise<CoinPaymentStatus> => ({
     stripeConfigured: Boolean(stripeKey()),
     venmoConfigured: Boolean(venmoRecipient()),
     venmoRecipient: venmoRecipient(),
@@ -121,8 +122,7 @@ export const coinPaymentStatus = createServerFn({ method: "GET" }).handler(
       label,
       ...(badge ? { badge } : {}),
     })),
-  }),
-);
+  }));
 
 /* -------------------------------------------------------------------------- */
 /*  Buy coins                                                                 */

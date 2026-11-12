@@ -3,7 +3,6 @@ import { useNavigate } from "@tanstack/react-router";
 import {
   Camera,
   Circle,
-  Coins,
   Eye,
   Gift,
   Heart,
@@ -1327,7 +1326,7 @@ export function LiveStreamDialog({
 
               <div className="flex justify-center">
                 {(mode === "host" && broadcasting) || mode === "viewer" ? (
-                  <span className="flex items-center gap-1.5 rounded-full bg-[#fe2c55] px-3 py-1 text-[11px] font-extrabold tracking-wide text-white shadow-lg shadow-black/30">
+                  <span className="flex items-center gap-1.5 rounded-full bg-[#FE2C55] px-3 py-1 text-[11px] font-extrabold tracking-wide text-white shadow-lg shadow-black/30">
                     <Circle className="h-2 w-2 fill-white" /> LIVE
                     <span className="ml-0.5 flex items-center gap-1 font-bold">
                       <Eye className="h-3.5 w-3.5" />
@@ -1371,11 +1370,11 @@ export function LiveStreamDialog({
             {/* Host bar, directly under the top row — left aligned like TikTok  */}
             {/* ---------------------------------------------------------------- */}
             <div className="absolute left-3 top-[calc(env(safe-area-inset-top)+3.25rem)] z-20 flex max-w-[72%] items-center gap-2">
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#fe2c55] to-[#7c3aed] text-sm font-black uppercase text-white ring-2 ring-white/70">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#2A2A2A] text-sm font-black uppercase text-white ring-2 ring-white">
                 {(hostUsername[0] ?? "?").toUpperCase()}
               </span>
               <div className="min-w-0">
-                <p className="truncate text-[13px] font-extrabold text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">
+                <p className="truncate text-[13px] font-bold text-white [text-shadow:0_1px_4px_rgba(0,0,0,0.85)]">
                   @{hostUsername}
                 </p>
                 {mode === "host" && <p className="text-[10px] font-semibold text-white/70">Host</p>}
@@ -1386,7 +1385,7 @@ export function LiveStreamDialog({
                   onClick={() => void toggleFollow()}
                   disabled={followBusy}
                   className={`shrink-0 rounded-full px-3 py-1 text-[11px] font-extrabold transition active:scale-95 disabled:opacity-60 ${
-                    following ? "bg-white/20 text-white" : "bg-[#fe2c55] text-white"
+                    following ? "bg-white text-black" : "bg-[#FE2C55] text-white"
                   }`}
                 >
                   {following ? "Following" : "Follow"}
@@ -1432,7 +1431,7 @@ export function LiveStreamDialog({
                   onClick={() => setMenuOpen(false)}
                   className="absolute inset-0 z-30 bg-transparent"
                 />
-                <div className="absolute right-3 top-[calc(env(safe-area-inset-top)+3.5rem)] z-40 w-56 overflow-hidden rounded-2xl border border-white/10 bg-black/90 p-1.5 text-sm text-white shadow-2xl backdrop-blur-xl">
+                <div className="absolute right-3 top-[calc(env(safe-area-inset-top)+3.5rem)] z-40 w-56 overflow-hidden rounded-2xl border border-white/10 bg-black/60 p-1.5 text-sm text-white shadow-2xl backdrop-blur-xl">
                   {mode === "host" ? (
                     <button
                       type="button"
@@ -1442,9 +1441,12 @@ export function LiveStreamDialog({
                       }}
                       className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left font-semibold hover:bg-white/10"
                     >
-                      <Users className="h-4 w-4 text-white/70" /> Guests
+                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-black/50">
+                        <Users className="h-4 w-4 text-white" />
+                      </span>{" "}
+                      Guests
                       {joinState.pending.length > 0 && (
-                        <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-[#fe2c55] px-1 text-[10px] font-extrabold">
+                        <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-[#FE2C55] px-1 text-[10px] font-extrabold">
                           {joinState.pending.length}
                         </span>
                       )}
@@ -1458,11 +1460,17 @@ export function LiveStreamDialog({
                       }}
                       className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left font-semibold hover:bg-white/10"
                     >
-                      <UserPlus className="h-4 w-4 text-emerald-300" /> Leave stage
+                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-black/50">
+                        <UserPlus className="h-4 w-4 text-white" />
+                      </span>{" "}
+                      Leave stage
                     </button>
                   ) : myJoin.status === "pending" ? (
                     <div className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left font-semibold text-white/60">
-                      <Loader2 className="h-4 w-4 animate-spin" /> Request sent
+                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-black/50">
+                        <Loader2 className="h-4 w-4 text-white animate-spin" />
+                      </span>{" "}
+                      Request sent
                     </div>
                   ) : (
                     <button
@@ -1474,7 +1482,10 @@ export function LiveStreamDialog({
                       }}
                       className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left font-semibold hover:bg-white/10"
                     >
-                      <UserPlus className="h-4 w-4 text-white/70" /> Request to join LIVE
+                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-black/50">
+                        <UserPlus className="h-4 w-4 text-white" />
+                      </span>{" "}
+                      Request to join LIVE
                     </button>
                   )}
 
@@ -1487,7 +1498,10 @@ export function LiveStreamDialog({
                       }}
                       className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left font-semibold hover:bg-white/10"
                     >
-                      <ShieldCheck className="h-4 w-4 text-sky-400" /> Mods
+                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-black/50">
+                        <ShieldCheck className="h-4 w-4 text-white" />
+                      </span>{" "}
+                      Mods
                       {moderation.mods.length > 0 && (
                         <span className="ml-auto text-xs text-white/60">
                           {moderation.mods.length}
@@ -1505,22 +1519,10 @@ export function LiveStreamDialog({
                       }}
                       className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left font-semibold hover:bg-white/10"
                     >
-                      <MessageSquareOff className="h-4 w-4 text-white/70" />
+                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-black/50">
+                        <MessageSquareOff className="h-4 w-4 text-white" />
+                      </span>
                       {moderation.commentsOff ? "Turn comments on" : "Turn comments off"}
-                    </button>
-                  )}
-
-                  {mode === "host" && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setMenuOpen(false);
-                        finish();
-                        void navigate({ to: "/live/dashboard" });
-                      }}
-                      className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left font-semibold hover:bg-white/10"
-                    >
-                      <Coins className="h-4 w-4 text-yellow-400" /> Gift dashboard
                     </button>
                   )}
 
@@ -1531,7 +1533,7 @@ export function LiveStreamDialog({
                       if (mode === "host") setEndConfirm(true);
                       else finish();
                     }}
-                    className="mt-1 flex w-full items-center gap-2.5 rounded-xl bg-white/5 px-3 py-2.5 text-left font-extrabold text-rose-300 hover:bg-rose-500/15"
+                    className="mt-1 flex w-full items-center gap-2.5 rounded-xl bg-[#FE2C55]/15 px-3 py-2.5 text-left font-extrabold text-[#FE2C55] hover:bg-[#FE2C55]/25"
                   >
                     <X className="h-4 w-4" /> {mode === "host" ? "End live" : "Leave live"}
                   </button>
@@ -1548,7 +1550,7 @@ export function LiveStreamDialog({
                 {hearts.map((heart) => (
                   <Heart
                     key={heart.id}
-                    className="live-heart absolute bottom-0 h-6 w-6 fill-[#fe2c55] text-[#fe2c55]"
+                    className="live-heart absolute bottom-0 h-6 w-6 fill-[#FE2C55] text-[#FE2C55]"
                     style={{ left: `${36 + heart.drift}px` }}
                   />
                 ))}
@@ -1625,7 +1627,7 @@ export function LiveStreamDialog({
                     className="flex items-center gap-2"
                   >
                     {moderation.commentsOff && !isMod ? (
-                      <p className="flex h-10 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-full bg-white/15 px-4 text-xs font-semibold text-white/70 backdrop-blur-md">
+                      <p className="flex h-10 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-full bg-white/20 px-4 text-xs font-semibold text-white/80 backdrop-blur-md">
                         <MessageSquareOff className="h-3.5 w-3.5" /> Comments are off
                       </p>
                     ) : (
@@ -1635,7 +1637,7 @@ export function LiveStreamDialog({
                           onChange={(event) => setDraft(event.target.value.slice(0, 240))}
                           placeholder="Say something…"
                           aria-label="Chat message"
-                          className="h-10 w-full rounded-full border border-white/15 bg-white/15 pl-4 pr-11 text-sm text-white outline-none backdrop-blur-md placeholder:text-white/70"
+                          className="h-10 w-full rounded-full border border-white/20 bg-white/20 pl-4 pr-11 text-sm text-white outline-none backdrop-blur-md placeholder:text-white/80"
                         />
                         <button
                           type="button"
@@ -1653,7 +1655,7 @@ export function LiveStreamDialog({
                       type="button"
                       onClick={() => (userId ? setGiftOpen(true) : openAuthDialog())}
                       aria-label="Send a gift"
-                      className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur-md transition active:scale-90"
+                      className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur-md transition active:scale-90"
                     >
                       <Gift className="h-5 w-5" />
                       {wallet.balance != null && wallet.balance > 0 && (
@@ -1667,7 +1669,7 @@ export function LiveStreamDialog({
                       type="button"
                       onClick={sendHearts}
                       aria-label="Send a heart"
-                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur-md transition active:scale-90"
+                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur-md transition active:scale-90"
                     >
                       <Heart className="h-5 w-5" />
                     </button>
@@ -1676,7 +1678,7 @@ export function LiveStreamDialog({
                       type="button"
                       onClick={() => void shareLive()}
                       aria-label="Share live stream"
-                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur-md transition active:scale-90"
+                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur-md transition active:scale-90"
                     >
                       <Share2 className="h-5 w-5" />
                     </button>
@@ -1689,12 +1691,12 @@ export function LiveStreamDialog({
                     value={title}
                     onChange={(event) => setTitle(event.target.value.slice(0, 80))}
                     placeholder="What are you going live about?"
-                    className="w-full rounded-full bg-white/15 px-4 py-3 text-base text-white outline-none placeholder:text-white/65"
+                    className="w-full rounded-full bg-[#1A1A1A] px-4 py-3 text-base text-white outline-none placeholder:text-white/50"
                   />
                   <button
                     onClick={() => void startBroadcast()}
                     disabled={!cameraReady || Boolean(cameraError)}
-                    className="w-full rounded-full bg-[#fe2c55] py-3.5 font-extrabold text-white disabled:opacity-50"
+                    className="w-full rounded-full bg-[#FE2C55] py-3.5 font-extrabold text-white disabled:opacity-50"
                   >
                     {cameraReady ? "Start live stream" : "Camera required"}
                   </button>
@@ -1707,18 +1709,18 @@ export function LiveStreamDialog({
 
       {/* X on a live broadcast asks first, TikTok style. */}
       <Dialog open={endConfirm} onOpenChange={setEndConfirm}>
-        <DialogContent className="max-w-xs rounded-3xl border-white/10 bg-zinc-950 p-6 text-white">
-          <DialogTitle className="text-lg font-extrabold">End live?</DialogTitle>
-          <DialogDescription className="text-sm text-zinc-400">
+        <DialogContent className="max-w-xs rounded-2xl border-0 bg-white p-6 text-black">
+          <DialogTitle className="text-lg font-extrabold text-black">End live?</DialogTitle>
+          <DialogDescription className="text-sm text-neutral-600">
             Your viewers will be disconnected and this broadcast will finish.
           </DialogDescription>
-          <div className="mt-4 flex gap-2">
+          <div className="mt-5 flex gap-2">
             <button
               type="button"
               onClick={() => setEndConfirm(false)}
-              className="flex-1 rounded-full bg-white/10 py-2.5 text-sm font-bold"
+              className="flex-1 rounded-full bg-[#E5E5E5] py-2.5 text-sm font-bold text-black"
             >
-              Keep streaming
+              Cancel
             </button>
             <button
               type="button"
@@ -1726,7 +1728,7 @@ export function LiveStreamDialog({
                 setEndConfirm(false);
                 finish();
               }}
-              className="flex-1 rounded-full bg-rose-600 py-2.5 text-sm font-extrabold text-white"
+              className="flex-1 rounded-full bg-[#FE2C55] py-2.5 text-sm font-extrabold text-white"
             >
               End live
             </button>
@@ -1879,6 +1881,15 @@ export function LiveStreamDialog({
           setGiftOpen(false);
           openAuthDialog();
         }}
+        {...(mode === "host"
+          ? {
+              onOpenDashboard: () => {
+                setGiftOpen(false);
+                finish();
+                void navigate({ to: "/live/dashboard" });
+              },
+            }
+          : {})}
       />
 
       <LiveCoinSheet

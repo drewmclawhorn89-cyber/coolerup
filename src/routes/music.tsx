@@ -30,8 +30,7 @@ import { RemoveDownloadButton, ReplaceAudioButton } from "@/components/DownloadB
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { YouTubeSongPlayer } from "@/components/MusicPlayer";
-import { requestUseSound, songPlayer, useSongPlayer, type PlayerTrack } from "@/lib/songPlayer";
+import { songPlayer, useSongPlayer, type PlayerTrack } from "@/lib/songPlayer";
 import {
   canBackgroundPlay,
   setBackgroundPlayEnabled,
@@ -125,8 +124,6 @@ function MusicPage() {
   const [error, setError] = useState("");
   const [probing, setProbing] = useState(false);
   const [durationVersion, setDurationVersion] = useState(0);
-  /** The YouTube song open in the full-song player, if any. */
-  const [activeYouTube, setActiveYouTube] = useState<Sound | null>(null);
   const [addingYouTube, setAddingYouTube] = useState(false);
   /** Songs stored in IndexedDB — these play with no signal at all. */
   const [downloadedSongs, setDownloadedSongs] = useState<SavedSong[]>([]);
@@ -299,8 +296,16 @@ function MusicPage() {
           void markSongPlayed(sound.id);
           return;
         }
-        songPlayer.stop();
-        setActiveYouTube(sound);
+        // Stream through the shared player so YouTube songs keep playing while
+        // the user moves around the app. The hidden IFrame lives outside this
+        // route, so leaving the Music tab no longer kills playback.
+        const ytList = list.filter(isYouTubeSound);
+        const queue = (ytList.length ? ytList : [sound]).map((s) => toTrack(s, ""));
+        const at = Math.max(
+          0,
+          queue.findIndex((t) => t.soundId === sound.id),
+        );
+        songPlayer.playQueue(queue, at);
         void incrementSoundPlay(sound.id);
         return;
       }
@@ -710,45 +715,6 @@ function MusicPage() {
           />
         )}
       </div>
-
-      {/* Full-song YouTube player — streams from YouTube, not a stored file. */}
-      {activeYouTube && (
-        <div className="fixed inset-x-0 bottom-0 z-[60] flex justify-center px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
-          <div className="w-full max-w-md">
-            <YouTubeSongPlayer
-              key={activeYouTube.id}
-              sound={activeYouTube}
-              videoId={youtubeSongId(activeYouTube) ?? ""}
-              saved={savedIds.has(activeYouTube.id)}
-              onToggleSave={() => void toggleSave(activeYouTube)}
-              onUse={() => {
-                requestUseSound(toTrack(activeYouTube, ""));
-                setActiveYouTube(null);
-              }}
-              onPrev={
-                youtubeSongs.length > 1
-                  ? () => {
-                      const i = youtubeSongs.findIndex((s) => s.id === activeYouTube.id);
-                      const prev =
-                        youtubeSongs[(i - 1 + youtubeSongs.length) % youtubeSongs.length];
-                      if (prev) setActiveYouTube(prev);
-                    }
-                  : undefined
-              }
-              onNext={
-                youtubeSongs.length > 1
-                  ? () => {
-                      const i = youtubeSongs.findIndex((s) => s.id === activeYouTube.id);
-                      const next = youtubeSongs[(i + 1) % youtubeSongs.length];
-                      if (next) setActiveYouTube(next);
-                    }
-                  : undefined
-              }
-              onClose={() => setActiveYouTube(null)}
-            />
-          </div>
-        </div>
-      )}
 
       <AddYouTubeSongDialog
         open={addingYouTube}

@@ -57,8 +57,9 @@ describe("background play", () => {
     expect(canBackgroundPlay(null)).toBe(false);
   });
 
-  it("knows YouTube cannot play in the background", () => {
-    expect(canBackgroundPlay(track({ source: "youtube" }))).toBe(false);
+  it("treats YouTube songs as background-playable now that they use the shared player", () => {
+    expect(canBackgroundPlay(track({ source: "youtube", url: "" }))).toBe(true);
+    expect(canBackgroundPlay(track({ source: "youtube", url: "", youtubeUrl: "https://youtu.be/abc" }))).toBe(true);
   });
 
   it("publishes Media Session metadata and action handlers", () => {
@@ -76,10 +77,19 @@ describe("background play", () => {
     expect(player).not.toContain("new Video(");
   });
 
-  it("shows the YouTube warning instead of pretending it works", () => {
-    expect(lib).toContain("YouTube blocks background play");
+  it("explains the remaining iOS limit instead of claiming YouTube is blocked", () => {
+    expect(lib).toContain("iOS suspends background web audio");
+    expect(lib).toContain("YOUTUBE_BACKGROUND_SHORT");
     expect(mini).toContain("YOUTUBE_BACKGROUND_SHORT");
-    expect(music).toContain("YOUTUBE_BACKGROUND_WARNING");
+    expect(lib).not.toContain("YouTube blocks background play");
+  });
+
+  it("plays YouTube songs through the shared player, not a route-local embed", () => {
+    expect(music).not.toContain("setActiveYouTube");
+    expect(music).not.toContain("YouTubeSongPlayer");
+    expect(music).toContain("songPlayer.playQueue(queue, at)");
+    expect(lib).toContain("installVisibilitySpoof");
+    expect(player).toContain("loadYouTubeAudio");
   });
 
   it("renders a persistent mini player with cover, play/pause, next and close", () => {

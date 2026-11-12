@@ -2564,6 +2564,24 @@ export type Database = {
       my_creator_fund: { Args: never; Returns: Json };
       my_earnings_summary: { Args: never; Returns: Json };
       my_free_coin_claim: { Args: never; Returns: Json };
+      my_profile: {
+        Args: never;
+        Returns: {
+          id: string;
+          handle: string;
+          username: string | null;
+          display_name: string | null;
+          bio: string | null;
+          avatar_url: string | null;
+          links: Json;
+          created_at: string;
+          onboarding_complete: boolean;
+          show_liked: boolean;
+          is_admin: boolean;
+          birthday: string | null;
+          venmo_handle: string | null;
+        }[];
+      };
       my_follower_reward: { Args: never; Returns: Json };
       my_gift_earnings: { Args: { p_limit?: number }; Returns: Json };
       my_lifetime_subscription: { Args: never; Returns: Json };

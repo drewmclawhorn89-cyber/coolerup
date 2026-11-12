@@ -122,19 +122,18 @@ export function profileNeedsOnboarding(
 
 /** Read onboarding fields for a signed-in user. Never throws. */
 export async function fetchOnboardingState(userId: string): Promise<OnboardingState> {
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("username, birthday, onboarding_complete, handle, display_name")
-    .eq("id", userId)
-    .maybeSingle();
-  if (error || !data) return { ...EMPTY_ONBOARDING_STATE, needsOnboarding: !error };
-  const row = data as {
+  // `birthday` is a private column now, so it comes from the owner-only
+  // `my_profile()` RPC rather than a direct table read.
+  const { data, error } = await supabase.rpc("my_profile");
+  const rows = (data ?? []) as unknown as Array<{
     username: string | null;
     birthday: string | null;
     onboarding_complete: boolean | null;
     handle: string | null;
     display_name: string | null;
-  };
+  }>;
+  const row = Array.isArray(rows) ? rows[0] : undefined;
+  if (error || !row) return { ...EMPTY_ONBOARDING_STATE, needsOnboarding: !error };
   const complete = !!row.username && !!row.birthday && row.onboarding_complete === true;
   return {
     complete,

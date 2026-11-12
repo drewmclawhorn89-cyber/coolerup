@@ -54,6 +54,9 @@ function UseSoundHandler() {
         uses_count: 0,
         created_at: "",
         original_video_id: null,
+        source: track.source ?? "own",
+        youtube_url: track.youtubeUrl ?? null,
+        cover_url: track.coverUrl ?? null,
       });
     };
     window.addEventListener(USE_SOUND_EVENT, onUse);

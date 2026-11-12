@@ -1857,30 +1857,39 @@ export type Database = {
       sounds: {
         Row: {
           audio_url: string
+          cover_url: string | null
           created_at: string
           creator_username: string
           id: string
           original_video_id: string | null
+          source: string
           title: string
           uses_count: number
+          youtube_url: string | null
         }
         Insert: {
-          audio_url: string
+          audio_url?: string
+          cover_url?: string | null
           created_at?: string
           creator_username: string
           id?: string
           original_video_id?: string | null
+          source?: string
           title: string
           uses_count?: number
+          youtube_url?: string | null
         }
         Update: {
           audio_url?: string
+          cover_url?: string | null
           created_at?: string
           creator_username?: string
           id?: string
           original_video_id?: string | null
+          source?: string
           title?: string
           uses_count?: number
+          youtube_url?: string | null
         }
         Relationships: [
           {
@@ -2379,6 +2388,7 @@ export type Database = {
         Returns: undefined
       }
       increment_share: { Args: { _video_id: string }; Returns: undefined }
+      increment_sound_play: { Args: { _sound_id: string }; Returns: undefined }
       increment_sound_use: { Args: { _sound_id: string }; Returns: undefined }
       is_banned: { Args: { _username: string }; Returns: boolean }
       is_banned_uid: { Args: { _uid: string }; Returns: boolean }

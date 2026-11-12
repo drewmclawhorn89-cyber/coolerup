@@ -5,16 +5,61 @@ import { resolveVideoUrl, type Video } from "@/lib/loop";
  * A copyright-safe "original sound". `audio_url` always points at the audio
  * track of a real user video (the source video file), never a commercial song.
  */
+export type SoundSource = "own" | "youtube";
+
 export type Sound = {
   id: string;
   /** Null for library sounds (e.g. the Christmas carols) that aren't a video's audio. */
   original_video_id: string | null;
+  /** Empty for YouTube songs — those stream from YouTube, never a stored file. */
   audio_url: string;
   title: string;
   creator_username: string;
   uses_count: number;
   created_at: string;
+  /** "own" = a Coolerup file, "youtube" = streamed from YouTube's embed player. */
+  source?: SoundSource | null;
+  /** Watch link for a YouTube song, e.g. https://www.youtube.com/watch?v=… */
+  youtube_url?: string | null;
+  /** Cover art. YouTube songs use the video thumbnail. */
+  cover_url?: string | null;
 };
+
+/** True when this song plays from YouTube instead of a Coolerup audio file. */
+export function isYouTubeSound(sound: Pick<Sound, "source" | "youtube_url"> | null | undefined) {
+  return sound?.source === "youtube" && Boolean(sound.youtube_url);
+}
+
+/** Cover image for a song, or null when it only has a generated gradient. */
+export function soundCoverUrl(
+  sound: Pick<Sound, "cover_url" | "youtube_url"> | null | undefined,
+): string | null {
+  if (!sound) return null;
+  if (sound.cover_url) return sound.cover_url;
+  if (sound.youtube_url) {
+    const id = youtubeIdFromUrl(sound.youtube_url);
+    if (id) return `https://i.ytimg.com/vi/${id}/hqdefault.jpg`;
+  }
+  return null;
+}
+
+/** Pull the video id out of any YouTube watch/short/embed link. */
+export function youtubeIdFromUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.toLowerCase();
+    if (host === "youtu.be") return parsed.pathname.split("/")[1] || null;
+    if (host.endsWith("youtube.com") || host.endsWith("youtube-nocookie.com")) {
+      if (parsed.pathname === "/watch") return parsed.searchParams.get("v");
+      const match = /^\/(shorts|embed|live)\/([A-Za-z0-9_-]+)/.exec(parsed.pathname);
+      if (match?.[2]) return match[2];
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
 
 /** Resolved per-session so the feed doesn't refetch the same sound per card. */
 const soundCache = new Map<string, Sound | null>();
@@ -71,7 +116,8 @@ export async function getTrendingSounds(limit = 20, query = ""): Promise<Sound[]
 
   const { data, error } = await request;
   if (error) throw error;
-  const sounds = (data ?? []) as Sound[];
+  // YouTube songs stream from YouTube — they don't belong in an audio queue.
+  const sounds = ((data ?? []) as Sound[]).filter((s) => s.source !== "youtube");
   sounds.forEach(cacheSound);
   return sounds;
 }
@@ -126,7 +172,7 @@ export async function getAllSounds(limit = 200): Promise<Sound[]> {
     .limit(Math.max(1, Math.min(500, limit)));
 
   if (error) throw error;
-  const sounds = (data ?? []) as Sound[];
+  const sounds = ((data ?? []) as Sound[]).filter((s) => s.source !== "youtube");
   sounds.forEach(cacheSound);
   return sounds;
 }
@@ -223,7 +269,7 @@ export async function getTopSounds(limit = 10): Promise<Sound[]> {
     .limit(Math.max(1, Math.min(50, limit)));
 
   if (error) throw error;
-  const sounds = (data ?? []) as Sound[];
+  const sounds = ((data ?? []) as Sound[]).filter((s) => s.source !== "youtube");
   sounds.forEach(cacheSound);
   return sounds;
 }
@@ -240,7 +286,7 @@ export async function getTrendingSoundsThisWeek(limit = 20): Promise<Sound[]> {
     .limit(Math.max(1, Math.min(50, limit)));
 
   if (error) throw error;
-  let sounds = (data ?? []) as Sound[];
+  let sounds = ((data ?? []) as Sound[]).filter((s) => s.source !== "youtube");
 
   // A quiet week shouldn't leave the row empty — fall back to the all-time
   // chart, which is still "what people are using" just over a longer window.

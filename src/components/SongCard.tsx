@@ -3,7 +3,9 @@ import {
   formatDuration,
   formatPlays,
   getKnownDuration,
+  isYouTubeSound,
   soundCoverGradient,
+  soundCoverUrl,
   type Sound,
 } from "@/lib/sounds";
 
@@ -19,7 +21,7 @@ export function SoundCover({
   className = "",
   rounded = "rounded-xl",
 }: {
-  sound: Pick<Sound, "id" | "title">;
+  sound: Pick<Sound, "id" | "title" | "cover_url" | "youtube_url">;
   className?: string;
   rounded?: string;
 }) {
@@ -28,15 +30,41 @@ export function SoundCover({
     .trim()
     .charAt(0)
     .toUpperCase();
+  const cover = soundCoverUrl(sound);
   return (
     <div
       className={`relative flex items-center justify-center overflow-hidden ${rounded} ${className}`}
       style={{ background: soundCoverGradient(sound.id) }}
       aria-hidden="true"
     >
-      <span className="text-2xl font-black text-white/90 drop-shadow-sm">{initial}</span>
-      <Music2 className="absolute bottom-1 right-1 h-3 w-3 text-white/60" />
+      {cover ? (
+        // YouTube thumbnail (or any real cover) — the gradient shows while it loads.
+        <img
+          src={cover}
+          alt=""
+          loading="lazy"
+          className="absolute inset-0 h-full w-full object-cover"
+        />
+      ) : (
+        <span className="text-2xl font-black text-white/90 drop-shadow-sm">{initial}</span>
+      )}
+      <Music2 className="absolute bottom-1 right-1 h-3 w-3 text-white/60 drop-shadow" />
     </div>
+  );
+}
+
+/** The little "▶ YouTube" pill shown on YouTube song cards and rows. */
+export function YouTubeBadge({ className = "" }: { className?: string }) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-full bg-red-600 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white shadow-sm ${className}`}
+      title="Plays from YouTube"
+    >
+      <svg viewBox="0 0 24 24" aria-hidden="true" className="h-2.5 w-2.5" fill="currentColor">
+        <path d="M23 12s0-3.4-.44-5.03a2.6 2.6 0 0 0-1.83-1.84C19.1 4.7 12 4.7 12 4.7s-7.1 0-8.73.43A2.6 2.6 0 0 0 1.44 6.97C1 8.6 1 12 1 12s0 3.4.44 5.03a2.6 2.6 0 0 0 1.83 1.84c1.63.43 8.73.43 8.73.43s7.1 0 8.73-.43a2.6 2.6 0 0 0 1.83-1.84C23 15.4 23 12 23 12ZM9.75 15.5v-7l6 3.5-6 3.5Z" />
+      </svg>
+      YouTube
+    </span>
   );
 }
 
@@ -79,6 +107,11 @@ export function SongCard({
       >
         <div className="relative">
           <SoundCover sound={sound} className="aspect-square w-full" rounded="rounded-2xl" />
+          {isYouTubeSound(sound) && (
+            <span className="absolute left-1.5 top-1.5">
+              <YouTubeBadge />
+            </span>
+          )}
           <span className="absolute bottom-1.5 left-1.5">
             <DurationBadge soundId={sound.id} />
           </span>
@@ -89,7 +122,9 @@ export function SongCard({
           </span>
         </div>
         <p className="mt-1.5 truncate text-[13px] font-semibold leading-tight">{sound.title}</p>
-        <p className="truncate text-[11px] text-muted-foreground">@{sound.creator_username}</p>
+        <p className="truncate text-[11px] text-muted-foreground">
+          {isYouTubeSound(sound) ? sound.creator_username : `@${sound.creator_username}`}
+        </p>
         <p className="truncate text-[11px] text-muted-foreground/70">
           {formatPlays(sound.uses_count)}
         </p>
@@ -149,10 +184,12 @@ export function SongRow({
         <span className="min-w-0 flex-1">
           <span className="flex items-center gap-1.5">
             <span className="truncate text-sm font-semibold">{sound.title}</span>
+            {isYouTubeSound(sound) && <YouTubeBadge />}
             <DurationBadge soundId={sound.id} />
           </span>
           <span className="block truncate text-xs text-muted-foreground">
-            @{sound.creator_username} · {formatPlays(sound.uses_count)}
+            {isYouTubeSound(sound) ? sound.creator_username : `@${sound.creator_username}`} ·{" "}
+            {formatPlays(sound.uses_count)}
           </span>
         </span>
       </button>

@@ -20,12 +20,23 @@ import { ChristmasOverlay } from "@/components/ChristmasOverlay";
 import { getAnimal, drawAnimal } from "@/lib/animals";
 import { useFaceTracker } from "@/lib/face";
 import { canBakeFilters, filterById } from "@/lib/filters";
-import { CHRISTMAS_EFFECTS, drawChristmasEffect, getChristmasEffect, needsFace } from "@/lib/christmas-effects";
+import {
+  CHRISTMAS_EFFECTS,
+  drawChristmasEffect,
+  getChristmasEffect,
+  needsFace,
+} from "@/lib/christmas-effects";
 import { useChristmasMode } from "@/lib/christmas";
 import { awardGTA6Badge, useGTA6Mode } from "@/lib/gta6";
 import { SoundPickerDialog } from "@/components/SoundPickerDialog";
 import { canMixSound, createSoundTrack, type SoundTrack } from "@/lib/sound-mixer";
-import { soundAudioUrl, type Sound } from "@/lib/sounds";
+import { isYouTubeSound, soundAudioUrl, type Sound } from "@/lib/sounds";
+import {
+  YOUTUBE_CLIP_SECONDS,
+  youtubeClipStart,
+  youtubeEmbedUrl,
+  youtubeSongId,
+} from "@/lib/youtubeSongs";
 
 const MAX_SECONDS = 60;
 const MIME_CANDIDATES = [
@@ -113,6 +124,9 @@ export function RecordDialog({
   // track is folded into the recording when the user hits record.
   useEffect(() => {
     if (!open || !chosenSound) return;
+    // YouTube songs can't be fetched as an audio file — they play through the
+    // YouTube embed rendered below, and the mic picks the clip up while recording.
+    if (isYouTubeSound(chosenSound)) return;
     let disposed = false;
     let track: SoundTrack | null = null;
 
@@ -224,8 +238,13 @@ export function RecordDialog({
     // Mix the chosen sound with the microphone so the song ends up inside the
     // recorded file. If the browser can't mix it, we still record the mic and
     // attach the sound as metadata (the feed plays it over the video).
+    // A YouTube song plays out loud from its embed, so the microphone captures
+    // it into the recording — treat it as already baked in.
+    const youTubeSound = isYouTubeSound(chosenSound);
+    if (youTubeSound) bakedRef.current = true;
+
     const soundTrack = soundTrackRef.current;
-    if (chosenSound && soundTrack && !soundTrack.failed && canMixSound()) {
+    if (!youTubeSound && chosenSound && soundTrack && !soundTrack.failed && canMixSound()) {
       try {
         const mix = soundTrack.createRecordingMix(stream);
         recordStream = mix.stream;
@@ -374,6 +393,8 @@ export function RecordDialog({
 
   const showCamera = !recordedBlob;
   const progress = (elapsed / MAX_SECONDS) * 100;
+  /** YouTube sound selected for this Short (null for own sounds). */
+  const youTubeId = isYouTubeSound(chosenSound) ? youtubeSongId(chosenSound) : null;
 
   return (
     <>
@@ -427,6 +448,28 @@ export function RecordDialog({
 
             {showCamera && cameraState !== "ready" && (
               <CameraMessage state={cameraState} onRetry={() => setCameraAttempt((n) => n + 1)} />
+            )}
+
+            {/*
+              YouTube sound for a Short: the embed plays the song's 15-second clip
+              while recording. It is deliberately tiny and muted-looking so the
+              camera preview stays the focus, but it must stay on-screen (not
+              display:none) or YouTube pauses playback.
+            */}
+            {showCamera && youTubeId && (
+              <div className="pointer-events-none absolute bottom-24 right-3 h-16 w-28 overflow-hidden rounded-lg border border-white/20 opacity-80">
+                <iframe
+                  key={`${chosenSound?.id}-${recording ? "rec" : "idle"}`}
+                  src={youtubeEmbedUrl(youTubeId, {
+                    autoplay: true,
+                    start: youtubeClipStart(chosenSound?.id ?? ""),
+                    origin: typeof window !== "undefined" ? window.location.origin : undefined,
+                  })}
+                  title={chosenSound?.title ?? "YouTube sound"}
+                  allow="autoplay; encrypted-media"
+                  className="h-full w-full"
+                />
+              </div>
             )}
 
             {recording && (
@@ -485,6 +528,11 @@ export function RecordDialog({
                     <div className="mb-2 flex justify-center">
                       <div className="flex max-w-full items-center gap-2 rounded-full bg-black/55 px-3 py-1.5 backdrop-blur">
                         <Music className="h-3.5 w-3.5 shrink-0 text-white" aria-hidden />
+                        {youTubeId && (
+                          <span className="shrink-0 rounded-full bg-red-600 px-1.5 py-0.5 text-[9px] font-bold uppercase text-white">
+                            YouTube · {YOUTUBE_CLIP_SECONDS}s
+                          </span>
+                        )}
                         <span className="relative block w-[min(58vw,220px)] overflow-hidden">
                           <span className="animate-marquee flex w-max text-[12px] font-semibold text-white">
                             <span className="whitespace-nowrap pr-8">{chosenSound.title}</span>

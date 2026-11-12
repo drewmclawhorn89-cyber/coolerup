@@ -1,8 +1,14 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { canBackgroundPlay, isBackgroundPlayEnabled } from "@/lib/backgroundPlay";
+import {
+  canBackgroundPlay,
+  isBackgroundPlayEnabled,
+  isBackgroundPlayEntitled,
+  setBackgroundPlayEntitled,
+  setBackgroundPlayEnabled,
+} from "@/lib/backgroundPlay";
 import type { PlayerTrack } from "@/lib/songPlayer";
 
 const root = join(__dirname, "..", "..");
@@ -23,9 +29,26 @@ const track = (patch: Partial<PlayerTrack> = {}): PlayerTrack => ({
 });
 
 describe("background play", () => {
-  it("is ON by default", () => {
+  beforeEach(() => {
     localStorage.removeItem("settings:background-play");
+    setBackgroundPlayEntitled(false);
+  });
+
+  it("defaults the preference to ON but stays off without a VIP plan", () => {
+    expect(isBackgroundPlayEntitled()).toBe(false);
+    expect(isBackgroundPlayEnabled()).toBe(false);
+  });
+
+  it("only runs for an entitled (VIP) listener", () => {
+    setBackgroundPlayEntitled(true);
     expect(isBackgroundPlayEnabled()).toBe(true);
+    setBackgroundPlayEntitled(false);
+    expect(isBackgroundPlayEnabled()).toBe(false);
+  });
+
+  it("refuses to switch on without the entitlement", () => {
+    expect(setBackgroundPlayEnabled(true)).toBe(false);
+    expect(isBackgroundPlayEnabled()).toBe(false);
   });
 
   it("allows own MP3s and downloaded audio to play in the background", () => {
@@ -79,5 +102,16 @@ describe("background play", () => {
   it("has a Background Play button in the Music tab", () => {
     expect(music).toContain("Background Play");
     expect(music).toContain("setBackgroundPlayEnabled");
+  });
+
+  it("gates background play behind the VIP plan", () => {
+    // The entitlement is derived from the plan, not from the stored toggle.
+    expect(mini).toContain("hasBackgroundPlayAccess");
+    expect(mini).toContain("setBackgroundPlayEntitled");
+    expect(settings).toContain("hasBackgroundPlayAccess");
+    expect(music).toContain("hasBackgroundPlayAccess");
+    // Both surfaces point locked listeners at the VIP upsell.
+    expect(settings).toContain("backgroundPlayPlan");
+    expect(music).toContain("backgroundPlayPlan");
   });
 });

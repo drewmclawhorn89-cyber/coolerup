@@ -23,6 +23,12 @@ import { songPlayer, type PlayerTrack } from "@/lib/songPlayer";
  * YouTube is the one exception. YouTube's own IFrame player refuses to play
  * while the page is hidden, and there is no supported way around it — so we
  * detect those tracks and tell the user instead of pretending it works.
+ *
+ * Background play is a VIP perk. `setBackgroundPlayEntitled` is called by the
+ * app whenever the signed-in user's plan changes; while it is false the feature
+ * is off no matter what the stored preference says, and losing the entitlement
+ * pauses whatever is playing right away. The preference is kept so a returning
+ * VIP finds the toggle exactly where they left it.
  */
 
 /** localStorage key (stored as `settings:background-play`). */
@@ -39,13 +45,47 @@ export const YOUTUBE_BACKGROUND_SHORT = "YouTube blocks background play";
 export const BACKGROUND_PLAY_HELP =
   "Keep music playing when you switch tabs, lock your phone, or open another app. Works with your own MP3s, royalty-free songs, and anything you downloaded for offline.";
 
-/** Default ON, per the spec. */
-export const isBackgroundPlayEnabled = (): boolean => readBool(BACKGROUND_PLAY_KEY, true);
+/** Default ON, per the spec — but only ever honoured for VIP listeners. */
+const prefEnabled = (): boolean => readBool(BACKGROUND_PLAY_KEY, true);
+
+/**
+ * Whether the signed-in listener's plan includes background play.
+ *
+ * Kept in module state rather than localStorage: it is derived from the
+ * subscription on every mount/focus, and a stale copy must never hand out a
+ * perk the server has taken away.
+ */
+let entitled = false;
+
+/** True when the current plan unlocks background play (VIP or lifetime). */
+export const isBackgroundPlayEntitled = (): boolean => entitled;
+
+/** True only when the plan allows it *and* the listener left the toggle on. */
+export const isBackgroundPlayEnabled = (): boolean => entitled && prefEnabled();
 
 const listeners = new Set<() => void>();
 const emit = () => {
   for (const fn of listeners) fn();
 };
+
+/**
+ * Update the plan entitlement. Called from the root player whenever the auth
+ * handle or subscription changes.
+ *
+ * Losing the perk takes effect immediately: playback pauses and the OS controls
+ * are cleared, so a downgraded account cannot keep listening in the background
+ * until the next song.
+ */
+export function setBackgroundPlayEntitled(next: boolean) {
+  if (entitled === next) return;
+  entitled = next;
+  emit();
+  if (!next) {
+    const state = songPlayer.getState();
+    if (state.playing) songPlayer.toggle();
+  }
+  syncMediaSession();
+}
 
 export function subscribeBackgroundPlay(fn: () => void) {
   listeners.add(fn);
@@ -54,8 +94,15 @@ export function subscribeBackgroundPlay(fn: () => void) {
   };
 }
 
-/** Persist the preference and immediately reflect it in the OS controls. */
-export function setBackgroundPlayEnabled(enabled: boolean) {
+/**
+ * Persist the preference and immediately reflect it in the OS controls.
+ *
+ * Returns false without writing anything when the listener is not entitled —
+ * the UI should send them to the VIP upsell instead of pretending the switch
+ * moved.
+ */
+export function setBackgroundPlayEnabled(enabled: boolean): boolean {
+  if (enabled && !entitled) return false;
   writePref(BACKGROUND_PLAY_KEY, String(enabled));
   emit();
   if (!enabled) {
@@ -64,11 +111,17 @@ export function setBackgroundPlayEnabled(enabled: boolean) {
     if (state.playing) songPlayer.toggle();
   }
   syncMediaSession();
+  return true;
 }
 
-/** React hook for the toggle. */
+/** React hook for the effective toggle state (entitled *and* switched on). */
 export function useBackgroundPlay(): boolean {
-  return useSyncExternalStore(subscribeBackgroundPlay, isBackgroundPlayEnabled, () => true);
+  return useSyncExternalStore(subscribeBackgroundPlay, isBackgroundPlayEnabled, () => false);
+}
+
+/** React hook for whether the current plan includes background play. */
+export function useBackgroundPlayEntitled(): boolean {
+  return useSyncExternalStore(subscribeBackgroundPlay, isBackgroundPlayEntitled, () => false);
 }
 
 /** True when the track can keep playing with the screen off. */
@@ -226,6 +279,7 @@ export function attachBackgroundPlay(): () => void {
 
   const onVisibility = () => {
     if (!document.hidden) return;
+    // Off, or no VIP plan: hiding the app stops the music.
     if (isBackgroundPlayEnabled()) return;
     const state = songPlayer.getState();
     if (state.playing) songPlayer.toggle();

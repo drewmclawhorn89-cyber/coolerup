@@ -38,7 +38,12 @@ import {
   useBackgroundPlay,
   YOUTUBE_BACKGROUND_WARNING,
 } from "@/lib/backgroundPlay";
-import { hasMusicOfflineAccess, musicOfflinePlan } from "@/lib/subscriptions";
+import {
+  backgroundPlayPlan,
+  hasBackgroundPlayAccess,
+  hasMusicOfflineAccess,
+  musicOfflinePlan,
+} from "@/lib/subscriptions";
 import { useTrial } from "@/lib/trial";
 import {
   FULL_SONG_SECONDS,
@@ -342,6 +347,9 @@ function MusicPage() {
   const nowPlayingId = player.queue[player.index]?.soundId ?? "";
   const nowPlayingTrack = player.queue[player.index] ?? null;
   const backgroundPlay = useBackgroundPlay();
+  // Background play is a VIP perk; non-VIP listeners get an upsell instead of
+  // a switch that silently does nothing.
+  const backgroundUnlocked = hasBackgroundPlayAccess(auth.handle);
 
   const renderList = (sounds: Sound[], empty: string) => {
     if (!sounds.length) return <p className="px-1 py-6 text-sm text-muted-foreground">{empty}</p>;
@@ -473,16 +481,33 @@ function MusicPage() {
             className={`h-4 w-4 shrink-0 ${backgroundPlay ? "text-primary" : "text-muted-foreground"}`}
           />
           <div className="min-w-0 flex-1">
-            <p className="text-[13px] font-bold">Background Play</p>
+            <p className="flex items-center gap-1.5 text-[13px] font-bold">
+              Background Play
+              {!backgroundUnlocked && (
+                <Lock className="h-3 w-3 text-muted-foreground" aria-label="VIP required" />
+              )}
+            </p>
             <p className="truncate text-[11px] text-muted-foreground">
-              {backgroundPlay
-                ? "Keeps playing when you switch tabs, lock your phone, or open another app."
-                : "Music stops when you leave the app."}
+              {!backgroundUnlocked
+                ? `VIP perk — upgrade to keep music playing when you leave the app.`
+                : backgroundPlay
+                  ? "Keeps playing when you switch tabs, lock your phone, or open another app."
+                  : "Music stops when you leave the app."}
             </p>
           </div>
           <button
             type="button"
             onClick={() => {
+              if (!backgroundUnlocked) {
+                toast.error(`Background play is a ${backgroundPlayPlan().label} perk.`, {
+                  action: {
+                    label: "Upgrade",
+                    onClick: () =>
+                      void navigate({ to: "/settings", search: { subscriptions: true } }),
+                  },
+                });
+                return;
+              }
               const next = !backgroundPlay;
               setBackgroundPlayEnabled(next);
               toast.success(next ? "Background Play ON" : "Background Play OFF");
@@ -495,9 +520,19 @@ function MusicPage() {
                 : "border border-white/15 text-muted-foreground"
             }`}
           >
-            {backgroundPlay ? "ON" : "OFF"}
+            {backgroundUnlocked ? (backgroundPlay ? "ON" : "OFF") : "VIP"}
           </button>
         </div>
+        {!backgroundUnlocked && (
+          <button
+            type="button"
+            onClick={() => void navigate({ to: "/settings", search: { subscriptions: true } })}
+            className="mt-2 w-full rounded-xl bg-primary px-3 py-2 text-xs font-bold text-primary-foreground"
+          >
+            Unlock Background Play with {backgroundPlayPlan().label} · $
+            {backgroundPlayPlan().price.toFixed(2)}/mo
+          </button>
+        )}
         {nowPlayingTrack && !canBackgroundPlay(nowPlayingTrack) && (
           <div className="mt-2 flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2">
             <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-400" />

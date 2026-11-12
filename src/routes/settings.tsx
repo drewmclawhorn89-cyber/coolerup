@@ -5,6 +5,7 @@ import {
   ChevronRight,
   CreditCard,
   Gem,
+  Lock,
   LogOut,
   Music,
   Pencil,
@@ -20,6 +21,8 @@ import { toast } from "sonner";
 import { writePref } from "@/lib/prefs";
 import { MoreSettings } from "@/components/MoreSettings";
 import {
+  backgroundPlayPlan,
+  hasBackgroundPlayAccess,
   hasOfflineAccess,
   offlinePlan,
   planUnlocksOffline,
@@ -73,8 +76,9 @@ function Settings() {
   const auth = useAuth();
   // Playback quality is a device preference (localStorage `video_quality`).
   const { quality: videoQuality, setQuality: setVideoQuality } = useVideoQuality();
-  // Music keeps playing in the background by default; the toggle is here.
+  // Background play is a VIP perk; the toggle only moves for entitled plans.
   const backgroundPlay = useBackgroundPlay();
+  const backgroundUnlocked = hasBackgroundPlayAccess(auth.handle);
   const mediaSessionReady = isMediaSessionSupported();
   // Offline mode ships with Pro and VIP; Plus and free accounts are locked.
   const subscription = useSubscription(auth.handle);
@@ -934,12 +938,27 @@ function Settings() {
         </div>
         <div className="mt-3 flex items-center justify-between gap-3 border-t pt-3">
           <div className="min-w-0">
-            <div className="font-medium">Background Play</div>
+            <div className="flex items-center gap-1.5 font-medium">
+              Background Play
+              {backgroundUnlocked ? (
+                <span className="rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-primary">
+                  VIP
+                </span>
+              ) : (
+                <Lock className="h-3 w-3 text-muted-foreground" aria-label="VIP required" />
+              )}
+            </div>
             <p className="mt-0.5 text-xs text-muted-foreground">{BACKGROUND_PLAY_HELP}</p>
           </div>
           <button
             type="button"
             onClick={() => {
+              if (!backgroundUnlocked) {
+                toast.error(`Background play is a ${backgroundPlayPlan().label} perk.`, {
+                  action: { label: "Upgrade", onClick: () => setShowSubscriptions(true) },
+                });
+                return;
+              }
               const next = !backgroundPlay;
               setBackgroundPlayEnabled(next);
               toast.success(next ? "Background Play ON" : "Background Play OFF");
@@ -958,6 +977,16 @@ function Settings() {
             />
           </button>
         </div>
+        {!backgroundUnlocked && (
+          <button
+            type="button"
+            onClick={() => setShowSubscriptions(true)}
+            className="mt-3 w-full rounded-md bg-primary px-4 py-2 text-sm font-bold text-primary-foreground"
+          >
+            Unlock Background Play with {backgroundPlayPlan().label} · $
+            {backgroundPlayPlan().price.toFixed(2)}/mo
+          </button>
+        )}
         <p className="mt-2 text-xs text-muted-foreground">
           {mediaSessionReady
             ? "Lock-screen and notification controls are enabled — play, pause, next and previous work with the screen off."

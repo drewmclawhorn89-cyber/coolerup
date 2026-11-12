@@ -10,7 +10,14 @@ import { useAuth } from "@/hooks/useAuth";
 import { hasOfflineAccess, offlinePlan } from "@/lib/subscriptions";
 import { useTrial } from "@/lib/trial";
 import { FULL_VIDEO_CATEGORIES, listFullVideos, type FullVideo } from "@/lib/fullVideos";
-import { listSavedFullVideos, onOfflineChange } from "@/lib/offline";
+import {
+  clearAllDownloads,
+  formatStorage,
+  getOfflineUsage,
+  listSavedFullVideos,
+  onOfflineChange,
+  type OfflineUsage,
+} from "@/lib/offline";
 
 /**
  * How many cards to fetch per page. Two screens' worth on a phone, so the grid
@@ -27,7 +34,10 @@ export const Route = createFileRoute("/videos")({
         content: "Watch full-length videos on Coolerup — music, gaming, comedy and more.",
       },
       { property: "og:title", content: "Videos — Coolerup" },
-      { property: "og:description", content: "Watch full-length videos and YouTube picks on Coolerup." },
+      {
+        property: "og:description",
+        content: "Watch full-length videos and YouTube picks on Coolerup.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
@@ -56,6 +66,9 @@ function VideosPage() {
   const [offlineOnly, setOfflineOnly] = useState(false);
   const [savedVideos, setSavedVideos] = useState<FullVideo[]>([]);
   const [savedLoading, setSavedLoading] = useState(false);
+  /** Bytes used by downloads, shown as a meter above the offline shelf. */
+  const [usage, setUsage] = useState<OfflineUsage | null>(null);
+  const [clearing, setClearing] = useState(false);
 
   /**
    * YouTube picks are stored with the length YouTube told us about; older rows
@@ -118,9 +131,11 @@ function VideosPage() {
     let alive = true;
     const refresh = () => {
       setSavedLoading(true);
-      void listSavedFullVideos()
-        .then((rows) => {
-          if (alive) setSavedVideos(rows.map((r) => r.video));
+      void Promise.all([listSavedFullVideos(), getOfflineUsage()])
+        .then(([rows, nextUsage]) => {
+          if (!alive) return;
+          setSavedVideos(rows.map((r) => r.video));
+          setUsage(nextUsage);
         })
         .catch(() => {
           if (alive) setSavedVideos([]);
@@ -136,6 +151,19 @@ function VideosPage() {
       off();
     };
   }, [offlineOnly]);
+
+  /** Wipe every download after a confirm; the shelf refreshes via onOfflineChange. */
+  const clearDownloads = useCallback(async () => {
+    if (clearing) return;
+    if (!window.confirm("Delete all downloaded videos? This frees offline storage.")) return;
+    setClearing(true);
+    try {
+      await clearAllDownloads();
+      setUsage(await getOfflineUsage());
+    } finally {
+      setClearing(false);
+    }
+  }, [clearing]);
 
   /** Append the next page. Safe to call repeatedly; the guard prevents doubles. */
   const loadMore = useCallback(async () => {
@@ -194,10 +222,18 @@ function VideosPage() {
     <div className="mx-auto w-full max-w-6xl px-3 pb-24 pt-3">
       <div className="mb-3 flex items-center justify-between gap-3">
         <h1 className="text-xl font-bold">Videos</h1>
-        <Button variant="outline" onClick={() => {
-          if (!auth.user) { void auth.signIn(); return; }
-          setAddingYouTube(true);
-        }}><Plus /> Add YouTube</Button>
+        <Button
+          variant="outline"
+          onClick={() => {
+            if (!auth.user) {
+              void auth.signIn();
+              return;
+            }
+            setAddingYouTube(true);
+          }}
+        >
+          <Plus /> Add YouTube
+        </Button>
       </div>
       {/* Search bar, YouTube style: a wide rounded field with the icon inside. */}
       <div className="sticky top-0 z-20 -mx-3 bg-background/95 px-3 pb-2 pt-1 backdrop-blur">
@@ -303,11 +339,41 @@ function VideosPage() {
             </button>
           </div>
         ) : (
-          <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-5 sm:grid-cols-3 lg:grid-cols-4">
-            {savedVideos.map((v) => (
-              <FullVideoCard key={v.id} video={v} showBadge={false} />
-            ))}
-          </div>
+          <>
+            {usage && (
+              <div className="mt-3 flex flex-wrap items-center gap-3 rounded-xl border bg-secondary/50 px-3 py-2">
+                <div className="min-w-0 flex-1">
+                  <p className="text-[13px] font-semibold">
+                    Offline storage: {formatStorage(usage.used)} / {formatStorage(usage.max)}
+                  </p>
+                  <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-background">
+                    <div
+                      className="h-full rounded-full bg-emerald-600 transition-all"
+                      style={{
+                        width: `${Math.min(100, usage.max ? (usage.used / usage.max) * 100 : 0)}%`,
+                      }}
+                    />
+                  </div>
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    {usage.count} {usage.count === 1 ? "video" : "videos"} saved for offline
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void clearDownloads()}
+                  disabled={clearing}
+                  className="shrink-0 rounded-full border border-destructive/40 px-3 py-1.5 text-[13px] font-semibold text-destructive transition hover:bg-destructive/10 disabled:opacity-50"
+                >
+                  {clearing ? "Clearing\u2026" : "Clear all"}
+                </button>
+              </div>
+            )}
+            <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-5 sm:grid-cols-3 lg:grid-cols-4">
+              {savedVideos.map((v) => (
+                <FullVideoCard key={v.id} video={v} showBadge={false} />
+              ))}
+            </div>
+          </>
         )
       ) : loading ? (
         <div className="flex items-center justify-center py-20 text-muted-foreground">
@@ -376,9 +442,19 @@ function VideosPage() {
       )}
 
       {/* Owner-only editor, opened from the pencil on a card. */}
-      {addingYouTube && <AddYouTubeModal open onClose={() => setAddingYouTube(false)} onAdded={() => {
-        setOfflineOnly(false); setCategory("All"); setSearchInput(""); setSearch(""); void load();
-      }} />}
+      {addingYouTube && (
+        <AddYouTubeModal
+          open
+          onClose={() => setAddingYouTube(false)}
+          onAdded={() => {
+            setOfflineOnly(false);
+            setCategory("All");
+            setSearchInput("");
+            setSearch("");
+            void load();
+          }}
+        />
+      )}
       {editing && auth.user && (
         <EditFullVideoDialog
           video={editing}

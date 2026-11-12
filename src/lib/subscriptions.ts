@@ -443,13 +443,14 @@ export function isTrialing(handle?: string | null, planId?: string | null): bool
 }
 
 /**
- * Offline downloads are a Pro-and-up perk, with a one-hour free trial.
+ * Offline *video* downloads are included on every paid tier (Plus, Pro and
+ * VIP), with a one-hour free trial.
  *
  * Access requires a live subscription *and* a plan that includes the feature,
- * or a running free hour on a plan that includes it. Trialing Plus does not
- * unlock offline mode, because Plus does not include it; trialing Pro or VIP
- * does. A `pending` or `expired` subscription does not count: the plan has to
- * be paid and active for the offline library to unlock.
+ * or a running free hour on a plan that includes it. Free accounts do not get
+ * offline mode; a `pending` or `expired` subscription does not count either:
+ * the plan has to be paid and active for the offline library to unlock.
+ * Offline *music* is gated separately at VIP — see `hasMusicOfflineAccess`.
  */
 export function hasOfflineAccess(handle?: string | null): boolean {
   const trial = activeTrial(handle);
@@ -496,9 +497,15 @@ export function offlineLockReason(handle?: string | null): OfflineLockReason | n
   if (hasOfflineAccess(handle)) return null;
   if (!handle) return "signed-out";
   const sub = getSubscription(handle);
-  // The offline prompt starts a trial of the cheapest offline plan, so that is
-  // the hour whose exhaustion matters here.
-  if (!sub) return hasUsedTrial(handle, offlinePlan().id) ? "trial-ended" : "no-plan";
+  // The offline prompt starts a trial of the cheapest offline plan, but a
+  // viewer may have trialed a higher tier instead, so check every plan that
+  // includes offline video before deciding they never had an hour.
+  if (!sub) {
+    const usedAnyOfflineTrial = PLANS.filter((p) => p.offline).some((p) =>
+      hasUsedTrial(handle, p.id),
+    );
+    return usedAnyOfflineTrial ? "trial-ended" : "no-plan";
+  }
   if (sub.status === "expired" || sub.status === "pending") return "expired";
   return "plan-lacks-offline";
 }
@@ -508,7 +515,12 @@ export function musicOfflineLockReason(handle?: string | null): OfflineLockReaso
   if (hasMusicOfflineAccess(handle)) return null;
   if (!handle) return "signed-out";
   const sub = getSubscription(handle);
-  if (!sub) return hasUsedTrial(handle, musicOfflinePlan().id) ? "trial-ended" : "no-plan";
+  if (!sub) {
+    const usedAnyMusicTrial = PLANS.filter((p) => p.musicOffline).some((p) =>
+      hasUsedTrial(handle, p.id),
+    );
+    return usedAnyMusicTrial ? "trial-ended" : "no-plan";
+  }
   if (sub.status === "expired" || sub.status === "pending") return "expired";
   return "plan-lacks-offline";
 }

@@ -180,8 +180,8 @@ function OfflinePage() {
           </h2>
           <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">
             {trial.used
-              ? `Subscribe to ${plan.label} or VIP to keep saving videos for offline viewing. Offline downloads start at $${plan.price.toFixed(2)}/mo and are not included in Plus.`
-              : `Try it free for one hour — no card needed. After that, offline downloads come with ${plan.label} and VIP at $${plan.price.toFixed(2)}/mo, and are not included in Plus.`}
+              ? `Subscribe to ${plan.label} or higher to keep saving videos for offline viewing. Offline video downloads start at $${plan.price.toFixed(2)}/mo.`
+              : `Try it free for one hour — no card needed. After that, offline video downloads come with ${plan.label} and up at $${plan.price.toFixed(2)}/mo.`}
           </p>
           {!trial.used && (
             <button

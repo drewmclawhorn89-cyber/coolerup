@@ -2,21 +2,28 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   ArrowLeft,
+  Download,
   Flame,
+  HardDriveDownload,
   Heart,
   Loader2,
   Music2,
+  Pause,
+  Play,
   Plus,
   Search,
   ShieldAlert,
   Sparkles,
+  Trash2,
+  WifiOff,
   Youtube,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
 import { useAuth } from "@/hooks/useAuth";
-import { SongCard, SongRow } from "@/components/SongCard";
+import { SongCard, SongRow, SoundCover } from "@/components/SongCard";
+import { RemoveDownloadButton } from "@/components/DownloadButton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -44,18 +51,31 @@ import {
   incrementSoundPlay,
   youtubeSongId,
 } from "@/lib/youtubeSongs";
+import {
+  formatStorage,
+  listSavedSongs,
+  listStaleSongs,
+  markSongPlayed,
+  offlineSongUrl,
+  offlineSongsSize,
+  onOfflineSongsChange,
+  removeStaleSongs,
+  STALE_DAYS,
+  type SavedSong,
+} from "@/lib/offlineSongs";
 
 export const Route = createFileRoute("/music")({
   component: MusicPage,
 });
 
-type MusicTab = "top" | "trending" | "mine" | "full";
+type MusicTab = "top" | "trending" | "mine" | "full" | "downloaded";
 
 const TABS: { id: MusicTab; label: string }[] = [
   { id: "top", label: "Top Songs" },
   { id: "trending", label: "Trending" },
   { id: "mine", label: "Your Sounds" },
   { id: "full", label: "Full Songs" },
+  { id: "downloaded", label: "Downloaded" },
 ];
 
 function toTrack(sound: Sound, url: string): PlayerTrack {
@@ -92,6 +112,11 @@ function MusicPage() {
   /** The YouTube song open in the full-song player, if any. */
   const [activeYouTube, setActiveYouTube] = useState<Sound | null>(null);
   const [addingYouTube, setAddingYouTube] = useState(false);
+  /** Songs stored in IndexedDB — these play with no signal at all. */
+  const [downloadedSongs, setDownloadedSongs] = useState<SavedSong[]>([]);
+  const [downloadBytes, setDownloadBytes] = useState(0);
+  /** Downloaded songs untouched for 30 days — offered up for deletion. */
+  const [staleSongs, setStaleSongs] = useState<SavedSong[]>([]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -126,6 +151,30 @@ function MusicPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  /**
+   * Keep the Downloaded tab in sync with IndexedDB. This is read straight from
+   * the device, so it works before (and without) any network request.
+   */
+  const refreshDownloads = useCallback(async () => {
+    try {
+      const [songs, bytes, stale] = await Promise.all([
+        listSavedSongs(),
+        offlineSongsSize(),
+        listStaleSongs(),
+      ]);
+      setDownloadedSongs(songs);
+      setDownloadBytes(bytes);
+      setStaleSongs(stale);
+    } catch {
+      /* private mode / storage disabled — the tab just stays empty */
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshDownloads();
+    return onOfflineSongsChange(() => void refreshDownloads());
+  }, [refreshDownloads]);
 
   // Measure real song lengths the first time "Full Songs" is opened. Doing it
   // up front would download metadata for every sound on the page.
@@ -196,45 +245,67 @@ function MusicPage() {
    * Only the tapped song's URL is resolved before playback starts — resolving
    * 40 signed URLs up front makes the tap feel broken on a phone.
    */
-  const openSong = useCallback(async (sound: Sound, list: Sound[]) => {
-    // YouTube songs stream from YouTube's embed player, never a stored file.
-    if (isYouTubeSound(sound)) {
-      songPlayer.stop();
-      setActiveYouTube(sound);
-      void incrementSoundPlay(sound.id);
-      return;
-    }
-    try {
-      const url = await soundAudioUrl(sound);
-      if (!url) {
-        toast.error("That sound isn't playable right now.");
+  /**
+   * Resolve a playable URL for a song.
+   *
+   * The downloaded copy is checked FIRST: with 0 signal the signed Supabase URL
+   * can't be created, but the blob in IndexedDB still plays. That is the whole
+   * point of the Downloaded tab.
+   */
+  const resolvePlayableUrl = useCallback(async (sound: Sound): Promise<string> => {
+    const local = await offlineSongUrl(sound.id).catch(() => "");
+    if (local) return local;
+    return soundAudioUrl(sound);
+  }, []);
+
+  const openSong = useCallback(
+    async (sound: Sound, list: Sound[]) => {
+      // YouTube songs stream from YouTube's embed player, never a stored file.
+      if (isYouTubeSound(sound)) {
+        songPlayer.stop();
+        setActiveYouTube(sound);
+        void incrementSoundPlay(sound.id);
         return;
       }
-      const track = toTrack(sound, url);
-      songPlayer.playQueue([track], 0);
+      try {
+        const url = await resolvePlayableUrl(sound);
+        if (!url) {
+          toast.error(
+            downloadedSongs.length
+              ? "That song isn't downloaded, so it needs a connection."
+              : "That sound isn't playable right now.",
+          );
+          return;
+        }
+        const track = toTrack(sound, url);
+        songPlayer.playQueue([track], 0);
+        // Reset the 30-day "delete to save space" clock for the tapped song only.
+        void markSongPlayed(sound.id);
 
-      // Fill the queue in the background so Next/Prev work.
-      const rest = list.filter((s) => s.id !== sound.id).slice(0, 24);
-      const resolved: PlayerTrack[] = [];
-      for (let i = 0; i < rest.length; i += 6) {
-        const batch = await Promise.all(
-          rest.slice(i, i + 6).map(async (s) => {
-            const u = await soundAudioUrl(s);
-            return u ? toTrack(s, u) : null;
-          }),
+        // Fill the queue in the background so Next/Prev work.
+        const rest = list.filter((s) => s.id !== sound.id).slice(0, 24);
+        const resolved: PlayerTrack[] = [];
+        for (let i = 0; i < rest.length; i += 6) {
+          const batch = await Promise.all(
+            rest.slice(i, i + 6).map(async (s) => {
+              const u = await resolvePlayableUrl(s).catch(() => "");
+              return u ? toTrack(s, u) : null;
+            }),
+          );
+          for (const t of batch) if (t) resolved.push(t);
+        }
+        const at = Math.max(
+          0,
+          list.findIndex((s) => s.id === sound.id),
         );
-        for (const t of batch) if (t) resolved.push(t);
+        const queue = [...resolved.slice(0, at), track, ...resolved.slice(at)];
+        songPlayer.replaceQueue(queue);
+      } catch {
+        toast.error("Couldn't play that song.");
       }
-      const at = Math.max(
-        0,
-        list.findIndex((s) => s.id === sound.id),
-      );
-      const queue = [...resolved.slice(0, at), track, ...resolved.slice(at)];
-      songPlayer.replaceQueue(queue);
-    } catch {
-      toast.error("Couldn't play that song.");
-    }
-  }, []);
+    },
+    [resolvePlayableUrl, downloadedSongs.length],
+  );
 
   const nowPlayingId = player.queue[player.index]?.soundId ?? "";
 
@@ -431,7 +502,7 @@ function MusicPage() {
                 : "Sign in to save sounds to Your Sounds.",
             )}
           </section>
-        ) : (
+        ) : tab === "full" ? (
           <section>
             {probing && (
               <p className="mb-2 flex items-center gap-2 px-1 text-xs text-muted-foreground">
@@ -459,6 +530,21 @@ function MusicPage() {
               Shorter ones are 15-second clips.
             </p>
           </section>
+        ) : (
+          <DownloadedTab
+            songs={downloadedSongs}
+            bytes={downloadBytes}
+            stale={staleSongs}
+            playingId={nowPlayingId}
+            isPlaying={player.playing}
+            onOpen={(song) =>
+              void openSong(
+                song,
+                downloadedSongs.map((d) => d.sound),
+              )
+            }
+            onChanged={() => void refreshDownloads()}
+          />
         )}
       </div>
 
@@ -511,6 +597,155 @@ function MusicPage() {
         }}
       />
     </div>
+  );
+}
+
+/**
+ * The "Downloaded" tab — everything here lives in IndexedDB, so it renders and
+ * plays with 0 signal. Mirrors the Offline Videos tab: a storage summary up top
+ * ("App stays small"), an optional 30-day cleanup prompt, then the songs.
+ */
+function DownloadedTab({
+  songs,
+  bytes,
+  stale,
+  playingId,
+  isPlaying,
+  onOpen,
+  onChanged,
+}: {
+  songs: SavedSong[];
+  bytes: number;
+  stale: SavedSong[];
+  playingId: string;
+  isPlaying: boolean;
+  onOpen: (sound: Sound) => void;
+  onChanged: () => void;
+}) {
+  const [cleaning, setCleaning] = useState(false);
+  /** "Keep" hides the 30-day prompt until the next visit. */
+  const [kept, setKept] = useState(false);
+
+  const cleanUp = async () => {
+    if (cleaning) return;
+    setCleaning(true);
+    try {
+      const removed = await removeStaleSongs();
+      toast.success(`Deleted ${removed} ${removed === 1 ? "song" : "songs"} to save space.`);
+      onChanged();
+    } finally {
+      setCleaning(false);
+    }
+  };
+
+  return (
+    <section>
+      {/* Storage summary — the "app stays small" promise. */}
+      <div className="mb-4 rounded-xl border border-emerald-500/25 bg-emerald-500/10 p-3">
+        <div className="flex items-center gap-2">
+          <HardDriveDownload className="h-4 w-4 shrink-0 text-emerald-400" />
+          <p className="text-sm font-bold text-emerald-300">
+            Downloaded: {songs.length} {songs.length === 1 ? "song" : "songs"} •{" "}
+            {formatStorage(bytes)}
+          </p>
+        </div>
+        <p className="mt-1 pl-6 text-[11px] leading-relaxed text-emerald-200/70">
+          App stays small — songs live in your phone's cache, not the app. They play with 0 signal.
+        </p>
+      </div>
+
+      {/* 30-day cleanup prompt. */}
+      {stale.length > 0 && !kept && (
+        <div className="mb-4 flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3">
+          <Trash2 className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-semibold text-amber-200">
+              {stale.length} {stale.length === 1 ? "song hasn't" : "songs haven't"} been played in{" "}
+              {STALE_DAYS} days.
+            </p>
+            <p className="mt-0.5 text-[11px] text-amber-200/70">Delete to save space?</p>
+            <div className="mt-2 flex gap-2">
+              <button
+                type="button"
+                onClick={() => void cleanUp()}
+                disabled={cleaning}
+                className="rounded-full bg-amber-500 px-3 py-1 text-[11px] font-bold text-black disabled:opacity-60"
+              >
+                {cleaning ? "Deleting…" : "Delete to save space"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setKept(true)}
+                className="rounded-full border border-amber-500/40 px-3 py-1 text-[11px] font-semibold text-amber-200"
+              >
+                Keep
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {songs.length ? (
+        <div className="space-y-0.5">
+          {songs.map((saved, i) => (
+            <div
+              key={saved.id}
+              className="flex items-center gap-3 rounded-xl p-1.5 hover:bg-white/5"
+            >
+              <span className="w-4 shrink-0 text-center text-xs tabular-nums text-muted-foreground">
+                {i + 1}
+              </span>
+              <button
+                type="button"
+                onClick={() => onOpen(saved.sound)}
+                className="flex min-w-0 flex-1 items-center gap-3 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                aria-label={`Play ${saved.sound.title}`}
+              >
+                <div className="relative shrink-0">
+                  <SoundCover sound={saved.sound} className="h-12 w-12" rounded="rounded-lg" />
+                  <span className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/40 opacity-0 transition hover:opacity-100">
+                    {playingId === saved.id && isPlaying ? (
+                      <Pause className="h-4 w-4" />
+                    ) : (
+                      <Play className="h-4 w-4 fill-current" />
+                    )}
+                  </span>
+                </div>
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center gap-1.5">
+                    <span className="truncate text-sm font-semibold">{saved.sound.title}</span>
+                    <span className="flex shrink-0 items-center gap-0.5 rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[9px] font-bold text-emerald-400">
+                      <Download className="h-2.5 w-2.5" /> Offline
+                    </span>
+                  </span>
+                  <span className="block truncate text-xs text-muted-foreground">
+                    {saved.sound.creator_username} · {formatStorage(saved.size)}
+                  </span>
+                </span>
+              </button>
+              <RemoveDownloadButton sound={saved.sound} onRemoved={onChanged} />
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="py-10 text-center">
+          <WifiOff className="mx-auto h-8 w-8 text-muted-foreground/50" />
+          <p className="mt-3 text-sm font-semibold">No downloads yet</p>
+          <p className="mx-auto mt-1 max-w-xs text-xs leading-relaxed text-muted-foreground">
+            Tap ⬇ Download on any song to keep it on your phone. Downloaded songs play the full song
+            with 0 signal.
+          </p>
+        </div>
+      )}
+
+      <div className="mt-4 flex gap-2 rounded-xl border border-white/10 bg-white/5 p-3">
+        <ShieldAlert className="h-4 w-4 shrink-0 text-muted-foreground" />
+        <p className="text-[11px] leading-relaxed text-muted-foreground">
+          Only your own sounds and royalty-free tracks can be downloaded. Songs streamed from
+          YouTube are copyright-protected, so they can't be saved — they stream only.
+        </p>
+      </div>
+    </section>
   );
 }
 

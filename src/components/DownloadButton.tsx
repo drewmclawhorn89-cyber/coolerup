@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useNavigate } from "@tanstack/react-router";
 import { Check, Download, FileAudio, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { useAuth } from "@/hooks/useAuth";
+import { hasMusicOfflineAccess, musicOfflinePlan } from "@/lib/subscriptions";
 import type { Sound } from "@/lib/sounds";
 import {
   canDownloadSong,
@@ -40,6 +43,11 @@ export function DownloadButton({
   className?: string;
   onRemoved?: (() => void) | undefined;
 }) {
+  const auth = useAuth();
+  const navigate = useNavigate();
+  // Offline music is a VIP-only perk. Pro keeps offline videos, but music
+  // downloads are locked until VIP (or a lifetime "all access" grant).
+  const musicUnlocked = hasMusicOfflineAccess(auth.handle);
   const [downloaded, setDownloaded] = useState(false);
   const [pct, setPct] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
@@ -63,6 +71,10 @@ export function DownloadButton({
 
   const attachFile = async (file: File | undefined) => {
     if (!file) return;
+    if (!musicUnlocked) {
+      toast.error("Offline music is a VIP perk.");
+      return;
+    }
     setBusy(true);
     setPct(0);
     try {
@@ -81,6 +93,15 @@ export function DownloadButton({
 
   const download = async () => {
     if (busy) return;
+    if (!musicUnlocked) {
+      toast.error(`Offline music is a ${musicOfflinePlan().label} perk.`, {
+        action: {
+          label: "Upgrade",
+          onClick: () => void navigate({ to: "/settings", search: { subscriptions: true } }),
+        },
+      });
+      return;
+    }
     if (!allowed) {
       toast.error(downloadBlockedMessage(blocked ?? "unavailable"));
       return;
@@ -114,6 +135,15 @@ export function DownloadButton({
 
   const onClick = () => {
     if (downloaded) return void remove();
+    if (!musicUnlocked) {
+      toast.error(`Offline music is a ${musicOfflinePlan().label} perk.`, {
+        action: {
+          label: "Upgrade",
+          onClick: () => void navigate({ to: "/settings", search: { subscriptions: true } }),
+        },
+      });
+      return;
+    }
     if (needsFile) {
       // Never yank the user into the file browser without saying why.
       setExplain(true);

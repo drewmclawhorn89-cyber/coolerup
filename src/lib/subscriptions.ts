@@ -1,6 +1,14 @@
 import { useEffect, useState } from "react";
 
-import { PLANS, planById, planIncludesOffline, offlinePlan, type Plan } from "@/lib/plans";
+import {
+  PLANS,
+  planById,
+  planIncludesMusicOffline,
+  planIncludesOffline,
+  musicOfflinePlan,
+  offlinePlan,
+  type Plan,
+} from "@/lib/plans";
 import { activeTrial, hasUsedTrial, isTrialActive } from "@/lib/trial";
 import {
   LIFETIME_EVENT,
@@ -11,7 +19,14 @@ import {
 } from "@/lib/subscription";
 
 export type { Plan };
-export { PLANS, planById, planIncludesOffline, offlinePlan };
+export {
+  PLANS,
+  planById,
+  planIncludesMusicOffline,
+  planIncludesOffline,
+  musicOfflinePlan,
+  offlinePlan,
+};
 
 export const VENMO_HANDLE = "Drew-McLawhorn-2";
 
@@ -444,6 +459,28 @@ export function hasOfflineAccess(handle?: string | null): boolean {
   return planIncludesOffline(sub?.planId);
 }
 
+/**
+ * Offline *music* downloads are a VIP-and-up perk, with a one-hour free trial.
+ *
+ * Pro keeps offline video downloads, but music is gated at VIP. A running free
+ * hour on VIP (or the lifetime "all access" grant) unlocks it; Pro and Plus do
+ * not. The same paid-and-active rule as `hasOfflineAccess` applies.
+ */
+export function hasMusicOfflineAccess(handle?: string | null): boolean {
+  const trial = activeTrial(handle);
+  if (trial && planIncludesMusicOffline(trial.planId)) return true;
+  const sub = getSubscription(handle);
+  if (!isActive(sub)) return false;
+  return planIncludesMusicOffline(sub?.planId);
+}
+
+/** True when the plan alone unlocks offline music, ignoring any trial. */
+export function planUnlocksMusicOffline(handle?: string | null): boolean {
+  const sub = getSubscription(handle);
+  if (!isActive(sub)) return false;
+  return planIncludesMusicOffline(sub?.planId);
+}
+
 /** True when the plan alone unlocks offline mode, ignoring any trial. */
 export function planUnlocksOffline(handle?: string | null): boolean {
   const sub = getSubscription(handle);
@@ -462,6 +499,16 @@ export function offlineLockReason(handle?: string | null): OfflineLockReason | n
   // The offline prompt starts a trial of the cheapest offline plan, so that is
   // the hour whose exhaustion matters here.
   if (!sub) return hasUsedTrial(handle, offlinePlan().id) ? "trial-ended" : "no-plan";
+  if (sub.status === "expired" || sub.status === "pending") return "expired";
+  return "plan-lacks-offline";
+}
+
+/** Why offline *music* is locked, so the Music tab can say something useful. */
+export function musicOfflineLockReason(handle?: string | null): OfflineLockReason | null {
+  if (hasMusicOfflineAccess(handle)) return null;
+  if (!handle) return "signed-out";
+  const sub = getSubscription(handle);
+  if (!sub) return hasUsedTrial(handle, musicOfflinePlan().id) ? "trial-ended" : "no-plan";
   if (sub.status === "expired" || sub.status === "pending") return "expired";
   return "plan-lacks-offline";
 }

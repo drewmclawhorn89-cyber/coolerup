@@ -21,6 +21,14 @@ export type Plan = {
    * write the price into a comment — it goes stale.
    */
   offline: boolean;
+  /**
+   * Whether the plan unlocks offline *music* downloads.
+   *
+   * Music offline is a VIP-only perk (plus the lifetime "all access" grant).
+   * Pro still includes offline *video* downloads, which is why the two flags
+   * are separate: moving music to VIP must not take videos away from Pro.
+   */
+  musicOffline: boolean;
 };
 
 export const PLANS: Plan[] = [
@@ -31,6 +39,7 @@ export const PLANS: Plan[] = [
     price: 7.99,
     perks: ["Ad-free feed", "Plus badge on your profile"],
     offline: false,
+    musicOffline: false,
   },
   {
     id: "pro",
@@ -39,11 +48,12 @@ export const PLANS: Plan[] = [
     price: 14.99,
     perks: [
       "Everything in Plus",
-      "Offline downloads",
+      "Offline video downloads",
       "Exclusive tops and names",
       "Priority uploads",
     ],
     offline: true,
+    musicOffline: false,
   },
   {
     id: "vip",
@@ -59,6 +69,7 @@ export const PLANS: Plan[] = [
       "Early access to new features",
     ],
     offline: true,
+    musicOffline: true,
   },
 ];
 
@@ -85,6 +96,7 @@ export const LIFETIME_PLAN: Plan = {
     "Never expires",
   ],
   offline: true,
+  musicOffline: true,
 };
 
 export function planById(id?: string | null): Plan | undefined {
@@ -97,9 +109,19 @@ export function isLifetimePlan(id?: string | null): boolean {
   return id === LIFETIME_PLAN.id;
 }
 
-/** True when the plan unlocks offline downloads. */
+/** True when the plan unlocks offline downloads (video or music). */
 export function planIncludesOffline(id?: string | null): boolean {
   return Boolean(planById(id)?.offline);
+}
+
+/**
+ * True when the plan unlocks offline *music* downloads.
+ *
+ * Music is deliberately gated at VIP so Pro keeps video downloads without
+ * getting the music library too. The lifetime "all access" plan includes it.
+ */
+export function planIncludesMusicOffline(id?: string | null): boolean {
+  return Boolean(planById(id)?.musicOffline);
 }
 
 /**
@@ -111,6 +133,16 @@ export function planIncludesOffline(id?: string | null): boolean {
  */
 export function offlinePlan(): Plan {
   return PLANS.find((p) => p.offline) ?? PLANS[PLANS.length - 1]!;
+}
+
+/**
+ * The cheapest plan that includes offline *music* downloads — VIP.
+ *
+ * Used by the Music tab's upsell so the prompt always names the plan a viewer
+ * would actually have to buy for music.
+ */
+export function musicOfflinePlan(): Plan {
+  return PLANS.find((p) => p.musicOffline) ?? PLANS[PLANS.length - 1]!;
 }
 
 /** Authoritative price in cents, or null when the plan id is unknown. */

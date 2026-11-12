@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   hasOfflineAccess,
+  hasMusicOfflineAccess,
+  musicOfflineLockReason,
   offlineLockReason,
   cancelSubscription,
   confirmPayment,
@@ -8,7 +10,13 @@ import {
   updatePaymentMethod,
   type PaymentMethod,
 } from "@/lib/subscriptions";
-import { PLANS, offlinePlan, planIncludesOffline } from "@/lib/plans";
+import {
+  PLANS,
+  musicOfflinePlan,
+  offlinePlan,
+  planIncludesMusicOffline,
+  planIncludesOffline,
+} from "@/lib/plans";
 
 /**
  * Offline mode ships with Pro and VIP, but deliberately not with Plus.
@@ -55,9 +63,18 @@ describe("planIncludesOffline", () => {
     expect(planIncludesOffline(null)).toBe(false);
   });
 
-  it("advertises offline downloads on Pro and VIP only", () => {
-    const withOffline = PLANS.filter((p) => p.perks.includes("Offline downloads")).map((p) => p.id);
-    expect(withOffline).toEqual(["pro", "vip"]);
+  it("advertises offline video downloads on Pro and VIP only", () => {
+    const withVideo = PLANS.filter((p) => p.perks.includes("Offline video downloads")).map(
+      (p) => p.id,
+    );
+    expect(withVideo).toEqual(["pro", "vip"]);
+  });
+
+  it("advertises offline music downloads on VIP only", () => {
+    const withMusic = PLANS.filter((p) => p.perks.includes("Offline music downloads")).map(
+      (p) => p.id,
+    );
+    expect(withMusic).toEqual(["vip"]);
   });
 });
 
@@ -65,6 +82,78 @@ describe("offlinePlan", () => {
   it("points the upsell at Pro, the cheapest plan with offline", () => {
     expect(offlinePlan().id).toBe("pro");
     expect(offlinePlan().offline).toBe(true);
+  });
+});
+
+describe("planIncludesMusicOffline", () => {
+  it("is included in VIP and the lifetime all-access plan", () => {
+    expect(planIncludesMusicOffline("vip")).toBe(true);
+    expect(planIncludesMusicOffline("all")).toBe(true);
+  });
+
+  it("is not included in Pro or Plus", () => {
+    expect(planIncludesMusicOffline("pro")).toBe(false);
+    expect(planIncludesMusicOffline("plus")).toBe(false);
+  });
+
+  it("is not included for free or unknown plans", () => {
+    expect(planIncludesMusicOffline("free")).toBe(false);
+    expect(planIncludesMusicOffline(undefined)).toBe(false);
+    expect(planIncludesMusicOffline(null)).toBe(false);
+  });
+});
+
+describe("musicOfflinePlan", () => {
+  it("points the music upsell at VIP", () => {
+    expect(musicOfflinePlan().id).toBe("vip");
+    expect(musicOfflinePlan().musicOffline).toBe(true);
+  });
+});
+
+describe("hasMusicOfflineAccess", () => {
+  it("is locked for a signed-out visitor", () => {
+    expect(hasMusicOfflineAccess(null)).toBe(false);
+    expect(hasMusicOfflineAccess(undefined)).toBe(false);
+    expect(musicOfflineLockReason(null)).toBe("signed-out");
+  });
+
+  it("is locked for a signed-in user with no plan", () => {
+    expect(hasMusicOfflineAccess(H)).toBe(false);
+    expect(musicOfflineLockReason(H)).toBe("no-plan");
+  });
+
+  it("is locked on an active Plus subscription", () => {
+    subscribe("plus");
+    expect(hasMusicOfflineAccess(H)).toBe(false);
+    expect(musicOfflineLockReason(H)).toBe("plan-lacks-offline");
+  });
+
+  it("is locked on an active Pro subscription", () => {
+    subscribe("pro");
+    expect(hasMusicOfflineAccess(H)).toBe(false);
+    expect(musicOfflineLockReason(H)).toBe("plan-lacks-offline");
+    // Pro still gets video offline downloads.
+    expect(hasOfflineAccess(H)).toBe(true);
+  });
+
+  it("unlocks on an active VIP subscription", () => {
+    subscribe("vip");
+    expect(hasMusicOfflineAccess(H)).toBe(true);
+    expect(musicOfflineLockReason(H)).toBeNull();
+  });
+
+  it("is locked while a VIP payment is still pending", () => {
+    requestPayment(H, "vip");
+    updatePaymentMethod(H, CARD);
+    expect(hasMusicOfflineAccess(H)).toBe(false);
+    expect(musicOfflineLockReason(H)).toBe("expired");
+  });
+
+  it("is locked again once a VIP subscription is cancelled", () => {
+    subscribe("vip");
+    cancelSubscription(H);
+    expect(hasMusicOfflineAccess(H)).toBe(false);
+    expect(musicOfflineLockReason(H)).toBe("no-plan");
   });
 });
 

@@ -260,8 +260,16 @@ function MusicPage() {
 
   const openSong = useCallback(
     async (sound: Sound, list: Sound[]) => {
-      // YouTube songs stream from YouTube's embed player, never a stored file.
+      // YouTube songs stream from YouTube's embed player — unless the user
+      // attached an audio file, in which case the local copy plays offline.
       if (isYouTubeSound(sound)) {
+        const local = await offlineSongUrl(sound.id).catch(() => "");
+        if (local) {
+          const track = { ...toTrack(sound, local), source: "own" as const };
+          songPlayer.playQueue([track], 0);
+          void markSongPlayed(sound.id);
+          return;
+        }
         songPlayer.stop();
         setActiveYouTube(sound);
         void incrementSoundPlay(sound.id);
@@ -741,8 +749,8 @@ function DownloadedTab({
       <div className="mt-4 flex gap-2 rounded-xl border border-white/10 bg-white/5 p-3">
         <ShieldAlert className="h-4 w-4 shrink-0 text-muted-foreground" />
         <p className="text-[11px] leading-relaxed text-muted-foreground">
-          Only your own sounds and royalty-free tracks can be downloaded. Songs streamed from
-          YouTube are copyright-protected, so they can't be saved — they stream only.
+          Coolerup sounds download directly. YouTube songs can't be fetched, so tap Download on one
+          and pick an audio file you already have — it's stored here and plays offline.
         </p>
       </div>
     </section>

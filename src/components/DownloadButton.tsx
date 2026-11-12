@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Check, Download, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import type { Sound } from "@/lib/sounds";
@@ -9,6 +9,7 @@ import {
   getSavedSong,
   onOfflineSongsChange,
   removeSongOffline,
+  saveSongFileOffline,
   saveSongOffline,
 } from "@/lib/offlineSongs";
 
@@ -52,6 +53,25 @@ export function DownloadButton({
 
   const blocked = downloadBlockedReason(sound);
   const allowed = canDownloadSong(sound);
+  /** YouTube songs can't be fetched, so the user attaches their own file. */
+  const needsFile = blocked === "copyright";
+  const fileRef = useRef<HTMLInputElement | null>(null);
+
+  const attachFile = async (file: File | undefined) => {
+    if (!file) return;
+    setBusy(true);
+    setPct(0);
+    try {
+      const size = await saveSongFileOffline(sound, file, (p) => setPct(p));
+      setDownloaded(true);
+      toast.success(`Saved — plays offline (${Math.max(1, Math.round(size / 1024 / 1024))} MB)`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't save that file.");
+    } finally {
+      setBusy(false);
+      setPct(null);
+    }
+  };
 
   const download = async () => {
     if (busy) return;
@@ -86,7 +106,30 @@ export function DownloadButton({
     }
   };
 
-  const onClick = () => void (downloaded ? remove() : download());
+  const onClick = () => {
+    if (downloaded) return void remove();
+    if (needsFile) {
+      fileRef.current?.click();
+      return;
+    }
+    void download();
+  };
+
+  /* Shared picker for every variant. */
+  const picker = (
+    <input
+      ref={fileRef}
+      type="file"
+      accept="audio/*,.mp3,.m4a,.wav,.ogg,.opus,.flac"
+      className="hidden"
+      aria-label={`Choose an audio file for ${sound.title}`}
+      onChange={(e) => {
+        const file = e.target.files?.[0];
+        e.target.value = "";
+        void attachFile(file);
+      }}
+    />
+  );
 
   const downloading = pct !== null;
 
@@ -95,99 +138,112 @@ export function DownloadButton({
   /* Icon-only: sits on the cover next to the play button. */
   if (variant === "icon") {
     return (
-      <button
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation();
-          e.preventDefault();
-          onClick();
-        }}
-        aria-label={
-          downloaded ? `Remove download of ${sound.title}` : `Download ${sound.title} for offline`
-        }
-        aria-pressed={downloaded}
-        title={downloaded ? "Downloaded — tap to remove" : label}
-        className={`flex h-7 w-7 items-center justify-center rounded-full backdrop-blur transition ${
-          downloaded
-            ? "bg-emerald-500 text-white"
-            : downloading
-              ? "bg-black/70 text-white"
-              : "bg-black/50 text-white"
-        } ${className}`}
-      >
-        {downloading ? (
-          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-        ) : downloaded ? (
-          <Check className="h-3.5 w-3.5" />
-        ) : (
-          <Download className="h-3.5 w-3.5" />
-        )}
-      </button>
+      <>
+        {picker}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            onClick();
+          }}
+          aria-label={
+            downloaded ? `Remove download of ${sound.title}` : `Download ${sound.title} for offline`
+          }
+          aria-pressed={downloaded}
+          title={
+            downloaded
+              ? "Downloaded — tap to remove"
+              : needsFile
+                ? "Add your audio file to play offline"
+                : label
+          }
+          className={`flex h-7 w-7 items-center justify-center rounded-full backdrop-blur transition ${
+            downloaded
+              ? "bg-emerald-500 text-white"
+              : downloading
+                ? "bg-black/70 text-white"
+                : "bg-black/50 text-white"
+          } ${className}`}
+        >
+          {downloading ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : downloaded ? (
+            <Check className="h-3.5 w-3.5" />
+          ) : (
+            <Download className="h-3.5 w-3.5" />
+          )}
+        </button>
+      </>
     );
   }
 
   /* Wide: full-width button used inside the players, next to Save. */
   if (variant === "wide") {
     return (
-      <button
-        type="button"
-        onClick={onClick}
-        disabled={busy}
-        aria-pressed={downloaded}
-        className={`flex flex-1 items-center justify-center gap-1.5 rounded-full border py-2 text-xs font-semibold transition disabled:opacity-60 ${
-          downloaded
-            ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-400"
-            : "border-white/15 text-foreground"
-        } ${className}`}
-      >
-        {downloading ? (
-          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-        ) : downloaded ? (
-          <Check className="h-3.5 w-3.5" />
-        ) : (
-          <Download className="h-3.5 w-3.5" />
-        )}
-        {downloading
-          ? `Downloading… ${pct ?? 0}%`
-          : downloaded
-            ? "Remove Download"
-            : blocked === "copyright"
-              ? "Can't download"
+      <>
+        {picker}
+        <button
+          type="button"
+          onClick={onClick}
+          disabled={busy}
+          aria-pressed={downloaded}
+          className={`flex flex-1 items-center justify-center gap-1.5 rounded-full border py-2 text-xs font-semibold transition disabled:opacity-60 ${
+            downloaded
+              ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-400"
+              : "border-white/15 text-foreground"
+          } ${className}`}
+        >
+          {downloading ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : downloaded ? (
+            <Check className="h-3.5 w-3.5" />
+          ) : (
+            <Download className="h-3.5 w-3.5" />
+          )}
+          {downloading
+            ? `Downloading… ${pct ?? 0}%`
+            : downloaded
+              ? "Remove Download"
               : "Download for Offline"}
-      </button>
+        </button>
+      </>
     );
   }
 
   /* Pill: compact labelled button for list rows. */
   return (
-    <button
-      type="button"
-      onClick={(e) => {
-        e.stopPropagation();
-        onClick();
-      }}
-      disabled={busy}
-      aria-pressed={downloaded}
-      aria-label={
-        downloaded ? `Remove download of ${sound.title}` : `Download ${sound.title} for offline`
-      }
-      className={`flex shrink-0 items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-bold transition disabled:opacity-60 ${
-        downloaded
-          ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-400"
-          : "border-white/15 text-muted-foreground"
-      } ${className}`}
-    >
-      {downloading ? (
-        <Loader2 className="h-3 w-3 animate-spin" />
-      ) : downloaded ? (
-        <Check className="h-3 w-3" />
-      ) : (
-        <Download className="h-3 w-3" />
-      )}
-      <span className="tabular-nums">
-        {downloading ? `${pct ?? 0}%` : downloaded ? "Downloaded" : "Download"}
-      </span>
-    </button>
+    <>
+      {picker}
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onClick();
+        }}
+        disabled={busy}
+        aria-pressed={downloaded}
+        aria-label={
+          downloaded ? `Remove download of ${sound.title}` : `Download ${sound.title} for offline`
+        }
+        className={`flex shrink-0 items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-bold transition disabled:opacity-60 ${
+          downloaded
+            ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-400"
+            : "border-white/15 text-muted-foreground"
+        } ${className}`}
+      >
+        {downloading ? (
+          <Loader2 className="h-3 w-3 animate-spin" />
+        ) : downloaded ? (
+          <Check className="h-3 w-3" />
+        ) : (
+          <Download className="h-3 w-3" />
+        )}
+        <span className="tabular-nums">
+          {downloading ? `${pct ?? 0}%` : downloaded ? "Downloaded" : "Download"}
+        </span>
+      </button>
+    </>
   );
 }
 

@@ -23,6 +23,12 @@ export type SavedSong = {
   saved_at: number;
   /** Used by the 30-day "delete to save space?" prompt. */
   last_played_at: number;
+  /**
+   * Set when the audio came from a file the user picked off their phone
+   * (YouTube songs). Lets the Downloaded tab say exactly which file is playing
+   * so a wrong pick is obvious and can be swapped out.
+   */
+  file_name?: string | null;
 };
 
 const DB = "loop-offline";
@@ -264,6 +270,7 @@ export async function saveSongFileOffline(
     size: blob.size,
     saved_at: now,
     last_played_at: now,
+    file_name: file.name || null,
   };
 
   await tx("readwrite", (s) => s.put(record));

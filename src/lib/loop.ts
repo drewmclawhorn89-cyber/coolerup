@@ -26,6 +26,16 @@ export type Video = {
   video_360_url?: string | null;
   /** Default playback quality stored on the row ("auto" unless set). */
   quality?: string | null;
+  /**
+   * Set only on rows that reached the feed through a repost: the handle of the
+   * person who reposted it, so the card can show "@name reposted".
+   */
+  reposted_by?: string | null;
+  /**
+   * Handle of the uploader, resolved with `videos.user_id → profiles.handle`.
+   * The feed renders it big at the bottom-left over the video.
+   */
+  poster_username?: string | null;
 };
 
 /** Minimal sound shape embedded in feed rows. */
@@ -93,12 +103,28 @@ export function isImageUrl(url: string) {
   return /\.(jpe?g|png|webp|gif|avif)(\?|#|$)/i.test(url);
 }
 
-export async function resolveVideoUrl(url: string) {
-  if (!url.startsWith(STORAGE_PREFIX)) return url;
-  const { data } = await supabase.storage
+const signedUrlCache = new Map<string, { promise: Promise<string>; at: number }>();
+const SIGNED_TTL = 60 * 60 * 6;
+
+export function resolveVideoUrl(url: string): Promise<string> {
+  if (!url.startsWith(STORAGE_PREFIX)) return Promise.resolve(url);
+  const hit = signedUrlCache.get(url);
+  // Reuse for up to 5h so the 6h signed link never expires while cached.
+  if (hit && Date.now() - hit.at < (SIGNED_TTL - 3600) * 1000) return hit.promise;
+  const promise = supabase.storage
     .from("videos")
-    .createSignedUrl(url.slice(STORAGE_PREFIX.length), 60 * 60 * 6);
-  return data?.signedUrl ?? "";
+    .createSignedUrl(url.slice(STORAGE_PREFIX.length), SIGNED_TTL)
+    .then(({ data }) => {
+      const out = data?.signedUrl ?? "";
+      if (!out) signedUrlCache.delete(url);
+      return out;
+    })
+    .catch(() => {
+      signedUrlCache.delete(url);
+      return "";
+    });
+  signedUrlCache.set(url, { promise, at: Date.now() });
+  return promise;
 }
 
 /** Fisher–Yates shuffle, in place. */
@@ -249,19 +275,30 @@ export async function fetchMyLikes() {
  * `likes` has a single FK to `videos`, so the embed is unambiguous. Rows whose
  * video was deleted are skipped instead of leaving holes in the grid.
  */
-export async function fetchLikedVideos(userId: string, limit = 500): Promise<Video[]> {
-  const { data, error } = await supabase
-    .from("likes")
-    .select("created_at, videos(*)")
-    .eq("user_id", userId)
-    .order("created_at", { ascending: false })
-    .limit(Math.max(1, Math.min(1000, limit)));
-
-  if (error) throw error;
-  return ((data ?? []) as unknown as { videos: Video | null }[])
-    .map((row) => row.videos)
-    .filter((v): v is Video => !!v)
-    .map((v) => ({ ...v, reposts: v.reposts_count ?? 0 }));
+export async function fetchLikedVideos(userId: string, limit?: number): Promise<Video[]> {
+  // Paged with `.range()` so a heavy liker isn't truncated at the 1000 row
+  // response cap. Pass `limit` only when you genuinely want a short list.
+  const PAGE = 500;
+  const cap = limit ?? Infinity;
+  const out: Video[] = [];
+  for (let from = 0; out.length < cap; from += PAGE) {
+    const size = Math.min(PAGE, cap - out.length);
+    const { data, error } = await supabase
+      .from("likes")
+      .select("created_at, videos(*)")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .range(from, from + size - 1);
+    if (error) throw error;
+    const batch = ((data ?? []) as unknown as { videos: Video | null }[]).filter(
+      (row) => !!row.videos,
+    );
+    out.push(
+      ...batch.map((row) => ({ ...(row.videos as Video), reposts: row.videos?.reposts_count ?? 0 })),
+    );
+    if ((data ?? []).length < size) break;
+  }
+  return out;
 }
 
 /** How many videos a user has liked (cheap head count for the tab label). */
@@ -373,43 +410,75 @@ export async function setVideoSaved(videoId: string, on: boolean) {
 }
 
 export async function fetchSavedVideos(userId: string) {
-  const { data } = await supabase
-    .from("saved_videos")
-    .select("created_at, videos(*)")
-    .eq("user_id", userId)
-    .order("created_at", { ascending: false });
-  return ((data ?? []) as any[]).map((r) => r.videos).filter(Boolean);
+  // Paged, so a large vault isn't cut off at 1000 rows.
+  const PAGE = 500;
+  const out: Video[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data } = await supabase
+      .from("saved_videos")
+      .select("created_at, videos(*)")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .range(from, from + PAGE - 1);
+    const batch = ((data ?? []) as unknown as { videos: Video | null }[])
+      .map((r) => r.videos)
+      .filter((v): v is Video => !!v);
+    out.push(...batch);
+    if ((data ?? []).length < PAGE) break;
+  }
+  return out;
 }
 
 /** Videos a user has reposted, newest repost first (for the profile Reposts tab). */
 export async function fetchRepostedVideos(userId: string) {
-  const { data } = await supabase
-    .from("reposts")
-    .select("created_at, videos(*)")
-    .eq("user_id", userId)
-    .order("created_at", { ascending: false });
-  return ((data ?? []) as unknown as { videos: Video | null }[])
-    .map((r) => r.videos)
-    .filter((v): v is Video => !!v)
-    .map((v) => ({ ...v, reposts: v.reposts_count ?? 0 }));
+  // Paged, so a prolific reposter isn't truncated at 1000 rows.
+  const PAGE = 500;
+  const out: Video[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data } = await supabase
+      .from("reposts")
+      .select("created_at, videos(*)")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .range(from, from + PAGE - 1);
+    const batch = ((data ?? []) as unknown as { videos: Video | null }[])
+      .map((r) => r.videos)
+      .filter((v): v is Video => !!v)
+      .map((v) => ({ ...v, reposts: v.reposts_count ?? 0 }));
+    out.push(...batch);
+    if ((data ?? []).length < PAGE) break;
+  }
+  return out;
 }
 
 /** Reposts made by the people a user follows, for the Following feed. */
 export async function fetchRepostsByHandles(handles: string[]) {
   if (handles.length === 0) return [] as Video[];
-  const { data: profiles } = await supabase.from("profiles").select("id").in("handle", handles);
-  const ids = (profiles ?? []).map((p) => p.id);
+  const { data: profiles } = await supabase
+    .from("profiles")
+    .select("id, handle")
+    .in("handle", handles);
+  const profileRows = (profiles ?? []) as { id: string; handle: string | null }[];
+  const ids = profileRows.map((p) => p.id);
   if (ids.length === 0) return [] as Video[];
+  const handleById = new Map(profileRows.map((p) => [p.id, p.handle ?? ""]));
   const { data } = await supabase
     .from("reposts")
-    .select("created_at, videos(*)")
+    .select("created_at, user_id, videos(*)")
     .in("user_id", ids)
     .order("created_at", { ascending: false })
     .limit(50);
-  return ((data ?? []) as unknown as { videos: Video | null }[])
-    .map((r) => r.videos)
-    .filter((v): v is Video => !!v)
-    .map((v) => ({ ...v, reposts: v.reposts_count ?? 0 }));
+  const videoRows = ((data ?? []) as unknown as { user_id: string; videos: Video | null }[]).map(
+    (r): Video | null =>
+      r.videos
+        ? {
+            ...r.videos,
+            reposts: r.videos.reposts_count ?? 0,
+            reposted_by: handleById.get(r.user_id) ?? null,
+          }
+        : null,
+  );
+  return videoRows.filter((v): v is Video => v !== null);
 }
 
 export async function deleteVideo(video: Video) {

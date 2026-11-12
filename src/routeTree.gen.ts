@@ -11,20 +11,35 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteImport } from './routes/admin'
+import { Route as BetaRouteImport } from './routes/beta'
+import { Route as CreatorRouteImport } from './routes/creator'
 import { Route as GroupsRouteImport } from './routes/groups'
 import { Route as LiveRouteImport } from './routes/live'
+import { Route as MakeGifRouteImport } from './routes/make-gif'
 import { Route as MessagesRouteImport } from './routes/messages'
+import { Route as MusicRouteImport } from './routes/music'
 import { Route as OfflineRouteImport } from './routes/offline'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
+import { Route as PaywallRouteImport } from './routes/paywall'
 import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as RedeemRouteImport } from './routes/redeem'
+import { Route as SearchRouteImport } from './routes/search'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as UploadFullRouteImport } from './routes/upload-full'
+import { Route as VideosRouteImport } from './routes/videos'
+import { Route as WalletRouteImport } from './routes/wallet'
+import { Route as AdminCodesRouteImport } from './routes/admin_.codes'
 import { Route as AdminFreeCoinsRouteImport } from './routes/admin_.free-coins'
+import { Route as AdminPayoutsRouteImport } from './routes/admin_.payouts'
+import { Route as AdminSubscriptionsRouteImport } from './routes/admin_.subscriptions'
 import { Route as CoinsRechargeRouteImport } from './routes/coins.recharge'
 import { Route as GroupsIndexRouteImport } from './routes/groups.index'
 import { Route as GroupsGroupIdRouteImport } from './routes/groups.$groupId'
 import { Route as LiveDashboardRouteImport } from './routes/live.dashboard'
 import { Route as SoundSoundIdRouteImport } from './routes/sound.$soundId'
 import { Route as UUsernameRouteImport } from './routes/u.$username'
+import { Route as WatchIndexRouteImport } from './routes/watch.index'
+import { Route as WatchIdRouteImport } from './routes/watch.$id'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -34,6 +49,16 @@ const IndexRoute = IndexRouteImport.update({
 const AdminRoute = AdminRouteImport.update({
   id: '/admin',
   path: '/admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BetaRoute = BetaRouteImport.update({
+  id: '/beta',
+  path: '/beta',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CreatorRoute = CreatorRouteImport.update({
+  id: '/creator',
+  path: '/creator',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GroupsRoute = GroupsRouteImport.update({
@@ -46,9 +71,19 @@ const LiveRoute = LiveRouteImport.update({
   path: '/live',
   getParentRoute: () => rootRouteImport,
 } as any)
+const MakeGifRoute = MakeGifRouteImport.update({
+  id: '/make-gif',
+  path: '/make-gif',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const MessagesRoute = MessagesRouteImport.update({
   id: '/messages',
   path: '/messages',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MusicRoute = MusicRouteImport.update({
+  id: '/music',
+  path: '/music',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OfflineRoute = OfflineRouteImport.update({
@@ -61,9 +96,24 @@ const OnboardingRoute = OnboardingRouteImport.update({
   path: '/onboarding',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PaywallRoute = PaywallRouteImport.update({
+  id: '/paywall',
+  path: '/paywall',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PrivacyRoute = PrivacyRouteImport.update({
   id: '/privacy',
   path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RedeemRoute = RedeemRouteImport.update({
+  id: '/redeem',
+  path: '/redeem',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SearchRoute = SearchRouteImport.update({
+  id: '/search',
+  path: '/search',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SettingsRoute = SettingsRouteImport.update({
@@ -71,9 +121,39 @@ const SettingsRoute = SettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
+const UploadFullRoute = UploadFullRouteImport.update({
+  id: '/upload-full',
+  path: '/upload-full',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const VideosRoute = VideosRouteImport.update({
+  id: '/videos',
+  path: '/videos',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const WalletRoute = WalletRouteImport.update({
+  id: '/wallet',
+  path: '/wallet',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminCodesRoute = AdminCodesRouteImport.update({
+  id: '/admin_/codes',
+  path: '/admin/codes',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminFreeCoinsRoute = AdminFreeCoinsRouteImport.update({
   id: '/admin_/free-coins',
   path: '/admin/free-coins',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminPayoutsRoute = AdminPayoutsRouteImport.update({
+  id: '/admin_/payouts',
+  path: '/admin/payouts',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminSubscriptionsRoute = AdminSubscriptionsRouteImport.update({
+  id: '/admin_/subscriptions',
+  path: '/admin/subscriptions',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CoinsRechargeRoute = CoinsRechargeRouteImport.update({
@@ -106,131 +186,246 @@ const UUsernameRoute = UUsernameRouteImport.update({
   path: '/u/$username',
   getParentRoute: () => rootRouteImport,
 } as any)
+const WatchIndexRoute = WatchIndexRouteImport.update({
+  id: '/watch/',
+  path: '/watch/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const WatchIdRoute = WatchIdRouteImport.update({
+  id: '/watch/$id',
+  path: '/watch/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/beta': typeof BetaRoute
+  '/creator': typeof CreatorRoute
   '/groups': typeof GroupsRouteWithChildren
   '/live': typeof LiveRouteWithChildren
+  '/make-gif': typeof MakeGifRoute
   '/messages': typeof MessagesRoute
+  '/music': typeof MusicRoute
   '/offline': typeof OfflineRoute
   '/onboarding': typeof OnboardingRoute
+  '/paywall': typeof PaywallRoute
   '/privacy': typeof PrivacyRoute
+  '/redeem': typeof RedeemRoute
+  '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
+  '/upload-full': typeof UploadFullRoute
+  '/videos': typeof VideosRoute
+  '/wallet': typeof WalletRoute
+  '/admin/codes': typeof AdminCodesRoute
   '/admin/free-coins': typeof AdminFreeCoinsRoute
+  '/admin/payouts': typeof AdminPayoutsRoute
+  '/admin/subscriptions': typeof AdminSubscriptionsRoute
   '/coins/recharge': typeof CoinsRechargeRoute
   '/groups/$groupId': typeof GroupsGroupIdRoute
   '/live/dashboard': typeof LiveDashboardRoute
   '/sound/$soundId': typeof SoundSoundIdRoute
   '/u/$username': typeof UUsernameRoute
+  '/watch/$id': typeof WatchIdRoute
   '/groups/': typeof GroupsIndexRoute
+  '/watch/': typeof WatchIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/beta': typeof BetaRoute
+  '/creator': typeof CreatorRoute
   '/live': typeof LiveRouteWithChildren
+  '/make-gif': typeof MakeGifRoute
   '/messages': typeof MessagesRoute
+  '/music': typeof MusicRoute
   '/offline': typeof OfflineRoute
   '/onboarding': typeof OnboardingRoute
+  '/paywall': typeof PaywallRoute
   '/privacy': typeof PrivacyRoute
+  '/redeem': typeof RedeemRoute
+  '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
+  '/upload-full': typeof UploadFullRoute
+  '/videos': typeof VideosRoute
+  '/wallet': typeof WalletRoute
+  '/admin/codes': typeof AdminCodesRoute
   '/admin/free-coins': typeof AdminFreeCoinsRoute
+  '/admin/payouts': typeof AdminPayoutsRoute
+  '/admin/subscriptions': typeof AdminSubscriptionsRoute
   '/coins/recharge': typeof CoinsRechargeRoute
   '/groups/$groupId': typeof GroupsGroupIdRoute
   '/live/dashboard': typeof LiveDashboardRoute
   '/sound/$soundId': typeof SoundSoundIdRoute
   '/u/$username': typeof UUsernameRoute
+  '/watch/$id': typeof WatchIdRoute
   '/groups': typeof GroupsIndexRoute
+  '/watch': typeof WatchIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/beta': typeof BetaRoute
+  '/creator': typeof CreatorRoute
   '/groups': typeof GroupsRouteWithChildren
   '/live': typeof LiveRouteWithChildren
+  '/make-gif': typeof MakeGifRoute
   '/messages': typeof MessagesRoute
+  '/music': typeof MusicRoute
   '/offline': typeof OfflineRoute
   '/onboarding': typeof OnboardingRoute
+  '/paywall': typeof PaywallRoute
   '/privacy': typeof PrivacyRoute
+  '/redeem': typeof RedeemRoute
+  '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
+  '/upload-full': typeof UploadFullRoute
+  '/videos': typeof VideosRoute
+  '/wallet': typeof WalletRoute
+  '/admin_/codes': typeof AdminCodesRoute
   '/admin_/free-coins': typeof AdminFreeCoinsRoute
+  '/admin_/payouts': typeof AdminPayoutsRoute
+  '/admin_/subscriptions': typeof AdminSubscriptionsRoute
   '/coins/recharge': typeof CoinsRechargeRoute
   '/groups/$groupId': typeof GroupsGroupIdRoute
   '/live/dashboard': typeof LiveDashboardRoute
   '/sound/$soundId': typeof SoundSoundIdRoute
   '/u/$username': typeof UUsernameRoute
+  '/watch/$id': typeof WatchIdRoute
   '/groups/': typeof GroupsIndexRoute
+  '/watch/': typeof WatchIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
     | '/admin'
+    | '/beta'
+    | '/creator'
     | '/groups'
     | '/live'
+    | '/make-gif'
     | '/messages'
+    | '/music'
     | '/offline'
     | '/onboarding'
+    | '/paywall'
     | '/privacy'
+    | '/redeem'
+    | '/search'
     | '/settings'
+    | '/upload-full'
+    | '/videos'
+    | '/wallet'
+    | '/admin/codes'
     | '/admin/free-coins'
+    | '/admin/payouts'
+    | '/admin/subscriptions'
     | '/coins/recharge'
     | '/groups/$groupId'
     | '/live/dashboard'
     | '/sound/$soundId'
     | '/u/$username'
+    | '/watch/$id'
     | '/groups/'
+    | '/watch/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/admin'
+    | '/beta'
+    | '/creator'
     | '/live'
+    | '/make-gif'
     | '/messages'
+    | '/music'
     | '/offline'
     | '/onboarding'
+    | '/paywall'
     | '/privacy'
+    | '/redeem'
+    | '/search'
     | '/settings'
+    | '/upload-full'
+    | '/videos'
+    | '/wallet'
+    | '/admin/codes'
     | '/admin/free-coins'
+    | '/admin/payouts'
+    | '/admin/subscriptions'
     | '/coins/recharge'
     | '/groups/$groupId'
     | '/live/dashboard'
     | '/sound/$soundId'
     | '/u/$username'
+    | '/watch/$id'
     | '/groups'
+    | '/watch'
   id:
     | '__root__'
     | '/'
     | '/admin'
+    | '/beta'
+    | '/creator'
     | '/groups'
     | '/live'
+    | '/make-gif'
     | '/messages'
+    | '/music'
     | '/offline'
     | '/onboarding'
+    | '/paywall'
     | '/privacy'
+    | '/redeem'
+    | '/search'
     | '/settings'
+    | '/upload-full'
+    | '/videos'
+    | '/wallet'
+    | '/admin_/codes'
     | '/admin_/free-coins'
+    | '/admin_/payouts'
+    | '/admin_/subscriptions'
     | '/coins/recharge'
     | '/groups/$groupId'
     | '/live/dashboard'
     | '/sound/$soundId'
     | '/u/$username'
+    | '/watch/$id'
     | '/groups/'
+    | '/watch/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
+  BetaRoute: typeof BetaRoute
+  CreatorRoute: typeof CreatorRoute
   GroupsRoute: typeof GroupsRouteWithChildren
   LiveRoute: typeof LiveRouteWithChildren
+  MakeGifRoute: typeof MakeGifRoute
   MessagesRoute: typeof MessagesRoute
+  MusicRoute: typeof MusicRoute
   OfflineRoute: typeof OfflineRoute
   OnboardingRoute: typeof OnboardingRoute
+  PaywallRoute: typeof PaywallRoute
   PrivacyRoute: typeof PrivacyRoute
+  RedeemRoute: typeof RedeemRoute
+  SearchRoute: typeof SearchRoute
   SettingsRoute: typeof SettingsRoute
+  UploadFullRoute: typeof UploadFullRoute
+  VideosRoute: typeof VideosRoute
+  WalletRoute: typeof WalletRoute
+  AdminCodesRoute: typeof AdminCodesRoute
   AdminFreeCoinsRoute: typeof AdminFreeCoinsRoute
+  AdminPayoutsRoute: typeof AdminPayoutsRoute
+  AdminSubscriptionsRoute: typeof AdminSubscriptionsRoute
   CoinsRechargeRoute: typeof CoinsRechargeRoute
   SoundSoundIdRoute: typeof SoundSoundIdRoute
   UUsernameRoute: typeof UUsernameRoute
+  WatchIdRoute: typeof WatchIdRoute
+  WatchIndexRoute: typeof WatchIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -249,6 +444,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/beta': {
+      id: '/beta'
+      path: '/beta'
+      fullPath: '/beta'
+      preLoaderRoute: typeof BetaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/creator': {
+      id: '/creator'
+      path: '/creator'
+      fullPath: '/creator'
+      preLoaderRoute: typeof CreatorRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/groups': {
       id: '/groups'
       path: '/groups'
@@ -263,11 +472,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LiveRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/make-gif': {
+      id: '/make-gif'
+      path: '/make-gif'
+      fullPath: '/make-gif'
+      preLoaderRoute: typeof MakeGifRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/messages': {
       id: '/messages'
       path: '/messages'
       fullPath: '/messages'
       preLoaderRoute: typeof MessagesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/music': {
+      id: '/music'
+      path: '/music'
+      fullPath: '/music'
+      preLoaderRoute: typeof MusicRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/offline': {
@@ -284,11 +507,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OnboardingRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/paywall': {
+      id: '/paywall'
+      path: '/paywall'
+      fullPath: '/paywall'
+      preLoaderRoute: typeof PaywallRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/privacy': {
       id: '/privacy'
       path: '/privacy'
       fullPath: '/privacy'
       preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/redeem': {
+      id: '/redeem'
+      path: '/redeem'
+      fullPath: '/redeem'
+      preLoaderRoute: typeof RedeemRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/search': {
+      id: '/search'
+      path: '/search'
+      fullPath: '/search'
+      preLoaderRoute: typeof SearchRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/settings': {
@@ -298,11 +542,53 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/upload-full': {
+      id: '/upload-full'
+      path: '/upload-full'
+      fullPath: '/upload-full'
+      preLoaderRoute: typeof UploadFullRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/videos': {
+      id: '/videos'
+      path: '/videos'
+      fullPath: '/videos'
+      preLoaderRoute: typeof VideosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/wallet': {
+      id: '/wallet'
+      path: '/wallet'
+      fullPath: '/wallet'
+      preLoaderRoute: typeof WalletRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin_/codes': {
+      id: '/admin_/codes'
+      path: '/admin/codes'
+      fullPath: '/admin/codes'
+      preLoaderRoute: typeof AdminCodesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin_/free-coins': {
       id: '/admin_/free-coins'
       path: '/admin/free-coins'
       fullPath: '/admin/free-coins'
       preLoaderRoute: typeof AdminFreeCoinsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin_/payouts': {
+      id: '/admin_/payouts'
+      path: '/admin/payouts'
+      fullPath: '/admin/payouts'
+      preLoaderRoute: typeof AdminPayoutsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin_/subscriptions': {
+      id: '/admin_/subscriptions'
+      path: '/admin/subscriptions'
+      fullPath: '/admin/subscriptions'
+      preLoaderRoute: typeof AdminSubscriptionsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/coins/recharge': {
@@ -347,6 +633,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof UUsernameRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/watch/': {
+      id: '/watch/'
+      path: '/watch'
+      fullPath: '/watch/'
+      preLoaderRoute: typeof WatchIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/watch/$id': {
+      id: '/watch/$id'
+      path: '/watch/$id'
+      fullPath: '/watch/$id'
+      preLoaderRoute: typeof WatchIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -376,17 +676,32 @@ const LiveRouteWithChildren = LiveRoute._addFileChildren(LiveRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
+  BetaRoute: BetaRoute,
+  CreatorRoute: CreatorRoute,
   GroupsRoute: GroupsRouteWithChildren,
   LiveRoute: LiveRouteWithChildren,
+  MakeGifRoute: MakeGifRoute,
   MessagesRoute: MessagesRoute,
+  MusicRoute: MusicRoute,
   OfflineRoute: OfflineRoute,
   OnboardingRoute: OnboardingRoute,
+  PaywallRoute: PaywallRoute,
   PrivacyRoute: PrivacyRoute,
+  RedeemRoute: RedeemRoute,
+  SearchRoute: SearchRoute,
   SettingsRoute: SettingsRoute,
+  UploadFullRoute: UploadFullRoute,
+  VideosRoute: VideosRoute,
+  WalletRoute: WalletRoute,
+  AdminCodesRoute: AdminCodesRoute,
   AdminFreeCoinsRoute: AdminFreeCoinsRoute,
+  AdminPayoutsRoute: AdminPayoutsRoute,
+  AdminSubscriptionsRoute: AdminSubscriptionsRoute,
   CoinsRechargeRoute: CoinsRechargeRoute,
   SoundSoundIdRoute: SoundSoundIdRoute,
   UUsernameRoute: UUsernameRoute,
+  WatchIdRoute: WatchIdRoute,
+  WatchIndexRoute: WatchIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

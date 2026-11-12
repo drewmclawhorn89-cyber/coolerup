@@ -5,7 +5,9 @@ import {
   Check,
   Clock,
   Coins,
+  Crown,
   Flag,
+  Gift,
   Power,
   RefreshCw,
   ShieldCheck,
@@ -25,6 +27,7 @@ import {
 } from "@/lib/coins.functions";
 import { usdFromCents } from "@/lib/coins";
 import { venmoStatusLabel } from "@/lib/venmo";
+import { PayoutsPanel } from "@/components/PayoutsPanel";
 import {
   REPORT_REASONS,
   adminBan,
@@ -59,7 +62,7 @@ export const Route = createFileRoute("/admin")({
   component: AdminPage,
 });
 
-type Tab = "reports" | "bans" | "log" | "coins" | "free" | "update";
+type Tab = "reports" | "bans" | "log" | "coins" | "free" | "payouts" | "update";
 
 const reasonLabel = (id: string) => REPORT_REASONS.find((r) => r.id === id)?.label ?? id;
 
@@ -219,6 +222,18 @@ function AdminPage() {
             {pending.length} pending · {activeBans.length} banned · {activeMutes.length} muted
           </p>
         </div>
+        <Button asChild variant="secondary" size="sm" className="gap-2">
+          <Link to="/admin/codes">
+            <Gift className="h-4 w-4" />
+            Codes
+          </Link>
+        </Button>
+        <Button asChild variant="secondary" size="sm" className="gap-2">
+          <Link to="/admin/subscriptions">
+            <Crown className="h-4 w-4" />
+            Lifetime
+          </Link>
+        </Button>
         <Button
           variant="secondary"
           size="sm"
@@ -239,6 +254,7 @@ function AdminPage() {
             ["log", "Auto-ban log"],
             ["coins", `Coins (${pendingCoins})`],
             ["free", "Free coins"],
+            ["payouts", "Payouts"],
           ] as const
         ).map(([id, label]) => (
           <button
@@ -524,6 +540,19 @@ function AdminPage() {
             Everyone claiming the daily 10 free coins through Venmo, newest first. Updates live.
           </p>
           <FreeCoinClaimsPanel />
+        </section>
+      )}
+
+      {tab === "payouts" && (
+        <section className="space-y-3">
+          <p className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
+            Creators cash out diamonds, creator-fund earnings and gift income at $10 or more. Pay
+            them in Venmo or Stripe, then mark it paid so it leaves the queue.{" "}
+            <Link to="/admin/payouts" className="font-semibold text-primary hover:underline">
+              Open the full page
+            </Link>
+          </p>
+          <PayoutsPanel />
         </section>
       )}
 

@@ -1,6 +1,6 @@
 import { findItem, useEquipped } from "@/lib/shop";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -15,6 +15,8 @@ import {
   Pencil,
   Plus,
   Repeat2,
+  UserRoundPlus,
+  UserRoundCheck,
   X,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
@@ -24,21 +26,25 @@ import {
   normalizeLink,
   resolveAvatarUrl,
 } from "@/components/EditProfileDialog";
+import { fetchMyLikes, isImageUrl, parseCaption, resolveVideoUrl, type Video } from "@/lib/loop";
 import {
-  fetchSavedVideos,
-  fetchRepostedVideos,
-  fetchMyLikes,
-  fetchLikedVideos,
-  isImageUrl,
-  parseCaption,
-  resolveVideoUrl,
-  type Video,
-} from "@/lib/loop";
+  EMPTY_PROFILE_COUNTS,
+  PROFILE_PAGE_SIZE,
+  fetchLikedVideosPage,
+  fetchProfileCounts,
+  fetchProfileVideosPage,
+  fetchRepostedVideosPage,
+  fetchSavedVideosPage,
+  type ProfileCounts,
+} from "@/lib/profile";
+import { ProfileStats } from "@/components/ProfileStats";
 import { VideoCard } from "@/components/VideoCard";
 import { StoryViewer } from "@/components/StoryViewer";
 import { fetchStories, postStory, type Story } from "@/lib/stories";
 import { useChristmasMode } from "@/lib/christmas";
+import { GTA6_BADGE, GTA6_BADGE_EVENT, fetchGTA6Badges, hasGTA6BadgeCached } from "@/lib/gta6";
 import { toast } from "sonner";
+import { followUser, isFollowing as checkIsFollowing, unfollowUser } from "@/lib/follow";
 import type { Profile as ProfileRow } from "@/hooks/useAuth";
 
 export const Route = createFileRoute("/u/$username")({
@@ -77,7 +83,13 @@ function Thumb({ url, caption }: { url: string; caption: string }) {
   if (!src) return <div ref={boxRef} className="h-full w-full" />;
   const isImage = isImageUrl(url) || /\.(jpe?g|png|webp|gif|avif)$/i.test(url);
   return isImage ? (
-    <img src={src} alt={caption} className="h-full w-full object-cover" />
+    <img
+      src={src}
+      alt={caption}
+      loading="lazy"
+      decoding="async"
+      className="h-full w-full object-cover"
+    />
   ) : (
     <video
       src={`${src}#t=0.5`}
@@ -95,6 +107,8 @@ type FollowingUser = {
   avatar: string | null;
 };
 
+type TabKey = "videos" | "reposts" | "liked" | "saved";
+
 /** Profile tabs, TikTok order: videos · reposts · liked · saved. */
 const TABS = [
   { key: "videos", label: "Videos", icon: Grid3x3 },
@@ -108,25 +122,38 @@ function Profile() {
   const auth = useAuth();
   // Red/green ring instead of the usual pink gradient, Nov 15 2026 -> Jan 1 2027.
   const christmas = useChristmasMode();
-  const [videos, setVideos] = useState<any[] | null>(null);
+  // GTA 6 OG badge: awarded for posting during Nov 8-15 2026 and kept forever.
+  const [hasGTA6Badge, setHasGTA6Badge] = useState(() => hasGTA6BadgeCached(username));
+  const [counts, setCounts] = useState<ProfileCounts | null>(null);
+  const [videos, setVideos] = useState<Video[] | null>(null);
   const [open, setOpen] = useState<number | null>(null);
   const [profile, setProfile] = useState<ProfileRow | null>(null);
   const [avatar, setAvatar] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
   const [muted, setMuted] = useState(false);
-  const [tab, setTab] = useState<"videos" | "reposts" | "liked" | "saved">("videos");
-  const [saved, setSaved] = useState<any[]>([]);
-  const [reposts, setReposts] = useState<any[]>([]);
+  const [tab, setTab] = useState<TabKey>("videos");
+  const [saved, setSaved] = useState<Video[]>([]);
+  const [reposts, setReposts] = useState<Video[]>([]);
   const [likedVideos, setLikedVideos] = useState<Video[] | null>(null);
   const [likedLoading, setLikedLoading] = useState(false);
+  /** Whether another page exists per tab (drives infinite scroll). */
+  const [hasMore, setHasMore] = useState<Record<TabKey, boolean>>({
+    videos: true,
+    reposts: true,
+    liked: true,
+    saved: true,
+  });
+  const [loadingMore, setLoadingMore] = useState(false);
+  /** Bumped after the viewer closes so a tab can refresh its first page. */
+  const [reloadKey, setReloadKey] = useState(0);
   const viewer = useRef<HTMLDivElement>(null);
   const [stories, setStories] = useState<Story[]>([]);
   const [storyOpen, setStoryOpen] = useState(false);
   const [storyUploading, setStoryUploading] = useState(false);
   const storyFile = useRef<HTMLInputElement>(null);
-  const [totalFollowers, setTotalFollowers] = useState(0);
-  const [totalFollowing, setTotalFollowing] = useState(0);
+  const [following, setFollowing] = useState(false);
+  const [followBusy, setFollowBusy] = useState(false);
   const [followingOpen, setFollowingOpen] = useState(false);
   const [followingUsers, setFollowingUsers] = useState<FollowingUser[] | null>(null);
   const [followersOpen, setFollowersOpen] = useState(false);
@@ -134,27 +161,49 @@ function Profile() {
 
   const equipped = useEquipped(username);
   const isOwn = !!auth.handle && auth.handle === username;
+  const showLiked = profile?.show_liked !== false;
+  const canSeeLiked = showLiked || isOwn;
 
   useEffect(() => {
-    if (!username) return;
-
-    const loadStats = async () => {
-      const [followers, following] = await Promise.all([
-        supabase
-          .from("follows")
-          .select("id", { count: "exact", head: true })
-          .eq("following_username", username),
-        supabase
-          .from("follows")
-          .select("id", { count: "exact", head: true })
-          .eq("follower_username", username),
-      ]);
-      setTotalFollowers(followers.count ?? 0);
-      setTotalFollowing(following.count ?? 0);
+    if (!username || !auth.user || isOwn) {
+      setFollowing(false);
+      return;
+    }
+    let active = true;
+    void checkIsFollowing(auth.user.id, username).then((value) => {
+      if (active) setFollowing(value);
+    });
+    return () => {
+      active = false;
     };
+  }, [username, auth.user?.id, isOwn]);
 
-    loadStats();
-  }, [username]);
+  async function toggleProfileFollow() {
+    if (followBusy || isOwn || !username) return;
+    if (!auth.user) {
+      await auth.signIn();
+      return;
+    }
+    if (!auth.handle) {
+      toast.error("Complete your profile before following accounts");
+      return;
+    }
+    const next = !following;
+    setFollowBusy(true);
+    setFollowing(next);
+    const result = next
+      ? await followUser({
+          followerId: auth.user.id,
+          followerUsername: auth.handle,
+          followingUsername: username,
+        })
+      : await unfollowUser({ followerId: auth.user.id, followingUsername: username });
+    if (!result.ok) {
+      setFollowing(!next);
+      toast.error(result.error || "Couldn't update follow");
+    }
+    setFollowBusy(false);
+  }
 
   useEffect(() => {
     if (!followingOpen || !username) return;
@@ -237,14 +286,6 @@ function Profile() {
   useEffect(() => {
     if (!username) return;
     supabase
-      .from("videos")
-      .select("*")
-      .eq("username", username)
-      .order("created_at", { ascending: false })
-      .then(({ data }) => {
-        setVideos(data || []);
-      });
-    supabase
       .from("profiles")
       .select("*")
       .eq("handle", username)
@@ -255,6 +296,40 @@ function Profile() {
         resolveAvatarUrl(row?.avatar_url).then(setAvatar);
       });
   }, [username, auth.profile?.avatar_url, auth.profile?.display_name, auth.profile?.bio]);
+
+  // Exact totals for every profile number. `count: "exact"` ignores the 1000
+  // row response cap that used to freeze counts at "1000".
+  useEffect(() => {
+    if (!username) return;
+    let alive = true;
+    setCounts(null);
+    fetchProfileCounts(profile?.id ?? "", username)
+      .then((next) => {
+        if (!alive) return;
+        setCounts(next);
+      })
+      .catch(() => {
+        if (alive) setCounts(EMPTY_PROFILE_COUNTS);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [username, profile?.id, reloadKey]);
+
+  // Re-read the exact counts when the tab regains focus, so a device that was
+  // showing a stale cached number (the old "1000" cap) snaps to the same total
+  // every other device sees.
+  useEffect(() => {
+    const refresh = () => {
+      if (document.visibilityState === "visible") setReloadKey((k) => k + 1);
+    };
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, []);
 
   useEffect(() => {
     if (!username) return;
@@ -282,40 +357,88 @@ function Profile() {
     }
   }
 
-  useEffect(() => {
-    if (!profile?.id) return;
-    fetchSavedVideos(profile.id)
-      .then(setSaved)
-      .catch(() => {});
-  }, [profile?.id, tab]);
-  useEffect(() => {
-    if (!profile?.id) return;
-    fetchRepostedVideos(profile.id)
-      .then(setReposts)
-      .catch(() => {});
-  }, [profile?.id, tab]);
+  // --- Paged grids ---------------------------------------------------------
+  // Every tab loads 30 cards at a time via `.range()`, so a creator with 1,500
+  // videos keeps scrolling past the old 1000-row ceiling instead of stopping.
 
-  // Liked tab: fetch the videos this profile liked, newest like first. Loaded
-  // eagerly so the tab count is right immediately, and refetched after the
-  // full-screen viewer closes (the user may have un-liked something in there).
+  const loadPage = useCallback(
+    async (key: TabKey, offset: number): Promise<{ rows: Video[]; hasMore: boolean }> => {
+      if (!username) return { rows: [], hasMore: false };
+      if (key === "videos")
+        return fetchProfileVideosPage(username, offset, PROFILE_PAGE_SIZE, profile?.id);
+      if (!profile?.id) return { rows: [], hasMore: false };
+      if (key === "liked") {
+        if (!canSeeLiked) return { rows: [], hasMore: false };
+        return fetchLikedVideosPage(profile.id, offset, PROFILE_PAGE_SIZE);
+      }
+      // Vault/Saved is private: only the owner ever reads it.
+      if (key === "saved") {
+        if (!isOwn) return { rows: [], hasMore: false };
+        return fetchSavedVideosPage(profile.id, offset, PROFILE_PAGE_SIZE);
+      }
+      return fetchRepostedVideosPage(profile.id, offset, PROFILE_PAGE_SIZE);
+    },
+    [username, profile?.id, canSeeLiked, isOwn],
+  );
+
+  const applyRows = useCallback((key: TabKey, rows: Video[], replace: boolean) => {
+    const merge = (prev: Video[] | null) => {
+      const base = replace ? [] : (prev ?? []);
+      const seen = new Set(base.map((v) => v.id));
+      return [...base, ...rows.filter((r) => !seen.has(r.id))];
+    };
+    if (key === "videos") setVideos(merge);
+    else if (key === "liked") setLikedVideos(merge);
+    else if (key === "saved") setSaved(merge);
+    else setReposts(merge);
+  }, []);
+
+  // First page for the active tab (and after the viewer closes, so un-likes and
+  // deletes are reflected).
   useEffect(() => {
-    if (!profile?.id) return;
+    if (!username) return;
     let alive = true;
-    setLikedLoading(true);
-    fetchLikedVideos(profile.id)
-      .then((rows) => {
-        if (alive) setLikedVideos(rows);
+    setOpen(null);
+    setLoadingMore(true);
+    if (tab === "liked") setLikedLoading(true);
+    loadPage(tab, 0)
+      .then(({ rows, hasMore: more }) => {
+        if (!alive) return;
+        applyRows(tab, rows, true);
+        setHasMore((prev) => ({ ...prev, [tab]: more }));
       })
       .catch(() => {
-        if (alive) setLikedVideos([]);
+        if (!alive) return;
+        applyRows(tab, [], true);
+        setHasMore((prev) => ({ ...prev, [tab]: false }));
       })
       .finally(() => {
-        if (alive) setLikedLoading(false);
+        if (!alive) return;
+        setLoadingMore(false);
+        setLikedLoading(false);
       });
     return () => {
       alive = false;
     };
-  }, [profile?.id, open]);
+  }, [tab, username, profile?.id, reloadKey, loadPage, applyRows]);
+
+  const loadMore = useCallback(async () => {
+    if (loadingMore || !hasMore[tab]) return;
+    const current =
+      tab === "videos" ? videos : tab === "liked" ? likedVideos : tab === "saved" ? saved : reposts;
+    const offset = current?.length ?? 0;
+    const key = tab;
+    setLoadingMore(true);
+    try {
+      const { rows, hasMore: more } = await loadPage(key, offset);
+      applyRows(key, rows, false);
+      setHasMore((prev) => ({ ...prev, [key]: more }));
+    } catch {
+      setHasMore((prev) => ({ ...prev, [key]: false }));
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [loadingMore, hasMore, tab, videos, likedVideos, saved, reposts, loadPage, applyRows]);
 
   useEffect(() => {
     fetchMyLikes()
@@ -326,18 +449,38 @@ function Profile() {
   useEffect(() => {
     setOpen(null);
   }, [tab]);
+  // Vault/Saved is owner-only, so a non-owner can never be left on that tab.
+  useEffect(() => {
+    if (tab === "saved" && !isOwn) setTab("videos");
+  }, [tab, isOwn]);
   useEffect(() => {
     if (open === null) return;
     const el = viewer.current;
     if (el) el.scrollTop = open * el.clientHeight;
   }, [open]);
 
-  const totalLikes = (videos || []).reduce((a, v) => a + (v.likes_count || 0), 0);
-  // TikTok shows two different numbers: likes *received* on your videos (the
-  // header heart count) and the number of videos *you* liked (the Liked tab).
-  const likedCount = likedVideos?.length ?? 0;
-  const showLiked = profile?.show_liked !== false;
-  const canSeeLiked = showLiked || isOwn;
+  // Single source of truth. The header stats and the tab labels both read these
+  // exact count-query values — never `array.length`, which is only one page and
+  // used to freeze at 1000. Header formats compact, tabs stay exact, but the
+  // underlying number is the same variable.
+  const videoCount = counts?.videos ?? 0;
+  // Liked tab is private when the owner hides it — don't leak the number either.
+  const likesGivenCount = canSeeLiked ? (counts?.likes ?? 0) : 0;
+  const likesReceivedCount = counts?.likesReceived ?? 0;
+  const repostsCount = counts?.reposts ?? 0;
+  // Vault/Saved is private, like TikTok: owner sees their real total, everyone
+  // else gets 0 and no tab at all.
+  const savedCount = isOwn ? (counts?.saved ?? 0) : 0;
+  const statCounts: ProfileCounts | null = counts
+    ? {
+        ...counts,
+        videos: videoCount,
+        likes: likesGivenCount,
+        likesReceived: likesReceivedCount,
+        reposts: repostsCount,
+        saved: savedCount,
+      }
+    : null;
   const shownVideos =
     tab === "saved"
       ? saved
@@ -349,25 +492,34 @@ function Profile() {
             : []
           : videos;
   const displayName = profile?.display_name || username;
-  const PAGE = 12;
-  const [count, setCount] = useState(PAGE);
-  const sentinel = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    setCount(PAGE);
-  }, [username, tab]);
   const total = shownVideos?.length ?? 0;
+  const sentinel = useRef<HTMLDivElement>(null);
+
+  // The OG badge is permanent, so this runs year-round — not gated on the event.
+  useEffect(() => {
+    let cancelled = false;
+    void fetchGTA6Badges([username]).then((found) => {
+      if (!cancelled) setHasGTA6Badge(found.has(username.replace(/^@/, "").toLowerCase()));
+    });
+    const onChange = () => setHasGTA6Badge(hasGTA6BadgeCached(username));
+    window.addEventListener(GTA6_BADGE_EVENT, onChange);
+    return () => {
+      cancelled = true;
+      window.removeEventListener(GTA6_BADGE_EVENT, onChange);
+    };
+  }, [username]);
   useEffect(() => {
     const el = sentinel.current;
-    if (!el || count >= total) return;
+    if (!el || !hasMore[tab] || loadingMore) return;
     const obs = new IntersectionObserver(
       ([e]) => {
-        if (e?.isIntersecting) setCount((c) => c + PAGE);
+        if (e?.isIntersecting) void loadMore();
       },
       { rootMargin: "400px" },
     );
     obs.observe(el);
     return () => obs.disconnect();
-  }, [count, total]);
+  }, [hasMore, tab, loadingMore, loadMore, total]);
 
   return (
     <div className="min-h-dvh bg-background">
@@ -426,17 +578,50 @@ function Profile() {
             <h1 className={`text-2xl ${findItem(equipped.name)?.className ?? ""}`}>
               {findItem(equipped.top)?.emoji} {displayName}
             </h1>
-            <p className="text-sm text-muted-foreground">@{username}</p>
+            <p className="flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
+              <span>@{username}</span>
+              {hasGTA6Badge && (
+                <span
+                  className="gta6-og-badge inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold text-white"
+                  title={GTA6_BADGE.blurb}
+                >
+                  <span aria-hidden>{GTA6_BADGE.emoji}</span>
+                  {GTA6_BADGE.label}
+                </span>
+              )}
+            </p>
           </div>
+          {!isOwn && auth.ready && (
+            <Button
+              type="button"
+              onClick={() => void toggleProfileFollow()}
+              disabled={followBusy}
+              variant={following ? "outline" : "default"}
+              className={`min-w-36 rounded-full font-bold ${
+                following ? "border-border" : "bg-[#fe2c55] text-white hover:bg-[#e9274d]"
+              }`}
+              aria-pressed={following}
+            >
+              {following ? (
+                <>
+                  <UserRoundCheck className="mr-2 h-4 w-4" /> Following
+                </>
+              ) : (
+                <>
+                  <UserRoundPlus className="mr-2 h-4 w-4" /> Follow
+                </>
+              )}
+            </Button>
+          )}
           {profile?.bio && <p className="max-w-md text-sm text-muted-foreground">{profile.bio}</p>}
           {profile?.links && Object.keys(profile.links).length > 0 && (
             <div className="flex flex-wrap justify-center gap-2">
               {LINK_FIELDS.filter(
-                (f) => profile.links?.[f.key] && normalizeLink(profile.links[f.key]),
+                (f) => profile.links?.[f.key] && normalizeLink(profile.links[f.key] as string),
               ).map((f) => (
                 <a
                   key={f.key}
-                  href={normalizeLink(profile.links![f.key])!}
+                  href={normalizeLink(profile.links![f.key] as string)!}
                   target="_blank"
                   rel="noopener noreferrer nofollow"
                   className="rounded-full border border-border px-3 py-1 text-xs font-semibold hover:bg-accent"
@@ -459,68 +644,48 @@ function Profile() {
               </Link>
             </div>
           )}
-          <div className="flex gap-8 text-sm">
-            <span>
-              <b>{videos?.length ?? "-"}</b> videos
-            </span>
-            <span>
-              <b>{totalLikes ?? 0}</b> likes
-            </span>
-            <button
-              type="button"
-              onClick={() => setFollowersOpen(true)}
-              className="rounded transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              aria-label={`View accounts following @${username}`}
-            >
-              <b>{totalFollowers}</b> followers
-            </button>
-            <button
-              type="button"
-              onClick={() => setFollowingOpen(true)}
-              className="rounded transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              aria-label={`View accounts @${username} is following`}
-            >
-              <b>{totalFollowing}</b> following
-            </button>
-          </div>
+          <ProfileStats
+            counts={statCounts}
+            username={username}
+            onOpenFollowers={() => setFollowersOpen(true)}
+            onOpenFollowing={() => setFollowingOpen(true)}
+          />
         </div>
 
-        {
-          <div className="mt-4 flex justify-around border-b border-border">
-            {TABS.map((t) => {
-              const active = tab === t.key;
-              const Icon = t.icon;
-              const n =
-                t.key === "videos"
-                  ? (videos?.length ?? 0)
-                  : t.key === "reposts"
-                    ? reposts.length
-                    : t.key === "liked"
-                      ? likedCount
-                      : saved.length;
-              return (
-                <button
-                  key={t.key}
-                  type="button"
-                  onClick={() => setTab(t.key)}
-                  aria-label={t.label}
-                  aria-selected={active}
-                  role="tab"
-                  className={`flex flex-1 items-center justify-center gap-1.5 border-b-2 pb-2 pt-1 transition-colors ${
-                    active
-                      ? "border-foreground text-foreground"
-                      : "border-transparent text-muted-foreground hover:text-foreground/80"
-                  }`}
-                >
-                  <Icon
-                    className={`h-5 w-5 ${active && t.key === "liked" ? "fill-current" : ""}`}
-                  />
-                  <span className="text-xs font-bold tabular-nums">{n}</span>
-                </button>
-              );
-            })}
-          </div>
-        }
+        <div className="mt-4 flex justify-around border-b border-border">
+          {TABS.filter((t) => t.key !== "saved" || isOwn).map((t) => {
+            const active = tab === t.key;
+            const Icon = t.icon;
+            // Exact totals — the very same variables the header uses, so the
+            // top stat and the tab can never disagree.
+            const n =
+              t.key === "videos"
+                ? videoCount
+                : t.key === "reposts"
+                  ? repostsCount
+                  : t.key === "liked"
+                    ? likesGivenCount
+                    : savedCount;
+            return (
+              <button
+                key={t.key}
+                type="button"
+                onClick={() => setTab(t.key)}
+                aria-label={t.label}
+                aria-selected={active}
+                role="tab"
+                className={`flex flex-1 items-center justify-center gap-1.5 border-b-2 pb-2 pt-1 transition-colors ${
+                  active
+                    ? "border-foreground text-foreground"
+                    : "border-transparent text-muted-foreground hover:text-foreground/80"
+                }`}
+              >
+                <Icon className={`h-5 w-5 ${active && t.key === "liked" ? "fill-current" : ""}`} />
+                <span className="text-xs font-bold tabular-nums">{counts === null ? "–" : n}</span>
+              </button>
+            );
+          })}
+        </div>
 
         {tab === "liked" && !canSeeLiked ? (
           <div className="flex flex-col items-center gap-2 px-6 py-16 text-center">
@@ -538,7 +703,7 @@ function Profile() {
               <div key={i} className="aspect-[3/4] animate-pulse bg-secondary" />
             ))}
           </div>
-        ) : tab === "liked" && likedCount === 0 ? (
+        ) : tab === "liked" && likesGivenCount === 0 ? (
           <div className="flex flex-col items-center gap-2 px-6 py-16 text-center">
             <span className="flex h-16 w-16 items-center justify-center rounded-full bg-secondary">
               <Heart className="h-7 w-7 text-muted-foreground" />
@@ -552,13 +717,13 @@ function Profile() {
                 : `Videos @${username} likes will appear here.`}
             </p>
           </div>
-        ) : tab === "saved" && saved.length === 0 ? (
+        ) : tab === "saved" && savedCount === 0 ? (
           <p className="py-10 text-center text-sm text-muted-foreground">No saved videos yet.</p>
-        ) : tab === "reposts" && reposts.length === 0 ? (
+        ) : tab === "reposts" && repostsCount === 0 ? (
           <p className="py-10 text-center text-sm text-muted-foreground">No reposts yet.</p>
         ) : (
           <div className="grid grid-cols-3 gap-1">
-            {shownVideos?.slice(0, count).map((v, i) => (
+            {shownVideos?.map((v, i) => (
               <button
                 key={v.id}
                 type="button"
@@ -567,7 +732,7 @@ function Profile() {
                 aria-label={`Open video by @${v.username}`}
               >
                 <Thumb url={v.video_url} caption={parseCaption(v.caption || "").text} />
-                <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-center gap-1 bg-gradient-to-t from-black/70 to-transparent px-1.5 pb-1 pt-4 text-[11px] font-bold text-white opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
+                <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-center gap-1 bg-gradient-to-t from-black/70 to-transparent px-1.5 pb-1 pt-4 text-[11px] font-bold text-white">
                   <Heart className="h-3 w-3 fill-current" />
                   {v.likes_count || 0}
                 </div>
@@ -581,7 +746,10 @@ function Profile() {
             <EyeOff className="h-3.5 w-3.5" /> Only you can see your liked videos
           </p>
         )}
-        {count < total && <div ref={sentinel} className="h-10" />}
+        {hasMore[tab] && <div ref={sentinel} className="h-10" />}
+        {loadingMore && (
+          <p className="py-4 text-center text-xs text-muted-foreground">Loading more…</p>
+        )}
       </div>
 
       {open !== null && shownVideos && (
@@ -589,12 +757,26 @@ function Profile() {
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => setOpen(null)}
+            onClick={() => {
+              setOpen(null);
+              setReloadKey((k) => k + 1);
+            }}
             className="absolute left-3 top-3 z-50 text-white"
           >
             <X />
           </Button>
-          <div ref={viewer} className="h-dvh snap-y snap-mandatory overflow-y-scroll">
+          <div
+            ref={viewer}
+            className="h-dvh snap-y snap-mandatory overflow-y-scroll"
+            onScroll={(e) => {
+              const el = e.currentTarget;
+              // Near the last loaded card? Pull the next page so the viewer can
+              // keep swiping through every video, not just the first 30.
+              if (el.scrollHeight - el.scrollTop - el.clientHeight < el.clientHeight * 2) {
+                void loadMore();
+              }
+            }}
+          >
             {shownVideos.map((v) => (
               <div key={v.id} className="h-dvh snap-start snap-always">
                 <VideoCard

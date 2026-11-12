@@ -17,11 +17,9 @@ import {
 } from "@/lib/googlepay";
 import { chargePlanWithGooglePay, saveCardForTrial } from "@/lib/payments.functions";
 import {
-  TRIAL_DAYS,
   confirmPayment,
   maskCard,
   requestPayment,
-  startTrial,
   updatePaymentMethod,
   venmoUrl,
   type PaymentMethod,
@@ -30,7 +28,10 @@ import {
 } from "@/lib/subscriptions";
 
 /** Maps a gateway brand string ("visa", "VISA") onto our CardBrand union. */
-function cardBrandFrom(gatewayBrand: string, fallback: PaymentMethod["brand"]): PaymentMethod["brand"] {
+function cardBrandFrom(
+  gatewayBrand: string,
+  fallback: PaymentMethod["brand"],
+): PaymentMethod["brand"] {
   switch (gatewayBrand.toLowerCase()) {
     case "visa":
       return "visa";
@@ -59,8 +60,6 @@ function gpayHint(reason: GooglePayReason): string {
       return "Google Pay isn't available here — use a card below.";
   }
 }
-
-type Mode = "trial" | "pay" | "manage";
 
 type Props = {
   /** The plan being bought. `null` closes the sheet. */
@@ -120,15 +119,18 @@ function GooglePayButton({
 }
 
 /**
- * Tap-to-pay sheet. Tapping any plan opens this: choose "Free trial" or
- * "Pay now", then pay with Google Pay, a card, or Venmo.
+ * Tap-to-pay sheet. Tapping any plan opens this, then they pay with Google Pay,
+ * a card, or Venmo. The free hour is started from the plan card itself and needs
+ * no card, so this sheet only ever sells the paid plan — it starts once the
+ * payment is confirmed.
  */
 export function PaymentSheet({ plan, handle, sub, onClose, onSignIn }: Props) {
   const open = Boolean(plan);
-  const manage = Boolean(plan && sub?.status === "trial" && sub.planId === plan.id);
-  const trialAllowed = Boolean(plan && handle && !manage && !sub);
+  // Managing an existing plan means swapping the card, not buying again.
+  const manage = Boolean(
+    plan && sub && sub.planId === plan.id && (sub.status === "active" || sub.status === "pending"),
+  );
 
-  const [mode, setMode] = useState<Mode>("trial");
   const [stage, setStage] = useState<"choose" | "card">("choose");
   const [gpayReady, setGpayReady] = useState(false);
   const [gpayReason, setGpayReason] = useState<GooglePayReason>("no-api");
@@ -143,8 +145,7 @@ export function PaymentSheet({ plan, handle, sub, onClose, onSignIn }: Props) {
     setError(null);
     setDone(null);
     setBusy(false);
-    setMode(manage ? "manage" : trialAllowed ? "trial" : "pay");
-  }, [open, plan?.id, manage, trialAllowed]);
+  }, [open, plan?.id, manage]);
 
   // Only advertise Google Pay where it can actually render, and remember why.
   const checkGooglePay = () => {
@@ -170,8 +171,6 @@ export function PaymentSheet({ plan, handle, sub, onClose, onSignIn }: Props) {
   if (!plan) return null;
 
   const amount = plan.price;
-  const isTrialMode = mode === "trial";
-  const chargeToday = isTrialMode ? 0 : amount;
 
   const applyPaymentMethod = (pm: PaymentMethod) => {
     if (!handle) {
@@ -181,11 +180,6 @@ export function PaymentSheet({ plan, handle, sub, onClose, onSignIn }: Props) {
     if (manage) {
       updatePaymentMethod(handle, pm);
       setDone("Payment method saved.");
-      return;
-    }
-    if (isTrialMode) {
-      startTrial(handle, plan.id, pm);
-      setDone(`Your ${TRIAL_DAYS}-day free trial has started.`);
       return;
     }
     // No gateway is connected, so a "pay now" charge is recorded as pending
@@ -203,7 +197,7 @@ export function PaymentSheet({ plan, handle, sub, onClose, onSignIn }: Props) {
     }
     setBusy(true);
     try {
-      const result = await requestGooglePay(chargeToday, `${plan.label} \u00b7 Coolerup`);
+      const result = await requestGooglePay(amount, `${plan.label} \u00b7 Coolerup`);
       if (!result.ok) {
         if (result.reason === "cancelled") return;
         if (result.reason === "unavailable") {
@@ -212,13 +206,15 @@ export function PaymentSheet({ plan, handle, sub, onClose, onSignIn }: Props) {
           );
           return;
         }
-        setError(result.message ?? "Google Pay couldn't complete that payment. Try a card instead.");
+        setError(
+          result.message ?? "Google Pay couldn't complete that payment. Try a card instead.",
+        );
         return;
       }
 
       // The token is only worth something once the server has exchanged it with
       // the gateway. Until then nothing has been charged or vaulted.
-      if (isTrialMode || manage) {
+      if (manage) {
         const saved = await saveCardForTrial({
           data: { planId: plan.id, paymentToken: result.token },
         });
@@ -281,11 +277,7 @@ export function PaymentSheet({ plan, handle, sub, onClose, onSignIn }: Props) {
     setDone("Opened Venmo — we'll activate your plan once the payment lands.");
   };
 
-  const title = manage
-    ? "Payment method"
-    : isTrialMode
-      ? `Start your ${TRIAL_DAYS}-day free trial`
-      : `Pay for ${plan.label}`;
+  const title = manage ? "Payment method" : `Pay for ${plan.label}`;
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
@@ -294,7 +286,6 @@ export function PaymentSheet({ plan, handle, sub, onClose, onSignIn }: Props) {
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
             {plan.emoji} {plan.label} · ${plan.price.toFixed(2)}/mo
-            {isTrialMode ? ` · free for ${TRIAL_DAYS} days, then $${amount.toFixed(2)}/mo` : ""}
           </DialogDescription>
         </DialogHeader>
 
@@ -311,10 +302,7 @@ export function PaymentSheet({ plan, handle, sub, onClose, onSignIn }: Props) {
           <PaymentMethodForm
             planLabel={plan.label}
             price={amount}
-            trialDays={TRIAL_DAYS}
-            submitLabel={
-              manage ? "Save card" : isTrialMode ? "Start free trial" : `Pay $${amount.toFixed(2)}`
-            }
+            submitLabel={manage ? "Save card" : `Pay $${amount.toFixed(2)}`}
             onCancel={() => setStage("choose")}
             onSubmit={applyPaymentMethod}
           />
@@ -326,39 +314,9 @@ export function PaymentSheet({ plan, handle, sub, onClose, onSignIn }: Props) {
               </div>
             )}
 
-            {!manage && (
-              <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1">
-                <button
-                  type="button"
-                  onClick={() => setMode("trial")}
-                  disabled={!trialAllowed}
-                  className={`rounded-md px-3 py-2 text-sm font-medium transition-colors disabled:opacity-40 ${
-                    isTrialMode ? "bg-background shadow-sm" : "text-muted-foreground"
-                  }`}
-                >
-                  Free trial
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setMode("pay")}
-                  className={`rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                    !isTrialMode ? "bg-background shadow-sm" : "text-muted-foreground"
-                  }`}
-                >
-                  Pay now
-                </button>
-              </div>
-            )}
-
             <div className="rounded-lg border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
               {manage ? (
-                <>Your card is what gets charged when the trial ends. Nothing is charged today.</>
-              ) : isTrialMode ? (
-                <>
-                  You won&apos;t be charged today. After {TRIAL_DAYS} days we charge{" "}
-                  <span className="font-semibold text-foreground">${amount.toFixed(2)}/mo</span>.
-                  Cancel anytime before then and you pay nothing.
-                </>
+                <>Your card is what renews the plan. Nothing is charged right now.</>
               ) : (
                 <>
                   Charged today:{" "}
@@ -369,13 +327,7 @@ export function PaymentSheet({ plan, handle, sub, onClose, onSignIn }: Props) {
             </div>
 
             <GooglePayButton
-              label={
-                manage
-                  ? "Save with Google Pay"
-                  : isTrialMode
-                    ? "Start trial with Google Pay"
-                    : `Pay $${amount.toFixed(2)} with Google Pay`
-              }
+              label={manage ? "Save with Google Pay" : `Pay $${amount.toFixed(2)} with Google Pay`}
               onClick={payWithGoogle}
               busy={busy}
               // Never hard-disable on isReadyToPay: Google documents it as
@@ -389,8 +341,8 @@ export function PaymentSheet({ plan, handle, sub, onClose, onSignIn }: Props) {
               <div className="space-y-1 text-center">
                 <p className="text-[11px] text-muted-foreground">{gpayHint(gpayReason)}</p>
                 <p className="text-[11px] text-muted-foreground">
-                  You can still tap the button above — it will open the Google Pay sheet or
-                  tell you exactly what went wrong.
+                  You can still tap the button above — it will open the Google Pay sheet or tell you
+                  exactly what went wrong.
                 </p>
                 <button
                   type="button"
@@ -418,7 +370,7 @@ export function PaymentSheet({ plan, handle, sub, onClose, onSignIn }: Props) {
             </div>
 
             <Button variant="secondary" className="w-full" onClick={() => setStage("card")}>
-              {isTrialMode || manage ? "Use a card instead" : "Pay with card"}
+              {manage ? "Use a card instead" : "Pay with card"}
             </Button>
 
             {!manage && (

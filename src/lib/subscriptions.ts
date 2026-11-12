@@ -2,15 +2,31 @@ import { useEffect, useState } from "react";
 
 import {
   PLANS,
-  TRIAL_DAYS,
-  offlinePlan,
   planById,
+  planIncludesMusicOffline,
   planIncludesOffline,
+  musicOfflinePlan,
+  offlinePlan,
   type Plan,
 } from "@/lib/plans";
+import { activeTrial, hasUsedTrial, isTrialActive } from "@/lib/trial";
+import {
+  LIFETIME_EVENT,
+  cachedLifetime,
+  isLifetimeActive,
+  isLifetimeRevoked,
+  refreshLifetime,
+} from "@/lib/subscription";
 
 export type { Plan };
-export { PLANS, TRIAL_DAYS, planById, planIncludesOffline, offlinePlan };
+export {
+  PLANS,
+  planById,
+  planIncludesMusicOffline,
+  planIncludesOffline,
+  musicOfflinePlan,
+  offlinePlan,
+};
 
 export const VENMO_HANDLE = "Drew-McLawhorn-2";
 
@@ -167,26 +183,39 @@ export function providerLabel(pm: PaymentMethod): string {
 /*  Subscription record                                                       */
 /* -------------------------------------------------------------------------- */
 
-export type SubStatus = "trial" | "pending" | "active" | "expired";
+/**
+ * `expired` also covers the old `trial` status. Trials are no longer stored on
+ * the subscription record — they live in `@/lib/trial` as a separate one-hour
+ * grant — so any record still sitting on `trial` is treated as ended.
+ */
+export type SubStatus = "pending" | "active" | "expired";
 
 export type Subscription = {
   planId: string;
   status: SubStatus;
-  /** when the trial began */
+  /** when the plan was first requested */
   startedAt: string;
-  /** when the free trial runs out */
-  trialEndsAt: string;
   /** set once the owner confirms the Venmo payment */
   paidAt: string | null;
-  /** card on file — required before a trial can start */
+  /** card on file, used to renew the plan */
   paymentMethod: PaymentMethod | null;
+  /** Where the plan came from. Missing means a normal paid subscription. */
+  source?: "payment" | "code";
+  /** The gift / promo code that granted this plan, when `source` is `code`. */
+  code?: string | null;
+  /** End of the current paid or redeemed period (ISO). */
+  currentPeriodEnd?: string | null;
+  /**
+   * True for an owner-granted lifetime plan. Such a plan never expires, so
+   * `currentPeriodEnd` is always null and must never be consulted.
+   */
+  isLifetime?: boolean;
+  /** Who granted it - shown as "Given by @drewmclawhorn3". */
+  grantedBy?: string | null;
 };
 
 const key = (handle: string) => `subscription:${handle}`;
-const usedKey = (handle: string) => `trial-used:${handle}`;
 const EVT = "subscription-change";
-
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
  * Old versions stored a bare string ("pro" or "pending:pro"). Turn anything we
@@ -196,7 +225,8 @@ function migrate(raw: string): Subscription | null {
   if (!raw) return null;
   if (raw.startsWith("{")) {
     try {
-      return JSON.parse(raw) as Subscription;
+      const parsed = JSON.parse(raw) as Subscription & { trialEndsAt?: string };
+      return normalize(parsed);
     } catch {
       return null;
     }
@@ -207,40 +237,82 @@ function migrate(raw: string): Subscription | null {
       planId: raw.slice(8),
       status: "pending",
       startedAt: now.toISOString(),
-      trialEndsAt: new Date(now.getTime() + TRIAL_DAYS * DAY_MS).toISOString(),
       paidAt: null,
       paymentMethod: null,
     };
   }
-  // Legacy "active" plan with no dates — treat as active, no trial left.
+  // Legacy "active" plan with no dates.
   return {
     planId: raw,
     status: "active",
     startedAt: now.toISOString(),
-    trialEndsAt: now.toISOString(),
     paidAt: now.toISOString(),
     paymentMethod: null,
   };
 }
 
-/** Trial is over but they never paid -> "expired". */
-function withCurrentStatus(sub: Subscription): Subscription {
-  if (sub.status !== "trial") return sub;
-  if (Date.now() >= new Date(sub.trialEndsAt).getTime()) {
-    return { ...sub, status: "expired" };
-  }
-  return sub;
+/**
+ * Drops fields we no longer use and retires the old `trial` status, so a plan
+ * only ever reads as pending, active or expired.
+ */
+function normalize(sub: Subscription & { trialEndsAt?: string; status?: string }): Subscription {
+  // A code redemption is a fixed-length grant, so it expires on its own even if
+  // nobody touches the record. Paid plans keep the existing pending/active
+  // behaviour.
+  const codeEnded =
+    sub.source === "code" &&
+    Boolean(sub.currentPeriodEnd) &&
+    new Date(sub.currentPeriodEnd as string).getTime() <= Date.now();
+  const status: SubStatus = codeEnded
+    ? "expired"
+    : sub.status === "active" || sub.status === "pending"
+      ? sub.status
+      : "expired";
+  return {
+    planId: sub.planId,
+    status,
+    startedAt: sub.startedAt,
+    paidAt: sub.paidAt ?? null,
+    paymentMethod: sub.paymentMethod ?? null,
+    source: sub.source === "code" ? "code" : "payment",
+    code: sub.code ?? null,
+    currentPeriodEnd: sub.currentPeriodEnd ?? null,
+  };
 }
 
+/**
+ * The subscription in force for this handle.
+ *
+ * A lifetime grant outranks everything: it is read from the server-backed cache
+ * first, and while it is active it is returned as-is with no expiry, so it still
+ * works in ten years. A *revoked* grant returns null instead of falling back to
+ * localStorage, which is what drops the user back to the paywall immediately
+ * rather than letting an old paid plan or code linger.
+ */
 export function getSubscription(handle?: string | null): Subscription | null {
   if (!handle || typeof window === "undefined") return null;
+
+  const lifetime = cachedLifetime(handle);
+  if (isLifetimeRevoked(lifetime)) return null;
+  if (isLifetimeActive(lifetime) && lifetime) {
+    return {
+      planId: lifetime.plan,
+      status: "active",
+      startedAt: lifetime.grantedAt ?? new Date().toISOString(),
+      paidAt: lifetime.grantedAt ?? null,
+      paymentMethod: null,
+      source: "payment",
+      code: null,
+      // Never expires. Deliberately null, and never read while isLifetime.
+      currentPeriodEnd: null,
+      isLifetime: true,
+      grantedBy: lifetime.grantedBy,
+    };
+  }
+
   const raw = localStorage.getItem(key(handle));
   if (!raw) return null;
-  const sub = migrate(raw);
-  if (!sub) return null;
-  // Records written before the card gate existed have no paymentMethod key.
-  const normalized: Subscription = { ...sub, paymentMethod: sub.paymentMethod ?? null };
-  return withCurrentStatus(normalized);
+  return migrate(raw);
 }
 
 /** True when there is a usable card on file. */
@@ -248,64 +320,10 @@ export function hasPaymentMethod(handle?: string | null): boolean {
   return Boolean(getSubscription(handle)?.paymentMethod);
 }
 
-/** Whole days left in the trial, rounded up. 0 once it has expired. */
-export function trialDaysLeft(sub: Subscription | null): number {
-  if (!sub || sub.status !== "trial") return 0;
-  const ms = new Date(sub.trialEndsAt).getTime() - Date.now();
-  return ms <= 0 ? 0 : Math.ceil(ms / DAY_MS);
-}
-
-/** One free trial per account, ever. */
-export function hasUsedTrial(handle?: string | null): boolean {
-  if (!handle || typeof window === "undefined") return false;
-  return localStorage.getItem(usedKey(handle)) === "1";
-}
-
-export function canStartTrial(handle?: string | null): boolean {
-  if (!handle) return false;
-  const sub = getSubscription(handle);
-  if (sub && (sub.status === "trial" || sub.status === "active" || sub.status === "pending"))
-    return false;
-  return !hasUsedTrial(handle);
-}
-
 function write(handle: string, sub: Subscription | null) {
   if (sub) localStorage.setItem(key(handle), JSON.stringify(sub));
   else localStorage.removeItem(key(handle));
   window.dispatchEvent(new Event(EVT));
-}
-
-/**
- * Start the 7 day free trial. A card on file is required first — the card is
- * not charged today, but it is what gets billed when the trial ends.
- * Throws if no valid payment method was supplied.
- */
-export function startTrial(
-  handle: string,
-  planId: string,
-  paymentMethod: PaymentMethod,
-): Subscription {
-  if (!paymentMethod) {
-    throw new Error("A payment method is required to start the trial");
-  }
-  const now = new Date();
-  const sub: Subscription = {
-    planId,
-    status: "trial",
-    startedAt: now.toISOString(),
-    trialEndsAt: new Date(now.getTime() + TRIAL_DAYS * DAY_MS).toISOString(),
-    paidAt: null,
-    paymentMethod,
-  };
-  localStorage.setItem(usedKey(handle), "1");
-  write(handle, sub);
-  return sub;
-}
-
-/** When the first real charge happens if they don't cancel. */
-export function firstChargeDate(sub: Subscription | null): Date | null {
-  if (!sub || sub.status !== "trial") return null;
-  return new Date(sub.trialEndsAt);
 }
 
 /** Update the card on an existing subscription. */
@@ -327,8 +345,6 @@ export function requestPayment(handle: string, planId: string) {
     planId,
     status: "pending",
     startedAt: existing?.startedAt ?? now.toISOString(),
-    trialEndsAt:
-      existing?.trialEndsAt ?? new Date(now.getTime() + TRIAL_DAYS * DAY_MS).toISOString(),
     paidAt: null,
     paymentMethod: existing?.paymentMethod ?? null,
   });
@@ -338,7 +354,55 @@ export function requestPayment(handle: string, planId: string) {
 export function confirmPayment(handle: string) {
   const existing = getSubscription(handle);
   if (!existing) return;
-  write(handle, { ...existing, status: "active", paidAt: new Date().toISOString() });
+  write(handle, {
+    ...existing,
+    status: "active",
+    paidAt: new Date().toISOString(),
+    source: "payment",
+    code: null,
+    currentPeriodEnd: null,
+  });
+}
+
+/**
+ * Grant a plan from a redeemed subscription code.
+ *
+ * Codes are fixed-length (1, 3 or 12 months). If the user already has a live
+ * code subscription, the new months stack on top of the current end date —
+ * exactly how a Netflix gift card extends an existing balance. Otherwise the
+ * period starts now.
+ */
+export function applyCodeSubscription(
+  handle: string,
+  opts: { planId: string; code: string; months: number; endsAt?: string | null },
+): Subscription {
+  const existing = getSubscription(handle);
+  const now = new Date();
+
+  const existingEnd = existing?.currentPeriodEnd ? new Date(existing.currentPeriodEnd) : null;
+  let end: Date;
+  if (existing?.source === "code" && existingEnd && existingEnd.getTime() > now.getTime()) {
+    end = new Date(existingEnd);
+    end.setMonth(end.getMonth() + opts.months);
+  } else if (opts.endsAt) {
+    end = new Date(opts.endsAt);
+  } else {
+    end = new Date(now);
+    end.setMonth(end.getMonth() + opts.months);
+  }
+
+  write(handle, {
+    planId: opts.planId,
+    status: "active",
+    startedAt: existing?.startedAt ?? now.toISOString(),
+    paidAt: now.toISOString(),
+    paymentMethod: null,
+    source: "code",
+    code: opts.code,
+    currentPeriodEnd: end.toISOString(),
+  });
+
+  return getSubscription(handle) as Subscription;
 }
 
 export function cancelSubscription(handle: string) {
@@ -347,7 +411,7 @@ export function cancelSubscription(handle: string) {
 
 /** True when the plan is giving them perks right now. */
 export function isActive(sub: Subscription | null): boolean {
-  return sub?.status === "trial" || sub?.status === "active";
+  return sub?.status === "active";
 }
 
 /* -------------------------------------------------------------------------- */
@@ -355,27 +419,108 @@ export function isActive(sub: Subscription | null): boolean {
 /* -------------------------------------------------------------------------- */
 
 /**
- * Offline downloads are a paid perk that starts with the cheapest plan.
+ * The plan whose perks are live right now.
  *
- * Access requires a live subscription *and* a plan that includes the feature.
- * A `pending` or `expired` subscription does not count: the plan has to be
- * currently giving them perks (trial or active) for the offline library to
- * unlock.
+ * A paid, active subscription wins; otherwise a running free hour supplies the
+ * plan. Returns null when neither is in force.
+ */
+export function planInForce(handle?: string | null): string | null {
+  const sub = getSubscription(handle);
+  if (isActive(sub)) return sub?.planId ?? null;
+  return activeTrial(handle)?.planId ?? null;
+}
+
+/** True when this plan's perks are live — paid for, or inside its free hour. */
+export function hasPlanAccess(handle: string | null | undefined, planId: string): boolean {
+  const inForce = planInForce(handle);
+  // A lifetime "all" grant satisfies every plan, including ones added later.
+  return inForce === planId || inForce === "all";
+}
+
+/** True while this plan's free hour is running. */
+export function isTrialing(handle?: string | null, planId?: string | null): boolean {
+  return isTrialActive(handle, planId);
+}
+
+/**
+ * Offline *video* downloads are included on every paid tier (Plus, Pro and
+ * VIP), with a one-hour free trial.
+ *
+ * Access requires a live subscription *and* a plan that includes the feature,
+ * or a running free hour on a plan that includes it. Free accounts do not get
+ * offline mode; a `pending` or `expired` subscription does not count either:
+ * the plan has to be paid and active for the offline library to unlock.
+ * Offline *music* is gated separately at VIP — see `hasMusicOfflineAccess`.
  */
 export function hasOfflineAccess(handle?: string | null): boolean {
+  const trial = activeTrial(handle);
+  if (trial && planIncludesOffline(trial.planId)) return true;
+  const sub = getSubscription(handle);
+  if (!isActive(sub)) return false;
+  return planIncludesOffline(sub?.planId);
+}
+
+/**
+ * Offline *music* downloads are a VIP-and-up perk, with a one-hour free trial.
+ *
+ * Pro keeps offline video downloads, but music is gated at VIP. A running free
+ * hour on VIP (or the lifetime "all access" grant) unlocks it; Pro and Plus do
+ * not. The same paid-and-active rule as `hasOfflineAccess` applies.
+ */
+export function hasMusicOfflineAccess(handle?: string | null): boolean {
+  const trial = activeTrial(handle);
+  if (trial && planIncludesMusicOffline(trial.planId)) return true;
+  const sub = getSubscription(handle);
+  if (!isActive(sub)) return false;
+  return planIncludesMusicOffline(sub?.planId);
+}
+
+/** True when the plan alone unlocks offline music, ignoring any trial. */
+export function planUnlocksMusicOffline(handle?: string | null): boolean {
+  const sub = getSubscription(handle);
+  if (!isActive(sub)) return false;
+  return planIncludesMusicOffline(sub?.planId);
+}
+
+/** True when the plan alone unlocks offline mode, ignoring any trial. */
+export function planUnlocksOffline(handle?: string | null): boolean {
   const sub = getSubscription(handle);
   if (!isActive(sub)) return false;
   return planIncludesOffline(sub?.planId);
 }
 
 /** Why offline mode is locked, so the UI can say something useful. */
-export type OfflineLockReason = "signed-out" | "no-plan" | "plan-lacks-offline" | "expired";
+export type OfflineLockReason =
+  "signed-out" | "no-plan" | "plan-lacks-offline" | "expired" | "trial-ended";
 
 export function offlineLockReason(handle?: string | null): OfflineLockReason | null {
   if (hasOfflineAccess(handle)) return null;
   if (!handle) return "signed-out";
   const sub = getSubscription(handle);
-  if (!sub) return "no-plan";
+  // The offline prompt starts a trial of the cheapest offline plan, but a
+  // viewer may have trialed a higher tier instead, so check every plan that
+  // includes offline video before deciding they never had an hour.
+  if (!sub) {
+    const usedAnyOfflineTrial = PLANS.filter((p) => p.offline).some((p) =>
+      hasUsedTrial(handle, p.id),
+    );
+    return usedAnyOfflineTrial ? "trial-ended" : "no-plan";
+  }
+  if (sub.status === "expired" || sub.status === "pending") return "expired";
+  return "plan-lacks-offline";
+}
+
+/** Why offline *music* is locked, so the Music tab can say something useful. */
+export function musicOfflineLockReason(handle?: string | null): OfflineLockReason | null {
+  if (hasMusicOfflineAccess(handle)) return null;
+  if (!handle) return "signed-out";
+  const sub = getSubscription(handle);
+  if (!sub) {
+    const usedAnyMusicTrial = PLANS.filter((p) => p.musicOffline).some((p) =>
+      hasUsedTrial(handle, p.id),
+    );
+    return usedAnyMusicTrial ? "trial-ended" : "no-plan";
+  }
   if (sub.status === "expired" || sub.status === "pending") return "expired";
   return "plan-lacks-offline";
 }
@@ -386,10 +531,15 @@ export function useSubscription(handle?: string | null) {
     const sync = () => setSub(getSubscription(handle));
     sync();
     window.addEventListener(EVT, sync);
-    // Re-check on focus so a trial that lapses mid-session flips to expired.
+    window.addEventListener(LIFETIME_EVENT, sync);
+    // Re-check on focus so a plan cancelled - or a lifetime grant revoked -
+    // elsewhere updates mid-session.
     window.addEventListener("focus", sync);
+    // Ask the server whether a lifetime grant exists, then re-render from cache.
+    void refreshLifetime(handle);
     return () => {
       window.removeEventListener(EVT, sync);
+      window.removeEventListener(LIFETIME_EVENT, sync);
       window.removeEventListener("focus", sync);
     };
   }, [handle]);

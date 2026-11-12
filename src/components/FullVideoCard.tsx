@@ -1,0 +1,117 @@
+import { useEffect, useState } from "react";
+import { Link } from "@tanstack/react-router";
+import { Pencil, Play, Loader2 } from "lucide-react";
+import {
+  formatDuration,
+  formatViews,
+  resolveFullVideoUrl,
+  timeAgo,
+  type FullVideo,
+} from "@/lib/fullVideos";
+
+/**
+ * One cell in the /videos grid — YouTube's "home" card.
+ *
+ * Horizontal 16:9 thumbnail with the duration burned into the bottom-right
+ * corner, then the title, channel handle, views and relative time underneath.
+ *
+ * Share and offline saving live on the watch page, not on the card, so the
+ * grid stays clean and tapping a card is the only action.
+ */
+export function FullVideoCard({
+  video,
+  onEdit,
+  showBadge = false,
+}: {
+  video: FullVideo;
+  /** When provided, an owner-only pencil button appears on the thumbnail. */
+  onEdit?: ((video: FullVideo) => void) | undefined;
+  /**
+   * When true, a red "YouTube" badge is drawn on the thumbnail.
+   *
+   * The /videos grid keeps this off so a YouTube pick looks exactly like a
+   * native Coolerup upload in the grid. The watch page is where the YouTube
+   * provenance is surfaced instead.
+   */
+  showBadge?: boolean;
+}) {
+  const [thumb, setThumb] = useState<string>("");
+
+  useEffect(() => {
+    let alive = true;
+    if (!video.thumbnail_url) return;
+    void resolveFullVideoUrl(video.thumbnail_url).then((u) => {
+      if (alive) setThumb(u);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [video.thumbnail_url]);
+
+  return (
+    <div className="group relative min-w-0">
+      {onEdit && (
+        <button
+          type="button"
+          onClick={() => onEdit(video)}
+          aria-label={`Edit ${video.title}`}
+          title="Edit your video"
+          className="absolute right-1.5 top-1.5 z-10 flex size-8 items-center justify-center rounded-full bg-black/70 text-white shadow-sm backdrop-blur transition hover:bg-black/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <Pencil className="size-4" />
+        </button>
+      )}
+
+      <Link
+        to="/watch/$id"
+        params={{ id: video.id }}
+        className="block min-w-0 focus-visible:outline-none"
+        aria-label={`${video.title} by ${video.username}`}
+      >
+        <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-muted">
+          {thumb ? (
+            <img
+              src={thumb}
+              alt=""
+              loading="lazy"
+              className="h-full w-full object-cover transition duration-200 group-hover:scale-[1.02]"
+            />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center bg-secondary text-muted-foreground">
+              <Play className="h-8 w-8" />
+            </div>
+          )}
+
+          {video.duration > 0 && (
+            <span className="absolute bottom-1.5 right-1.5 rounded bg-black/80 px-1 py-0.5 text-[11px] font-semibold leading-none text-white tabular-nums">
+              {formatDuration(video.duration)}
+            </span>
+          )}
+
+          {video.is_youtube && showBadge && (
+            <span className="absolute bottom-1.5 left-1.5 flex items-center gap-1 rounded bg-youtube px-1.5 py-1 text-[11px] font-semibold leading-none text-youtube-foreground">
+              <Play className="size-3 fill-current" /> YouTube
+            </span>
+          )}
+
+          {video.status === "processing" && (
+            <span className="absolute left-1.5 top-1.5 flex items-center gap-1 rounded bg-amber-500/90 px-1.5 py-0.5 text-[11px] font-semibold leading-none text-black">
+              <Loader2 className="size-3 animate-spin" />
+              Uploading
+            </span>
+          )}
+        </div>
+
+        <div className="mt-2 min-w-0">
+          <h3 className="line-clamp-2 text-[13px] font-semibold leading-snug text-foreground">
+            {video.title}
+          </h3>
+          <p className="mt-1 truncate text-[12px] text-muted-foreground">@{video.username}</p>
+          <p className="truncate text-[12px] text-muted-foreground">
+            {formatViews(video.views)} · {timeAgo(video.created_at)}
+          </p>
+        </div>
+      </Link>
+    </div>
+  );
+}

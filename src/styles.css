@@ -34,6 +34,10 @@
   --color-popover-foreground: var(--popover-foreground);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
+  --color-youtube: oklch(0.58 0.24 27);
+  --color-youtube-foreground: oklch(1 0 0);
+  --color-warning: oklch(0.86 0.17 92);
+  --color-warning-foreground: oklch(0.15 0 0);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
@@ -208,6 +212,23 @@
   }
 }
 
+/*
+ * The primary "create / plus" action stays pink in every theme.
+ * Hard-coded on purpose: it is a brand accent, not a theme-derived color,
+ * so it must not follow --primary when the user picks blue, green, red, etc.
+ */
+@utility create-pink {
+  background-color: #ec4899;
+  color: #ffffff;
+  --tw-shadow-color: #ec4899;
+  &:hover {
+    background-color: #db2777;
+  }
+  &:active {
+    background-color: #be185d;
+  }
+}
+
 .video-caption {
   background: var(--video-caption-background);
   pointer-events: none;
@@ -254,9 +275,56 @@
 .heart-pop-btn {
   animation: heart-btn 0.4s ease-in-out;
 }
+/* "🔁 @name reposted" — TikTok-style label over the top-left of a video.
+   White text with a hard black shadow so it stays legible on any footage. */
+/* Repost attribution. Lives under the poster's handle inside the caption, so it
+   only needs the black shadow when it is actually drawn over video pixels. */
+.repost-label {
+  pointer-events: auto;
+}
+.video-caption .repost-label {
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.9),
+    0 0 4px rgba(0, 0, 0, 0.75),
+    0 0 12px rgba(0, 0, 0, 0.5);
+  -webkit-text-stroke: 0.2px rgba(0, 0, 0, 0.35);
+}
+.repost-label:hover {
+  text-decoration: underline;
+}
+
+/* Poster handle at the bottom-left over the video (TikTok style). The caption
+   wrapper is pointer-events: none so the video stays tappable, so the handle has
+   to opt back in to receive taps. */
+.poster-handle {
+  pointer-events: auto;
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.9),
+    0 0 4px rgba(0, 0, 0, 0.75),
+    0 0 12px rgba(0, 0, 0, 0.5);
+  -webkit-text-stroke: 0.2px rgba(0, 0, 0, 0.35);
+}
+.poster-handle:hover {
+  text-decoration: underline;
+}
+
+@keyframes sheet-up {
+  from {
+    transform: translateY(100%);
+    opacity: 0.4;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+.sheet-up {
+  animation: sheet-up 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
 @media (prefers-reduced-motion: reduce) {
   .heart-pop,
-  .heart-pop-btn {
+  .heart-pop-btn,
+  .sheet-up {
     animation: none;
   }
 }
@@ -401,6 +469,106 @@
   .christmas-bulb,
   .christmas-heart,
   .christmas-tree-pop {
+    animation: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * GTA 6 update (Nov 8 2026 -> Nov 15 2026, then never again)
+ * Neon sunset / Vice City palette built from Coolerup colours (#FF2E88 pink,
+ * #7C3AED purple, #FF8A3D orange). Only rendered while useGTA6Mode() is true,
+ * so every class here is inert once the event ends.
+ * ------------------------------------------------------------------------- */
+
+.gta6-banner {
+  background:
+    radial-gradient(circle at 10% 15%, rgba(255, 46, 136, 0.55), transparent 58%),
+    radial-gradient(circle at 92% 85%, rgba(255, 138, 61, 0.45), transparent 55%),
+    linear-gradient(100deg, #7c3aed 0%, #c026a8 52%, #ff2e88 100%);
+  border: 1px solid rgba(255, 46, 136, 0.55);
+  box-shadow:
+    0 8px 24px rgba(255, 46, 136, 0.28),
+    inset 0 0 24px rgba(124, 58, 237, 0.35);
+}
+
+.gta6-challenge-banner {
+  background:
+    radial-gradient(circle at 85% 20%, rgba(255, 138, 61, 0.4), transparent 55%),
+    linear-gradient(100deg, #2b0b3f 0%, #6d1a8c 55%, #ff2e88 100%);
+  border: 1px solid rgba(255, 46, 136, 0.5);
+}
+
+.gta6-palm {
+  display: inline-block;
+  animation: gta6-palm-sway 4.5s ease-in-out infinite;
+  transform-origin: 50% 90%;
+  filter: drop-shadow(0 2px 6px rgba(255, 46, 136, 0.55));
+}
+
+@keyframes gta6-palm-sway {
+  0%,
+  100% {
+    transform: rotate(-7deg);
+  }
+  50% {
+    transform: rotate(7deg);
+  }
+}
+
+.gta6-countdown-cell {
+  display: inline-flex;
+  min-width: 2.35rem;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.05rem;
+  border-width: 1px;
+  border-style: solid;
+  border-radius: 0.55rem;
+  padding: 0.2rem 0.3rem;
+  background: rgba(0, 0, 0, 0.35);
+  font-variant-numeric: tabular-nums;
+}
+
+.gta6-countdown-compact {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+
+.gta6-filter-chip {
+  box-shadow:
+    0 0 0 1px rgba(255, 46, 136, 0.65),
+    0 0 10px rgba(255, 46, 136, 0.45);
+}
+
+/* Permanent "GTA 6 OG" badge on profiles. Kept after the event ends, so it is
+ * deliberately NOT scoped to the event window. */
+.gta6-og-badge {
+  background: linear-gradient(100deg, #7c3aed 0%, #ff2e88 100%);
+  border: 1px solid rgba(255, 46, 136, 0.65);
+  box-shadow: 0 0 10px rgba(255, 46, 136, 0.4);
+  vertical-align: middle;
+}
+
+.gta6-logo-glow {
+  color: #fff;
+  text-shadow:
+    0 0 4px rgba(255, 46, 136, 0.95),
+    0 0 14px rgba(255, 46, 136, 0.75),
+    0 0 26px rgba(124, 58, 237, 0.6);
+}
+
+/* Sunset wash behind the For You feed. Sits under the video cards, so it only
+ * shows in the gaps/edges — subtle, not a full neon takeover. */
+.gta6-foryou-bg {
+  background:
+    radial-gradient(circle at 50% 110%, rgba(255, 138, 61, 0.28), transparent 55%),
+    radial-gradient(circle at 15% 0%, rgba(124, 58, 237, 0.35), transparent 50%),
+    radial-gradient(circle at 85% 0%, rgba(255, 46, 136, 0.3), transparent 50%),
+    linear-gradient(180deg, #1a0424 0%, #12031a 55%, #1f0420 100%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gta6-palm {
     animation: none;
   }
 }
@@ -579,8 +747,31 @@
   }
 }
 
+/* Floating hearts from the LIVE heart button — TikTok-style tap feedback. */
+.live-heart {
+  animation: live-heart-float 2.2s ease-out forwards;
+  will-change: transform, opacity;
+}
+@keyframes live-heart-float {
+  0% {
+    transform: translate3d(0, 0, 0) scale(0.4) rotate(-12deg);
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+    transform: translate3d(0, -10px, 0) scale(1.1) rotate(6deg);
+  }
+  100% {
+    transform: translate3d(var(--heart-drift, 0px), -220px, 0) scale(0.8) rotate(-8deg);
+    opacity: 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .gift-particle {
+    animation-duration: 1.2s;
+  }
+  .live-heart {
     animation-duration: 1.2s;
   }
   .gift-fly,

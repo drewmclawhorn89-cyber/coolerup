@@ -1,4 +1,5 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query"; import { MessageCircle } from "lucide-react"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MessageCircle } from "lucide-react";
 import {
   Outlet,
   Link,
@@ -9,7 +10,7 @@ import {
   Scripts,
   type ErrorComponentProps,
 } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
+import { Suspense, lazy, useEffect, useState, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
@@ -20,11 +21,62 @@ import { OnboardingRequiredDialog } from "../components/OnboardingBanner";
 import { Toaster } from "sonner";
 import { WellbeingWatcher } from "../components/MoreSettings";
 import { PushRegistrar } from "../components/PushRegistrar";
+import { FollowerRewardWatcher } from "../components/FollowerRewardModal";
+import { EarningsWatcher } from "../components/WalletBalance";
 import { BanGate } from "../components/BanGate";
 import { UpdateGate } from "../components/UpdateGate";
 import { applyPrefs } from "../lib/prefs";
 import { AuthProvider, useAuth } from "../hooks/useAuth";
 import { SnowEffect } from "../components/SnowEffect";
+import { SongPlayerBar, USE_SOUND_EVENT } from "../components/MusicPlayer";
+import type { PlayerTrack } from "../lib/songPlayer";
+import type { Sound } from "../lib/sounds";
+
+// "Use this sound" can be tapped from the player dock on any screen, so the
+// camera lives here rather than inside the Music route.
+const RecordDialog = lazy(() =>
+  import("../components/RecordDialog").then((m) => ({ default: m.RecordDialog })),
+);
+
+function UseSoundHandler() {
+  const auth = useAuth();
+  const [sound, setSound] = useState<Sound | null>(null);
+
+  useEffect(() => {
+    const onUse = (event: Event) => {
+      const track = (event as CustomEvent<PlayerTrack>).detail;
+      if (!track) return;
+      setSound({
+        id: track.soundId,
+        title: track.title,
+        audio_url: track.url,
+        creator_username: track.artist.replace(/^@/, ""),
+        uses_count: 0,
+        created_at: "",
+        original_video_id: null,
+        source: track.source ?? "own",
+        youtube_url: track.youtubeUrl ?? null,
+        cover_url: track.coverUrl ?? null,
+      });
+    };
+    window.addEventListener(USE_SOUND_EVENT, onUse);
+    return () => window.removeEventListener(USE_SOUND_EVENT, onUse);
+  }, []);
+
+  if (!sound) return null;
+  return (
+    <Suspense fallback={null}>
+      <RecordDialog
+        open
+        onOpenChange={(next) => {
+          if (!next) setSound(null);
+        }}
+        username={auth.onboarding.username ?? auth.handle}
+        sound={sound}
+      />
+    </Suspense>
+  );
+}
 function NotFoundComponent() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -91,37 +143,41 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     const supabaseOrigin = supabaseUrl ? new URL(supabaseUrl).origin : undefined;
     return {
       meta: [
-      { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
-      { title: "coolerup" },
-      { name: "description", content: "Short videos, less perfect, more real." },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary_large_image" },
-      { name: "theme-color", content: "#000000" },
-      { name: "mobile-web-app-capable", content: "yes" },
-      { name: "apple-mobile-web-app-capable", content: "yes" },
-      { name: "apple-mobile-web-app-status-bar-style", content: "black" },
-      { name: "apple-mobile-web-app-title", content: "coolerup" },
-    ],
-    links: [
-      { rel: "stylesheet", href: appCss },
-      { rel: "manifest", href: "/manifest.json" },
-      { rel: "icon", type: "image/png", href: "/favicon.png" },
-      { rel: "apple-touch-icon", href: "/icons/icon-192.png" },
-      { rel: "preconnect", href: "https://fonts.googleapis.com" },
-      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-      ...(supabaseOrigin
-        ? [
-            { rel: "preconnect" as const, href: supabaseOrigin, crossOrigin: "anonymous" as const },
-            { rel: "dns-prefetch" as const, href: supabaseOrigin },
-          ]
-        : []),
-      { rel: "preconnect", href: "https://api.audius.co" },
-      {
-        rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=Archivo+Black&family=Manrope:wght@400;500;600;700;800&display=swap",
-      },
-    ],
+        { charSet: "utf-8" },
+        { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
+        { title: "coolerup" },
+        { name: "description", content: "Short videos, less perfect, more real." },
+        { property: "og:type", content: "website" },
+        { name: "twitter:card", content: "summary_large_image" },
+        { name: "theme-color", content: "#000000" },
+        { name: "mobile-web-app-capable", content: "yes" },
+        { name: "apple-mobile-web-app-capable", content: "yes" },
+        { name: "apple-mobile-web-app-status-bar-style", content: "black" },
+        { name: "apple-mobile-web-app-title", content: "coolerup" },
+      ],
+      links: [
+        { rel: "stylesheet", href: appCss },
+        { rel: "manifest", href: "/manifest.json" },
+        { rel: "icon", type: "image/png", href: "/favicon.png" },
+        { rel: "apple-touch-icon", href: "/icons/icon-192.png" },
+        { rel: "preconnect", href: "https://fonts.googleapis.com" },
+        { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
+        ...(supabaseOrigin
+          ? [
+              {
+                rel: "preconnect" as const,
+                href: supabaseOrigin,
+                crossOrigin: "anonymous" as const,
+              },
+              { rel: "dns-prefetch" as const, href: supabaseOrigin },
+            ]
+          : []),
+        { rel: "preconnect", href: "https://api.audius.co" },
+        {
+          rel: "stylesheet",
+          href: "https://fonts.googleapis.com/css2?family=Archivo+Black&family=Manrope:wght@400;500;600;700;800&display=swap",
+        },
+      ],
     };
   },
   shellComponent: RootShell,
@@ -216,12 +272,19 @@ function RootComponent() {
           <CallOverlay />
           <WellbeingWatcher />
           <PushRegistrar />
+          {/* Creator fund: celebrates the $1 first-follower reward exactly once. */}
+          <FollowerRewardWatcher />
+          <EarningsWatcher />
         </CallProvider>
         <PhoneAuthDialog />
         <OnboardingRequiredDialog />
         <Toaster theme="dark" position="top-center" />
         {/* 50 falling white dots, Nov 15 2026 -> Jan 1 2027 only. */}
         <SnowEffect />
+        {/* Music tab: the dock lives at the root so the song keeps playing
+            when you switch top tabs. */}
+        <SongPlayerBar />
+        <UseSoundHandler />
       </AuthProvider>
     </QueryClientProvider>
   );

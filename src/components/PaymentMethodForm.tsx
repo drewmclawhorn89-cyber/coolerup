@@ -13,7 +13,6 @@ import {
 type Props = {
   planLabel: string;
   price: number;
-  trialDays: number;
   /** Called with the validated card when the user confirms. */
   onSubmit: (pm: PaymentMethod) => void;
   onCancel: () => void;
@@ -37,14 +36,7 @@ function formatExpiry(raw: string): string {
   return `${d.slice(0, 2)}/${d.slice(2)}`;
 }
 
-export function PaymentMethodForm({
-  planLabel,
-  price,
-  trialDays,
-  onSubmit,
-  onCancel,
-  submitLabel,
-}: Props) {
+export function PaymentMethodForm({ planLabel, price, onSubmit, onCancel, submitLabel }: Props) {
   const [input, setInput] = useState<CardInput>(EMPTY);
   const [errors, setErrors] = useState<CardErrors>({});
   const [touched, setTouched] = useState(false);
@@ -72,9 +64,10 @@ export function PaymentMethodForm({
   return (
     <div className="space-y-3">
       <div className="rounded-lg border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
-        You won&apos;t be charged today. After your {trialDays}-day trial ends we&apos;ll charge{" "}
+        You&apos;ll be charged{" "}
         <span className="font-semibold text-foreground">${price.toFixed(2)}/mo</span> for{" "}
-        {planLabel}. Cancel anytime before then and you pay nothing.
+        {planLabel}. Cancel anytime and you keep your perks until the end of the period you paid
+        for.
       </div>
 
       <div>
@@ -154,7 +147,7 @@ export function PaymentMethodForm({
           Cancel
         </Button>
         <Button className="flex-1" onClick={submit}>
-          {submitLabel ?? `Start free trial`}
+          {submitLabel ?? `Pay $${price.toFixed(2)}`}
         </Button>
       </div>
 

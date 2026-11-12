@@ -1,19 +1,28 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   hasOfflineAccess,
+  hasMusicOfflineAccess,
+  musicOfflineLockReason,
   offlineLockReason,
-  startTrial,
   cancelSubscription,
   confirmPayment,
   requestPayment,
+  updatePaymentMethod,
   type PaymentMethod,
 } from "@/lib/subscriptions";
-import { PLANS, offlinePlan, planIncludesOffline } from "@/lib/plans";
+import {
+  PLANS,
+  musicOfflinePlan,
+  offlinePlan,
+  planIncludesMusicOffline,
+  planIncludesOffline,
+} from "@/lib/plans";
 
 /**
- * Offline mode is a paid perk: it starts with Plus and every higher
- * tier inherits it. These tests pin the gate down so a future refactor can't
- * quietly hand offline downloads to free accounts.
+ * Offline *video* downloads ship with every paid tier (Plus, Pro and VIP);
+ * offline *music* is VIP-only. These tests pin that split down so a future
+ * refactor can't quietly take video downloads away from Plus or give music
+ * downloads away below VIP.
  */
 
 const H = "offline-tester";
@@ -32,75 +41,178 @@ beforeEach(() => {
   localStorage.clear();
 });
 
+/** Subscribe for real — the free hour lives in @/lib/trial, so perks need a paid plan. */
+function subscribe(planId = "pro") {
+  requestPayment(H, planId);
+  updatePaymentMethod(H, CARD);
+  confirmPayment(H);
+}
+
 describe("planIncludesOffline", () => {
-  it("unlocks offline for Plus, Pro and VIP", () => {
+  it("is included in every paid tier: Plus, Pro and VIP", () => {
     expect(planIncludesOffline("plus")).toBe(true);
     expect(planIncludesOffline("pro")).toBe(true);
     expect(planIncludesOffline("vip")).toBe(true);
   });
 
-  it("does not unlock offline for unknown or missing plans", () => {
+  it("is not included for free or unknown plans", () => {
     expect(planIncludesOffline("free")).toBe(false);
     expect(planIncludesOffline(undefined)).toBe(false);
     expect(planIncludesOffline(null)).toBe(false);
   });
 
-  it("advertises offline downloads on the Plus plan", () => {
-    const plus = PLANS.find((p) => p.id === "plus")!;
-    expect(plus.price).toBe(7.99);
-    expect(plus.perks).toContain("Offline downloads");
+  it("advertises offline video downloads on every paid tier", () => {
+    const withVideo = PLANS.filter((p) => p.perks.includes("Offline video downloads")).map(
+      (p) => p.id,
+    );
+    expect(withVideo).toEqual(["plus", "pro", "vip"]);
   });
 
-  it("points upgrade prompts at the cheapest offline plan", () => {
+  it("advertises offline music downloads on VIP only", () => {
+    const withMusic = PLANS.filter((p) => p.perks.includes("Offline music downloads")).map(
+      (p) => p.id,
+    );
+    expect(withMusic).toEqual(["vip"]);
+  });
+});
+
+describe("offlinePlan", () => {
+  it("points the upsell at Plus, the cheapest plan with offline video", () => {
     expect(offlinePlan().id).toBe("plus");
-    expect(offlinePlan().price).toBe(7.99);
+    expect(offlinePlan().offline).toBe(true);
+  });
+});
+
+describe("planIncludesMusicOffline", () => {
+  it("is included in VIP and the lifetime all-access plan", () => {
+    expect(planIncludesMusicOffline("vip")).toBe(true);
+    expect(planIncludesMusicOffline("all")).toBe(true);
+  });
+
+  it("is not included in Pro or Plus", () => {
+    expect(planIncludesMusicOffline("pro")).toBe(false);
+    expect(planIncludesMusicOffline("plus")).toBe(false);
+  });
+
+  it("is not included for free or unknown plans", () => {
+    expect(planIncludesMusicOffline("free")).toBe(false);
+    expect(planIncludesMusicOffline(undefined)).toBe(false);
+    expect(planIncludesMusicOffline(null)).toBe(false);
+  });
+});
+
+describe("musicOfflinePlan", () => {
+  it("points the music upsell at VIP", () => {
+    expect(musicOfflinePlan().id).toBe("vip");
+    expect(musicOfflinePlan().musicOffline).toBe(true);
+  });
+});
+
+describe("hasMusicOfflineAccess", () => {
+  it("is locked for a signed-out visitor", () => {
+    expect(hasMusicOfflineAccess(null)).toBe(false);
+    expect(hasMusicOfflineAccess(undefined)).toBe(false);
+    expect(musicOfflineLockReason(null)).toBe("signed-out");
+  });
+
+  it("is locked for a signed-in user with no plan", () => {
+    expect(hasMusicOfflineAccess(H)).toBe(false);
+    expect(musicOfflineLockReason(H)).toBe("no-plan");
+  });
+
+  it("is locked on an active Plus subscription", () => {
+    subscribe("plus");
+    expect(hasMusicOfflineAccess(H)).toBe(false);
+    expect(musicOfflineLockReason(H)).toBe("plan-lacks-offline");
+    // Plus still gets offline *video* downloads.
+    expect(hasOfflineAccess(H)).toBe(true);
+  });
+
+  it("is locked on an active Pro subscription", () => {
+    subscribe("pro");
+    expect(hasMusicOfflineAccess(H)).toBe(false);
+    expect(musicOfflineLockReason(H)).toBe("plan-lacks-offline");
+    // Pro still gets video offline downloads.
+    expect(hasOfflineAccess(H)).toBe(true);
+  });
+
+  it("unlocks on an active VIP subscription", () => {
+    subscribe("vip");
+    expect(hasMusicOfflineAccess(H)).toBe(true);
+    expect(musicOfflineLockReason(H)).toBeNull();
+  });
+
+  it("is locked while a VIP payment is still pending", () => {
+    requestPayment(H, "vip");
+    updatePaymentMethod(H, CARD);
+    expect(hasMusicOfflineAccess(H)).toBe(false);
+    expect(musicOfflineLockReason(H)).toBe("expired");
+  });
+
+  it("is locked again once a VIP subscription is cancelled", () => {
+    subscribe("vip");
+    cancelSubscription(H);
+    expect(hasMusicOfflineAccess(H)).toBe(false);
+    expect(musicOfflineLockReason(H)).toBe("no-plan");
   });
 });
 
 describe("hasOfflineAccess", () => {
-  it("locks a signed-out visitor", () => {
+  it("is locked for a signed-out visitor", () => {
     expect(hasOfflineAccess(null)).toBe(false);
     expect(hasOfflineAccess(undefined)).toBe(false);
     expect(offlineLockReason(null)).toBe("signed-out");
   });
 
-  it("locks a signed-in user with no plan", () => {
+  it("is locked for a signed-in user with no plan", () => {
     expect(hasOfflineAccess(H)).toBe(false);
     expect(offlineLockReason(H)).toBe("no-plan");
   });
 
-  it("unlocks during the free trial, since Plus includes offline", () => {
-    startTrial(H, "plus", CARD);
+  it("unlocks on an active Plus subscription", () => {
+    subscribe("plus");
     expect(hasOfflineAccess(H)).toBe(true);
     expect(offlineLockReason(H)).toBeNull();
   });
 
-  it("unlocks on an active paid subscription", () => {
-    startTrial(H, "plus", CARD);
-    requestPayment(H, "plus");
-    confirmPayment(H);
+  it("unlocks on an active Pro subscription", () => {
+    subscribe("pro");
     expect(hasOfflineAccess(H)).toBe(true);
+    expect(offlineLockReason(H)).toBeNull();
   });
 
-  it("locks while a payment is still pending", () => {
-    startTrial(H, "plus", CARD);
-    requestPayment(H, "plus");
+  it("unlocks on an active VIP subscription", () => {
+    subscribe("vip");
+    expect(hasOfflineAccess(H)).toBe(true);
+    expect(offlineLockReason(H)).toBeNull();
+  });
+
+  it("is locked while a payment is still pending", () => {
+    requestPayment(H, "pro");
+    updatePaymentMethod(H, CARD);
     expect(hasOfflineAccess(H)).toBe(false);
     expect(offlineLockReason(H)).toBe("expired");
   });
 
-  it("locks again when the subscription is cancelled", () => {
-    startTrial(H, "plus", CARD);
-    expect(hasOfflineAccess(H)).toBe(true);
+  it("is locked again once the subscription is cancelled", () => {
+    subscribe("pro");
     cancelSubscription(H);
     expect(hasOfflineAccess(H)).toBe(false);
+    expect(offlineLockReason(H)).toBe("no-plan");
   });
 
-  it("locks once the trial has run out", () => {
-    const sub = startTrial(H, "plus", CARD);
-    // Fast-forward past the trial end.
-    const lapsed = { ...sub, trialEndsAt: new Date(Date.now() - 1000).toISOString() };
-    localStorage.setItem(`subscription:${H}`, JSON.stringify(lapsed));
+  it("is locked on a legacy trial record", () => {
+    localStorage.setItem(
+      `subscription:${H}`,
+      JSON.stringify({
+        planId: "pro",
+        status: "trial",
+        startedAt: new Date().toISOString(),
+        trialEndsAt: new Date(Date.now() + 5 * 86400000).toISOString(),
+        paidAt: null,
+        paymentMethod: CARD,
+      }),
+    );
     expect(hasOfflineAccess(H)).toBe(false);
     expect(offlineLockReason(H)).toBe("expired");
   });

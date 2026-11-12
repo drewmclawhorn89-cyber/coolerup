@@ -1,12 +1,15 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Fragment, Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Bell,
   Download,
   Heart,
+  Gift,
   Home,
   LogOut,
   MessageCircle,
+  Music,
+  Play,
   Plus,
   Search,
   ShoppingBag,
@@ -21,8 +24,14 @@ import { VideoCard } from "@/components/VideoCard";
 import { SantaHat } from "@/components/SantaHat";
 import { ChristmasLights } from "@/components/ChristmasLights";
 import { ChristmasCountdown } from "@/components/ChristmasCountdown";
+import { LiveNowList } from "@/components/LiveNowList";
+import { useLiveDirectory, type LiveHost } from "@/lib/liveDirectory";
 import { OnboardingBanner, useOnboardingGuard } from "@/components/OnboardingBanner";
 import { isChristmasCountdownVisible, useChristmasMode } from "@/lib/christmas";
+import { stripGTA6TestParam, useGTA6Mode } from "@/lib/gta6";
+import { GTA6Banner } from "@/components/GTA6Banner";
+import { GTA6ChallengeCard } from "@/components/GTA6ChallengeCard";
+import { useChristmasCodesSeason } from "@/lib/christmas-codes";
 import { matchesKeyword, readBool } from "@/lib/prefs";
 // Heavy, interaction-only surfaces are split out so the initial feed bundle stays small.
 const UploadDialog = lazy(() => import("@/components/UploadDialog").then((m) => ({ default: m.UploadDialog })));
@@ -32,6 +41,9 @@ const SubscriptionsPanel = lazy(() =>
 );
 const Marketplace = lazy(() => import("@/components/Marketplace").then((m) => ({ default: m.Marketplace })));
 const GroupsPanel = lazy(() => import("@/components/GroupsPanel").then((m) => ({ default: m.GroupsPanel })));
+const ChristmasCodesPanel = lazy(() =>
+  import("@/components/ChristmasCodesPanel").then((m) => ({ default: m.ChristmasCodesPanel })),
+);
 const LiveStreamDialog = lazy(() =>
   import("@/components/LiveStreamDialog").then((m) => ({ default: m.LiveStreamDialog })),
 );
@@ -50,6 +62,7 @@ import { listSaved, onOfflineChange } from "@/lib/offline";
 import { readFeedCache, writeFeedCache } from "@/lib/feed-cache";
 import { feedPageSize, isLiteMode, useNetwork } from "@/lib/network";
 import { useBlocked } from "@/lib/safety";
+import { fetchRepostAttribution, REPOST_EVENT } from "@/lib/reposts";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -69,7 +82,7 @@ export const Route = createFileRoute("/")({
 });
 
 type Tab = "foryou" | "explore" | "following" | "liked" | "saved" | "inbox" | "shop" | "subscriptions";
-type FeedTab = "home" | "following" | "foryou" | "explore" | "marketplace" | "groups" | "live";
+type FeedTab = "home" | "following" | "foryou" | "explore" | "marketplace" | "groups" | "live" | "codes";
 type NotificationFilter = "all" | "unread";
 
 type NotificationRow = {
@@ -104,6 +117,7 @@ const HEADERS: Record<Tab, [string, string]> = {
 
 function Index() {
   const auth = useAuth();
+  const navigate = useNavigate();
   const me = auth.handle;
   const net = useNetwork();
   const lite = isLiteMode(net);
@@ -114,6 +128,12 @@ function Index() {
   // Nov 15 2026 -> Jan 1 2027 only. False today (Nov 1 2026), true on its own
   // once the window opens, and false again after it closes.
   const christmas = useChristmasMode();
+  // GTA 6 update: Nov 8 - Nov 15 2026 only. One-way door — after Nov 15
+  // `useGTA6Mode()` is false forever and nothing below ever renders again.
+  const gta6 = useGTA6Mode();
+  // The "Codes" tab is seasonal: on Nov 15 - Jan 1, off the rest of the year.
+  // It re-appears by itself every Christmas with no deploy and no flag.
+  const codesSeason = useChristmasCodesSeason();
   // Pre-launch banner: only until Nov 15 2026, then it hides itself for good.
   // `!christmas` makes the wrapper disappear the moment the update goes live,
   // even if this component hasn't re-rendered for another reason.
@@ -124,6 +144,11 @@ function Index() {
 
   const [videos, setVideos] = useState<Video[] | null>(null);
   const [myPostCount, setMyPostCount] = useState(0);
+  // After Nov 15 2026 the ?gta=test preview param is dead: physically remove it
+  // from the URL so it can't be shared, bookmarked or re-used.
+  useEffect(() => {
+    stripGTA6TestParam();
+  }, []);
   useEffect(() => {
     if (!me) {
       setMyPostCount(0);
@@ -170,11 +195,23 @@ function Index() {
   });
   const [followingList, setFollowingList] = useState<string[]>([]);
   const [repostedFeed, setRepostedFeed] = useState<Video[]>([]);
+  /** videoId -> handle of whoever reposted it, for the "@name reposted" label. */
+  const [repostBy, setRepostBy] = useState<Map<string, string>>(new Map());
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [challengeHidden, setChallengeHidden] = useState(() => {
     if (typeof window === "undefined") return false;
     return window.sessionStorage.getItem("loop-christmas-challenge-hidden") === "1";
   });
+  const [gta6BannerHidden, setGTA6BannerHidden] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.sessionStorage.getItem("loop-gta6-banner-hidden") === "1";
+  });
+  const [gta6ChallengeHidden, setGTA6ChallengeHidden] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.sessionStorage.getItem("loop-gta6-challenge-hidden") === "1";
+  });
+  // Bumped after every post so the GTA 6 challenge card refetches its count.
+  const [gta6ChallengeRefresh, setGta6ChallengeRefresh] = useState(0);
 
   // Moderation: videos the user tapped "Not interested" on, plus blocked authors.
   const { blocked } = useBlocked();
@@ -251,12 +288,13 @@ function Index() {
   const [uploadFull, setUploadFull] = useState(false);
   const [recordingOpen, setRecordingOpen] = useState(false);
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
+  /** Set when a viewer taps a card on the LIVE tab; opens that room. */
+  const [liveWatchHost, setLiveWatchHost] = useState<LiveHost | null>(null);
   // Keep the create menu mounted after its first open. "Go live" closes the
   // menu before switching to the broadcast view, so unmounting here would
   // throw away the live-stream state and the broadcast screen would never show.
   const [createMenuMounted, setCreateMenuMounted] = useState(false);
   const [error, setError] = useState(false);
-  const [searchOpen, setSearchOpen] = useState(false);
   const [userResults, setUserResults] = useState<
     { id: string; handle: string | null; display_name: string | null; avatar_url: string | null }[]
   >([]);
@@ -264,6 +302,9 @@ function Index() {
   useEffect(() => {
     if (createMenuOpen) setCreateMenuMounted(true);
   }, [createMenuOpen]);
+  useEffect(() => {
+    if (liveWatchHost) setCreateMenuMounted(true);
+  }, [liveWatchHost]);
 
   useEffect(() => {
     const q = query.trim().replace(/^@/, "").replace(/[%,()]/g, "");
@@ -519,6 +560,50 @@ function Index() {
     return list;
   }, [videos, saved, query, activeTab, liked, me, followingList, feedTab, repostedFeed, notInterested, blocked]);
 
+  // Who reposted what — one batched query per feed page. The label names a
+  // person you follow when possible, otherwise the newest reposter.
+  const shownIdsKey = useMemo(() => shown.map((v) => v.id).join(","), [shown]);
+  useEffect(() => {
+    if (!shownIdsKey) {
+      setRepostBy(new Map());
+      return;
+    }
+    let active = true;
+    const ids = shownIdsKey.split(",");
+    fetchRepostAttribution(ids, followingList)
+      .then((map) => {
+        if (active) setRepostBy(map);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [shownIdsKey, followingList]);
+
+  // Reposting from a card updates the label immediately, without a refetch.
+  useEffect(() => {
+    const onRepost = (e: Event) => {
+      const detail = (e as CustomEvent<{ videoId: string; handle: string | null }>).detail;
+      if (!detail?.videoId) return;
+      setRepostBy((prev) => {
+        const next = new Map(prev);
+        if (detail.handle) next.set(detail.videoId, detail.handle);
+        else next.delete(detail.videoId);
+        return next;
+      });
+    };
+    window.addEventListener(REPOST_EVENT, onRepost);
+    return () => window.removeEventListener(REPOST_EVENT, onRepost);
+  }, []);
+
+  // The LIVE top tab lists real broadcasters from the presence directory
+  // (a `videos.is_live` row filter can't see people who are streaming now).
+  const onLiveTab = activeTab === "foryou" && feedTab === "live" && !offlineMode;
+  const { hosts: liveHosts } = useLiveDirectory({
+    enabled: onLiveTab,
+    key: auth.user?.id ?? null,
+  });
+
   const showTopTabs = !offlineMode && (activeTab === "foryou" || activeTab === "following" || activeTab === "explore");
   const topTab =
     activeTab === "shop" || activeTab === "subscriptions"
@@ -531,6 +616,16 @@ function Index() {
     setTab(t === "following" || t === "explore" ? t : "foryou");
   };
 
+  // If the season ends (or the tab is opened out of season via a stale link)
+  // while "codes" is selected, fall back to the normal feed instead of showing
+  // a tab that no longer exists in the bar.
+  useEffect(() => {
+    if (!codesSeason && feedTab === "codes") {
+      setFeedTab("foryou");
+      setTab("foryou");
+    }
+  }, [codesSeason, feedTab]);
+
   // One shared top tab bar (Home | Following | For You | Marketplace | Groups | LIVE).
   // Shop stays on the end of the scrollable row so that screen is still
   // reachable on phones. Subscriptions now lives in Settings (/?tab=subscriptions
@@ -541,12 +636,30 @@ function Index() {
       <button onClick={() => pickFeedTab("home")} className={tabClass("home")}>Home</button>
       <button onClick={() => pickFeedTab("following")} className={tabClass("following")}>Following</button>
       <button onClick={() => pickFeedTab("foryou")} className={tabClass("foryou")}>For You</button>
+      {/* Full-length videos live on their own YouTube-style page, not in the feed. */}
+      <button onClick={() => void navigate({ to: "/videos" })} className={tabClass("videos")}>
+        <Play className="size-3.5 fill-current" />
+        Videos
+      </button>
+      {/* Music lives on its own page so the song keeps playing while you
+          browse the feed. */}
+      <button onClick={() => void navigate({ to: "/music" })} className={tabClass("music")}>
+        <Music className="size-3.5" />
+        Music
+      </button>
       <button onClick={() => pickFeedTab("marketplace")} className={tabClass("marketplace")}>Marketplace</button>
       <button onClick={() => pickFeedTab("groups")} className={tabClass("groups")}>Groups</button>
       <button onClick={() => pickFeedTab("live")} className={tabClass("live")}>
         <span className="h-2 w-2 rounded-full bg-red-500" />
         LIVE
       </button>
+      {/* Christmas only: seasonal gift-code tab. Vanishes on Jan 2, returns Nov 15. */}
+      {codesSeason && (
+        <button onClick={() => pickFeedTab("codes")} className={tabClass("codes")}>
+          <Gift className="size-3.5" />
+          Codes
+        </button>
+      )}
       <button onClick={() => pickFeedTab("explore")} className={tabClass("explore")}>Explore</button>
       <button onClick={() => setTab("shop")} className={tabClass("shop")}>Shop</button>
     </div>
@@ -589,7 +702,7 @@ function Index() {
     <div className="flex h-dvh overflow-hidden bg-background">
       <aside className="hidden w-72 shrink-0 flex-col gap-6 border-r bg-sidebar p-6 md:flex">
         <div>
-          <h1 className="font-display text-4xl tracking-tight">
+          <h1 className={`font-display text-4xl tracking-tight ${gta6 ? "gta6-logo-glow" : ""}`}>
             coolerup
             <span className="relative inline-block text-primary">
               .
@@ -597,19 +710,23 @@ function Index() {
                 <SantaHat className="pointer-events-none absolute -top-[0.62em] left-1/2 h-[0.7em] w-[0.8em] -translate-x-1/2 rotate-[8deg] drop-shadow-[0_2px_3px_rgba(0,0,0,0.45)]" />
               )}
             </span>
+            {gta6 && (
+              <span className="gta6-palm ml-1 text-2xl" aria-hidden>
+                🌴
+              </span>
+            )}
           </h1>
           <p className="mt-1 text-[11px] font-bold tracking-[0.3em] text-muted-foreground">A LITTLE MORE YOU</p>
         </div>
 
-        <label className="flex items-center gap-2 rounded-full bg-secondary px-4 py-2.5">
+        <button
+          type="button"
+          onClick={() => void navigate({ to: "/search" })}
+          className="flex items-center gap-2 rounded-full bg-secondary px-4 py-2.5 text-left transition hover:bg-accent"
+        >
           <Search className="h-4 w-4 text-muted-foreground" />
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search videos"
-            className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-          />
-        </label>
+          <span className="text-sm text-muted-foreground">Search videos</span>
+        </button>
 
         <nav className="flex flex-col gap-1">
           {NAV.map(({ id, label, icon: Icon }) => (
@@ -636,7 +753,7 @@ function Index() {
 
         <button
           onClick={() => guardOnboarding(() => (auth.user ? setCreateMenuOpen(true) : auth.signIn()))}
-          className="flex items-center justify-center gap-2 rounded-full bg-primary py-3.5 font-bold text-primary-foreground shadow-[0_10px_30px_-10px_var(--primary)] transition hover:brightness-95"
+          className="flex items-center justify-center gap-2 rounded-full create-pink py-3.5 font-bold shadow-[0_10px_30px_-10px_#ec4899] transition hover:brightness-95"
         >
           <Plus className="h-5 w-5" /> Create
         </button>
@@ -680,11 +797,11 @@ function Index() {
           <Button
             variant="ghost"
             size="icon"
-            aria-label={searchOpen ? "Close search" : "Search videos"}
-            onClick={() => setSearchOpen((open) => !open)}
+            aria-label="Search videos"
+            onClick={() => void navigate({ to: "/search" })}
             className="pointer-events-auto rounded-full bg-black/35 text-white backdrop-blur-sm hover:bg-black/55 hover:text-white"
           >
-            {searchOpen ? <X /> : <Search />}
+            <Search />
           </Button>
           <Button
             variant="ghost"
@@ -702,25 +819,6 @@ function Index() {
             )}
           </Button>
         </div>
-
-        {searchOpen && (
-          <label className="absolute inset-x-3 top-[calc(env(safe-area-inset-top)+5.75rem)] z-50 flex items-center gap-3 rounded-full border border-white/15 bg-black/70 px-4 py-2 backdrop-blur md:hidden">
-            <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
-            <input
-              autoFocus
-              aria-label="Search videos"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search videos"
-              className="min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground"
-            />
-            {query && (
-              <Button variant="ghost" size="icon" aria-label="Clear search" onClick={() => setQuery("")}>
-                <X />
-              </Button>
-            )}
-          </label>
-        )}
 
         {offlineMode && (
           <div className="flex shrink-0 items-center gap-2 bg-primary/10 px-4 py-2 text-sm font-bold text-primary md:px-10">
@@ -772,7 +870,34 @@ function Index() {
           </div>
         )}
 
-        {activeTab === "foryou" && feedTab === "marketplace" && !offlineMode ? (
+        {onLiveTab ? (
+          <div className="relative flex min-h-0 flex-1 flex-col bg-black">
+            <TopTabs className={topTabsClass} />
+            <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto pt-[calc(env(safe-area-inset-top)+5.5rem)]">
+              <LiveNowList
+                hosts={liveHosts}
+                onWatch={(host) => {
+                  setLiveWatchHost(host);
+                  setCreateMenuOpen(true);
+                }}
+                onGoLive={() =>
+                  guardOnboarding(() => {
+                    setLiveWatchHost(null);
+                    if (auth.user) setCreateMenuOpen(true);
+                    else auth.signIn();
+                  })
+                }
+              />
+            </div>
+          </div>
+        ) : feedTab === "codes" ? (
+          <div className="relative flex min-h-0 flex-1 flex-col bg-black">
+            <TopTabs className={topTabsClass} />
+            <Suspense fallback={null}>
+              <ChristmasCodesPanel handle={me} onSignIn={auth.signIn} />
+            </Suspense>
+          </div>
+        ) : activeTab === "foryou" && feedTab === "marketplace" && !offlineMode ? (
           <div className="relative flex min-h-0 flex-1 flex-col">
             <TopTabs className={topTabsClass} />
             <Suspense fallback={null}>
@@ -878,6 +1003,36 @@ function Index() {
               <p className="hidden text-sm text-muted-foreground md:block">{sub}</p>
             </header>
 
+            {gta6 && !gta6BannerHidden && activeTab === "foryou" && feedTab === "foryou" && !offlineMode && !query.trim() && (
+              <GTA6Banner
+                onPost={() => guardOnboarding(() => (auth.user ? setRecordingOpen(true) : auth.signIn()))}
+                onDismiss={() => {
+                  setGTA6BannerHidden(true);
+                  try {
+                    window.sessionStorage.setItem("loop-gta6-banner-hidden", "1");
+                  } catch {
+                    /* ignore */
+                  }
+                }}
+              />
+            )}
+
+            {gta6 && !gta6ChallengeHidden && activeTab === "foryou" && feedTab === "foryou" && !offlineMode && !query.trim() && (
+              <GTA6ChallengeCard
+                handle={auth.handle}
+                refreshKey={gta6ChallengeRefresh}
+                onPost={() => guardOnboarding(() => (auth.user ? setRecordingOpen(true) : auth.signIn()))}
+                onDismiss={() => {
+                  setGTA6ChallengeHidden(true);
+                  try {
+                    window.sessionStorage.setItem("loop-gta6-challenge-hidden", "1");
+                  } catch {
+                    /* ignore */
+                  }
+                }}
+              />
+            )}
+
             {christmas && !challengeHidden && activeTab === "foryou" && feedTab === "foryou" && !offlineMode && !query.trim() && (
               <div className="christmas-banner relative mx-3 mb-2 flex shrink-0 items-center gap-2.5 rounded-2xl px-3 py-2.5 text-white shadow-lg md:mx-10">
                 <span className="text-2xl" aria-hidden>
@@ -918,7 +1073,11 @@ function Index() {
             {showTopTabs && (
               <TopTabs className={`${topTabsClass} md:hidden`} />
             )}
-            <div className="no-scrollbar min-h-0 flex-1 snap-y snap-mandatory overflow-y-scroll overscroll-contain scroll-smooth">
+            <div
+              className={`no-scrollbar min-h-0 flex-1 snap-y snap-mandatory overflow-y-scroll overscroll-contain scroll-smooth ${
+                gta6 && activeTab === "foryou" && feedTab === "foryou" ? "gta6-foryou-bg" : ""
+              }`}
+            >
               {error && !offlineMode && !(videos && videos.length > 0) && (
                 <Empty text="Couldn't load videos. Refresh to try again." />
               )}
@@ -948,6 +1107,8 @@ function Index() {
                   onFollowChange={handleFollowChange}
                   isSaved={savedIds.has(v.id)}
                   onSavedChange={handleSavedChange}
+                  repostedBy={repostBy.get(v.id) ?? v.reposted_by ?? null}
+                  posterUsername={v.poster_username ?? v.username}
                 />
               ))}
               <div id="scroll-sentinel" className="h-10 w-full" />
@@ -977,7 +1138,8 @@ function Index() {
           <Button
             aria-label="Create video or go live"
             onClick={() => guardOnboarding(() => (auth.user ? setCreateMenuOpen(true) : auth.signIn()))}
-            className="m-auto h-9 w-10 rounded-lg px-0 [&_svg]:size-6"
+            style={{ backgroundColor: "#ec4899", color: "#ffffff" }}
+            className="m-auto h-9 w-10 rounded-lg px-0 hover:brightness-95 [&_svg]:size-6"
           >
             <Plus />
           </Button>
@@ -1044,9 +1206,15 @@ function Index() {
         <Suspense fallback={null}>
           <LiveStreamDialog
             open={createMenuOpen}
-            onOpenChange={setCreateMenuOpen}
+            onOpenChange={(next) => {
+              setCreateMenuOpen(next);
+              if (!next) setLiveWatchHost(null);
+            }}
             {...(auth.user?.id ? { userId: auth.user.id } : {})}
             username={auth.handle}
+            {...(liveWatchHost
+              ? { initialHost: { userId: liveWatchHost.userId, username: liveWatchHost.username } }
+              : {})}
             onRecord={() => setRecordingOpen(true)}
             onPhoto={() => setPhotoOpen(true)}
             onUpload={() =>
@@ -1068,6 +1236,7 @@ function Index() {
             onDone={() => {
               setUploading(false);
               setTab("foryou");
+              setGta6ChallengeRefresh((n) => n + 1);
               load();
             }}
           />
@@ -1080,6 +1249,7 @@ function Index() {
         username={auth.handle}
         onPosted={() => {
           setTab("foryou");
+          setGta6ChallengeRefresh((n) => n + 1);
           load();
         }}
       /></Suspense>}
@@ -1091,6 +1261,7 @@ function Index() {
         onUploadInstead={() => setUploading(true)}
         onPosted={() => {
           setTab("foryou");
+          setGta6ChallengeRefresh((n) => n + 1);
           load();
         }}
       /></Suspense>}

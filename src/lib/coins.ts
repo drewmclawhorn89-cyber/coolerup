@@ -31,6 +31,8 @@ export type LiveGift = {
   color: string;
   /** Only shown while the Christmas update is live. */
   christmasOnly?: boolean;
+  /** Only offered while the GTA 6 update is live (Nov 8-15 2026, then gone). */
+  gta6Only?: boolean;
 };
 
 export const LIVE_GIFTS: LiveGift[] = [
@@ -69,6 +71,15 @@ export const LIVE_GIFTS: LiveGift[] = [
     color: "#ef4444",
     christmasOnly: true,
   },
+  {
+    id: "gta-car",
+    name: "GTA Car",
+    emoji: "\u{1F697}",
+    coins: 100,
+    kind: "burst",
+    color: "#FF2E88",
+    gta6Only: true,
+  },
   { id: "lion", name: "Lion", emoji: "\u{1F981}", coins: 100, kind: "burst", color: "#f59e0b" },
   {
     id: "universe",
@@ -80,9 +91,14 @@ export const LIVE_GIFTS: LiveGift[] = [
   },
 ];
 
-/** Gifts visible right now: Christmas items only during the Christmas update. */
-export function giftsForMode(christmas: boolean): LiveGift[] {
-  return LIVE_GIFTS.filter((gift) => !gift.christmasOnly || christmas);
+/**
+ * Gifts visible right now: Christmas items only during the Christmas update,
+ * the GTA Car only during the GTA 6 update (and never again afterwards).
+ */
+export function giftsForMode(christmas: boolean, gta6 = false): LiveGift[] {
+  return LIVE_GIFTS.filter(
+    (gift) => (!gift.christmasOnly || christmas) && (!gift.gta6Only || gta6),
+  );
 }
 
 export function giftById(id: string): LiveGift | undefined {
@@ -90,7 +106,7 @@ export function giftById(id: string): LiveGift | undefined {
 }
 
 /** Multipliers offered in the gift panel, TikTok style. */
-export const GIFT_COUNTS = [1, 5, 10] as const;
+export const GIFT_COUNTS = [1, 5, 10, 99] as const;
 export type GiftCount = (typeof GIFT_COUNTS)[number];
 
 /** Total coins for `quantity` of `gift`. */
@@ -251,10 +267,12 @@ const INSUFFICIENT = /insufficient_coins/i;
 
 /**
  * Sends a gift through the `send_live_gift` Postgres function, which deducts
- * coins and writes the gift row in one transaction.
+ * coins and writes the gift row in one transaction. `liveId` is the stream's
+ * UUID, or null when the gift is not associated with a persisted live session.
+ * The database derives sender_id from auth.uid() rather than trusting client text.
  */
 export async function sendLiveGift(input: {
-  liveId: string;
+  liveId: string | null;
   receiverId: string;
   gift: LiveGift;
   quantity: number;
@@ -264,7 +282,7 @@ export async function sendLiveGift(input: {
   const total = giftTotal(gift, qty);
 
   const { data, error } = await supabase.rpc("send_live_gift", {
-    p_live_id: liveId,
+    p_live_id: liveId as string,
     p_receiver_id: receiverId,
     p_gift_type: gift.id,
     p_coins: total,

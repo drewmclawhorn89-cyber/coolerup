@@ -9,15 +9,7 @@ import {
   type MouseEvent,
 } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
-import {
-  Bookmark,
-  Heart,
-  MessageCircle,
-  Music,
-  Play,
-  Repeat2,
-  Share2,
-} from "lucide-react";
+import { Bookmark, Heart, MessageCircle, Music, Play, Repeat2, Share2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -39,6 +31,7 @@ import {
   type Sound,
 } from "@/lib/sounds";
 import { useAuth } from "@/hooks/useAuth";
+import { recordVideoView } from "@/lib/creatorFund";
 import { requireOnboarding } from "@/lib/auth";
 import { haptic, readBool } from "@/lib/prefs";
 import { isLiteMode, useNetwork } from "@/lib/network";
@@ -54,12 +47,16 @@ import {
 import { REPORT_REASONS, checkIfBanned, reportContent, type ReportReason } from "@/lib/moderation";
 import { resolveAvatarUrl } from "./EditProfileDialog";
 import { notifyUser, profileIdForHandle } from "@/lib/notify";
-import { useChristmasMode } from "@/lib/christmas";
 import {
-  QUALITY_OPTIONS,
-  resolveQualitySource,
-  useVideoQuality,
-} from "@/lib/videoQuality";
+  isNotInterested,
+  markNotInterested,
+  notifyRepostChanged,
+  repostVideo,
+  unrepostVideo,
+} from "@/lib/reposts";
+import { followUser, unfollowUser } from "@/lib/follow";
+import { useChristmasMode } from "@/lib/christmas";
+import { QUALITY_OPTIONS, resolveQualitySource, useVideoQuality } from "@/lib/videoQuality";
 import { QualitySelector } from "@/components/QualitySelector";
 
 const Comments = lazy(() => import("./Comments").then((m) => ({ default: m.Comments })));
@@ -110,6 +107,17 @@ export type VideoCardProps = {
   onFollowChange?: (username: string, following: boolean) => void;
   isSaved?: boolean;
   onSavedChange?: (videoId: string, saved: boolean) => void;
+  /**
+   * Handle of the person who reposted this video. Set by the Following feed so
+   * the card can show "@name reposted" above the caption.
+   */
+  repostedBy?: string | null;
+  /**
+   * Handle of the account that actually uploaded the video (resolved from
+   * `videos.user_id → profiles.handle`). Rendered big at the bottom-left over
+   * the video, TikTok-style. Falls back to `video.username`.
+   */
+  posterUsername?: string | null;
 };
 
 function VideoCardImpl({
@@ -122,6 +130,8 @@ function VideoCardImpl({
   onFollowChange,
   isSaved: isSavedProp,
   onSavedChange,
+  repostedBy,
+  posterUsername,
 }: VideoCardProps) {
   const ref = useRef<HTMLVideoElement>(null);
   const [src, setSrc] = useState("");
@@ -130,6 +140,11 @@ function VideoCardImpl({
   const [shares, setShares] = useState(video.shares_count);
   const [reposted, setReposted] = useState(false);
   const [repostCount, setRepostCount] = useState(video.reposts ?? video.reposts_count ?? 0);
+  // Long-press on the ❤️ opens a TikTok-style bottom sheet (Repost / Not
+  // interested). 600ms hold; a shorter tap is a normal like.
+  const [showLikeMenu, setShowLikeMenu] = useState(false);
+  const likePressRef = useRef<number | null>(null);
+  const likeSuppressRef = useRef(false);
   const [showComments, setShowComments] = useState(false);
   const [showShare, setShowShare] = useState(false);
   const [showGift, setShowGift] = useState(false);
@@ -151,6 +166,8 @@ function VideoCardImpl({
   const progressRef = useRef<HTMLDivElement>(null);
   // Playback position, so switching quality doesn't jump back to the start.
   const resumeRef = useRef(0);
+  // Video id whose view has already been reported this session.
+  const viewRecordedRef = useRef<string | null>(null);
   useEffect(() => {
     resumeRef.current = 0;
   }, [video.id]);
@@ -205,11 +222,14 @@ function VideoCardImpl({
   // Recordings made with a sound have it baked into the file ([[baked]]), so
   // they must not overlay it again.
   const soundBakedIn = parseCaption(video.caption).baked;
-  const hasBorrowedSound = !!sound && sound.original_video_id !== video.id && !soundBakedIn;
+  // YouTube songs stream from YouTube and have no audio file, so there is
+  // nothing for the <audio> overlay to play — the Short carries its own audio.
+  const hasBorrowedSound =
+    !!sound && sound.source !== "youtube" && sound.original_video_id !== video.id && !soundBakedIn;
 
   // --- moderation -----------------------------------------------------------
   const [isBanned, setIsBanned] = useState(false);
-  const [notInterested, setNotInterested] = useState(false);
+  const [notInterested, setNotInterested] = useState(() => isNotInterested(video.id));
   const [showReport, setShowReport] = useState(false);
   const [reportReason, setReportReason] = useState<ReportReason | null>(null);
   const [reportDetails, setReportDetails] = useState("");
@@ -262,9 +282,7 @@ function VideoCardImpl({
   // original upload when the row has no rendition for that quality.
   const qualitySource = resolveQualitySource(video, quality, net.effectiveType);
   const qualityLabel =
-    quality === "auto"
-      ? "Auto"
-      : (QUALITY_OPTIONS.find((o) => o.id === quality)?.label ?? "Auto");
+    quality === "auto" ? "Auto" : (QUALITY_OPTIONS.find((o) => o.id === quality)?.label ?? "Auto");
   const [showCaptions] = useState(() => readBool("captions"));
   const [autoplay] = useState(() => readBool("autoplay", true));
 
@@ -309,7 +327,7 @@ function VideoCardImpl({
 
   // Resolve the audio source for a borrowed sound (handles storage: URLs).
   useEffect(() => {
-    if (!sound?.audio_url) {
+    if (!sound?.audio_url || sound.source === "youtube") {
       setSoundSrc("");
       return;
     }
@@ -320,7 +338,7 @@ function VideoCardImpl({
     return () => {
       active = false;
     };
-  }, [sound?.id, sound?.audio_url]);
+  }, [sound?.id, sound?.audio_url, sound?.source]);
 
   // Keep the overlay audio in step with the video.
   const syncSound = useCallback(
@@ -481,18 +499,16 @@ function VideoCardImpl({
     const next = !isFollowing;
     setIsFollowing(next);
     onFollowChange?.(video.username, next);
-    const { error } = next
-      ? await supabase.from("follows").insert({
-          follower_id: auth.user.id,
-          follower_username: myUsername,
-          following_username: video.username,
+    // The $1 first-follower reward is granted by a database trigger on
+    // `follows`, so a plain follow is all this needs to do.
+    const result = next
+      ? await followUser({
+          followerId: auth.user.id,
+          followerUsername: myUsername,
+          followingUsername: video.username,
         })
-      : await supabase
-          .from("follows")
-          .delete()
-          .eq("follower_id", auth.user.id)
-          .eq("following_username", video.username);
-    if (error) {
+      : await unfollowUser({ followerId: auth.user.id, followingUsername: video.username });
+    if (!result.ok) {
       setIsFollowing(!next);
       onFollowChange?.(video.username, !next);
       toast.error("Couldn't update follow");
@@ -674,15 +690,14 @@ function VideoCardImpl({
     haptic();
     setReposted(next);
     setRepostCount((c) => Math.max(0, next ? c + 1 : c - 1));
-    if (next) toast.success("Reposted! Your followers will see this");
+    if (next) toast.success("Reposted! Your followers can see this");
+    // Show the "🔁 @you reposted" label on this video straight away.
+    notifyRepostChanged(video.id, next ? (myUsername ?? null) : null);
 
     try {
       if (next) {
-        const { error } = await supabase
-          .from("reposts")
-          .insert({ video_id: video.id, user_id: authUser.id });
-        // 23505 = already reposted, which is fine.
-        if (error && error.code !== "23505") throw error;
+        const ok = await repostVideo(video.id, authUser.id);
+        if (!ok) throw new Error("repost failed");
         const ownerId = await profileIdForHandle(video.username);
         if (ownerId) {
           await notifyUser({
@@ -695,20 +710,78 @@ function VideoCardImpl({
           });
         }
       } else {
-        const { error } = await supabase
-          .from("reposts")
-          .delete()
-          .eq("video_id", video.id)
-          .eq("user_id", authUser.id);
-        if (error) throw error;
+        const ok = await unrepostVideo(video.id, authUser.id);
+        if (!ok) throw new Error("unrepost failed");
       }
     } catch {
       // Roll back the optimistic UI if the write failed.
+      notifyRepostChanged(video.id, next ? null : (myUsername ?? null));
       setReposted(!next);
       setRepostCount((c) => Math.max(0, next ? c - 1 : c + 1));
       toast.error("Couldn't update repost");
     }
   }, [auth.user, auth.signIn, myUsername, reposted, video.id, video.username]);
+
+  // --- long press on the ❤️ ------------------------------------------------
+  // Hold for 600ms -> buzz + bottom sheet (Repost / Not interested).
+  // Release sooner -> a normal like, handled by the button's onClick.
+  const cancelLikePress = useCallback(() => {
+    if (likePressRef.current) window.clearTimeout(likePressRef.current);
+    likePressRef.current = null;
+  }, []);
+
+  const startLikePress = useCallback(
+    (e: React.PointerEvent<HTMLButtonElement>) => {
+      // Don't let the card's own long press (quality picker) fire as well.
+      e.stopPropagation();
+      if (e.pointerType === "mouse" && e.button !== 0) return;
+      cancelLikePress();
+      likePressRef.current = window.setTimeout(() => {
+        likePressRef.current = null;
+        likeSuppressRef.current = true;
+        try {
+          navigator.vibrate?.(50);
+        } catch {
+          /* vibration unsupported */
+        }
+        setShowLikeMenu(true);
+      }, 600);
+    },
+    [cancelLikePress],
+  );
+
+  const handleLikeClick = useCallback(
+    (e: MouseEvent<HTMLButtonElement>) => {
+      e.stopPropagation();
+      // The long press already opened the sheet; swallow the click it produces.
+      if (likeSuppressRef.current) {
+        likeSuppressRef.current = false;
+        return;
+      }
+      void toggleLike();
+    },
+    [toggleLike],
+  );
+
+  // Clear a pending timer if the card unmounts mid-press.
+  useEffect(() => cancelLikePress, [cancelLikePress]);
+
+  // Escape closes the sheet, like every other overlay in the app.
+  useEffect(() => {
+    if (!showLikeMenu) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setShowLikeMenu(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [showLikeMenu]);
+
+  const hideVideo = useCallback(() => {
+    markNotInterested(video.id);
+    setNotInterested(true);
+    setShowLikeMenu(false);
+    toast.success("You'll see fewer videos like this");
+  }, [video.id]);
 
   const onShared = useCallback(async () => {
     setShares((n) => n + 1);
@@ -723,6 +796,13 @@ function VideoCardImpl({
   };
 
   if (deleted || isBanned || notInterested) return null;
+
+  // Never label a creator's own repost of their own video — TikTok doesn't.
+  const reposter = repostedBy && repostedBy !== video.username ? repostedBy : null;
+
+  // Who uploaded the video. Resolved from videos.user_id → profiles.handle by
+  // the feed; `video.username` is the same value when the join isn't available.
+  const poster = posterUsername ?? video.poster_username ?? video.username;
 
   return (
     <section className="feed-card relative h-full w-full snap-start snap-always bg-black md:flex md:items-center md:justify-center md:bg-transparent md:py-4">
@@ -770,7 +850,7 @@ function VideoCardImpl({
               <audio ref={songRef} src={songStreamUrl(song.id)} loop muted={muted} preload="none" />
             )}
             {song && isImage && (
-              <div className="absolute left-3 top-[calc(env(safe-area-inset-top)+5.5rem)] flex max-w-[70%] items-center gap-2 rounded-full bg-black/50 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur md:top-3">
+              <div className="absolute left-3 top-[calc(env(safe-area-inset-top)+5.5rem)] flex max-w-[70%] items-center gap-2 rounded-full bg-black/50 px-3 py-1.5 text-xs font-semibold text-white/90 backdrop-blur-sm">
                 <span aria-hidden>♫</span>
                 <span className="truncate">
                   {song.title} · {song.artist}
@@ -800,6 +880,18 @@ function VideoCardImpl({
                 onPlay={() => {
                   setPlaying(true);
                   syncSound(true);
+                  // Count a view once the video has actually played for two
+                  // seconds. The database dedupes per viewer, ignores
+                  // self-views, and only pays the creator fund for signed-in
+                  // viewers, so refreshing can't farm views.
+                  if (viewRecordedRef.current !== video.id) {
+                    const id = video.id;
+                    window.setTimeout(() => {
+                      if (viewRecordedRef.current === id) return;
+                      viewRecordedRef.current = id;
+                      void recordVideoView(id);
+                    }, 2000);
+                  }
                 }}
                 onPause={() => {
                   setPlaying(false);
@@ -895,24 +987,57 @@ function VideoCardImpl({
               </div>
             )}
 
-            <div className="video-caption absolute inset-x-0 bottom-0 z-20 pb-14 pl-2 pr-16 pt-16">
+            {/* The phone bottom nav is a flex sibling *below* the feed, so the
+                video's bottom edge already sits on top of it. A large pb here
+                was double-counting that 56px and floating the handle into the
+                middle of the frame. pb-4 anchors the block to the bottom. */}
+            {/* TikTok anchors the handle at the bottom and lets the caption
+                grow *upward* from it, so a long caption never pushes the
+                username into the middle of the frame. Order here is
+                top→bottom: caption, sound, @handle, repost attribution. */}
+            <div className="video-caption absolute inset-x-0 bottom-0 z-20 pb-4 pl-3 pr-16 pt-16 md:pb-4">
+              <div className={showCaptions ? "" : "md:hidden"}>
+                <p className="line-clamp-3 break-words text-sm">{captionText}</p>
+              </div>
               {soundId && (
                 <SoundBar
                   soundId={soundId}
                   title={sound?.title ?? `Original sound - @${video.username}`}
                   creatorUsername={sound?.creator_username ?? video.username}
-                  className="mb-2"
+                  className="mt-1"
                 />
               )}
-              <div className={showCaptions ? "" : "md:hidden"}>
+              {/* Always visible on every breakpoint: the handle is part of the
+                  video chrome, not the optional caption text. */}
+              <div>
+                {/* Poster handle — big, bold, white over the video, pinned to
+                    the bottom-left just above the phone nav. Tapping it opens
+                    the uploader's profile. */}
                 <Link
                   to="/u/$username"
-                  params={{ username: video.username }}
-                  className="break-words text-sm font-bold"
+                  params={{ username: poster }}
+                  aria-label={`View @${poster}'s profile`}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={(e) => e.stopPropagation()}
+                  className="poster-handle mt-1 inline-block max-w-full break-words text-[16px] font-bold leading-tight text-white"
                 >
-                  @{video.username}
+                  @{poster}
                 </Link>
-                <p className="mt-1 line-clamp-3 break-words text-sm">{captionText}</p>
+                {/* Repost attribution sits directly *under* the poster's handle,
+                    TikTok style: 🔁 @reposter reposted. Links to the reposter. */}
+                {reposter && (
+                  <Link
+                    to="/u/$username"
+                    params={{ username: reposter }}
+                    aria-label={`View @${reposter}'s profile`}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onClick={(e) => e.stopPropagation()}
+                    className="repost-label mt-0.5 flex max-w-full items-center gap-1 text-[12px] font-semibold leading-tight text-white"
+                  >
+                    <Repeat2 className="h-[13px] w-[13px] shrink-0" aria-hidden />
+                    <span className="truncate">@{reposter} reposted</span>
+                  </Link>
+                )}
               </div>
             </div>
             {!isImage && (
@@ -929,14 +1054,9 @@ function VideoCardImpl({
               </span>
             )}
           </div>
+          {/* Desktop caption column. The handle and repost label live on the
+              video itself now, so they are not repeated here. */}
           <div className="hidden max-w-[calc((100dvh-11rem)*9/16)] md:block">
-            <Link
-              to="/u/$username"
-              params={{ username: video.username }}
-              className="font-bold hover:text-primary"
-            >
-              @{video.username}
-            </Link>
             <p className="text-sm text-muted-foreground">{captionText}</p>
           </div>
         </div>
@@ -976,12 +1096,17 @@ function VideoCardImpl({
             )}
           </div>
 
-          {/* LIKE */}
+          {/* LIKE — tap = like, hold 600ms = Repost / Not interested sheet */}
           <RailButton
             label={formatCount(Math.max(likes ?? 0, liked ? 1 : 0))}
-            onClick={toggleLike}
+            onClick={handleLikeClick}
             pressed={liked}
             activeClass={christmas ? "christmas-heart" : "text-[#fe2c55]"}
+            onPointerDown={startLikePress}
+            onPointerUp={cancelLikePress}
+            onPointerLeave={cancelLikePress}
+            onPointerCancel={cancelLikePress}
+            onContextMenu={(e) => e.preventDefault()}
           >
             {christmas && liked ? (
               <span
@@ -1012,28 +1137,25 @@ function VideoCardImpl({
             <MessageCircle className="h-7 w-7 fill-white text-white drop-shadow-lg" />
           </RailButton>
 
-          {/* REPOST */}
-          <RailButton
-            label={formatCount(Math.max(repostCount ?? 0, reposted ? 1 : 0))}
-            onClick={() => void toggleRepost()}
-            pressed={reposted}
-            activeClass="text-yellow-400"
-          >
-            <Repeat2
-              className={`h-7 w-7 drop-shadow-lg ${reposted ? "text-yellow-400" : "text-white"}`}
-            />
-          </RailButton>
+          {/* Repost lives in the long-press sheet on the ❤️, not on the rail. */}
 
-          {/* BOOKMARK */}
+          {/* BOOKMARK — yellow once saved, so it reads as "on" at a glance */}
           <RailButton
             label={isSaved ? "Saved" : ""}
             onClick={(e) => void toggleSave(e)}
             pressed={isSaved}
-            activeClass="text-white"
+            activeClass="text-yellow-400"
           >
             <Bookmark
-              className={`h-7 w-7 drop-shadow-lg ${isSaved ? "fill-white text-white" : "text-white"}`}
+              className={`h-7 w-7 drop-shadow-lg ${
+                isSaved ? "fill-yellow-400 text-yellow-400" : "text-white"
+              }`}
             />
+          </RailButton>
+
+          {/* SHARE — Quality lives inside this sheet */}
+          <RailButton label="Share" onClick={() => setShowShare(true)}>
+            <Share2 className="h-7 w-7 text-white drop-shadow-lg" />
           </RailButton>
 
           {/* SOUND — spinning record, sits with the other actions like TikTok */}
@@ -1062,11 +1184,6 @@ function VideoCardImpl({
             </button>
           )}
 
-          {/* SHARE — Quality lives inside this sheet */}
-          <RailButton label="Share" onClick={() => setShowShare(true)}>
-            <Share2 className="h-7 w-7 text-white drop-shadow-lg" />
-          </RailButton>
-
           {/* CHRISTMAS GIFT — Nov 15 2026 -> Jan 1 2027 only */}
           {christmas && (
             <RailButton label="Gift" onClick={() => setShowGift(true)}>
@@ -1077,6 +1194,59 @@ function VideoCardImpl({
           )}
         </div>
       </div>
+      {/* Long-press sheet: slides up from the bottom, dark like TikTok's. */}
+      {showLikeMenu && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Video options"
+          className="fixed inset-0 z-[60] flex items-end justify-center"
+        >
+          <button
+            type="button"
+            aria-label="Close menu"
+            onClick={() => setShowLikeMenu(false)}
+            className="absolute inset-0 bg-black/50 backdrop-blur-[2px]"
+          />
+          <div className="sheet-up relative w-full max-w-[430px] rounded-t-2xl bg-[#1c1c1e] p-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] text-white shadow-2xl md:mb-6 md:max-w-sm md:rounded-2xl">
+            <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-white/25" aria-hidden />
+            <button
+              type="button"
+              onClick={() => {
+                setShowLikeMenu(false);
+                void toggleRepost();
+              }}
+              className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-[15px] font-semibold transition active:bg-white/10 hover:bg-white/10"
+            >
+              <Repeat2
+                className={`h-5 w-5 ${reposted ? "text-yellow-400" : "text-white"}`}
+                aria-hidden
+              />
+              <span>{reposted ? "Remove repost" : "Repost"}</span>
+              <span className="ml-auto text-xs font-bold text-white/50">
+                {formatCount(Math.max(repostCount ?? 0, reposted ? 1 : 0))}
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={hideVideo}
+              className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-[15px] font-semibold transition active:bg-white/10 hover:bg-white/10"
+            >
+              <span className="w-5 text-center text-lg leading-none" aria-hidden>
+                😒
+              </span>
+              <span>Not interested</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowLikeMenu(false)}
+              className="mt-1 w-full rounded-xl px-3 py-3 text-[15px] font-semibold text-white/70 transition active:bg-white/10 hover:bg-white/10"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
       {showComments && (
         <Suspense fallback={null}>
           <Comments
@@ -1217,8 +1387,8 @@ function SoundDisc({ spinning, busy }: { spinning?: boolean; busy?: boolean }) {
   return (
     <span
       className={`relative flex h-9 w-9 items-center justify-center rounded-full border border-white/25 bg-gradient-to-br from-zinc-600 via-zinc-900 to-black shadow-[0_4px_16px_rgba(0,0,0,0.55)] ${
-        busy ? "animate-pulse opacity-70" : ""
-      }`}
+        spinning ? "animate-spin-slow" : ""
+      } ${busy ? "animate-pulse opacity-70" : ""}`}
     >
       <span className="absolute inset-1 rounded-full border border-white/15" />
       <span className="absolute inset-[42%] rounded-full bg-white/80" />
@@ -1253,19 +1423,34 @@ function RailButton({
   onClick,
   pressed,
   activeClass = "text-white",
+  onPointerDown,
+  onPointerUp,
+  onPointerLeave,
+  onPointerCancel,
+  onContextMenu,
 }: {
   children: React.ReactNode;
   label: string;
   onClick: (e: MouseEvent<HTMLButtonElement>) => void;
   pressed?: boolean;
   activeClass?: string;
+  onPointerDown?: (e: React.PointerEvent<HTMLButtonElement>) => void;
+  onPointerUp?: (e: React.PointerEvent<HTMLButtonElement>) => void;
+  onPointerLeave?: (e: React.PointerEvent<HTMLButtonElement>) => void;
+  onPointerCancel?: (e: React.PointerEvent<HTMLButtonElement>) => void;
+  onContextMenu?: (e: React.MouseEvent<HTMLButtonElement>) => void;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
       aria-pressed={pressed}
-      className="flex flex-col items-center bg-transparent p-0 focus-visible:outline-none"
+      onPointerDown={onPointerDown}
+      onPointerUp={onPointerUp}
+      onPointerLeave={onPointerLeave}
+      onPointerCancel={onPointerCancel}
+      onContextMenu={onContextMenu}
+      className="flex touch-manipulation select-none flex-col items-center bg-transparent p-0 focus-visible:outline-none"
     >
       <span className="flex items-center justify-center">{children}</span>
       {/* Fixed height so an empty label (unsaved bookmark) keeps the same

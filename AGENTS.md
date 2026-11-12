@@ -10,3 +10,7 @@
 <!-- LOVABLE:END -->
 
 - Keep phone navigation and video sizing responsive within the existing feed components; use dynamic viewport height and safe-area insets so installed apps and browser controls do not hide actions.
+
+- Beta access (/beta) is gated by the admin row in user_roles via has_role, never a username or client-side password; beta flags live in beta_features (admin-only RLS).
+
+- YouTube additions use authenticated server functions and full_videos source fields; play embeds separately from uploaded media so YouTube links are never treated as downloadable files.

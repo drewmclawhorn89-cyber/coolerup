@@ -168,10 +168,11 @@ export type SaveCardResult =
   | { ok: false; configured: boolean; message: string };
 
 /**
- * Saves the Google Pay card for the free trial without charging it.
+ * Vaults a Google Pay card without charging it, used when a subscriber swaps
+ * the card on an existing plan.
  *
- * A real gateway is needed here: the card has to be vaulted so the first
- * monthly charge can happen when the trial ends.
+ * A real gateway is needed here: the card has to be vaulted so the next
+ * monthly renewal can be charged.
  */
 export const saveCardForTrial = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

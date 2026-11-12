@@ -109,6 +109,9 @@ export const addYouTubeSong = createServerFn({ method: "POST" })
       .maybeSingle();
 
     const row = {
+      // RLS requires the row to belong to the caller: only the owner may
+      // insert, update or delete a sound.
+      user_id: userId,
       original_video_id: null,
       audio_url: "",
       title: metadata.title ?? `YouTube song · ${data.id}`,

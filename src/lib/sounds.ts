@@ -23,6 +23,12 @@ export type Sound = {
   youtube_url?: string | null;
   /** Cover art. YouTube songs use the video thumbnail. */
   cover_url?: string | null;
+  /**
+   * Who owns this sound row. Null for shared library/catalogue sounds (e.g. the
+   * Christmas carols) and pre-existing YouTube rows. RLS uses this to decide
+   * who may edit or delete the row.
+   */
+  user_id?: string | null;
 };
 
 /** True when this song plays from YouTube instead of a Coolerup audio file. */

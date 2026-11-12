@@ -206,3 +206,74 @@ describe("security advisor hardening migration", () => {
     expect(advisor).toContain("to_regclass('public.muted_words') is not null");
   });
 });
+
+describe("full security remediation migration", () => {
+  const remediation = read("supabase/migrations/20261206000000_full_security_remediation.sql");
+
+  it("blocks users from promoting themselves to admin", () => {
+    expect(remediation).toContain("revoke update (is_admin) on public.profiles");
+    expect(remediation).toContain("create trigger profiles_admin_flag_guard");
+    expect(remediation).toContain("only an admin can change is_admin");
+    // Service-role writes (auth.uid() is null) must still pass.
+    expect(remediation).toContain("if auth.uid() is not null and not public.is_admin() then");
+  });
+
+  it("keeps birthday and venmo_handle out of the public profile surface", () => {
+    expect(remediation).toContain("revoke select on public.profiles from anon, authenticated");
+    expect(remediation).toContain("grant select (%s) on public.profiles to anon, authenticated");
+    // The grant list must not include the private columns.
+    const grantBlock = remediation.slice(
+      remediation.indexOf("and column_name in ("),
+      remediation.indexOf("if public_cols is null"),
+    );
+    expect(grantBlock).not.toContain("birthday");
+    expect(grantBlock).not.toContain("venmo_handle");
+  });
+
+  it("exposes the owner's private fields only through my_profile()", () => {
+    expect(remediation).toContain("create or replace function public.my_profile()");
+    expect(remediation).toContain("where id = auth.uid()");
+    expect(remediation).toContain("revoke all on function public.my_profile() from public, anon");
+    expect(remediation).toContain("grant execute on function public.my_profile() to authenticated");
+  });
+
+  it("scopes content writes to the row owner", () => {
+    expect(remediation).toContain("with check (auth.uid() = user_id)");
+    expect(remediation).toContain("using (auth.uid() = user_id)");
+    expect(remediation).toContain("'videos', 'comments', 'likes', 'follows', 'gifs'");
+  });
+
+  it("never grants write access to server-owned tables", () => {
+    const list = remediation.slice(
+      remediation.indexOf("content text[] := array["),
+      remediation.indexOf("];", remediation.indexOf("content text[] := array[")),
+    );
+    for (const serverOwned of [
+      "user_coins",
+      "user_balance",
+      "payouts",
+      "live_gifts",
+      "video_views",
+      "moderation_log",
+    ]) {
+      expect(list).not.toContain(serverOwned);
+    }
+  });
+});
+
+describe("giphy key is not shipped to the browser", () => {
+  const giphy = read("src/lib/giphy.functions.ts");
+  const picker = read("src/components/GifPicker.tsx");
+
+  it("proxies Giphy on the server instead of returning the key", () => {
+    expect(giphy).not.toContain("return { key:");
+    expect(giphy).toContain("export const searchGiphy");
+    expect(giphy).toContain("api_key: key");
+  });
+
+  it("no longer reads VITE_GIPHY_API_KEY in the client bundle", () => {
+    expect(picker).not.toContain("VITE_GIPHY_API_KEY");
+    expect(picker).not.toContain("getGiphyKey");
+    expect(picker).toContain("searchGiphy");
+  });
+});

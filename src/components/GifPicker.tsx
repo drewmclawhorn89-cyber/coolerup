@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Flag, Loader2, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
-import { getGiphyKey } from "@/lib/giphy.functions";
+import { searchGiphy } from "@/lib/giphy.functions";
 import { useAuth } from "@/hooks/useAuth";
 import { MakeGif } from "@/components/MakeGif";
 import {
@@ -14,10 +14,6 @@ import {
   type GifPickMeta,
   type GifRow,
 } from "@/lib/gif";
-
-// Bracket access: `import.meta.env` is typed with an index signature, so
-// `env.VITE_GIPHY_API_KEY` fails `tsc --noEmit` (TS4111).
-const BUILD_KEY = ((import.meta.env["VITE_GIPHY_API_KEY"] as string | undefined) ?? "").trim();
 
 type Gif = { id: string; url: string; preview: string };
 
@@ -75,81 +71,29 @@ export function GifPicker({
   const [showMaker, setShowMaker] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
 
-  // Empty until resolved. `resolved` separates "still asking the server" from
-  // "the server says there is no key", so we never flash a config error.
-  const [key, setKey] = useState(BUILD_KEY);
-  const [resolved, setResolved] = useState(BUILD_KEY.length > 0);
-
+  // The Giphy key lives on the server now: `searchGiphy` proxies the request and
+  // returns only URLs, so no credential ever reaches the browser.
   useEffect(() => {
-    if (BUILD_KEY) return;
-    let alive = true;
-    void getGiphyKey()
-      .then((res) => {
-        if (!alive) return;
-        setKey((res?.key ?? "").trim());
-      })
-      .catch(() => {
-        // Server unreachable or the function isn't deployed; fall through to
-        // the missing-key message rather than hanging on "Loading…".
-        if (alive) setKey("");
-      })
-      .finally(() => {
-        if (alive) setResolved(true);
-      });
-    return () => {
-      alive = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!resolved) return;
-
-    if (!key) {
-      setGifs([]);
-      setFailure({ kind: "missing-key" });
-      return;
-    }
-
     let alive = true;
     const t = setTimeout(async () => {
       setLoading(true);
       setFailure(null);
       try {
-        const base = q.trim() ? "search" : "trending";
-        const params = new URLSearchParams({ api_key: key, limit: "24", rating: "pg-13" });
-        if (q.trim()) params.set("q", q.trim());
-        const res = await fetch(`https://api.giphy.com/v1/gifs/${base}?${params}`);
-        const json = (await res.json().catch(() => ({}))) as {
-          data?: GiphyResult[];
-          meta?: { status?: number; msg?: string };
-        };
+        const res = await searchGiphy({ data: { q: q.trim(), limit: 24 } });
         if (!alive) return;
-
         if (!res.ok) {
-          // 401/403 means the key itself is wrong, banned, or out of quota.
-          // Anything else is treated as a transient network problem.
-          const badKey = res.status === 401 || res.status === 403;
           setGifs([]);
-          setFailure({
-            kind: badKey ? "bad-key" : "network",
-            detail: json.meta?.msg ?? `HTTP ${res.status}`,
-          });
+          setFailure({ kind: res.reason, detail: res.detail });
           return;
         }
-
-        // A GIF without a fixed_height rendition can't be shown, so skip it
-        // rather than rendering a broken <img>.
-        setGifs(
-          (json.data ?? []).flatMap((g) => {
-            const url = g.images?.fixed_height?.url;
-            if (!g.id || !url) return [];
-            return [{ id: g.id, url, preview: g.images?.fixed_height_small?.url ?? url }];
-          }),
-        );
+        setGifs(res.gifs);
       } catch (err) {
         if (!alive) return;
         setGifs([]);
-        setFailure({ kind: "network", detail: err instanceof Error ? err.message : undefined });
+        setFailure({
+          kind: "network",
+          detail: err instanceof Error ? err.message : undefined,
+        });
       } finally {
         if (alive) setLoading(false);
       }
@@ -159,7 +103,7 @@ export function GifPicker({
       alive = false;
       clearTimeout(t);
     };
-  }, [q, key, resolved]);
+  }, [q]);
 
   const loadCustom = useCallback(async () => {
     if (!user) {
@@ -257,7 +201,7 @@ export function GifPicker({
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="Search GIFs…"
-          disabled={!resolved || !key}
+          disabled={loading}
           className="min-w-0 flex-1 rounded-full bg-secondary px-4 py-2 text-base outline-none disabled:opacity-50 sm:text-sm"
         />
         <button
@@ -309,7 +253,7 @@ export function GifPicker({
               <p className="font-bold">GIF search isn't configured.</p>
               <p>
                 Set <code className="font-mono">GIPHY_API_KEY</code> (or{" "}
-                <code className="font-mono">VITE_GIPHY_API_KEY</code>) on the server — free key at{" "}
+                <code className="font-mono">GIPHY_API_KEY</code>) on the server — free key at{" "}
                 <a
                   href="https://developers.giphy.com/dashboard/"
                   target="_blank"
@@ -321,9 +265,9 @@ export function GifPicker({
                 .
               </p>
               <p>
-                <code className="font-mono">VITE_</code> keys are baked in at build time, so that
-                route needs a rebuild; <code className="font-mono">GIPHY_API_KEY</code> is read per
-                request and only needs a restart.
+                Server-side keys are read per request, so setting route needs a rebuild;{" "}
+                <code className="font-mono">GIPHY_API_KEY</code> is read per request and only needs
+                a restart.
               </p>
             </>
           )}
@@ -439,11 +383,8 @@ export function GifPicker({
               : "grid max-h-40 grid-cols-3 gap-1 overflow-y-auto"
           }
         >
-          {!resolved && <p className="col-span-3 text-xs text-muted-foreground">Loading…</p>}
-          {resolved && loading && (
-            <p className="col-span-3 text-xs text-muted-foreground">Loading…</p>
-          )}
-          {resolved && !loading && !failure && gifs.length === 0 && (
+          {loading && <p className="col-span-3 text-xs text-muted-foreground">Loading…</p>}
+          {!loading && !failure && gifs.length === 0 && (
             <p className="col-span-3 text-xs text-muted-foreground">No GIFs found.</p>
           )}
           {gifs.map((g) => (

@@ -287,7 +287,9 @@ function Profile() {
     if (!username) return;
     supabase
       .from("profiles")
-      .select("*")
+      .select(
+        "id, handle, username, display_name, bio, avatar_url, links, created_at, onboarding_complete, show_liked, is_admin",
+      )
       .eq("handle", username)
       .maybeSingle()
       .then(({ data }) => {
@@ -349,8 +351,8 @@ function Profile() {
       await postStory(file, username);
       setStories(await fetchStories(username));
       toast.success("Story posted");
-    } catch (e: any) {
-      toast.error(e?.message || "Couldn't post story");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't post story");
     } finally {
       setStoryUploading(false);
       if (storyFile.current) storyFile.current.value = "";

@@ -110,17 +110,25 @@ function useAuthState(): AuthValue {
     let alive = true;
     setProfileLoaded(false);
     (async () => {
-      const { data } = await supabase.from("profiles").select("*").eq("id", user.id).maybeSingle();
-      let row = data as Profile | null;
+      // `my_profile()` is a SECURITY DEFINER function that returns the caller's
+      // own row, including the private columns (birthday, venmo_handle) that are
+      // no longer granted to clients on the table itself.
+      const readMine = async (): Promise<Profile | null> => {
+        const { data } = await supabase.rpc("my_profile");
+        const rows = (data ?? []) as unknown as Profile[];
+        return Array.isArray(rows) ? (rows[0] ?? null) : ((rows as unknown as Profile) ?? null);
+      };
+
+      let row = await readMine();
       if (!row && derivedHandle) {
         const res = await supabase
           .from("profiles")
           .insert({ id: user.id, handle: derivedHandle })
-          .select("*")
+          .select("id")
           .single();
         if (res.error?.code === "23505")
           toast.error(`@${derivedHandle} is taken — pick a username in Settings`);
-        row = (res.data as Profile | null) ?? null;
+        row = res.error ? null : await readMine();
       }
       const { data: role } = await supabase
         .from("user_roles")

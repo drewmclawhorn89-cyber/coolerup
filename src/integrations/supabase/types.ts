@@ -1090,21 +1090,6 @@ export type Database = {
         };
         Relationships: [];
       };
-      gta6_badges: {
-        Row: {
-          awarded_at: string;
-          handle: string;
-        };
-        Insert: {
-          awarded_at?: string;
-          handle: string;
-        };
-        Update: {
-          awarded_at?: string;
-          handle?: string;
-        };
-        Relationships: [];
-      };
       likes: {
         Row: {
           created_at: string;
@@ -2493,7 +2478,6 @@ export type Database = {
         Args: { _user_id: string; _username?: string };
         Returns: Json;
       };
-      award_gta6_badge: { Args: never; Returns: boolean };
       ban_status_for_handle: {
         Args: { _handle: string };
         Returns: {

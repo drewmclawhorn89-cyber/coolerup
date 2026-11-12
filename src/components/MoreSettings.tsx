@@ -14,7 +14,6 @@ import {
   setChristmasTestMode,
   useChristmasTestMode,
 } from "@/lib/christmas-test";
-import { GTA6_BADGE, GTA6_DATE_LABEL, hasGTA6BadgeCached, useGTA6Ended } from "@/lib/gta6";
 
 function Toggle({
   id,
@@ -153,32 +152,6 @@ function ChristmasTestCard() {
           </div>
         </div>
         <Switch checked={on} onCheckedChange={change} aria-label="Test the Christmas Update" />
-      </div>
-    </Card>
-  );
-}
-
-/**
- * Shown from Nov 16 2026 onwards, forever. The GTA 6 update was a one-way door:
- * there is no switch, no `?gta=test` and no way to bring it back. The only
- * thing that survives is the permanent OG badge on the profiles that earned it.
- */
-function GTA6EndedCard() {
-  const ended = useGTA6Ended();
-  const auth = useAuth();
-  if (!ended) return null;
-  const mine = hasGTA6BadgeCached(auth.handle);
-  return (
-    <Card title="GTA 6 update">
-      <div className="space-y-1">
-        <div className="font-medium">GTA 6 Event Ended</div>
-        <div className="text-sm text-muted-foreground">
-          The GTA 6 update ran {GTA6_DATE_LABEL} and has finished for good. It will not come back —
-          the banner, filter, sound, GTA Car gift and challenge are all gone.
-          {mine
-            ? ` Your ${GTA6_BADGE.label} ${GTA6_BADGE.emoji} badge is permanent and stays on your profile.`
-            : ""}
-        </div>
       </div>
     </Card>
   );
@@ -371,7 +344,6 @@ export function MoreSettings() {
   return (
     <>
       {isChristmasTestOwner(auth.handle) && <ChristmasTestCard />}
-      <GTA6EndedCard />
       <Card title="Push notifications">
         <Toggle id="n-likes" label="Likes" def />
         <Toggle id="n-comments" label="Comments" def />

@@ -1,16 +1,5 @@
 export type CameraFilter = { id: string; name: string; css: string };
 
-/**
- * The GTA 6 event filter. Defined here (not in the component) so the pure
- * catalogue stays importable from tests and non-React code. The component file
- * re-exports it for convenience.
- */
-export const GTA6_CAMERA_FILTER: CameraFilter = {
-  id: "gta6",
-  name: "GTA 6",
-  css: "saturate(1.85) contrast(1.18) hue-rotate(-16deg) brightness(1.06) sepia(0.14)",
-};
-
 export const CAMERA_FILTERS: CameraFilter[] = [
   { id: "none", name: "Normal", css: "none" },
   { id: "vivid", name: "Vivid", css: "saturate(1.6) contrast(1.1)" },
@@ -23,17 +12,14 @@ export const CAMERA_FILTERS: CameraFilter[] = [
   { id: "pop", name: "Pop", css: "saturate(2) contrast(1.2) hue-rotate(340deg)" },
 ];
 
-/**
- * Filters available right now. The GTA 6 filter only appears during the event,
- * so it vanishes for good after Nov 15 2026.
- */
-export function filtersForMode(gta6: boolean): CameraFilter[] {
-  return gta6 ? [...CAMERA_FILTERS, GTA6_CAMERA_FILTER] : CAMERA_FILTERS;
+/** Filters available right now. */
+export function filtersForMode(): CameraFilter[] {
+  return CAMERA_FILTERS;
 }
 
 /** Look up a filter by id, falling back to Normal. */
-export function filterById(id: string, gta6 = false): CameraFilter {
-  return filtersForMode(gta6).find((f) => f.id === id) ?? CAMERA_FILTERS[0]!;
+export function filterById(id: string): CameraFilter {
+  return CAMERA_FILTERS.find((f) => f.id === id) ?? CAMERA_FILTERS[0]!;
 }
 
 /** Safari doesn't support canvas ctx.filter, so filters can't be baked in there. */

@@ -27,8 +27,6 @@ import {
   needsFace,
 } from "@/lib/christmas-effects";
 import { useChristmasMode } from "@/lib/christmas";
-import { awardGTA6Badge, useGTA6Mode } from "@/lib/gta6";
-import { withGTA6Hashtag } from "@/lib/gta6-challenge";
 import { SoundPickerDialog } from "@/components/SoundPickerDialog";
 import { canMixSound, createSoundTrack, type SoundTrack } from "@/lib/sound-mixer";
 import { isYouTubeSound, soundAudioUrl, type Sound } from "@/lib/sounds";
@@ -87,11 +85,9 @@ export function RecordDialog({
   // Christmas camera filters (Santa hat / reindeer nose / snow) are only offered
   // while the Christmas update is live.
   const christmas = useChristmasMode();
-  // The GTA 6 event filter is only offered while the event is live.
-  const gta6 = useGTA6Mode();
   const [christmasEffectId, setChristmasEffectId] = useState("");
   const christmasEffect = getChristmasEffect(christmasEffectId);
-  const filter = filterById(filterId, gta6);
+  const filter = filterById(filterId);
 
   const [facingMode, setFacingMode] = useState<FacingMode>("user");
   const [cameraState, setCameraState] = useState<CameraState>("loading");
@@ -373,9 +369,7 @@ export function RecordDialog({
     }
     setPosting(true);
     try {
-      // Using the GTA 6 filter counts toward the challenge, so tag it for them.
-      const finalCaption =
-        gta6 && filterId === "gta6" ? withGTA6Hashtag(caption) : caption.trim().slice(0, 500);
+      const finalCaption = caption.trim().slice(0, 500);
       await uploadRecording(
         recordedBlob,
         username,
@@ -383,8 +377,6 @@ export function RecordDialog({
         chosenSound?.id ?? null,
         bakedRef.current,
       );
-      // Posting during the GTA 6 window mints the permanent OG badge.
-      void awardGTA6Badge(username);
       toast.success("Your video is posted!");
       reset();
       onOpenChange(false);
@@ -639,7 +631,6 @@ export function RecordDialog({
                     disabled={recording}
                     animal={animalId}
                     onAnimalChange={setAnimalId}
-                    gta6={gta6}
                   />
                   <div className="grid grid-cols-3 items-center">
                     <div className="flex justify-start">

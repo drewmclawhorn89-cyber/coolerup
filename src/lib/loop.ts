@@ -1,5 +1,4 @@
 import { supabase } from "@/integrations/supabase/client";
-import { createQualityVersions, qualityColumns } from "./videoQuality";
 
 export type Video = {
   id: string;
@@ -10,83 +9,7 @@ export type Video = {
   comments_count: number;
   shares_count: number;
   created_at: string;
-  is_live?: boolean | null;
-  /** Repost count, kept in sync with the `reposts` table. */
-  reposts?: number;
-  /** Raw column name returned by `select("*")` on the videos table. */
-  reposts_count?: number;
-  /** Sound this video plays (null/undefined = its own original audio). */
-  sound_id?: string | null;
-  /** Embedded sound row when the feed joins `sounds`. */
-  sound?: SoundSummary | null;
-  /** Quality renditions. All four point at the original until transcoding lands. */
-  video_1080_url?: string | null;
-  video_720_url?: string | null;
-  video_480_url?: string | null;
-  video_360_url?: string | null;
-  /** Default playback quality stored on the row ("auto" unless set). */
-  quality?: string | null;
-  /**
-   * Set only on rows that reached the feed through a repost: the handle of the
-   * person who reposted it, so the card can show "@name reposted".
-   */
-  reposted_by?: string | null;
-  /**
-   * Handle of the uploader, resolved with `videos.user_id → profiles.handle`.
-   * The feed renders it big at the bottom-left over the video.
-   */
-  poster_username?: string | null;
 };
-
-/** Minimal sound shape embedded in feed rows. */
-export type SoundSummary = {
-  id: string;
-  /** Null for library sounds (e.g. the Christmas carols) that aren't a video's audio. */
-  original_video_id: string | null;
-  audio_url: string;
-  title: string;
-  creator_username: string;
-  uses_count: number;
-};
-
-export type Song = { id: string; title: string; artist: string };
-
-const SONG_TAG = /\s*\[\[song:([^|\]]+)\|([^|\]]*)\|([^\]]*)\]\]\s*$/;
-
-export function songStreamUrl(id: string) {
-  return `https://api.audius.co/v1/tracks/${id}/stream?app_name=coolerup`;
-}
-
-export function withSong(caption: string, song?: Song | null) {
-  if (!song) return caption;
-  const clean = (v: string) => v.replace(/[|\[\]]/g, "").slice(0, 80);
-  return `${caption}[[song:${song.id}|${clean(song.title)}|${clean(song.artist)}]]`;
-}
-
-const FULL_TAG = /\s*\[\[full\]\]\s*$/;
-/** Marks a recording whose audio already contains the chosen sound. */
-const BAKED_TAG = /\s*\[\[baked\]\]\s*$/;
-
-export function parseCaption(raw: string): {
-  text: string;
-  song: Song | null;
-  full: boolean;
-  baked: boolean;
-} {
-  let caption = raw ?? "";
-  const full = FULL_TAG.test(caption);
-  if (full) caption = caption.replace(FULL_TAG, "");
-  const baked = BAKED_TAG.test(caption);
-  if (baked) caption = caption.replace(BAKED_TAG, "");
-  const m = caption.match(SONG_TAG);
-  if (!m) return { text: caption, song: null, full, baked };
-  return {
-    text: caption.replace(SONG_TAG, ""),
-    song: { id: m[1] ?? "", title: m[2] ?? "", artist: m[3] ?? "" },
-    full,
-    baked,
-  };
-}
 
 const STORAGE_PREFIX = "storage:";
 
@@ -99,392 +22,44 @@ export function getDeviceId() {
   return id;
 }
 
-export function isImageUrl(url: string) {
-  return /\.(jpe?g|png|webp|gif|avif)(\?|#|$)/i.test(url);
-}
-
-const signedUrlCache = new Map<string, { promise: Promise<string>; at: number }>();
-const SIGNED_TTL = 60 * 60 * 6;
-
-export function resolveVideoUrl(url: string): Promise<string> {
-  if (!url.startsWith(STORAGE_PREFIX)) return Promise.resolve(url);
-  const hit = signedUrlCache.get(url);
-  // Reuse for up to 5h so the 6h signed link never expires while cached.
-  if (hit && Date.now() - hit.at < (SIGNED_TTL - 3600) * 1000) return hit.promise;
-  const promise = supabase.storage
+export async function resolveVideoUrl(url: string) {
+  if (!url.startsWith(STORAGE_PREFIX)) return url;
+  const { data } = await supabase.storage
     .from("videos")
-    .createSignedUrl(url.slice(STORAGE_PREFIX.length), SIGNED_TTL)
-    .then(({ data }) => {
-      const out = data?.signedUrl ?? "";
-      if (!out) signedUrlCache.delete(url);
-      return out;
-    })
-    .catch(() => {
-      signedUrlCache.delete(url);
-      return "";
-    });
-  signedUrlCache.set(url, { promise, at: Date.now() });
-  return promise;
+    .createSignedUrl(url.slice(STORAGE_PREFIX.length), 60 * 60 * 6);
+  return data?.signedUrl ?? "";
 }
 
-/** Fisher–Yates shuffle, in place. */
-function shuffle<T>(list: T[]): T[] {
-  for (let i = list.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    const a = list[i]!;
-    const b = list[j]!;
-    list[i] = b;
-    list[j] = a;
-  }
-  return list;
-}
-
-/**
- * Shuffled order of every video in the library, built once per app session.
- *
- * The feed used to page through videos newest-first and only shuffle within
- * that single page, so every visit showed the same handful of recent uploads.
- * We now pull every video id (tiny payload), shuffle the whole library, and
- * hand out batches from that order. Reloading the app builds a fresh shuffle,
- * so the mix is different every time you open it.
- */
-let feedOrder: string[] | null = null;
-let feedOrderPromise: Promise<string[]> | null = null;
-
-const ID_PAGE_SIZE = 1000;
-
-async function loadVideoIds(): Promise<string[]> {
-  const ids: string[] = [];
-  for (let from = 0; ; from += ID_PAGE_SIZE) {
-    const { data, error } = await supabase
-      .from("videos")
-      .select("id")
-      .order("id", { ascending: true })
-      .range(from, from + ID_PAGE_SIZE - 1);
-    if (error) throw error;
-    const batch = (data ?? []).map((row) => row.id as string);
-    ids.push(...batch);
-    if (batch.length < ID_PAGE_SIZE) break;
-  }
-  return shuffle(ids);
-}
-
-async function getFeedOrder(): Promise<string[]> {
-  if (feedOrder) return feedOrder;
-  if (!feedOrderPromise) {
-    feedOrderPromise = loadVideoIds()
-      .then((ids) => {
-        feedOrder = ids;
-        return ids;
-      })
-      .finally(() => {
-        feedOrderPromise = null;
-      });
-  }
-  return feedOrderPromise;
-}
-
-/** Forget the current shuffle so the next fetch builds a new random order. */
-export function resetFeedOrder() {
-  feedOrder = null;
-  feedOrderPromise = null;
-}
-
-export async function fetchVideos(page = 0, pageSize = 20) {
-  const PAGE_SIZE = Math.max(1, Math.min(50, pageSize));
-  const order = await getFeedOrder();
-  const from = page * PAGE_SIZE;
-  const ids = order.slice(from, from + PAGE_SIZE);
-  if (ids.length === 0) return [] as Video[];
-
-  // Select only the columns the feed renders (smaller payload, faster parse).
-  // The relationship must be named explicitly: `sounds` has two foreign keys to
-  // `videos` (videos.sound_id and sounds.original_video_id), so a bare
-  // `sounds(...)` embed is ambiguous and PostgREST rejects the whole query with
-  // PGRST201 — which surfaced to users as "Couldn't load videos".
-  const withSound =
-    "id, username, caption, video_url, likes_count, comments_count, shares_count, reposts_count, created_at, sound_id, sounds!videos_sound_id_fkey(id, original_video_id, audio_url, title, creator_username, uses_count)";
-  const withoutSound =
-    "id, username, caption, video_url, likes_count, comments_count, shares_count, reposts_count, created_at, sound_id";
-
-  let { data, error } = await supabase.from("videos").select(withSound).in("id", ids);
-
-  // A broken/ambiguous embed must never blank the feed. Retry with the plain
-  // columns; the sound is then resolved lazily by the card.
-  if (error) {
-    const retry = await supabase.from("videos").select(withoutSound).in("id", ids);
-    data = retry.data as typeof data;
-    error = retry.error;
-  }
-
+export async function fetchVideos() {
+  const { data, error } = await supabase
+    .from("videos")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(100);
   if (error) throw error;
-
-  // `.in()` does not preserve order, so re-apply the shuffled queue order.
-  const byId = new Map((data ?? []).map((v) => [v.id as string, v]));
-  return ids
-    .map((id) => byId.get(id))
-    .filter((v): v is NonNullable<typeof v> => !!v)
-    .map((v) => ({
-      ...v,
-      reposts: v.reposts_count ?? 0,
-      sound: ((v as { sounds?: SoundSummary | null }).sounds ?? null) as SoundSummary | null,
-    })) as Video[];
-}
-
-/**
- * Fresh engagement counters for a set of videos.
- *
- * Offline-saved videos keep a snapshot of the row they were saved from, so
- * their like/repost counts freeze at save time. The saved tab uses this to
- * reconcile those snapshots with the live numbers.
- */
-export async function fetchVideoCounts(ids: string[]) {
-  const unique = [...new Set(ids)].filter(Boolean);
-  const counts = new Map<
-    string,
-    { likes_count: number; comments_count: number; shares_count: number; reposts_count: number }
-  >();
-  if (unique.length === 0) return counts;
-  const { data } = await supabase
-    .from("videos")
-    .select("id, likes_count, comments_count, shares_count, reposts_count")
-    .in("id", unique);
-  for (const row of data ?? []) {
-    counts.set(row.id, {
-      likes_count: row.likes_count ?? 0,
-      comments_count: row.comments_count ?? 0,
-      shares_count: row.shares_count ?? 0,
-      reposts_count: row.reposts_count ?? 0,
-    });
-  }
-  return counts;
+  return data as Video[];
 }
 
 export async function fetchMyLikes() {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return new Set<string>();
-  const { data } = await supabase.from("likes").select("video_id").eq("user_id", user.id);
+  const { data } = await supabase.from("likes").select("video_id").eq("device_id", getDeviceId());
   return new Set((data ?? []).map((l) => l.video_id));
 }
 
-/**
- * Videos a user has liked, most recently liked first (the profile Liked tab).
- *
- * `likes` has a single FK to `videos`, so the embed is unambiguous. Rows whose
- * video was deleted are skipped instead of leaving holes in the grid.
- */
-export async function fetchLikedVideos(userId: string, limit?: number): Promise<Video[]> {
-  // Paged with `.range()` so a heavy liker isn't truncated at the 1000 row
-  // response cap. Pass `limit` only when you genuinely want a short list.
-  const PAGE = 500;
-  const cap = limit ?? Infinity;
-  const out: Video[] = [];
-  for (let from = 0; out.length < cap; from += PAGE) {
-    const size = Math.min(PAGE, cap - out.length);
-    const { data, error } = await supabase
-      .from("likes")
-      .select("created_at, videos(*)")
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false })
-      .range(from, from + size - 1);
-    if (error) throw error;
-    const batch = ((data ?? []) as unknown as { videos: Video | null }[]).filter(
-      (row) => !!row.videos,
-    );
-    out.push(
-      ...batch.map((row) => ({ ...(row.videos as Video), reposts: row.videos?.reposts_count ?? 0 })),
-    );
-    if ((data ?? []).length < size) break;
-  }
-  return out;
-}
-
-/** How many videos a user has liked (cheap head count for the tab label). */
-export async function fetchLikedCount(userId: string): Promise<number> {
-  const { count, error } = await supabase
-    .from("likes")
-    .select("video_id", { count: "exact", head: true })
-    .eq("user_id", userId);
-  if (error) return 0;
-  return count ?? 0;
-}
-
-/**
- * Persist an uploaded video/photo. Returns the new video id.
- *
- * `soundId` attaches a borrowed original sound ("Use this sound"). Every video
- * also gets its own original-sound row via `create_sound_from_video`.
- */
-export async function uploadVideo(
-  file: File,
-  username: string,
-  caption: string,
-  song?: Song | null,
-  full = false,
-  soundId?: string | null,
-): Promise<string | null> {
+export async function uploadVideo(file: File, username: string, caption: string) {
   const ext = file.name.split(".").pop() || "mp4";
   const path = `${crypto.randomUUID()}.${ext}`;
   const { error: upErr } = await supabase.storage
     .from("videos")
     .upload(path, file, { contentType: file.type });
   if (upErr) throw upErr;
-  const isVideo = file.type.startsWith("video/");
-  // The upload is the 1080p rendition. Lower qualities reuse it until the
-  // transcode-video Edge Function exists, so the selector works today.
-  const renditions = isVideo ? await createQualityVersions(STORAGE_PREFIX + path) : null;
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from("videos")
-    .insert({
-      username,
-      caption:
-        withSong(caption, file.type.startsWith("image/") ? song : null) +
-        (full && isVideo ? "[[full]]" : ""),
-      video_url: STORAGE_PREFIX + path,
-      sound_id: isVideo ? (soundId ?? null) : null,
-      ...(renditions ? qualityColumns(renditions) : {}),
-    })
-    .select("id")
-    .single();
+    .insert({ username, caption, video_url: STORAGE_PREFIX + path });
   if (error) throw error;
-  const id = (data as { id?: string } | null)?.id ?? null;
-  if (id && isVideo) await ensureOriginalSound(id);
-  return id;
-}
-
-export async function uploadRecording(
-  blob: Blob,
-  username: string,
-  caption: string,
-  soundId?: string | null,
-  soundBaked = false,
-): Promise<string | null> {
-  const contentType = blob.type || "video/webm";
-  const ext = contentType.includes("mp4") ? "mp4" : "webm";
-  const path = `recorded-${Date.now()}.${ext}`;
-  const { error: upErr } = await supabase.storage
-    .from("videos")
-    .upload(path, blob, { contentType });
-  if (upErr) throw upErr;
-  const { data, error } = await supabase
-    .from("videos")
-    .insert({
-      username,
-      caption: `${caption}${soundBaked ? "[[baked]]" : ""}`,
-      video_url: STORAGE_PREFIX + path,
-      sound_id: soundId ?? null,
-      ...qualityColumns(await createQualityVersions(STORAGE_PREFIX + path)),
-    })
-    .select("id")
-    .single();
-  if (error) throw error;
-  const id = (data as { id?: string } | null)?.id ?? null;
-  if (id) await ensureOriginalSound(id);
-  return id;
-}
-
-/** Ask the database to create this video's own "Original sound" row. */
-async function ensureOriginalSound(videoId: string) {
-  try {
-    await supabase.rpc("create_sound_from_video", { _video_id: videoId });
-  } catch {
-    // Non-fatal: the INSERT trigger also creates the sound.
-  }
 }
 
 export function formatCount(n: number) {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
   if (n >= 1000) return (n / 1000).toFixed(1) + "K";
   return String(n);
-}
-
-export async function setVideoSaved(videoId: string, on: boolean) {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return;
-  if (on) await supabase.from("saved_videos").insert({ user_id: user.id, video_id: videoId });
-  else await supabase.from("saved_videos").delete().eq("user_id", user.id).eq("video_id", videoId);
-}
-
-export async function fetchSavedVideos(userId: string) {
-  // Paged, so a large vault isn't cut off at 1000 rows.
-  const PAGE = 500;
-  const out: Video[] = [];
-  for (let from = 0; ; from += PAGE) {
-    const { data } = await supabase
-      .from("saved_videos")
-      .select("created_at, videos(*)")
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false })
-      .range(from, from + PAGE - 1);
-    const batch = ((data ?? []) as unknown as { videos: Video | null }[])
-      .map((r) => r.videos)
-      .filter((v): v is Video => !!v);
-    out.push(...batch);
-    if ((data ?? []).length < PAGE) break;
-  }
-  return out;
-}
-
-/** Videos a user has reposted, newest repost first (for the profile Reposts tab). */
-export async function fetchRepostedVideos(userId: string) {
-  // Paged, so a prolific reposter isn't truncated at 1000 rows.
-  const PAGE = 500;
-  const out: Video[] = [];
-  for (let from = 0; ; from += PAGE) {
-    const { data } = await supabase
-      .from("reposts")
-      .select("created_at, videos(*)")
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false })
-      .range(from, from + PAGE - 1);
-    const batch = ((data ?? []) as unknown as { videos: Video | null }[])
-      .map((r) => r.videos)
-      .filter((v): v is Video => !!v)
-      .map((v) => ({ ...v, reposts: v.reposts_count ?? 0 }));
-    out.push(...batch);
-    if ((data ?? []).length < PAGE) break;
-  }
-  return out;
-}
-
-/** Reposts made by the people a user follows, for the Following feed. */
-export async function fetchRepostsByHandles(handles: string[]) {
-  if (handles.length === 0) return [] as Video[];
-  const { data: profiles } = await supabase
-    .from("profiles")
-    .select("id, handle")
-    .in("handle", handles);
-  const profileRows = (profiles ?? []) as { id: string; handle: string | null }[];
-  const ids = profileRows.map((p) => p.id);
-  if (ids.length === 0) return [] as Video[];
-  const handleById = new Map(profileRows.map((p) => [p.id, p.handle ?? ""]));
-  const { data } = await supabase
-    .from("reposts")
-    .select("created_at, user_id, videos(*)")
-    .in("user_id", ids)
-    .order("created_at", { ascending: false })
-    .limit(50);
-  const videoRows = ((data ?? []) as unknown as { user_id: string; videos: Video | null }[]).map(
-    (r): Video | null =>
-      r.videos
-        ? {
-            ...r.videos,
-            reposts: r.videos.reposts_count ?? 0,
-            reposted_by: handleById.get(r.user_id) ?? null,
-          }
-        : null,
-  );
-  return videoRows.filter((v): v is Video => v !== null);
-}
-
-export async function deleteVideo(video: Video) {
-  const { error } = await supabase.from("videos").delete().eq("id", video.id);
-  if (error) throw error;
-  if (video.video_url.startsWith(STORAGE_PREFIX)) {
-    await supabase.storage.from("videos").remove([video.video_url.slice(STORAGE_PREFIX.length)]);
-  }
 }

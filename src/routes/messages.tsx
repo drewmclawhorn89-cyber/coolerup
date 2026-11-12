@@ -1,13 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, Image as ImageIcon, Phone, Video } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { useCall } from "@/lib/calls";
 import { Button } from "@/components/ui/button";
-import { notifyUser } from "@/lib/notify";
-import { GifPicker } from "@/components/GifPicker";
 
 export const Route = createFileRoute("/messages")({
   head: () => ({
@@ -23,25 +20,13 @@ export const Route = createFileRoute("/messages")({
   component: Messages,
 });
 
-type Msg = {
-  id: string;
-  from_username: string;
-  to_username: string;
-  message: string;
-  gif_url: string | null;
-  gif_credit: string | null;
-  created_at: string;
-};
+type Msg = { id: string; from_username: string; to_username: string; message: string; created_at: string };
 
 function Messages() {
   const auth = useAuth();
-  const { startCall } = useCall();
   const me = auth.handle;
   const [toUser, setToUser] = useState("");
   const [text, setText] = useState("");
-  const [draftGif, setDraftGif] = useState<string | null>(null);
-  const [draftGifCredit, setDraftGifCredit] = useState<string | null>(null);
-  const [showGifs, setShowGifs] = useState(false);
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const endRef = useRef<HTMLDivElement>(null);
 
@@ -53,7 +38,7 @@ function Messages() {
   const load = async () => {
     const { data } = await supabase
       .from("direct_messages")
-      .select("id, from_username, to_username, message, gif_url, gif_credit, created_at")
+      .select("id, from_username, to_username, message, created_at")
       .order("created_at", { ascending: true });
     setMsgs((data ?? []) as Msg[]);
   };
@@ -69,7 +54,7 @@ function Messages() {
   const send = async () => {
     const body = text.trim();
     const to = toUser.trim().replace(/^@/, "").toLowerCase();
-    if ((!body && !draftGif) || !to || !auth.user || !me) return;
+    if (!body || !to || !auth.user || !me) return;
     const { data: target } = await supabase.from("profiles").select("id").eq("handle", to).maybeSingle();
     if (!target) {
       toast.error(`@${to} hasn't joined Loop yet`);
@@ -77,43 +62,13 @@ function Messages() {
     }
     const { error } = await supabase
       .from("direct_messages")
-      .insert({
-        from_id: auth.user.id,
-        to_id: target.id,
-        from_username: me,
-        to_username: to,
-        message: body,
-        gif_url: draftGif,
-        gif_credit: draftGifCredit,
-      });
+      .insert({ from_id: auth.user.id, to_id: target.id, from_username: me, to_username: to, message: body });
     if (error) {
       toast.error("Couldn't send message");
       return;
     }
     setText("");
-    setDraftGif(null);
-    setDraftGifCredit(null);
-    setShowGifs(false);
     load();
-
-    // Push the DM to the recipient even if they have the app closed.
-    void notifyUser({
-      targetUserId: target.id,
-      actorUserId: auth.user.id,
-      type: "message",
-      text: `${me}: ${body.slice(0, 80) || "sent a GIF"}`,
-      url: `/messages?user=${encodeURIComponent(me)}`,
-    });
-  };
-
-  const placeCall = async (withVideo: boolean) => {
-    const handle = toUser.trim().replace(/^@/, "").toLowerCase();
-    const { data: target } = await supabase.from("profiles").select("id").eq("handle", handle).maybeSingle();
-    if (!target) {
-      toast.error(`@${handle} hasn't joined Loop yet`);
-      return;
-    }
-    void startCall(handle, target.id, withVideo);
   };
 
   const inbox = new Map<string, Msg>();
@@ -125,7 +80,7 @@ function Messages() {
       <div className="flex h-dvh flex-col items-center justify-center gap-4 bg-background p-6 text-center">
         <p className="font-display text-2xl">Your messages</p>
         <p className="text-muted-foreground">Sign in to send and read private messages.</p>
-        <Button onClick={auth.signIn}>Sign in</Button>
+        <Button onClick={auth.signIn}>Sign in with Google</Button>
         <Link to="/" className="text-sm text-muted-foreground">Back to Loop</Link>
       </div>
     );
@@ -168,74 +123,15 @@ function Messages() {
           <div className="flex items-center gap-2 border-b p-3">
             <button onClick={() => setToUser("")} className="text-sm font-bold text-primary">← Inbox</button>
             <span className="font-bold">@{toUser}</span>
-            <button
-              onClick={() => placeCall(true)}
-              className="ml-auto rounded-full p-2 text-muted-foreground hover:bg-secondary hover:text-foreground"
-              aria-label={`Video call @${toUser}`}
-            >
-              <Video className="h-5 w-5" />
-            </button>
-            <button
-              onClick={() => placeCall(false)}
-              className="rounded-full p-2 text-muted-foreground hover:bg-secondary hover:text-foreground"
-              aria-label={`Voice call @${toUser}`}
-            >
-              <Phone className="h-5 w-5" />
-            </button>
           </div>
           <div className="flex-1 space-y-2 overflow-y-auto p-3">
             {convo.map((m) => (
-              <div
-                key={m.id}
-                className={`${m.message.startsWith("📞 ") && !m.gif_url ? "mx-auto bg-transparent text-xs italic text-muted-foreground" : `max-w-[75%] rounded-2xl px-3 py-2 text-sm ${m.from_username === me ? "ml-auto bg-primary text-primary-foreground" : "bg-secondary"}`}`}
-              >
+              <div key={m.id} className={`max-w-[75%] rounded-2xl px-3 py-2 text-sm ${m.from_username === me ? "ml-auto bg-primary text-primary-foreground" : "bg-secondary"}`}>
                 {m.message}
-                {m.gif_url && (
-                  <div className={m.message ? "mt-1" : ""}>
-                    <img
-                      src={m.gif_url}
-                      alt="GIF"
-                      loading="lazy"
-                      className="max-h-40 rounded-lg"
-                    />
-                    {m.gif_credit && (
-                      <p className="mt-0.5 text-[10px] font-semibold opacity-70">
-                        Made by {m.gif_credit}
-                      </p>
-                    )}
-                  </div>
-                )}
               </div>
             ))}
             <div ref={endRef} />
           </div>
-          {showGifs && (
-            <GifPicker
-              className="border-t"
-              onPick={(url, meta) => {
-                setDraftGif(url);
-                setDraftGifCredit(meta?.username ? `@${meta.username}` : null);
-                setShowGifs(false);
-              }}
-              onClose={() => setShowGifs(false)}
-            />
-          )}
-          {draftGif && (
-            <div className="relative mx-3 mt-2 inline-block">
-              <img src={draftGif} alt="Selected GIF" className="max-h-24 rounded-lg" />
-              <button
-                type="button"
-                onClick={() => {
-                  setDraftGif(null);
-                  setDraftGifCredit(null);
-                }}
-                aria-label="Remove GIF"
-                className="absolute right-1 top-1 rounded-full bg-background/80 px-1 text-xs"
-              >
-                ×
-              </button>
-            </div>
-          )}
           <div className="flex gap-2 border-t p-3">
             <input
               value={text}
@@ -245,15 +141,6 @@ function Messages() {
               maxLength={2000}
               className="min-w-0 flex-1 rounded-full border bg-secondary px-4 py-2 outline-none"
             />
-            <button
-              type="button"
-              onClick={() => setShowGifs((v) => !v)}
-              aria-label="Add a GIF"
-              aria-pressed={showGifs}
-              className="rounded-full bg-secondary px-3 text-xs font-bold"
-            >
-              <ImageIcon className="h-4 w-4" />
-            </button>
             <Button onClick={send} className="rounded-full">Send</Button>
           </div>
         </>

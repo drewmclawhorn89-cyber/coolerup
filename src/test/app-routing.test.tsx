@@ -15,17 +15,3 @@ describe("App routing", () => {
     expect(matches.at(-1)?.routeId).not.toBe(rootRouteId);
   });
 });
-
-describe("Gift routes", () => {
-  const router = () => createRouter({ routeTree, context: { queryClient: new QueryClient() } });
-
-  it("matches /coins/recharge", () => {
-    const matches = router().matchRoutes("/coins/recharge");
-    expect(matches.at(-1)?.routeId).toBe("/coins/recharge");
-  });
-
-  it("matches /live/dashboard", () => {
-    const matches = router().matchRoutes("/live/dashboard");
-    expect(matches.at(-1)?.routeId).toBe("/live/dashboard");
-  });
-});

@@ -53,21 +53,6 @@ export function SoundCover({
   );
 }
 
-/** The little "▶ YouTube" pill shown on YouTube song cards and rows. */
-export function YouTubeBadge({ className = "" }: { className?: string }) {
-  return (
-    <span
-      className={`inline-flex items-center gap-1 rounded-full bg-red-600 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white shadow-sm ${className}`}
-      title="Plays from YouTube"
-    >
-      <svg viewBox="0 0 24 24" aria-hidden="true" className="h-2.5 w-2.5" fill="currentColor">
-        <path d="M23 12s0-3.4-.44-5.03a2.6 2.6 0 0 0-1.83-1.84C19.1 4.7 12 4.7 12 4.7s-7.1 0-8.73.43A2.6 2.6 0 0 0 1.44 6.97C1 8.6 1 12 1 12s0 3.4.44 5.03a2.6 2.6 0 0 0 1.83 1.84c1.63.43 8.73.43 8.73.43s7.1 0 8.73-.43a2.6 2.6 0 0 0 1.83-1.84C23 15.4 23 12 23 12ZM9.75 15.5v-7l6 3.5-6 3.5Z" />
-      </svg>
-      YouTube
-    </span>
-  );
-}
-
 /** Small "Full song" / "0:42" pill. */
 export function DurationBadge({ soundId }: { soundId: string }) {
   const seconds = getKnownDuration(soundId);
@@ -107,11 +92,6 @@ export function SongCard({
       >
         <div className="relative">
           <SoundCover sound={sound} className="aspect-square w-full" rounded="rounded-2xl" />
-          {isYouTubeSound(sound) && (
-            <span className="absolute left-1.5 top-1.5">
-              <YouTubeBadge />
-            </span>
-          )}
           <span className="absolute bottom-1.5 left-1.5">
             <DurationBadge soundId={sound.id} />
           </span>
@@ -184,7 +164,6 @@ export function SongRow({
         <span className="min-w-0 flex-1">
           <span className="flex items-center gap-1.5">
             <span className="truncate text-sm font-semibold">{sound.title}</span>
-            {isYouTubeSound(sound) && <YouTubeBadge />}
             <DurationBadge soundId={sound.id} />
           </span>
           <span className="block truncate text-xs text-muted-foreground">

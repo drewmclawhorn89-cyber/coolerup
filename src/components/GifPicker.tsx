@@ -225,7 +225,7 @@ export function GifPicker({
 
   if (showMaker) {
     return (
-      <div className={`border-t p-3 ${className}`}>
+      <div className={`border-t p-0 ${className}`}>
         <MakeGif
           className="border-t-0 p-0"
           onCreated={() => {

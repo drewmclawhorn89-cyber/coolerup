@@ -103,10 +103,13 @@ export function MakeGif({
   onCreated,
   onClose,
   className = "",
+  expand = false,
 }: {
   onCreated?: (gif: GifRow) => void;
   onClose?: () => void;
   className?: string;
+  /** Let the panel grow with the page instead of scrolling inside itself. */
+  expand?: boolean;
 }) {
   const { user, handle, signIn } = useAuth();
   const [step, setStep] = useState<Step>("source");
@@ -457,338 +460,352 @@ export function MakeGif({
   );
 
   return (
-    <div className={`border-t p-3 ${className}`}>
-      {header}
+    <div
+      className={`flex flex-col border-t ${expand ? "" : "max-h-[min(72vh,34rem)]"} ${className}`}
+    >
+      {/* The header stays put; only the step body scrolls, so a long edit form
+          (or a tall list of your videos) never gets clipped on a phone. */}
+      <div className="shrink-0 px-3 pb-2 pt-3">{header}</div>
 
-      {!user && step === "source" && (
-        <div className="mt-3 rounded-lg bg-secondary/60 p-3 text-center">
-          <p className="text-xs text-muted-foreground">Sign in to make GIFs from your videos.</p>
-          <button
-            type="button"
-            onClick={() => void signIn()}
-            className="mt-2 rounded-full bg-primary px-4 py-1.5 text-xs font-bold text-primary-foreground"
-          >
-            Sign in
-          </button>
-        </div>
-      )}
-
-      {user && step === "source" && (
-        <div className="mt-3 space-y-3">
-          {safetyError && (
-            <div className="rounded-lg bg-destructive/10 px-3 py-2 text-xs font-semibold text-destructive">
-              {safetyError}
-            </div>
-          )}
-
-          <div className="grid grid-cols-2 gap-2">
+      <div
+        className={`min-h-0 flex-1 px-3 pb-3 [-webkit-overflow-scrolling:touch] ${
+          expand ? "" : "overflow-y-auto overscroll-contain"
+        }`}
+      >
+        {!user && step === "source" && (
+          <div className="mt-3 rounded-lg bg-secondary/60 p-3 text-center">
+            <p className="text-xs text-muted-foreground">Sign in to make GIFs from your videos.</p>
             <button
               type="button"
-              onClick={() => void startRecording()}
-              disabled={recording}
-              className="flex flex-col items-center gap-1 rounded-xl border bg-secondary/40 p-3 text-xs font-bold disabled:opacity-60"
+              onClick={() => void signIn()}
+              className="mt-2 rounded-full bg-primary px-4 py-1.5 text-xs font-bold text-primary-foreground"
             >
-              <Circle className={`h-5 w-5 ${recording ? "animate-pulse text-red-500" : ""}`} />
-              {recording ? `Recording ${recordCount}s` : "Record 3s"}
-            </button>
-            <button
-              type="button"
-              onClick={() => uploadRef.current?.click()}
-              className="flex flex-col items-center gap-1 rounded-xl border bg-secondary/40 p-3 text-xs font-bold"
-            >
-              <Upload className="h-5 w-5" />
-              Upload video
+              Sign in
             </button>
           </div>
-          <input
-            ref={uploadRef}
-            type="file"
-            accept="video/*"
-            className="hidden"
-            onChange={(e) => onUpload(e.target.files?.[0])}
-          />
+        )}
 
-          {recording && (
-            <p className="rounded-lg bg-red-500/10 px-3 py-2 text-[11px] font-semibold text-red-500">
-              Recording… keep it under 3 seconds. Camera preview stays on your device.
-            </p>
-          )}
-
-          <div>
-            <p className="mb-1 flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
-              <Film className="h-3 w-3" /> My Coolerup videos
-            </p>
-            {loadingVideos && <p className="text-xs text-muted-foreground">Loading your videos…</p>}
-            {!loadingVideos && myVideos?.length === 0 && (
-              <p className="rounded-lg bg-secondary/50 px-3 py-2 text-xs text-muted-foreground">
-                No videos yet. Record a 3s clip or upload one from your phone.
-              </p>
-            )}
-            <div className="grid max-h-44 grid-cols-3 gap-1 overflow-y-auto">
-              {(myVideos ?? []).map((v) => (
-                <button
-                  type="button"
-                  key={v.id}
-                  onClick={() => onPickOwn(v)}
-                  className="relative overflow-hidden rounded-md bg-black"
-                  aria-label={`Use ${v.caption || "video"}`}
-                >
-                  <video
-                    src={`${v.video_480_url || v.video_720_url || v.video_url}#t=0.1`}
-                    muted
-                    playsInline
-                    preload="metadata"
-                    className="h-20 w-full object-cover"
-                  />
-                  <span className="absolute inset-x-0 bottom-0 truncate bg-black/60 px-1 py-0.5 text-left text-[9px] text-white">
-                    {v.caption || "Video"}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <p className="rounded-lg bg-amber-500/10 px-3 py-2 text-[11px] text-amber-700 dark:text-amber-300">
-            Safety: only GIFs from <strong>your own</strong> videos. TikTok videos without a
-            watermark + credit are blocked — “Use your own video for GIF”.
-          </p>
-        </div>
-      )}
-
-      {(step === "trim" || step === "edit") && source && (
-        <div className="mt-3 space-y-3">
-          <div className="relative mx-auto overflow-hidden rounded-xl bg-black">
-            <video
-              ref={videoRef}
-              src={source.url}
-              muted
-              playsInline
-              loop
-              onLoadedMetadata={onMeta}
-              className={`mx-auto max-h-56 w-full object-contain ${cropSquare ? "aspect-square" : ""}`}
-            />
-            {(text.trim() || sticker) && (
-              <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center px-3 text-center">
-                {text.trim() && (
-                  <p
-                    className="max-w-full break-words text-lg font-extrabold leading-tight text-white"
-                    style={{ textShadow: "0 0 6px #000, 2px 2px 0 #000, -2px -2px 0 #000" }}
-                  >
-                    {text}
-                  </p>
-                )}
-                {sticker && <span className="absolute bottom-2 right-2 text-4xl">{sticker}</span>}
+        {user && step === "source" && (
+          <div className="mt-3 space-y-3">
+            {safetyError && (
+              <div className="rounded-lg bg-destructive/10 px-3 py-2 text-xs font-semibold text-destructive">
+                {safetyError}
               </div>
             )}
-            <button
-              type="button"
-              onClick={() => setPlaying((p) => !p)}
-              className="absolute bottom-2 left-2 rounded-full bg-black/60 px-2 py-1 text-[10px] font-bold text-white"
-            >
-              {playing ? "Pause" : "Play"}
-            </button>
-            <span className="absolute bottom-2 right-2 rounded-full bg-black/60 px-2 py-1 text-[10px] font-bold text-white">
-              {outputDuration.toFixed(1)}s GIF
-            </span>
-          </div>
 
-          {step === "trim" && (
-            <>
-              <div className="space-y-2">
-                <label className="flex items-center justify-between text-[11px] font-bold text-muted-foreground">
-                  <span>Start</span>
-                  <span>{start.toFixed(1)}s</span>
-                </label>
-                <input
-                  type="range"
-                  min={0}
-                  max={Math.max(0.5, duration - MIN_GIF_SECONDS)}
-                  step={0.1}
-                  value={start}
-                  onChange={(e) => changeStart(Number(e.target.value))}
-                  className="w-full accent-primary"
-                  aria-label="GIF start time"
-                />
-                <label className="flex items-center justify-between text-[11px] font-bold text-muted-foreground">
-                  <span>End</span>
-                  <span>{end.toFixed(1)}s</span>
-                </label>
-                <input
-                  type="range"
-                  min={start + MIN_GIF_SECONDS}
-                  max={Math.min(duration || MAX_GIF_SECONDS, start + MAX_GIF_SECONDS)}
-                  step={0.1}
-                  value={end}
-                  onChange={(e) => changeEnd(Number(e.target.value))}
-                  className="w-full accent-primary"
-                  aria-label="GIF end time"
-                />
-                <p className="text-[11px] text-muted-foreground">
-                  {(end - start).toFixed(1)}s selected · max 3s · GIF loops automatically
-                </p>
-              </div>
+            <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
-                onClick={() => setStep("edit")}
-                className="w-full rounded-full bg-primary py-2 text-sm font-bold text-primary-foreground"
+                onClick={() => void startRecording()}
+                disabled={recording}
+                className="flex flex-col items-center gap-1 rounded-xl border bg-secondary/40 p-3 text-xs font-bold disabled:opacity-60"
               >
-                Next: Edit
+                <Circle className={`h-5 w-5 ${recording ? "animate-pulse text-red-500" : ""}`} />
+                {recording ? `Recording ${recordCount}s` : "Record 3s"}
               </button>
-            </>
-          )}
+              <button
+                type="button"
+                onClick={() => uploadRef.current?.click()}
+                className="flex flex-col items-center gap-1 rounded-xl border bg-secondary/40 p-3 text-xs font-bold"
+              >
+                <Upload className="h-5 w-5" />
+                Upload video
+              </button>
+            </div>
+            <input
+              ref={uploadRef}
+              type="file"
+              accept="video/*"
+              className="hidden"
+              onChange={(e) => onUpload(e.target.files?.[0])}
+            />
 
-          {step === "edit" && (
-            <>
-              <div className="space-y-2">
-                <input
-                  value={text}
-                  onChange={(e) => setText(e.target.value.slice(0, 80))}
-                  placeholder="Add text on top (like TikTok)"
-                  className="w-full rounded-full bg-secondary px-4 py-2 text-sm outline-none"
-                />
-                <div className="flex flex-wrap gap-1">
-                  {STICKERS.map((s) => (
-                    <button
-                      type="button"
-                      key={s}
-                      onClick={() => setSticker((cur) => (cur === s ? null : s))}
-                      className={`rounded-lg px-2 py-1 text-lg ${
-                        sticker === s ? "bg-primary/20 ring-2 ring-primary" : "bg-secondary"
-                      }`}
-                      aria-label={`Sticker ${s}`}
-                    >
-                      {s}
-                    </button>
-                  ))}
-                </div>
-                <div className="flex items-center gap-1">
-                  {(
-                    [
-                      { value: 0.5 as GifSpeed, label: "Slow" },
-                      { value: 1 as GifSpeed, label: "Normal" },
-                      { value: 2 as GifSpeed, label: "Fast" },
-                    ] as const
-                  ).map((s) => (
-                    <button
-                      type="button"
-                      key={s.label}
-                      onClick={() => setSpeed(s.value)}
-                      className={`flex-1 rounded-full px-2 py-1.5 text-xs font-bold ${
-                        speed === s.value ? "bg-primary text-primary-foreground" : "bg-secondary"
-                      }`}
-                    >
-                      {s.label}
-                    </button>
-                  ))}
+            {recording && (
+              <p className="rounded-lg bg-red-500/10 px-3 py-2 text-[11px] font-semibold text-red-500">
+                Recording… keep it under 3 seconds. Camera preview stays on your device.
+              </p>
+            )}
+
+            <div>
+              <p className="mb-1 flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+                <Film className="h-3 w-3" /> My Coolerup videos
+              </p>
+              {loadingVideos && (
+                <p className="text-xs text-muted-foreground">Loading your videos…</p>
+              )}
+              {!loadingVideos && myVideos?.length === 0 && (
+                <p className="rounded-lg bg-secondary/50 px-3 py-2 text-xs text-muted-foreground">
+                  No videos yet. Record a 3s clip or upload one from your phone.
+                </p>
+              )}
+              {/* No inner scroller: the step body scrolls, so a nested one would
+                trap the gesture on phones. */}
+              <div className="grid grid-cols-3 gap-1">
+                {(myVideos ?? []).map((v) => (
                   <button
                     type="button"
-                    onClick={() => setCropSquare((c) => !c)}
-                    aria-pressed={cropSquare}
-                    className={`flex items-center gap-1 rounded-full px-2 py-1.5 text-xs font-bold ${
-                      cropSquare ? "bg-primary text-primary-foreground" : "bg-secondary"
-                    }`}
+                    key={v.id}
+                    onClick={() => onPickOwn(v)}
+                    className="relative overflow-hidden rounded-md bg-black"
+                    aria-label={`Use ${v.caption || "video"}`}
                   >
-                    <Square className="h-3 w-3" /> Square
-                  </button>
-                </div>
-                <input
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value.slice(0, 80))}
-                  placeholder="GIF title"
-                  className="w-full rounded-full bg-secondary px-4 py-2 text-sm outline-none"
-                />
-                {source.kind === "upload" && (
-                  <label className="flex items-start gap-2 rounded-lg bg-amber-500/10 px-3 py-2 text-[11px] text-amber-700 dark:text-amber-300">
-                    <input
-                      type="checkbox"
-                      checked={ownsVideo}
-                      onChange={(e) => setOwnsVideo(e.target.checked)}
-                      className="mt-0.5 accent-primary"
+                    <video
+                      src={`${v.video_480_url || v.video_720_url || v.video_url}#t=0.1`}
+                      muted
+                      playsInline
+                      preload="metadata"
+                      className="h-20 w-full object-cover"
                     />
-                    <span>
-                      This is my own video. I understand stolen TikTok clips without watermark +
-                      credit will be removed.
+                    <span className="absolute inset-x-0 bottom-0 truncate bg-black/60 px-1 py-0.5 text-left text-[9px] text-white">
+                      {v.caption || "Video"}
                     </span>
-                  </label>
-                )}
-                {safetyError && (
-                  <p className="rounded-lg bg-destructive/10 px-3 py-2 text-xs font-semibold text-destructive">
-                    {safetyError}
-                  </p>
-                )}
+                  </button>
+                ))}
               </div>
+            </div>
 
-              {busy ? (
-                <div className="space-y-1 rounded-lg bg-secondary/60 p-3">
-                  <div className="flex items-center gap-2 text-xs font-bold">
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    {stage || "Working"} · {progress}%
-                  </div>
-                  <div className="h-1.5 overflow-hidden rounded-full bg-background">
-                    <div
-                      className="h-full rounded-full bg-primary transition-all"
-                      style={{ width: `${Math.max(3, progress)}%` }}
-                    />
-                  </div>
-                  <p className="text-[10px] text-muted-foreground">
-                    Converting on your device — nothing is uploaded until the GIF is ready.
-                  </p>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => void create()}
-                  className="flex w-full items-center justify-center gap-2 rounded-full bg-primary py-2.5 text-sm font-bold text-primary-foreground"
-                >
-                  <Wand2 className="h-4 w-4" /> Create GIF
-                </button>
-              )}
-            </>
-          )}
-        </div>
-      )}
-
-      {step === "done" && result && (
-        <div className="mt-3 space-y-3 text-center">
-          <img
-            src={result.gif_url}
-            alt={result.title}
-            className="mx-auto max-h-56 rounded-xl border object-contain"
-          />
-          <div>
-            <p className="text-sm font-bold">{result.title}</p>
-            <p className="text-[11px] text-muted-foreground">
-              Made by @{result.username ?? ownHandle ?? "you"} · {formatGifSize(resultSize)} ·{" "}
-              {outputDuration.toFixed(1)}s
+            <p className="rounded-lg bg-amber-500/10 px-3 py-2 text-[11px] text-amber-700 dark:text-amber-300">
+              Safety: only GIFs from <strong>your own</strong> videos. TikTok videos without a
+              watermark + credit are blocked — “Use your own video for GIF”.
             </p>
           </div>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={reset}
-              className="flex-1 rounded-full bg-secondary py-2 text-xs font-bold"
-            >
-              Make another
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                if (onClose) onClose();
-                else reset();
-              }}
-              className="flex flex-1 items-center justify-center gap-1 rounded-full bg-primary py-2 text-xs font-bold text-primary-foreground"
-            >
-              <Check className="h-3.5 w-3.5" /> Done
-            </button>
-          </div>
-        </div>
-      )}
+        )}
 
-      {step === "source" && recordUrl && !recording && (
-        <p className="mt-2 flex items-center gap-1 text-[11px] text-muted-foreground">
-          <Video className="h-3 w-3" /> Recording ready — pick it above.
-        </p>
-      )}
+        {(step === "trim" || step === "edit") && source && (
+          <div className="mt-3 space-y-3">
+            <div className="relative mx-auto overflow-hidden rounded-xl bg-black">
+              <video
+                ref={videoRef}
+                src={source.url}
+                muted
+                playsInline
+                loop
+                onLoadedMetadata={onMeta}
+                className={`mx-auto max-h-56 w-full object-contain ${cropSquare ? "aspect-square" : ""}`}
+              />
+              {(text.trim() || sticker) && (
+                <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center px-3 text-center">
+                  {text.trim() && (
+                    <p
+                      className="max-w-full break-words text-lg font-extrabold leading-tight text-white"
+                      style={{ textShadow: "0 0 6px #000, 2px 2px 0 #000, -2px -2px 0 #000" }}
+                    >
+                      {text}
+                    </p>
+                  )}
+                  {sticker && <span className="absolute bottom-2 right-2 text-4xl">{sticker}</span>}
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => setPlaying((p) => !p)}
+                className="absolute bottom-2 left-2 rounded-full bg-black/60 px-2 py-1 text-[10px] font-bold text-white"
+              >
+                {playing ? "Pause" : "Play"}
+              </button>
+              <span className="absolute bottom-2 right-2 rounded-full bg-black/60 px-2 py-1 text-[10px] font-bold text-white">
+                {outputDuration.toFixed(1)}s GIF
+              </span>
+            </div>
+
+            {step === "trim" && (
+              <>
+                <div className="space-y-2">
+                  <label className="flex items-center justify-between text-[11px] font-bold text-muted-foreground">
+                    <span>Start</span>
+                    <span>{start.toFixed(1)}s</span>
+                  </label>
+                  <input
+                    type="range"
+                    min={0}
+                    max={Math.max(0.5, duration - MIN_GIF_SECONDS)}
+                    step={0.1}
+                    value={start}
+                    onChange={(e) => changeStart(Number(e.target.value))}
+                    className="w-full accent-primary"
+                    aria-label="GIF start time"
+                  />
+                  <label className="flex items-center justify-between text-[11px] font-bold text-muted-foreground">
+                    <span>End</span>
+                    <span>{end.toFixed(1)}s</span>
+                  </label>
+                  <input
+                    type="range"
+                    min={start + MIN_GIF_SECONDS}
+                    max={Math.min(duration || MAX_GIF_SECONDS, start + MAX_GIF_SECONDS)}
+                    step={0.1}
+                    value={end}
+                    onChange={(e) => changeEnd(Number(e.target.value))}
+                    className="w-full accent-primary"
+                    aria-label="GIF end time"
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    {(end - start).toFixed(1)}s selected · max 3s · GIF loops automatically
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setStep("edit")}
+                  className="w-full rounded-full bg-primary py-2 text-sm font-bold text-primary-foreground"
+                >
+                  Next: Edit
+                </button>
+              </>
+            )}
+
+            {step === "edit" && (
+              <>
+                <div className="space-y-2">
+                  <input
+                    value={text}
+                    onChange={(e) => setText(e.target.value.slice(0, 80))}
+                    placeholder="Add text on top (like TikTok)"
+                    className="w-full rounded-full bg-secondary px-4 py-2 text-sm outline-none"
+                  />
+                  <div className="flex flex-wrap gap-1">
+                    {STICKERS.map((s) => (
+                      <button
+                        type="button"
+                        key={s}
+                        onClick={() => setSticker((cur) => (cur === s ? null : s))}
+                        className={`rounded-lg px-2 py-1 text-lg ${
+                          sticker === s ? "bg-primary/20 ring-2 ring-primary" : "bg-secondary"
+                        }`}
+                        aria-label={`Sticker ${s}`}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {(
+                      [
+                        { value: 0.5 as GifSpeed, label: "Slow" },
+                        { value: 1 as GifSpeed, label: "Normal" },
+                        { value: 2 as GifSpeed, label: "Fast" },
+                      ] as const
+                    ).map((s) => (
+                      <button
+                        type="button"
+                        key={s.label}
+                        onClick={() => setSpeed(s.value)}
+                        className={`flex-1 rounded-full px-2 py-1.5 text-xs font-bold ${
+                          speed === s.value ? "bg-primary text-primary-foreground" : "bg-secondary"
+                        }`}
+                      >
+                        {s.label}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setCropSquare((c) => !c)}
+                      aria-pressed={cropSquare}
+                      className={`flex items-center gap-1 rounded-full px-2 py-1.5 text-xs font-bold ${
+                        cropSquare ? "bg-primary text-primary-foreground" : "bg-secondary"
+                      }`}
+                    >
+                      <Square className="h-3 w-3" /> Square
+                    </button>
+                  </div>
+                  <input
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value.slice(0, 80))}
+                    placeholder="GIF title"
+                    className="w-full rounded-full bg-secondary px-4 py-2 text-sm outline-none"
+                  />
+                  {source.kind === "upload" && (
+                    <label className="flex items-start gap-2 rounded-lg bg-amber-500/10 px-3 py-2 text-[11px] text-amber-700 dark:text-amber-300">
+                      <input
+                        type="checkbox"
+                        checked={ownsVideo}
+                        onChange={(e) => setOwnsVideo(e.target.checked)}
+                        className="mt-0.5 accent-primary"
+                      />
+                      <span>
+                        This is my own video. I understand stolen TikTok clips without watermark +
+                        credit will be removed.
+                      </span>
+                    </label>
+                  )}
+                  {safetyError && (
+                    <p className="rounded-lg bg-destructive/10 px-3 py-2 text-xs font-semibold text-destructive">
+                      {safetyError}
+                    </p>
+                  )}
+                </div>
+
+                {busy ? (
+                  <div className="space-y-1 rounded-lg bg-secondary/60 p-3">
+                    <div className="flex items-center gap-2 text-xs font-bold">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      {stage || "Working"} · {progress}%
+                    </div>
+                    <div className="h-1.5 overflow-hidden rounded-full bg-background">
+                      <div
+                        className="h-full rounded-full bg-primary transition-all"
+                        style={{ width: `${Math.max(3, progress)}%` }}
+                      />
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">
+                      Converting on your device — nothing is uploaded until the GIF is ready.
+                    </p>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => void create()}
+                    className="flex w-full items-center justify-center gap-2 rounded-full bg-primary py-2.5 text-sm font-bold text-primary-foreground"
+                  >
+                    <Wand2 className="h-4 w-4" /> Create GIF
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
+        {step === "done" && result && (
+          <div className="mt-3 space-y-3 text-center">
+            <img
+              src={result.gif_url}
+              alt={result.title}
+              className="mx-auto max-h-56 rounded-xl border object-contain"
+            />
+            <div>
+              <p className="text-sm font-bold">{result.title}</p>
+              <p className="text-[11px] text-muted-foreground">
+                Made by @{result.username ?? ownHandle ?? "you"} · {formatGifSize(resultSize)} ·{" "}
+                {outputDuration.toFixed(1)}s
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={reset}
+                className="flex-1 rounded-full bg-secondary py-2 text-xs font-bold"
+              >
+                Make another
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (onClose) onClose();
+                  else reset();
+                }}
+                className="flex flex-1 items-center justify-center gap-1 rounded-full bg-primary py-2 text-xs font-bold text-primary-foreground"
+              >
+                <Check className="h-3.5 w-3.5" /> Done
+              </button>
+            </div>
+          </div>
+        )}
+
+        {step === "source" && recordUrl && !recording && (
+          <p className="mt-2 flex items-center gap-1 text-[11px] text-muted-foreground">
+            <Video className="h-3 w-3" /> Recording ready — pick it above.
+          </p>
+        )}
+      </div>
     </div>
   );
 }

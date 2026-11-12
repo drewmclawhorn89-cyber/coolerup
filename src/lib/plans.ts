@@ -13,11 +13,11 @@ export type Plan = {
   price: number;
   perks: string[];
   /**
-   * Whether the plan unlocks offline downloads.
+   * Whether the plan unlocks offline *video* downloads.
    *
-   * Offline mode starts at Pro and carries up to VIP. Plus deliberately does
-   * *not* include it — that is the upgrade hook from Plus to Pro. Free accounts
-   * and Plus subscribers see a locked toggle with an upgrade prompt. Never
+   * Offline video downloads are included on every paid tier (Plus, Pro and
+   * VIP); only free accounts see a locked toggle with an upgrade prompt.
+   * Offline *music* is a separate, VIP-only flag — see `musicOffline`. Never
    * write the price into a comment — it goes stale.
    */
   offline: boolean;
@@ -37,8 +37,8 @@ export const PLANS: Plan[] = [
     label: "Plus",
     emoji: "\u2b50",
     price: 7.99,
-    perks: ["Ad-free feed", "Plus badge on your profile"],
-    offline: false,
+    perks: ["Ad-free feed", "Plus badge on your profile", "Offline video downloads"],
+    offline: true,
     musicOffline: false,
   },
   {

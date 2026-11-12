@@ -910,8 +910,8 @@ function Settings() {
             </div>
             <p className="mt-2 text-xs text-muted-foreground">
               {proTrialUsed
-                ? `Your free trial has ended. Offline downloads come with ${offlinePlan().label} and VIP — Plus does not include them.`
-                : `Try offline mode free for one hour. After that it comes with ${offlinePlan().label} and VIP — Plus does not include it.`}
+                ? `Your free trial has ended. Offline video downloads come with any paid plan — ${offlinePlan().label} and up.`
+                : `Try offline mode free for one hour. After that it comes with any paid plan — ${offlinePlan().label} and up.`}
             </p>
           </>
         )}

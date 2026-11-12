@@ -217,11 +217,10 @@ describe("the trial unlocks offline mode", () => {
     expect(hasOfflineAccess(H)).toBe(true);
   });
 
-  it("does not unlock saving on a Plus trial, because Plus lacks offline", () => {
+  it("unlocks saving on a Plus trial, because Plus now includes offline video", () => {
     startTrial(H, "plus");
-    expect(hasOfflineAccess(H)).toBe(false);
-    // No paid plan on file, and the Plus hour does not include downloads.
-    expect(offlineLockReason(H)).toBe("no-plan");
+    expect(hasOfflineAccess(H)).toBe(true);
+    expect(offlineLockReason(H)).toBeNull();
   });
 
   it("locks again once the Pro hour is up", () => {
@@ -233,7 +232,7 @@ describe("the trial unlocks offline mode", () => {
     expect(offlineLockReason(H)).toBe("trial-ended");
   });
 
-  it("still reports a Plus plan as lacking offline after the trial", () => {
+  it("keeps a paid Plus plan unlocked for offline video after the trial", () => {
     localStorage.setItem(
       `subscription:${H}`,
       JSON.stringify({
@@ -244,8 +243,8 @@ describe("the trial unlocks offline mode", () => {
         paymentMethod: null,
       }),
     );
-    expect(hasOfflineAccess(H)).toBe(false);
-    expect(offlineLockReason(H)).toBe("plan-lacks-offline");
+    expect(hasOfflineAccess(H)).toBe(true);
+    expect(offlineLockReason(H)).toBeNull();
   });
 
   it("does not give a signed-out visitor a trial", () => {

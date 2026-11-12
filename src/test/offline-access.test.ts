@@ -19,9 +19,10 @@ import {
 } from "@/lib/plans";
 
 /**
- * Offline mode ships with Pro and VIP, but deliberately not with Plus.
- * These tests pin that split down so a future refactor can't quietly move
- * downloads into Plus or give them away for free.
+ * Offline *video* downloads ship with every paid tier (Plus, Pro and VIP);
+ * offline *music* is VIP-only. These tests pin that split down so a future
+ * refactor can't quietly take video downloads away from Plus or give music
+ * downloads away below VIP.
  */
 
 const H = "offline-tester";
@@ -48,13 +49,10 @@ function subscribe(planId = "pro") {
 }
 
 describe("planIncludesOffline", () => {
-  it("is included in Pro and VIP", () => {
+  it("is included in every paid tier: Plus, Pro and VIP", () => {
+    expect(planIncludesOffline("plus")).toBe(true);
     expect(planIncludesOffline("pro")).toBe(true);
     expect(planIncludesOffline("vip")).toBe(true);
-  });
-
-  it("is not included in Plus", () => {
-    expect(planIncludesOffline("plus")).toBe(false);
   });
 
   it("is not included for free or unknown plans", () => {
@@ -63,11 +61,11 @@ describe("planIncludesOffline", () => {
     expect(planIncludesOffline(null)).toBe(false);
   });
 
-  it("advertises offline video downloads on Pro and VIP only", () => {
+  it("advertises offline video downloads on every paid tier", () => {
     const withVideo = PLANS.filter((p) => p.perks.includes("Offline video downloads")).map(
       (p) => p.id,
     );
-    expect(withVideo).toEqual(["pro", "vip"]);
+    expect(withVideo).toEqual(["plus", "pro", "vip"]);
   });
 
   it("advertises offline music downloads on VIP only", () => {
@@ -79,8 +77,8 @@ describe("planIncludesOffline", () => {
 });
 
 describe("offlinePlan", () => {
-  it("points the upsell at Pro, the cheapest plan with offline", () => {
-    expect(offlinePlan().id).toBe("pro");
+  it("points the upsell at Plus, the cheapest plan with offline video", () => {
+    expect(offlinePlan().id).toBe("plus");
     expect(offlinePlan().offline).toBe(true);
   });
 });
@@ -126,6 +124,8 @@ describe("hasMusicOfflineAccess", () => {
     subscribe("plus");
     expect(hasMusicOfflineAccess(H)).toBe(false);
     expect(musicOfflineLockReason(H)).toBe("plan-lacks-offline");
+    // Plus still gets offline *video* downloads.
+    expect(hasOfflineAccess(H)).toBe(true);
   });
 
   it("is locked on an active Pro subscription", () => {
@@ -169,10 +169,10 @@ describe("hasOfflineAccess", () => {
     expect(offlineLockReason(H)).toBe("no-plan");
   });
 
-  it("is locked on an active Plus subscription", () => {
+  it("unlocks on an active Plus subscription", () => {
     subscribe("plus");
-    expect(hasOfflineAccess(H)).toBe(false);
-    expect(offlineLockReason(H)).toBe("plan-lacks-offline");
+    expect(hasOfflineAccess(H)).toBe(true);
+    expect(offlineLockReason(H)).toBeNull();
   });
 
   it("unlocks on an active Pro subscription", () => {

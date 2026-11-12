@@ -25,6 +25,7 @@ import {
   COOLERUP_TABS,
   addBookmark,
   displayTitle,
+  embedUrlFor,
   hostLabel,
   isBlockedUrl,
   isEmbeddable,
@@ -41,7 +42,7 @@ import {
   type BrowserHistoryRow,
   type SearchResult,
 } from "@/lib/coolerupBrowser";
-import { searchCoolerupBrowser } from "@/lib/coolerupBrowser.functions";
+import { fetchBrowserPage, searchCoolerupBrowser } from "@/lib/coolerupBrowser.functions";
 import { addYouTubeSong } from "@/lib/youtubeSongs";
 
 /* -------------------------------------------------------------------------- */
@@ -197,6 +198,17 @@ export function CoolerupBrowser() {
     },
     [push, refreshPanels],
   );
+
+  /* Link taps inside a proxied page come back as postMessages so navigation
+     stays in the Coolerup chrome instead of escaping to another origin. */
+  useEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      const data = event.data as { coolerupNavigate?: unknown } | null;
+      if (data && typeof data.coolerupNavigate === "string") openUrl(data.coolerupNavigate);
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [openUrl]);
 
   /* Deep links from History / Bookmarks: /browser?q=... or /browser?url=... */
   const { q: deepQuery, url: deepUrl } = useSearch({ from: "/browser/" });
@@ -606,9 +618,19 @@ export function CoolerupBrowser() {
           />
         ) : isBlockedUrl(entry.url) ? (
           <BlockedView url={entry.url} />
-        ) : !isEmbeddable(entry.url) ? (
-          <FrameBlockedView url={entry.url} onOpenExternal={openExternal} />
-        ) : (
+        ) : embedUrlFor(entry.url) ? (
+          /* YouTube / TikTok video links play inside Coolerup. */
+          <iframe
+            key={`${entry.url}-${reloadKey}`}
+            src={embedUrlFor(entry.url) ?? ""}
+            title="Coolerup Browser player"
+            className="h-[68vh] w-full rounded-2xl border border-white/10 bg-black"
+            referrerPolicy="strict-origin-when-cross-origin"
+            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-presentation"
+            allow="clipboard-write; encrypted-media; picture-in-picture; fullscreen"
+            allowFullScreen
+          />
+        ) : isEmbeddable(entry.url) ? (
           <iframe
             key={`${entry.url}-${reloadKey}`}
             src={entry.url}
@@ -617,6 +639,15 @@ export function CoolerupBrowser() {
             referrerPolicy="no-referrer"
             sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-presentation"
             allow="clipboard-write; encrypted-media; picture-in-picture; fullscreen"
+          />
+        ) : (
+          /* TikTok, Instagram, X and friends refuse framing. Coolerup fetches
+             the page itself so it still opens in-app instead of bouncing out. */
+          <ProxyView
+            url={entry.url}
+            reloadKey={reloadKey}
+            onOpenExternal={openExternal}
+            onNavigate={openUrl}
           />
         )}
       </div>
@@ -740,6 +771,160 @@ function BlockedView({ url }: { url: string }) {
         Coolerup Browser blocks adult content and dangerous downloads. That includes{" "}
         <span className="break-all font-mono">{url}</span>.
       </p>
+    </div>
+  );
+}
+
+/**
+ * Renders a site that refuses to be framed.
+ *
+ * Coolerup fetches the page on the server, strips anything executable, and
+ * paints the result with `srcDoc`. The page therefore opens *inside* the
+ * browser — TikTok, Instagram and X all work — with the Coolerup top bar
+ * still in place. If the fetch itself fails we fall back to the "Open in
+ * Chrome" popup rather than showing a blank box.
+ */
+function ProxyView({
+  url,
+  reloadKey,
+  onOpenExternal,
+  onNavigate,
+}: {
+  url: string;
+  reloadKey: number;
+  onOpenExternal: (url: string) => void;
+  onNavigate: (url: string) => void;
+}) {
+  const fetchPage = useServerFn(fetchBrowserPage);
+  const [state, setState] = useState<
+    | { status: "loading" }
+    | {
+        status: "ok";
+        mode: "page" | "summary";
+        html: string;
+        title: string;
+        description: string;
+        image: string;
+        links: { label: string; url: string }[];
+      }
+    | { status: "error" }
+  >({ status: "loading" });
+
+  useEffect(() => {
+    let alive = true;
+    setState({ status: "loading" });
+    fetchPage({ data: { url } })
+      .then((page) => {
+        if (!alive) return;
+        setState(
+          page.ok
+            ? {
+                status: "ok",
+                mode: page.mode,
+                html: page.html,
+                title: page.title,
+                description: page.description,
+                image: page.image,
+                links: page.links,
+              }
+            : { status: "error" },
+        );
+      })
+      .catch(() => {
+        if (alive) setState({ status: "error" });
+      });
+    return () => {
+      alive = false;
+    };
+  }, [url, reloadKey, fetchPage]);
+
+  if (state.status === "loading") {
+    return (
+      <div className="flex h-[68vh] flex-col items-center justify-center gap-3 rounded-2xl border border-white/10 bg-[#0b1220] text-center">
+        <Loader2 className="h-6 w-6 animate-spin text-[#93c5fd]" />
+        <p className="text-xs text-white/50">Opening {hostLabel(url)} inside Coolerup…</p>
+      </div>
+    );
+  }
+
+  if (state.status === "error") {
+    return <FrameBlockedView url={url} onOpenExternal={onOpenExternal} />;
+  }
+
+  if (state.mode === "summary") {
+    return (
+      <div className="rounded-2xl border border-white/10 bg-[#111a2e] p-4">
+        <div className="flex items-center gap-2">
+          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#2563EB] text-[13px] font-black text-white">
+            {hostLabel(url).charAt(0).toUpperCase()}
+          </span>
+          <span className="truncate text-[11px] font-bold uppercase tracking-wide text-white/45">
+            {hostLabel(url)}
+          </span>
+        </div>
+        <h2 className="mt-3 text-lg font-black leading-snug text-white">{state.title}</h2>
+        {state.description && (
+          <p className="mt-2 text-sm leading-relaxed text-white/65">{state.description}</p>
+        )}
+        {state.image && (
+          <img
+            src={state.image}
+            alt=""
+            className="mt-3 max-h-56 w-full rounded-xl border border-white/10 object-cover"
+            loading="lazy"
+          />
+        )}
+        <p className="mt-4 rounded-xl bg-white/5 px-3 py-2 text-[11px] leading-relaxed text-white/45">
+          {hostLabel(url)} builds its page with JavaScript, so Coolerup shows the page summary
+          instead. Everything else still opens right here.
+        </p>
+        {state.links.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {state.links.slice(0, 6).map((link) => (
+              <button
+                key={link.url}
+                type="button"
+                onClick={() => onNavigate(link.url)}
+                className="max-w-full truncate rounded-full bg-[#2563EB]/20 px-3 py-1 text-[11px] font-semibold text-[#93c5fd] hover:bg-[#2563EB]/35"
+              >
+                {link.label}
+              </button>
+            ))}
+          </div>
+        )}
+        <button
+          type="button"
+          onClick={() => onOpenExternal(url)}
+          className="mt-4 flex w-full items-center justify-center gap-1.5 rounded-full bg-[#2563EB] px-4 py-2 text-xs font-bold text-white hover:bg-[#1d4fc4]"
+        >
+          <ExternalLink className="h-3.5 w-3.5" /> Open {hostLabel(url)} in Chrome
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="overflow-hidden rounded-2xl border border-white/10 bg-white">
+      <div className="flex items-center justify-between gap-2 bg-[#1d4fc4] px-3 py-1.5">
+        <span className="truncate text-[11px] font-bold text-white/80">
+          Coolerup view · {hostLabel(url)}
+        </span>
+        <button
+          type="button"
+          onClick={() => onOpenExternal(url)}
+          className="shrink-0 rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-bold text-white hover:bg-white/25"
+        >
+          Open in Chrome
+        </button>
+      </div>
+      <iframe
+        key={`${url}-${reloadKey}`}
+        srcDoc={state.html}
+        title="Coolerup Browser"
+        className="h-[64vh] w-full bg-white"
+        referrerPolicy="no-referrer"
+        sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox allow-forms"
+      />
     </div>
   );
 }

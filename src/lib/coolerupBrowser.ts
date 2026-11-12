@@ -176,39 +176,6 @@ export const SHORTCUTS: Shortcut[] = [
 /* Framing + safety                                                           */
 /* -------------------------------------------------------------------------- */
 
-const FRAME_REFUSING_HOSTS = [
-  "google.com",
-  "google.co.uk",
-  "youtube.com",
-  "youtu.be",
-  "tiktok.com",
-  "facebook.com",
-  "instagram.com",
-  "x.com",
-  "twitter.com",
-  "amazon.com",
-  "netflix.com",
-  "spotify.com",
-  "reddit.com",
-  "linkedin.com",
-  "paypal.com",
-  "apple.com",
-  "microsoft.com",
-  "chatgpt.com",
-  "openai.com",
-  "discord.com",
-  "twitch.tv",
-  "pinterest.com",
-  "snapchat.com",
-  "whatsapp.com",
-  "gmail.com",
-  "outlook.com",
-  "yahoo.com",
-];
-
-/** Google's frame-friendly endpoints stay inside the viewport. */
-const FRAME_FRIENDLY_PATHS = [/^\/search/, /^\/webhp/, /^\/imghp/, /^\/maps/, /^\/search\?/];
-
 /** Adult / gambling domains. Matched on the registrable host, subdomains included. */
 const BLOCKED_HOSTS = [
   "pornhub.com",
@@ -310,17 +277,72 @@ export function isBlockedUrl(url: string): boolean {
   return BLOCKED_EXTENSIONS.some((ext) => path.endsWith(ext));
 }
 
-/** Whether the site will actually render inside an <iframe>. */
+/**
+ * Hosts that are known to allow framing, and that look better raw than
+ * sanitised. Everything else goes through the Coolerup proxy.
+ *
+ * This is an allowlist on purpose. A deny-list can never be complete — IMDb,
+ * for example, blocks framing without advertising it — and every miss shows
+ * the user a blank white rectangle. Defaulting to the proxy means a page
+ * always renders something.
+ */
+const DIRECT_FRAME_HOSTS = [
+  "wikipedia.org",
+  "wikimedia.org",
+  "wiktionary.org",
+  "wikisource.org",
+  "openstreetmap.org",
+  "archive.org",
+  "gutenberg.org",
+];
+
+const FRAME_FRIENDLY_PATHS = [/^\/search/, /^\/webhp/, /^\/imghp/, /^\/maps/, /^\/search\?/];
+
+/** Whether the site can be dropped straight into an <iframe>. */
 export function isEmbeddable(url: string): boolean {
   if (isInternalUrl(url)) return false;
   const host = hostOf(url);
   if (!host) return false;
-  const onRefusingHost = FRAME_REFUSING_HOSTS.some((domain) => hostMatches(host, domain));
-  if (!onRefusingHost) return true;
+
+  // Player embeds are built for framing, so they always stay inside Coolerup.
+  if (embedUrlFor(url)) return true;
+
+  if (DIRECT_FRAME_HOSTS.some((domain) => hostMatches(host, domain))) return true;
+
   const isGoogle = hostMatches(host, "google.com") || hostMatches(host, "google.co.uk");
   if (!isGoogle) return false;
   const path = pathnameOf(url) + (new URL(url).search ? `?${new URL(url).search.slice(1)}` : "");
   return FRAME_FRIENDLY_PATHS.some((re) => re.test(path));
+}
+
+/**
+ * The player URL for a video link, or null.
+ *
+ * YouTube and TikTok both ship a frame-friendly player. Using it means a video
+ * link pasted into Coolerup Browser actually plays inside the app instead of
+ * bouncing out to Chrome.
+ */
+export function embedUrlFor(url: string): string | null {
+  const youtubeId = youtubeIdFromBrowserUrl(url);
+  if (youtubeId) return `https://www.youtube.com/embed/${youtubeId}?rel=0&playsinline=1`;
+
+  const tiktokId = tiktokVideoId(url);
+  if (tiktokId) return `https://www.tiktok.com/embed/v2/${tiktokId}`;
+
+  return null;
+}
+
+/** TikTok video ids live in `/@user/video/<id>`. */
+export function tiktokVideoId(url: string): string | null {
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.toLowerCase().replace(/^www\./, "");
+    if (!hostMatches(host, "tiktok.com")) return null;
+    const match = /\/video\/(\d{6,})/.exec(parsed.pathname);
+    return match?.[1] ?? null;
+  } catch {
+    return null;
+  }
 }
 
 /** Only images may leave the sandbox; everything else is refused. */
@@ -403,7 +425,11 @@ export type SearchResult = {
 };
 
 export type SearchResponse =
-  | { ok: true; results: SearchResult[]; source: "google" | "duckduckgo" | "wikipedia" }
+  | {
+      ok: true;
+      results: SearchResult[];
+      source: "google" | "bing" | "duckduckgo" | "wikipedia";
+    }
   | { ok: false; reason: "empty" | "network" | "no-results" };
 
 /** Host for display, without `www.`. */

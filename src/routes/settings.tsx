@@ -6,6 +6,7 @@ import {
   CreditCard,
   Gem,
   LogOut,
+  Music,
   Pencil,
   ShieldCheck,
   UserRound,
@@ -27,6 +28,12 @@ import {
 import { hasUsedTrial, useTrial } from "@/lib/trial";
 import { ThemePicker } from "@/components/ThemePicker";
 import { QUALITY_OPTIONS, useVideoQuality } from "@/lib/videoQuality";
+import {
+  BACKGROUND_PLAY_HELP,
+  isMediaSessionSupported,
+  setBackgroundPlayEnabled,
+  useBackgroundPlay,
+} from "@/lib/backgroundPlay";
 import {
   announcePushPref,
   disablePushSubscription,
@@ -66,6 +73,9 @@ function Settings() {
   const auth = useAuth();
   // Playback quality is a device preference (localStorage `video_quality`).
   const { quality: videoQuality, setQuality: setVideoQuality } = useVideoQuality();
+  // Music keeps playing in the background by default; the toggle is here.
+  const backgroundPlay = useBackgroundPlay();
+  const mediaSessionReady = isMediaSessionSupported();
   // Offline mode ships with Pro and VIP; Plus and free accounts are locked.
   const subscription = useSubscription(auth.handle);
   const offlineUnlocked = hasOfflineAccess(auth.handle);
@@ -915,6 +925,48 @@ function Settings() {
             </p>
           </>
         )}
+      </div>
+      {/* Music — Background Play */}
+      <div className="rounded-lg border bg-card p-6">
+        <div className="flex items-center gap-2">
+          <Music className="h-4 w-4 text-muted-foreground" />
+          <h2 className="font-semibold">Music</h2>
+        </div>
+        <div className="mt-3 flex items-center justify-between gap-3 border-t pt-3">
+          <div className="min-w-0">
+            <div className="font-medium">Background Play</div>
+            <p className="mt-0.5 text-xs text-muted-foreground">{BACKGROUND_PLAY_HELP}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              const next = !backgroundPlay;
+              setBackgroundPlayEnabled(next);
+              toast.success(next ? "Background Play ON" : "Background Play OFF");
+            }}
+            aria-pressed={backgroundPlay}
+            aria-label="Toggle Background Play"
+            className="h-7 w-12 shrink-0 rounded-full p-1 transition"
+            style={{ backgroundColor: backgroundPlay ? "#16a34a" : "#333" }}
+          >
+            <div
+              className="h-5 w-5 rounded-full transition"
+              style={{
+                backgroundColor: "white",
+                transform: backgroundPlay ? "translateX(20px)" : "translateX(0)",
+              }}
+            />
+          </button>
+        </div>
+        <p className="mt-2 text-xs text-muted-foreground">
+          {mediaSessionReady
+            ? "Lock-screen and notification controls are enabled — play, pause, next and previous work with the screen off."
+            : "This browser doesn't support lock-screen controls, but audio still keeps playing in the background."}
+        </p>
+        <p className="mt-1 text-xs text-amber-500/90">
+          YouTube songs pause in the background — YouTube blocks it. Your own MP3s, royalty-free
+          songs and downloaded songs play in the background.
+        </p>
       </div>
       {/* Video quality */}
       <div className="rounded-2xl border bg-card p-4">

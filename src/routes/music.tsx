@@ -5,6 +5,7 @@ import {
   Download,
   Flame,
   HardDriveDownload,
+  Headphones,
   Heart,
   Loader2,
   Lock,
@@ -15,6 +16,7 @@ import {
   Search,
   ShieldAlert,
   Sparkles,
+  TriangleAlert,
   Trash2,
   WifiOff,
   Youtube,
@@ -28,8 +30,14 @@ import { RemoveDownloadButton, ReplaceAudioButton } from "@/components/DownloadB
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { requestUseSound, YouTubeSongPlayer } from "@/components/MusicPlayer";
-import { songPlayer, useSongPlayer, type PlayerTrack } from "@/lib/songPlayer";
+import { YouTubeSongPlayer } from "@/components/MusicPlayer";
+import { requestUseSound, songPlayer, useSongPlayer, type PlayerTrack } from "@/lib/songPlayer";
+import {
+  canBackgroundPlay,
+  setBackgroundPlayEnabled,
+  useBackgroundPlay,
+  YOUTUBE_BACKGROUND_WARNING,
+} from "@/lib/backgroundPlay";
 import { hasMusicOfflineAccess, musicOfflinePlan } from "@/lib/subscriptions";
 import { useTrial } from "@/lib/trial";
 import {
@@ -332,6 +340,8 @@ function MusicPage() {
   );
 
   const nowPlayingId = player.queue[player.index]?.soundId ?? "";
+  const nowPlayingTrack = player.queue[player.index] ?? null;
+  const backgroundPlay = useBackgroundPlay();
 
   const renderList = (sounds: Sound[], empty: string) => {
     if (!sounds.length) return <p className="px-1 py-6 text-sm text-muted-foreground">{empty}</p>;
@@ -453,6 +463,47 @@ function MusicPage() {
             </button>
           ))}
         </div>
+      </div>
+
+      {/* Background Play — one tap to keep the song going when the phone is
+          locked or the user jumps to another app. */}
+      <div className="mx-auto max-w-2xl px-4 pt-3">
+        <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-2.5">
+          <Headphones
+            className={`h-4 w-4 shrink-0 ${backgroundPlay ? "text-primary" : "text-muted-foreground"}`}
+          />
+          <div className="min-w-0 flex-1">
+            <p className="text-[13px] font-bold">Background Play</p>
+            <p className="truncate text-[11px] text-muted-foreground">
+              {backgroundPlay
+                ? "Keeps playing when you switch tabs, lock your phone, or open another app."
+                : "Music stops when you leave the app."}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              const next = !backgroundPlay;
+              setBackgroundPlayEnabled(next);
+              toast.success(next ? "Background Play ON" : "Background Play OFF");
+            }}
+            aria-pressed={backgroundPlay}
+            aria-label="Toggle Background Play"
+            className={`shrink-0 rounded-full px-3 py-1 text-xs font-bold ${
+              backgroundPlay
+                ? "bg-primary text-primary-foreground"
+                : "border border-white/15 text-muted-foreground"
+            }`}
+          >
+            {backgroundPlay ? "ON" : "OFF"}
+          </button>
+        </div>
+        {nowPlayingTrack && !canBackgroundPlay(nowPlayingTrack) && (
+          <div className="mt-2 flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2">
+            <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-400" />
+            <p className="text-[11px] leading-snug text-amber-200">{YOUTUBE_BACKGROUND_WARNING}</p>
+          </div>
+        )}
       </div>
 
       <div className="mx-auto max-w-2xl px-4 pt-4">

@@ -28,8 +28,8 @@ import { UpdateGate } from "../components/UpdateGate";
 import { applyPrefs } from "../lib/prefs";
 import { AuthProvider, useAuth } from "../hooks/useAuth";
 import { SnowEffect } from "../components/SnowEffect";
-import { SongPlayerBar, USE_SOUND_EVENT } from "../components/MusicPlayer";
-import type { PlayerTrack } from "../lib/songPlayer";
+import { MiniPlayer } from "../components/MiniPlayer";
+import { USE_SOUND_EVENT, type PlayerTrack } from "../lib/songPlayer";
 import type { Sound } from "../lib/sounds";
 
 // "Use this sound" can be tapped from the player dock on any screen, so the
@@ -281,9 +281,9 @@ function RootComponent() {
         <Toaster theme="dark" position="top-center" />
         {/* 50 falling white dots, Nov 15 2026 -> Jan 1 2027 only. */}
         <SnowEffect />
-        {/* Music tab: the dock lives at the root so the song keeps playing
-            when you switch top tabs. */}
-        <SongPlayerBar />
+        {/* Music tab: the mini player lives at the root so the song keeps
+            playing when you switch top tabs, lock the phone, or leave the app. */}
+        <MiniPlayer />
         <UseSoundHandler />
       </AuthProvider>
     </QueryClientProvider>

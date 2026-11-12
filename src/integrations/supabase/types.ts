@@ -143,6 +143,70 @@ export type Database = {
         };
         Relationships: [];
       };
+      browser_bookmarks: {
+        Row: {
+          created_at: string;
+          id: string;
+          title: string;
+          url: string;
+          user_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          id?: string;
+          title?: string;
+          url: string;
+          user_id: string;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          title?: string;
+          url?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "browser_bookmarks_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      browser_history: {
+        Row: {
+          created_at: string;
+          id: string;
+          query: string | null;
+          url: string | null;
+          user_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          id?: string;
+          query?: string | null;
+          url?: string | null;
+          user_id: string;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          query?: string | null;
+          url?: string | null;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "browser_history_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       coin_cashouts: {
         Row: {
           amount_cents: number;

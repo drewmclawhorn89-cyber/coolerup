@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as BetaRouteImport } from './routes/beta'
+import { Route as BrowserRouteImport } from './routes/browser'
 import { Route as CreatorRouteImport } from './routes/creator'
 import { Route as GroupsRouteImport } from './routes/groups'
 import { Route as LiveRouteImport } from './routes/live'
@@ -54,6 +55,11 @@ const AdminRoute = AdminRouteImport.update({
 const BetaRoute = BetaRouteImport.update({
   id: '/beta',
   path: '/beta',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BrowserRoute = BrowserRouteImport.update({
+  id: '/browser',
+  path: '/browser',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CreatorRoute = CreatorRouteImport.update({
@@ -201,6 +207,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/beta': typeof BetaRoute
+  '/browser': typeof BrowserRoute
   '/creator': typeof CreatorRoute
   '/groups': typeof GroupsRouteWithChildren
   '/live': typeof LiveRouteWithChildren
@@ -234,6 +241,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/beta': typeof BetaRoute
+  '/browser': typeof BrowserRoute
   '/creator': typeof CreatorRoute
   '/live': typeof LiveRouteWithChildren
   '/make-gif': typeof MakeGifRoute
@@ -267,6 +275,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/beta': typeof BetaRoute
+  '/browser': typeof BrowserRoute
   '/creator': typeof CreatorRoute
   '/groups': typeof GroupsRouteWithChildren
   '/live': typeof LiveRouteWithChildren
@@ -302,6 +311,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/beta'
+    | '/browser'
     | '/creator'
     | '/groups'
     | '/live'
@@ -335,6 +345,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/beta'
+    | '/browser'
     | '/creator'
     | '/live'
     | '/make-gif'
@@ -367,6 +378,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/beta'
+    | '/browser'
     | '/creator'
     | '/groups'
     | '/live'
@@ -401,6 +413,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
   BetaRoute: typeof BetaRoute
+  BrowserRoute: typeof BrowserRoute
   CreatorRoute: typeof CreatorRoute
   GroupsRoute: typeof GroupsRouteWithChildren
   LiveRoute: typeof LiveRouteWithChildren
@@ -449,6 +462,13 @@ declare module '@tanstack/react-router' {
       path: '/beta'
       fullPath: '/beta'
       preLoaderRoute: typeof BetaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/browser': {
+      id: '/browser'
+      path: '/browser'
+      fullPath: '/browser'
+      preLoaderRoute: typeof BrowserRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/creator': {
@@ -677,6 +697,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
   BetaRoute: BetaRoute,
+  BrowserRoute: BrowserRoute,
   CreatorRoute: CreatorRoute,
   GroupsRoute: GroupsRouteWithChildren,
   LiveRoute: LiveRouteWithChildren,

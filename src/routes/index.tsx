@@ -5,6 +5,7 @@ import {
   Download,
   Heart,
   Gift,
+  Globe,
   Home,
   LogOut,
   MessageCircle,
@@ -625,6 +626,11 @@ function Index() {
       <button onClick={() => void navigate({ to: "/music" })} className={tabClass("music")}>
         <Music className="size-3.5" />
         Music
+      </button>
+      {/* The in-app browser: Google-style search, site tabs, history, bookmarks. */}
+      <button onClick={() => void navigate({ to: "/browser" })} className={tabClass("browser")}>
+        <Globe className="size-3.5" />
+        Browser
       </button>
       <button onClick={() => pickFeedTab("marketplace")} className={tabClass("marketplace")}>Marketplace</button>
       <button onClick={() => pickFeedTab("groups")} className={tabClass("groups")}>Groups</button>

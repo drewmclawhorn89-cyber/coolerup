@@ -6,6 +6,7 @@ import {
   Clapperboard,
   Heart,
   Loader2,
+  Lock,
   Music,
   Pause,
   Play,
@@ -24,9 +25,13 @@ import {
   attachBackgroundPlay,
   canBackgroundPlay,
   isBackgroundPlayEnabled,
+  setBackgroundPlayEntitled,
   YOUTUBE_BACKGROUND_SHORT,
   YOUTUBE_BACKGROUND_WARNING,
 } from "@/lib/backgroundPlay";
+import { useAuth } from "@/hooks/useAuth";
+import { hasBackgroundPlayAccess, SUBSCRIPTION_EVENT } from "@/lib/subscriptions";
+import { LIFETIME_EVENT } from "@/lib/subscription";
 import { getSavedSoundIds, saveSound, unsaveSound } from "@/lib/sounds";
 import { requestUseSound, songPlayer, trackToSound, useSongPlayer } from "@/lib/songPlayer";
 
@@ -48,6 +53,7 @@ import { requestUseSound, songPlayer, trackToSound, useSongPlayer } from "@/lib/
 const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 
 export function MiniPlayer() {
+  const auth = useAuth();
   const player = useSongPlayer();
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -58,8 +64,24 @@ export function MiniPlayer() {
   const track = player.queue[player.index];
   const soundId = track?.soundId ?? "";
 
-  // Lock-screen controls + "pause when hidden if the setting is off".
+  // Lock-screen controls + "pause when hidden unless background play is on".
   useEffect(() => attachBackgroundPlay(), []);
+
+  // Background play is a VIP perk. Re-derive the entitlement whenever the plan
+  // changes, the app regains focus, or a lifetime grant is revoked, so a
+  // downgrade stops background audio immediately instead of at the next song.
+  useEffect(() => {
+    const sync = () => setBackgroundPlayEntitled(hasBackgroundPlayAccess(auth.handle));
+    sync();
+    window.addEventListener(SUBSCRIPTION_EVENT, sync);
+    window.addEventListener(LIFETIME_EVENT, sync);
+    window.addEventListener("focus", sync);
+    return () => {
+      window.removeEventListener(SUBSCRIPTION_EVENT, sync);
+      window.removeEventListener(LIFETIME_EVENT, sync);
+      window.removeEventListener("focus", sync);
+    };
+  }, [auth.handle]);
 
   // Reflect the heart state for whichever song is loaded.
   useEffect(() => {
@@ -80,6 +102,7 @@ export function MiniPlayer() {
 
   const isYouTube = !canBackgroundPlay(track);
   const backgroundOn = isBackgroundPlayEnabled();
+  const backgroundEntitled = hasBackgroundPlayAccess(auth.handle);
   const onMusicTab = pathname === "/music";
 
   const toggleSave = async () => {
@@ -141,6 +164,22 @@ export function MiniPlayer() {
               {YOUTUBE_BACKGROUND_SHORT} — use your own MP3 or a royalty-free song.
             </p>
           </div>
+        )}
+
+        {/* Background play is a VIP perk. Tell non-VIP listeners why the song
+            stops when they leave the app, and give them a way to unlock it. */}
+        {!backgroundEntitled && !isYouTube && (
+          <button
+            type="button"
+            onClick={() => void navigate({ to: "/settings", search: { subscriptions: true } })}
+            className="flex w-full items-start gap-2 border-b border-primary/20 bg-primary/10 px-3 py-1.5 text-left"
+          >
+            <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
+            <span className="text-[11px] leading-tight text-primary">
+              Background play is a VIP perk — upgrade to keep music playing when you leave the
+              app.
+            </span>
+          </button>
         )}
 
         {expanded && (

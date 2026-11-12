@@ -3,8 +3,10 @@ import { useEffect, useState } from "react";
 import {
   PLANS,
   planById,
+  planIncludesBackgroundPlay,
   planIncludesMusicOffline,
   planIncludesOffline,
+  backgroundPlayPlan,
   musicOfflinePlan,
   offlinePlan,
   type Plan,
@@ -22,8 +24,10 @@ export type { Plan };
 export {
   PLANS,
   planById,
+  planIncludesBackgroundPlay,
   planIncludesMusicOffline,
   planIncludesOffline,
+  backgroundPlayPlan,
   musicOfflinePlan,
   offlinePlan,
 };
@@ -215,7 +219,9 @@ export type Subscription = {
 };
 
 const key = (handle: string) => `subscription:${handle}`;
-const EVT = "subscription-change";
+/** Fired whenever the stored subscription changes, so the UI can re-render. */
+export const SUBSCRIPTION_EVENT = "subscription-change";
+const EVT = SUBSCRIPTION_EVENT;
 
 /**
  * Old versions stored a bare string ("pro" or "pending:pro"). Turn anything we
@@ -475,6 +481,29 @@ export function hasMusicOfflineAccess(handle?: string | null): boolean {
   return planIncludesMusicOffline(sub?.planId);
 }
 
+/**
+ * Background play is a VIP-and-up perk, with a one-hour free trial.
+ *
+ * Pro keeps offline video downloads, but audio that keeps running once the app
+ * is hidden is gated at VIP. A running free hour on VIP (or the lifetime "all
+ * access" grant) unlocks it; Plus and Pro do not. The same paid-and-active rule
+ * as `hasOfflineAccess` applies, so a pending or expired plan stays locked.
+ */
+export function hasBackgroundPlayAccess(handle?: string | null): boolean {
+  const trial = activeTrial(handle);
+  if (trial && planIncludesBackgroundPlay(trial.planId)) return true;
+  const sub = getSubscription(handle);
+  if (!isActive(sub)) return false;
+  return planIncludesBackgroundPlay(sub?.planId);
+}
+
+/** True when the plan alone unlocks background play, ignoring any trial. */
+export function planUnlocksBackgroundPlay(handle?: string | null): boolean {
+  const sub = getSubscription(handle);
+  if (!isActive(sub)) return false;
+  return planIncludesBackgroundPlay(sub?.planId);
+}
+
 /** True when the plan alone unlocks offline music, ignoring any trial. */
 export function planUnlocksMusicOffline(handle?: string | null): boolean {
   const sub = getSubscription(handle);
@@ -520,6 +549,21 @@ export function musicOfflineLockReason(handle?: string | null): OfflineLockReaso
       hasUsedTrial(handle, p.id),
     );
     return usedAnyMusicTrial ? "trial-ended" : "no-plan";
+  }
+  if (sub.status === "expired" || sub.status === "pending") return "expired";
+  return "plan-lacks-offline";
+}
+
+/** Why background play is locked, so the Music tab can say something useful. */
+export function backgroundPlayLockReason(handle?: string | null): OfflineLockReason | null {
+  if (hasBackgroundPlayAccess(handle)) return null;
+  if (!handle) return "signed-out";
+  const sub = getSubscription(handle);
+  if (!sub) {
+    const usedAnyBackgroundTrial = PLANS.filter((p) => p.backgroundPlay).some((p) =>
+      hasUsedTrial(handle, p.id),
+    );
+    return usedAnyBackgroundTrial ? "trial-ended" : "no-plan";
   }
   if (sub.status === "expired" || sub.status === "pending") return "expired";
   return "plan-lacks-offline";

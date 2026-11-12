@@ -29,6 +29,14 @@ export type Plan = {
    * are separate: moving music to VIP must not take videos away from Pro.
    */
   musicOffline: boolean;
+  /**
+   * Whether the plan unlocks background play.
+   *
+   * Background play is a VIP-only perk (plus the lifetime "all access" grant).
+   * Plus and Pro keep offline *video* downloads but cannot keep audio running
+   * once the app is hidden.
+   */
+  backgroundPlay: boolean;
 };
 
 export const PLANS: Plan[] = [
@@ -40,6 +48,7 @@ export const PLANS: Plan[] = [
     perks: ["Ad-free feed", "Plus badge on your profile", "Offline video downloads"],
     offline: true,
     musicOffline: false,
+    backgroundPlay: false,
   },
   {
     id: "pro",
@@ -54,6 +63,7 @@ export const PLANS: Plan[] = [
     ],
     offline: true,
     musicOffline: false,
+    backgroundPlay: false,
   },
   {
     id: "vip",
@@ -70,6 +80,7 @@ export const PLANS: Plan[] = [
     ],
     offline: true,
     musicOffline: true,
+    backgroundPlay: true,
   },
 ];
 
@@ -97,6 +108,7 @@ export const LIFETIME_PLAN: Plan = {
   ],
   offline: true,
   musicOffline: true,
+  backgroundPlay: true,
 };
 
 export function planById(id?: string | null): Plan | undefined {
@@ -125,6 +137,17 @@ export function planIncludesMusicOffline(id?: string | null): boolean {
 }
 
 /**
+ * True when the plan unlocks background play.
+ *
+ * Background play is deliberately gated at VIP so Pro keeps offline video
+ * downloads without keeping audio alive once the app is hidden. The lifetime
+ * "all access" plan includes it.
+ */
+export function planIncludesBackgroundPlay(id?: string | null): boolean {
+  return Boolean(planById(id)?.backgroundPlay);
+}
+
+/**
  * The cheapest plan that includes offline downloads.
  *
  * Used by the upsell copy so the prompt always names the plan a viewer would
@@ -143,6 +166,16 @@ export function offlinePlan(): Plan {
  */
 export function musicOfflinePlan(): Plan {
   return PLANS.find((p) => p.musicOffline) ?? PLANS[PLANS.length - 1]!;
+}
+
+/**
+ * The cheapest plan that includes background play — VIP.
+ *
+ * Used by the upsell copy so the prompt always names the plan a listener would
+ * actually have to buy for background play.
+ */
+export function backgroundPlayPlan(): Plan {
+  return PLANS.find((p) => p.backgroundPlay) ?? PLANS[PLANS.length - 1]!;
 }
 
 /** Authoritative price in cents, or null when the plan id is unknown. */

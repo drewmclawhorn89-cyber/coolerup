@@ -47,7 +47,7 @@ export type CompressionProgress = {
   stage: string;
 };
 
-type FfmpegLike = {
+export type FfmpegLike = {
   load: (opts: { coreURL: string; wasmURL: string }) => Promise<void>;
   writeFile: (name: string, data: Uint8Array) => Promise<void>;
   readFile: (name: string) => Promise<Uint8Array | string>;
@@ -64,7 +64,7 @@ let active: FfmpegLike | null = null;
 /** CDN copy of the single-threaded core (no SharedArrayBuffer / COOP headers). */
 const CORE_BASE = "https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd";
 
-async function loadFfmpeg(): Promise<FfmpegLike> {
+export async function loadFfmpeg(): Promise<FfmpegLike> {
   if (ffmpegPromise) return ffmpegPromise;
 
   ffmpegPromise = (async () => {

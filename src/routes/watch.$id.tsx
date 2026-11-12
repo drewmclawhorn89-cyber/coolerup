@@ -100,6 +100,7 @@ function WatchPage() {
   const [comments, setComments] = useState<FullVideoComment[]>([]);
   const [commentText, setCommentText] = useState("");
   const [commentGif, setCommentGif] = useState<string | null>(null);
+  const [commentGifCredit, setCommentGifCredit] = useState<string | null>(null);
   const [showGifs, setShowGifs] = useState(false);
   const [posting, setPosting] = useState(false);
   /** The comment being answered; null means a fresh top-level comment. */
@@ -389,10 +390,12 @@ function WatchPage() {
         body,
         parentId,
         commentGif,
+        commentGifCredit,
       );
       setComments((c) => [row, ...c]);
       setCommentText("");
       setCommentGif(null);
+      setCommentGifCredit(null);
       setShowGifs(false);
       setReplyTo(null);
     } catch {
@@ -751,9 +754,17 @@ function WatchPage() {
               {commentGif && (
                 <div className="relative mt-2 inline-block">
                   <img src={commentGif} alt="Selected GIF" className="max-h-32 rounded-lg" />
+                  {commentGifCredit && (
+                    <p className="mt-1 text-[10px] font-semibold text-muted-foreground">
+                      Made by {commentGifCredit}
+                    </p>
+                  )}
                   <button
                     type="button"
-                    onClick={() => setCommentGif(null)}
+                    onClick={() => {
+                      setCommentGif(null);
+                      setCommentGifCredit(null);
+                    }}
                     aria-label="Remove GIF"
                     className="absolute right-1 top-1 rounded-full bg-background/80 p-1"
                   >
@@ -764,8 +775,9 @@ function WatchPage() {
               {showGifs && (
                 <GifPicker
                   className="mt-2 rounded-xl bg-secondary/40"
-                  onPick={(url) => {
+                  onPick={(url, meta) => {
                     setCommentGif(url);
+                    setCommentGifCredit(meta?.username ? `@${meta.username}` : null);
                     setShowGifs(false);
                   }}
                   onClose={() => setShowGifs(false)}
@@ -909,12 +921,19 @@ function CommentRow({
           <p className="whitespace-pre-wrap break-words text-sm">{comment.body}</p>
         )}
         {comment.gif_url && (
-          <img
-            src={comment.gif_url}
-            alt="GIF"
-            loading="lazy"
-            className="mt-1 max-h-40 rounded-lg"
-          />
+          <>
+            <img
+              src={comment.gif_url}
+              alt="GIF"
+              loading="lazy"
+              className="mt-1 max-h-40 rounded-lg"
+            />
+            {comment.gif_credit && (
+              <p className="mt-0.5 text-[10px] font-semibold text-muted-foreground">
+                Made by {comment.gif_credit}
+              </p>
+            )}
+          </>
         )}
 
         <div className="mt-1 flex items-center gap-3">

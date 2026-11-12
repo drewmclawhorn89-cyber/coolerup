@@ -323,6 +323,7 @@ export type Database = {
         Row: {
           body: string
           created_at: string
+          gif_credit: string | null
           gif_url: string | null
           id: string
           parent_id: string | null
@@ -332,6 +333,7 @@ export type Database = {
         Insert: {
           body: string
           created_at?: string
+          gif_credit?: string | null
           gif_url?: string | null
           id?: string
           parent_id?: string | null
@@ -341,6 +343,7 @@ export type Database = {
         Update: {
           body?: string
           created_at?: string
+          gif_credit?: string | null
           gif_url?: string | null
           id?: string
           parent_id?: string | null
@@ -417,6 +420,8 @@ export type Database = {
           created_at: string
           from_id: string | null
           from_username: string
+          gif_credit: string | null
+          gif_url: string | null
           id: string
           message: string
           to_id: string | null
@@ -426,6 +431,8 @@ export type Database = {
           created_at?: string
           from_id?: string | null
           from_username: string
+          gif_credit?: string | null
+          gif_url?: string | null
           id?: string
           message: string
           to_id?: string | null
@@ -435,6 +442,8 @@ export type Database = {
           created_at?: string
           from_id?: string | null
           from_username?: string
+          gif_credit?: string | null
+          gif_url?: string | null
           id?: string
           message?: string
           to_id?: string | null
@@ -558,6 +567,7 @@ export type Database = {
         Row: {
           body: string
           created_at: string
+          gif_credit: string | null
           gif_url: string | null
           id: string
           parent_id: string | null
@@ -568,6 +578,7 @@ export type Database = {
         Insert: {
           body: string
           created_at?: string
+          gif_credit?: string | null
           gif_url?: string | null
           id?: string
           parent_id?: string | null
@@ -578,6 +589,7 @@ export type Database = {
         Update: {
           body?: string
           created_at?: string
+          gif_credit?: string | null
           gif_url?: string | null
           id?: string
           parent_id?: string | null
@@ -696,6 +708,79 @@ export type Database = {
           youtube_id?: string | null
         }
         Relationships: []
+      }
+      gif_reports: {
+        Row: {
+          created_at: string
+          gif_id: string
+          id: string
+          reason: string
+          reporter_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          gif_id: string
+          id?: string
+          reason?: string
+          reporter_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          gif_id?: string
+          id?: string
+          reason?: string
+          reporter_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gif_reports_gif_id_fkey"
+            columns: ["gif_id"]
+            isOneToOne: false
+            referencedRelation: "gifs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      gifs: {
+        Row: {
+          created_at: string
+          gif_url: string
+          id: string
+          is_public: boolean
+          source_video_id: string | null
+          title: string
+          use_count: number
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          gif_url: string
+          id?: string
+          is_public?: boolean
+          source_video_id?: string | null
+          title?: string
+          use_count?: number
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          gif_url?: string
+          id?: string
+          is_public?: boolean
+          source_video_id?: string | null
+          title?: string
+          use_count?: number
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gifs_source_video_id_fkey"
+            columns: ["source_video_id"]
+            isOneToOne: false
+            referencedRelation: "videos"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       gift_card_orders: {
         Row: {
@@ -2105,6 +2190,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      increment_gif_use: {
+        Args: { p_gif_id: string }
+        Returns: undefined
+      }
       add_live_mod: {
         Args: { p_live_id: string; p_user_id: string }
         Returns: number

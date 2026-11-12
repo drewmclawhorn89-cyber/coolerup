@@ -15,6 +15,7 @@ import { Route as BetaRouteImport } from './routes/beta'
 import { Route as CreatorRouteImport } from './routes/creator'
 import { Route as GroupsRouteImport } from './routes/groups'
 import { Route as LiveRouteImport } from './routes/live'
+import { Route as MakeGifRouteImport } from './routes/make-gif'
 import { Route as MessagesRouteImport } from './routes/messages'
 import { Route as OfflineRouteImport } from './routes/offline'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
@@ -66,6 +67,11 @@ const GroupsRoute = GroupsRouteImport.update({
 const LiveRoute = LiveRouteImport.update({
   id: '/live',
   path: '/live',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MakeGifRoute = MakeGifRouteImport.update({
+  id: '/make-gif',
+  path: '/make-gif',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MessagesRoute = MessagesRouteImport.update({
@@ -186,6 +192,7 @@ export interface FileRoutesByFullPath {
   '/creator': typeof CreatorRoute
   '/groups': typeof GroupsRouteWithChildren
   '/live': typeof LiveRouteWithChildren
+  '/make-gif': typeof MakeGifRoute
   '/messages': typeof MessagesRoute
   '/offline': typeof OfflineRoute
   '/onboarding': typeof OnboardingRoute
@@ -215,6 +222,7 @@ export interface FileRoutesByTo {
   '/beta': typeof BetaRoute
   '/creator': typeof CreatorRoute
   '/live': typeof LiveRouteWithChildren
+  '/make-gif': typeof MakeGifRoute
   '/messages': typeof MessagesRoute
   '/offline': typeof OfflineRoute
   '/onboarding': typeof OnboardingRoute
@@ -246,6 +254,7 @@ export interface FileRoutesById {
   '/creator': typeof CreatorRoute
   '/groups': typeof GroupsRouteWithChildren
   '/live': typeof LiveRouteWithChildren
+  '/make-gif': typeof MakeGifRoute
   '/messages': typeof MessagesRoute
   '/offline': typeof OfflineRoute
   '/onboarding': typeof OnboardingRoute
@@ -278,6 +287,7 @@ export interface FileRouteTypes {
     | '/creator'
     | '/groups'
     | '/live'
+    | '/make-gif'
     | '/messages'
     | '/offline'
     | '/onboarding'
@@ -307,6 +317,7 @@ export interface FileRouteTypes {
     | '/beta'
     | '/creator'
     | '/live'
+    | '/make-gif'
     | '/messages'
     | '/offline'
     | '/onboarding'
@@ -337,6 +348,7 @@ export interface FileRouteTypes {
     | '/creator'
     | '/groups'
     | '/live'
+    | '/make-gif'
     | '/messages'
     | '/offline'
     | '/onboarding'
@@ -368,6 +380,7 @@ export interface RootRouteChildren {
   CreatorRoute: typeof CreatorRoute
   GroupsRoute: typeof GroupsRouteWithChildren
   LiveRoute: typeof LiveRouteWithChildren
+  MakeGifRoute: typeof MakeGifRoute
   MessagesRoute: typeof MessagesRoute
   OfflineRoute: typeof OfflineRoute
   OnboardingRoute: typeof OnboardingRoute
@@ -431,6 +444,13 @@ declare module '@tanstack/react-router' {
       path: '/live'
       fullPath: '/live'
       preLoaderRoute: typeof LiveRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/make-gif': {
+      id: '/make-gif'
+      path: '/make-gif'
+      fullPath: '/make-gif'
+      preLoaderRoute: typeof MakeGifRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/messages': {
@@ -620,6 +640,7 @@ const rootRouteChildren: RootRouteChildren = {
   CreatorRoute: CreatorRoute,
   GroupsRoute: GroupsRouteWithChildren,
   LiveRoute: LiveRouteWithChildren,
+  MakeGifRoute: MakeGifRoute,
   MessagesRoute: MessagesRoute,
   OfflineRoute: OfflineRoute,
   OnboardingRoute: OnboardingRoute,

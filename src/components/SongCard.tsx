@@ -1,4 +1,5 @@
 import { Heart, Music2, Pause, Play } from "lucide-react";
+import { DownloadButton } from "@/components/DownloadButton";
 import {
   formatDuration,
   formatPlays,
@@ -84,23 +85,35 @@ export function SongCard({
 }) {
   return (
     <div className="group relative w-32 shrink-0">
+      {/* Cover is its own button so the download control can sit beside it
+          instead of nesting a button inside a button. */}
+      <div className="relative">
+        <button
+          type="button"
+          onClick={onOpen}
+          className="block w-full focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          aria-label={`Play ${sound.title}`}
+        >
+          <SoundCover sound={sound} className="aspect-square w-full" rounded="rounded-2xl" />
+          <span className="absolute inset-0 flex items-center justify-center">
+            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-black/50 text-white opacity-0 backdrop-blur transition group-hover:opacity-100">
+              {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4 fill-current" />}
+            </span>
+          </span>
+        </button>
+        <span className="pointer-events-none absolute bottom-1.5 left-1.5">
+          <DurationBadge soundId={sound.id} />
+        </span>
+        <span className="absolute bottom-1.5 right-1.5">
+          <DownloadButton sound={sound} variant="icon" />
+        </span>
+      </div>
       <button
         type="button"
         onClick={onOpen}
         className="block w-full text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
         aria-label={`Play ${sound.title}`}
       >
-        <div className="relative">
-          <SoundCover sound={sound} className="aspect-square w-full" rounded="rounded-2xl" />
-          <span className="absolute bottom-1.5 left-1.5">
-            <DurationBadge soundId={sound.id} />
-          </span>
-          <span className="absolute inset-0 flex items-center justify-center">
-            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-black/50 text-white opacity-0 backdrop-blur transition group-hover:opacity-100">
-              {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4 fill-current" />}
-            </span>
-          </span>
-        </div>
         <p className="mt-1.5 truncate text-[13px] font-semibold leading-tight">{sound.title}</p>
         <p className="truncate text-[11px] text-muted-foreground">
           {isYouTubeSound(sound) ? sound.creator_username : `@${sound.creator_username}`}
@@ -172,6 +185,7 @@ export function SongRow({
           </span>
         </span>
       </button>
+      <DownloadButton sound={sound} variant="pill" />
       {onToggleSave && (
         <button
           type="button"

@@ -26,7 +26,28 @@ import {
   type Sound,
 } from "@/lib/sounds";
 import { YOUTUBE_CLIP_SECONDS } from "@/lib/youtubeSongs";
+import { DownloadButton } from "@/components/DownloadButton";
 import { songPlayer, useSongPlayer, type PlayerTrack } from "@/lib/songPlayer";
+
+/**
+ * The shared player only knows `PlayerTrack`, but the download control needs a
+ * `Sound` row. `audio_url` is already the resolved URL here, which is exactly
+ * what `saveSongOffline` wants to fetch.
+ */
+function trackToSound(track: PlayerTrack): Sound {
+  return {
+    id: track.soundId,
+    original_video_id: null,
+    audio_url: track.url,
+    title: track.title,
+    creator_username: track.artist.replace(/^@/, ""),
+    uses_count: 0,
+    created_at: "",
+    source: track.source ?? "own",
+    youtube_url: track.youtubeUrl ?? null,
+    cover_url: track.coverUrl ?? null,
+  };
+}
 
 const API = "https://api.audius.co/v1";
 const APP = "coolerup";
@@ -536,7 +557,7 @@ export function SongPlayerBar() {
               className="mt-2 w-full accent-primary"
             />
 
-            <div className="mt-3 flex items-center gap-2 pb-3">
+            <div className="mt-3 flex items-center gap-2">
               <button
                 type="button"
                 onClick={() => requestUseSound(track)}
@@ -561,6 +582,12 @@ export function SongPlayerBar() {
               >
                 <Share2 className="h-3.5 w-3.5" />
               </button>
+            </div>
+
+            {/* Download for Offline — stores the audio file in IndexedDB so the
+                full song plays with 0 signal. */}
+            <div className="mt-2 flex items-center gap-2 pb-3">
+              <DownloadButton sound={trackToSound(track)} variant="wide" />
             </div>
           </div>
         )}
@@ -955,6 +982,12 @@ export function YouTubeSongPlayer({
               {saved ? "Saved" : "Save"}
             </button>
           )}
+        </div>
+
+        {/* YouTube songs are stream-only: the button explains the copyright
+            block instead of downloading someone else's audio. */}
+        <div className="mt-2 flex items-center gap-2">
+          <DownloadButton sound={sound} variant="wide" />
         </div>
         <p className="mt-2 text-[10px] leading-relaxed text-zinc-500">
           Streams the full song from YouTube. Shorts use a {YOUTUBE_CLIP_SECONDS}-second clip.

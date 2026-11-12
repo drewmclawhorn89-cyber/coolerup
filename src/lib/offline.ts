@@ -2,7 +2,13 @@ import { resolveVideoUrl, type Video } from "./loop";
 import { resolveFullVideoUrl, type FullVideo } from "./fullVideos";
 
 type Saved = { id: string; video: Video; blob: Blob; size: number; saved_at: number };
-export type SavedFullVideo = { id: string; video: FullVideo; blob: Blob; size: number; saved_at: number };
+export type SavedFullVideo = {
+  id: string;
+  video: FullVideo;
+  blob: Blob;
+  size: number;
+  saved_at: number;
+};
 
 const DB = "loop-offline";
 const STORE = "videos";
@@ -10,10 +16,16 @@ const FULL_STORE = "full-videos";
 
 function open(): Promise<IDBDatabase> {
   return new Promise((res, rej) => {
-    const req = indexedDB.open(DB, 2);
+    // Version 3 adds the "songs" store used by `offlineSongs.ts`. Both modules
+    // share this database, so they must agree on the version number.
+    const req = indexedDB.open(DB, 3);
     req.onupgradeneeded = () => {
-      if (!req.result.objectStoreNames.contains(STORE)) req.result.createObjectStore(STORE, { keyPath: "id" });
-      if (!req.result.objectStoreNames.contains(FULL_STORE)) req.result.createObjectStore(FULL_STORE, { keyPath: "id" });
+      if (!req.result.objectStoreNames.contains(STORE))
+        req.result.createObjectStore(STORE, { keyPath: "id" });
+      if (!req.result.objectStoreNames.contains(FULL_STORE))
+        req.result.createObjectStore(FULL_STORE, { keyPath: "id" });
+      if (!req.result.objectStoreNames.contains("songs"))
+        req.result.createObjectStore("songs", { keyPath: "id" });
     };
     req.onsuccess = () => res(req.result);
     req.onerror = () => rej(req.error);
@@ -65,7 +77,9 @@ export async function saveOffline(video: Video, onProgress?: (pct: number) => vo
     if (total) onProgress?.(Math.round((got / total) * 100));
   }
   const blob = new Blob(chunks, { type: resp.headers.get("content-type") || "video/mp4" });
-  await tx(STORE, "readwrite", (s) => s.put({ id: video.id, video, blob, size: blob.size, saved_at: Date.now() }));
+  await tx(STORE, "readwrite", (s) =>
+    s.put({ id: video.id, video, blob, size: blob.size, saved_at: Date.now() }),
+  );
   emit();
   return blob.size;
 }

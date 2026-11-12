@@ -1,58 +1,67 @@
 import { supabase } from "@/integrations/supabase/client";
 
 /**
- * In-app browser
- * --------------
- * A Chrome-ish browser that lives inside Coolerup: a Google-style search pill,
- * a row of site tabs (Google / YouTube / TikTok / Wikipedia / News / Images /
- * Maps), back / forward / refresh / home, multiple tabs, history and bookmarks.
+ * Coolerup Browser
+ * ----------------
+ * A real, Coolerup-branded browser that lives inside the app. It is not a
+ * Google embed: searching runs through Coolerup's own search backend and the
+ * results are rendered with Coolerup's own result cards. Google is never shown
+ * as the product — only as one of the places you can visit.
  *
- * Everything here is pure so it can be unit tested without a DOM. The route and
- * components own the rendering; this module owns the rules.
+ * This module owns every rule the UI needs and nothing else, so it can be unit
+ * tested without a DOM:
  *
- * Two hard constraints shape the design:
+ *   * what the user meant by what they typed (URL vs search)
+ *   * which shortcuts the home page shows
+ *   * which sites are unsafe, and which refuse to be framed
+ *   * how history and bookmarks are stored
  *
- * 1. **Framing.** Most big sites send `X-Frame-Options: DENY` or a
- *    `frame-ancestors` CSP, so an <iframe> simply cannot show them. We cannot
- *    read the frame's document to detect that (cross-origin), so we keep a
- *    list of hosts known to refuse framing and offer "Open in Chrome" up front
- *    instead of showing the user a blank box.
- *
- * 2. **Safety.** This is a browser inside a social app used by minors, so
- *    adult domains are blocked outright, SafeSearch is forced on for Google,
- *    and the frame is sandboxed without `allow-downloads` so nothing can be
- *    dropped on the device. Only image URLs are allowed to open in a new tab.
+ * Safety model (this browser is used by minors inside a social app):
+ *   * adult and gambling domains are blocked outright
+ *   * executable downloads are blocked; only images may leave the sandbox
+ *   * the iframe is sandboxed without `allow-downloads`
+ *   * sites that refuse framing get a Coolerup popup with "Open in Chrome"
  */
 
-/** One of the site tabs above the browser viewport. */
+/* -------------------------------------------------------------------------- */
+/* Branding                                                                   */
+/* -------------------------------------------------------------------------- */
+
+/** The Coolerup Browser blue, used for all chrome regardless of app theme. */
+export const BROWSER_BLUE = "#2563EB";
+export const BROWSER_BLUE_DEEP = "#1d4fc4";
+
+/* -------------------------------------------------------------------------- */
+/* Sites                                                                      */
+/* -------------------------------------------------------------------------- */
+
 export type BrowserSite = {
   id: string;
   label: string;
-  /** Short glyph shown in the tab strip. */
   emoji: string;
   /** Where the tab goes when tapped with no query. */
   home: string;
-  /** Build a results URL for a query. Omitted when the site has no search. */
+  /** Build a results URL for a query. Omitted for sites with no search. */
   search?: (query: string) => string;
 };
 
 const q = (query: string) => encodeURIComponent(query.trim());
 
-/**
- * Google's `igu=1` parameter makes the results page embeddable in a frame, and
- * `safe=active` forces SafeSearch on regardless of the visitor's cookies.
- */
+/** Google's `igu=1` makes the results page embeddable; `safe=active` forces SafeSearch. */
 export const GOOGLE_SEARCH = (query: string) =>
   `https://www.google.com/search?igu=1&safe=active&q=${q(query)}`;
-
 export const GOOGLE_HOME = "https://www.google.com/webhp?igu=1";
 export const GOOGLE_IMAGES = (query: string) =>
   `https://www.google.com/search?igu=1&safe=active&tbm=isch&q=${q(query)}`;
 export const GOOGLE_MAPS = (query: string) => `https://www.google.com/maps/search/${q(query)}`;
 export const GOOGLE_NEWS = (query: string) => `https://news.google.com/search?q=${q(query)}`;
 
-export const BROWSER_SITES: BrowserSite[] = [
-  { id: "google", label: "Google", emoji: "🔍", home: GOOGLE_HOME, search: GOOGLE_SEARCH },
+/**
+ * The strip inside the browser. "Coolerup" is the home page; the rest are
+ * real sites. All of them are rendered in Coolerup chrome.
+ */
+export const COOLERUP_TABS: BrowserSite[] = [
+  { id: "coolerup", label: "Coolerup", emoji: "🌐", home: "coolerup://home" },
   {
     id: "youtube",
     label: "YouTube",
@@ -71,16 +80,10 @@ export const BROWSER_SITES: BrowserSite[] = [
     id: "wikipedia",
     label: "Wikipedia",
     emoji: "📚",
-    home: "https://www.wikipedia.org",
+    home: "https://en.wikipedia.org",
     search: (query) => `https://en.wikipedia.org/w/index.php?search=${q(query)}`,
   },
-  {
-    id: "news",
-    label: "News",
-    emoji: "📰",
-    home: "https://news.google.com",
-    search: GOOGLE_NEWS,
-  },
+  { id: "news", label: "News", emoji: "📰", home: "https://news.google.com", search: GOOGLE_NEWS },
   {
     id: "images",
     label: "Images",
@@ -98,12 +101,81 @@ export const BROWSER_SITES: BrowserSite[] = [
 ];
 
 export const siteById = (id: string): BrowserSite | undefined =>
-  BROWSER_SITES.find((site) => site.id === id);
+  COOLERUP_TABS.find((site) => site.id === id);
 
-/**
- * Hosts that refuse to be framed. Opening them in the viewport would show a
- * blank rectangle, so we surface "Open in Chrome" instead.
- */
+/** Where a site tab should go for the current query. */
+export function urlForSite(site: BrowserSite, query = ""): string {
+  const trimmed = query.trim();
+  if (trimmed && site.search) return site.search(trimmed);
+  return site.home;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Home page shortcuts                                                        */
+/* -------------------------------------------------------------------------- */
+
+export type Shortcut = {
+  id: string;
+  label: string;
+  emoji: string;
+  /** Either an in-app route (`internal`) or a site to open in the browser. */
+  href: string;
+  internal?: boolean;
+  blurb: string;
+};
+
+/** The six cards on the Coolerup Browser home page. */
+export const SHORTCUTS: Shortcut[] = [
+  {
+    id: "youtube",
+    label: "YouTube",
+    emoji: "▶️",
+    href: "https://www.youtube.com",
+    blurb: "Watch anything",
+  },
+  {
+    id: "tiktok",
+    label: "TikTok",
+    emoji: "🎵",
+    href: "https://www.tiktok.com",
+    blurb: "For You, everywhere",
+  },
+  {
+    id: "wikipedia",
+    label: "Wikipedia",
+    emoji: "📚",
+    href: "https://en.wikipedia.org",
+    blurb: "Look it up",
+  },
+  {
+    id: "news",
+    label: "News",
+    emoji: "📰",
+    href: "https://news.google.com",
+    blurb: "What's happening",
+  },
+  {
+    id: "music",
+    label: "Music",
+    emoji: "🎧",
+    href: "/music",
+    internal: true,
+    blurb: "Your sounds",
+  },
+  {
+    id: "shop",
+    label: "Shop",
+    emoji: "🛍️",
+    href: "/coins/recharge",
+    internal: true,
+    blurb: "Coins & gifts",
+  },
+];
+
+/* -------------------------------------------------------------------------- */
+/* Framing + safety                                                           */
+/* -------------------------------------------------------------------------- */
+
 const FRAME_REFUSING_HOSTS = [
   "google.com",
   "google.co.uk",
@@ -134,13 +206,10 @@ const FRAME_REFUSING_HOSTS = [
   "yahoo.com",
 ];
 
-/**
- * Google's `igu=1` pages and the maps/news endpoints are the exceptions: they
- * are served in a frame-friendly mode, so they stay inside the viewport.
- */
+/** Google's frame-friendly endpoints stay inside the viewport. */
 const FRAME_FRIENDLY_PATHS = [/^\/search/, /^\/webhp/, /^\/imghp/, /^\/maps/, /^\/search\?/];
 
-/** Adult / unsafe domains. Matched on the registrable host, subdomains included. */
+/** Adult / gambling domains. Matched on the registrable host, subdomains included. */
 const BLOCKED_HOSTS = [
   "pornhub.com",
   "xvideos.com",
@@ -196,7 +265,7 @@ const BLOCKED_EXTENSIONS = [
   ".sh",
 ];
 
-/** Extensions we do allow to open outside the app. */
+/** Extensions allowed to open outside the app. */
 const ALLOWED_DOWNLOAD_EXTENSIONS = [
   ".jpg",
   ".jpeg",
@@ -216,18 +285,6 @@ const hostOf = (url: string): string => {
   }
 };
 
-const pathOf = (url: string): string => {
-  try {
-    return new URL(url).pathname + (new URL(url).search ? `?${new URL(url).search.slice(1)}` : "");
-  } catch {
-    return "";
-  }
-};
-
-/** True when `host` is `domain` or a subdomain of it. */
-const hostMatches = (host: string, domain: string) =>
-  host === domain || host.endsWith(`.${domain}`);
-
 /** The path only — never the host, so a `.com` TLD is not read as a `.com` file. */
 const pathnameOf = (url: string): string => {
   try {
@@ -237,8 +294,15 @@ const pathnameOf = (url: string): string => {
   }
 };
 
+const hostMatches = (host: string, domain: string) =>
+  host === domain || host.endsWith(`.${domain}`);
+
+/** True for `coolerup://home` style internal pages. */
+export const isInternalUrl = (url: string) => url.startsWith("coolerup://");
+
 /** Adult or otherwise unsafe destination. */
 export function isBlockedUrl(url: string): boolean {
+  if (isInternalUrl(url)) return false;
   const host = hostOf(url);
   if (!host) return false;
   if (BLOCKED_HOSTS.some((domain) => hostMatches(host, domain))) return true;
@@ -246,19 +310,16 @@ export function isBlockedUrl(url: string): boolean {
   return BLOCKED_EXTENSIONS.some((ext) => path.endsWith(ext));
 }
 
-/**
- * Whether the site will actually render inside an <iframe>. Google's
- * frame-friendly endpoints are allowed through; everything else on the
- * refusing list is not.
- */
+/** Whether the site will actually render inside an <iframe>. */
 export function isEmbeddable(url: string): boolean {
+  if (isInternalUrl(url)) return false;
   const host = hostOf(url);
   if (!host) return false;
   const onRefusingHost = FRAME_REFUSING_HOSTS.some((domain) => hostMatches(host, domain));
   if (!onRefusingHost) return true;
   const isGoogle = hostMatches(host, "google.com") || hostMatches(host, "google.co.uk");
   if (!isGoogle) return false;
-  const path = pathOf(url);
+  const path = pathnameOf(url) + (new URL(url).search ? `?${new URL(url).search.slice(1)}` : "");
   return FRAME_FRIENDLY_PATHS.some((re) => re.test(path));
 }
 
@@ -268,49 +329,44 @@ export function isAllowedDownload(url: string): boolean {
   return ALLOWED_DOWNLOAD_EXTENSIONS.some((ext) => path.endsWith(ext));
 }
 
-export type ParsedInput =
-  { kind: "url"; url: string } | { kind: "search"; query: string; url: string } | { kind: "empty" };
+/* -------------------------------------------------------------------------- */
+/* Address bar                                                                */
+/* -------------------------------------------------------------------------- */
 
-const DOMAIN_RE = /^[a-z0-9-]+(\.[a-z0-9-]+)+(:\d+)?(\/.*)?$/i;
+export type ParsedInput =
+  { kind: "url"; url: string } | { kind: "search"; query: string } | { kind: "empty" };
+
+const DOMAIN_RE = /^[a-z0-9-]+(\.[a-z0-9-]+)+((:\d+)?)(\/.*)?$/i;
 
 /**
  * Decide what the user meant by what they typed.
  *
  * - `https://…` / `http://…` → load it
  * - `youtube.com`, `wikipedia.org/wiki/X` → treat as a URL
- * - anything else (`mgk starman`) → Google search
+ * - anything else (`mgk starman`) → Coolerup search
  */
 export function parseInput(raw: string): ParsedInput {
   const input = raw.trim();
   if (!input) return { kind: "empty" };
 
-  if (/^https?:\/\//i.test(input)) {
-    return { kind: "url", url: input };
-  }
+  if (/^https?:\/\//i.test(input)) return { kind: "url", url: input };
 
-  // A bare domain: no spaces, has a dot, and the TLD is alphabetic.
   if (!/\s/.test(input) && DOMAIN_RE.test(input) && /\.[a-z]{2,}/i.test(input)) {
     return { kind: "url", url: `https://${input}` };
   }
 
-  return { kind: "search", query: input, url: GOOGLE_SEARCH(input) };
-}
-
-/** Where a site tab should go for the current query. */
-export function urlForSite(site: BrowserSite, query = ""): string {
-  const trimmed = query.trim();
-  if (trimmed && site.search) return site.search(trimmed);
-  return site.home;
+  return { kind: "search", query: input };
 }
 
 /** Short label for a tab strip / history row. */
 export function displayTitle(url: string): string {
+  if (isInternalUrl(url)) return "Coolerup";
   const host = hostOf(url);
   if (!host) return "New tab";
   return host;
 }
 
-/** Pull a YouTube video id out of a pasted link so it can go to Music. */
+/** Pull a YouTube video id out of a link so it can go to Music. */
 export function youtubeIdFromBrowserUrl(url: string): string | null {
   try {
     const parsed = new URL(url);
@@ -327,11 +383,43 @@ export function youtubeIdFromBrowserUrl(url: string): string | null {
   }
 }
 
-/** Anything typed in the search pill that is a YouTube link can go to Music. */
+/** Anything typed in the address bar that is a YouTube link can go to Music. */
 export function youtubeIdFromInput(raw: string): string | null {
   const parsed = parseInput(raw);
-  if (parsed.kind === "url") return youtubeIdFromBrowserUrl(parsed.url);
-  return null;
+  return parsed.kind === "url" ? youtubeIdFromBrowserUrl(parsed.url) : null;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Search results                                                             */
+/* -------------------------------------------------------------------------- */
+
+export type SearchResult = {
+  title: string;
+  url: string;
+  /** Plain-text snippet, already stripped of HTML. */
+  snippet: string;
+  /** Host shown under the title, e.g. `en.wikipedia.org`. */
+  host: string;
+};
+
+export type SearchResponse =
+  | { ok: true; results: SearchResult[]; source: "google" | "duckduckgo" | "wikipedia" }
+  | { ok: false; reason: "empty" | "network" | "no-results" };
+
+/** Host for display, without `www.`. */
+export function hostLabel(url: string): string {
+  return hostOf(url) || url;
+}
+
+/** One-line preview of a URL for the result card. */
+export function prettyUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    const path = parsed.pathname === "/" ? "" : parsed.pathname;
+    return `${parsed.hostname.replace(/^www\./, "")}${path}`.slice(0, 90);
+  } catch {
+    return url.slice(0, 90);
+  }
 }
 
 /* -------------------------------------------------------------------------- */

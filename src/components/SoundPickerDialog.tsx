@@ -11,18 +11,16 @@ import {
 import { formatCount } from "@/lib/loop";
 import {
   getChristmasSounds,
-  getGTA6Sounds,
   getTrendingSounds,
   soundAudioUrl,
   type Sound,
 } from "@/lib/sounds";
 import { useChristmasMode } from "@/lib/christmas";
-import { useGTA6Mode } from "@/lib/gta6";
 
 type Mode = "choose" | "browse";
 
 /**
- * One "special sounds" block in the picker (Christmas, GTA 6, ...). Renders
+ * One "special sounds" block in the picker (Christmas, ...). Renders
  * nothing when it has no rows, so seasonal sections simply disappear.
  */
 function SoundSection({
@@ -120,8 +118,6 @@ export function SoundPickerDialog({
   const [sounds, setSounds] = useState<Sound[]>([]);
   const [christmasSounds, setChristmasSounds] = useState<Sound[]>([]);
   const christmas = useChristmasMode();
-  const [gta6Sounds, setGTA6Sounds] = useState<Sound[]>([]);
-  const gta6 = useGTA6Mode();
   const [loading, setLoading] = useState(false);
   const [playingId, setPlayingId] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -161,14 +157,7 @@ export function SoundPickerDialog({
     } else {
       setChristmasSounds([]);
     }
-    if (gta6) {
-      getGTA6Sounds()
-        .then(setGTA6Sounds)
-        .catch(() => setGTA6Sounds([]));
-    } else {
-      setGTA6Sounds([]);
-    }
-  }, [open, christmas, gta6]);
+  }, [open, christmas]);
 
   useEffect(() => {
     if (!open || mode !== "browse") return;
@@ -281,17 +270,6 @@ export function SoundPickerDialog({
               onChoose={choose}
               onPreview={(sound) => void preview(sound)}
               hidden={!christmas || !!query.trim()}
-            />
-
-            <SoundSection
-              label="🔥 GTA 6 sounds"
-              accent="#FF2E88"
-              sounds={gta6Sounds}
-              selectedId={selectedSound?.id ?? null}
-              playingId={playingId}
-              onChoose={choose}
-              onPreview={(sound) => void preview(sound)}
-              hidden={!gta6 || !!query.trim()}
             />
 
             <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">

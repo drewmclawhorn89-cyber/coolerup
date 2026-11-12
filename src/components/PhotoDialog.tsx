@@ -7,8 +7,6 @@ import { AnimalOverlay } from "@/components/AnimalOverlay";
 import { getAnimal, drawAnimal, mirrorFace } from "@/lib/animals";
 import { useFaceTracker } from "@/lib/face";
 import { canBakeFilters, filterById } from "@/lib/filters";
-import { awardGTA6Badge, useGTA6Mode } from "@/lib/gta6";
-import { withGTA6Hashtag } from "@/lib/gta6-challenge";
 import { songStreamUrl, uploadVideo, type Song } from "@/lib/loop";
 import { fetchTracks, type Track } from "@/components/MusicPlayer";
 
@@ -79,9 +77,7 @@ export function PhotoDialog({
   useEffect(() => {
     if (!open || !photo) audioRef.current?.pause();
   }, [open, photo]);
-  // The GTA 6 event filter is only offered while the event is live.
-  const gta6 = useGTA6Mode();
-  const filter = filterById(filterId, gta6);
+  const filter = filterById(filterId);
 
   useEffect(() => {
     if (!open || photo) return;
@@ -181,11 +177,8 @@ export function PhotoDialog({
     setPosting(true);
     try {
       const file = new File([photo], `photo-${Date.now()}.jpg`, { type: "image/jpeg" });
-      const finalCaption =
-        gta6 && filterId === "gta6" ? withGTA6Hashtag(caption) : caption.trim().slice(0, 500);
+      const finalCaption = caption.trim().slice(0, 500);
       await uploadVideo(file, username, finalCaption, song);
-      // Posting during the GTA 6 window mints the permanent OG badge.
-      void awardGTA6Badge(username);
       toast.success("Your photo is posted!");
       reset();
       onOpenChange(false);
@@ -282,7 +275,6 @@ export function PhotoDialog({
                   onChange={setFilterId}
                   animal={animalId}
                   onAnimalChange={setAnimalId}
-                  gta6={gta6}
                 />
                 <div className="flex justify-center">
                   <button

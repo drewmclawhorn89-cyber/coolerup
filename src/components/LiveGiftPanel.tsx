@@ -13,7 +13,7 @@ import {
 /** How long a burst of taps counts as one combo, TikTok style. */
 const COMBO_WINDOW_MS = 3000;
 
-type Category = "popular" | "all" | "christmas" | "gta6";
+type Category = "popular" | "all" | "christmas";
 
 /**
  * The LIVE gift tray: a half-screen dark sheet that slides up from the bottom,
@@ -27,7 +27,6 @@ export function LiveGiftPanel({
   open,
   onOpenChange,
   christmas,
-  gta6 = false,
   balance,
   signedIn,
   sending,
@@ -42,8 +41,6 @@ export function LiveGiftPanel({
   onOpenChange: (open: boolean) => void;
   /** Christmas mode reveals the seasonal gifts and category tab. */
   christmas: boolean;
-  /** GTA 6 mode reveals the GTA Car gift and its category tab. */
-  gta6?: boolean;
   balance: number | null;
   signedIn: boolean;
   sending: boolean;
@@ -57,7 +54,7 @@ export function LiveGiftPanel({
   /** Host-only: jump to the earnings dashboard. Lives here, never on the stream. */
   onOpenDashboard?: () => void;
 }) {
-  const catalogue = useMemo(() => giftsForMode(christmas, gta6), [christmas, gta6]);
+  const catalogue = useMemo(() => giftsForMode(christmas), [christmas]);
   const [giftId, setGiftId] = useState("rose");
   const [quantity, setQuantity] = useState<GiftCount>(1);
   const [category, setCategory] = useState<Category>("popular");
@@ -97,9 +94,6 @@ export function LiveGiftPanel({
     if (category === "christmas") {
       return catalogue.filter((gift) => gift.christmasOnly || gift.id === "christmas");
     }
-    if (category === "gta6") {
-      return catalogue.filter((gift) => gift.gta6Only);
-    }
     if (category === "popular") {
       // Cheapest, most-gifted items first — the same handful TikTok surfaces.
       return catalogue.filter((gift) =>
@@ -109,7 +103,6 @@ export function LiveGiftPanel({
           "tiktok",
           "hat",
           "christmas",
-          "gta-car",
           "lion",
           "universe",
           "santa",
@@ -132,7 +125,6 @@ export function LiveGiftPanel({
     { id: "popular", label: "Popular" },
     { id: "all", label: "All gifts" },
     ...(christmas ? [{ id: "christmas" as const, label: "Christmas 🎄" }] : []),
-    ...(gta6 ? [{ id: "gta6" as const, label: "GTA 6 🔥" }] : []),
   ];
 
   return (

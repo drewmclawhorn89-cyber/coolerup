@@ -17,6 +17,7 @@ import { Route as GroupsRouteImport } from './routes/groups'
 import { Route as LiveRouteImport } from './routes/live'
 import { Route as MakeGifRouteImport } from './routes/make-gif'
 import { Route as MessagesRouteImport } from './routes/messages'
+import { Route as MusicRouteImport } from './routes/music'
 import { Route as OfflineRouteImport } from './routes/offline'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as PaywallRouteImport } from './routes/paywall'
@@ -77,6 +78,11 @@ const MakeGifRoute = MakeGifRouteImport.update({
 const MessagesRoute = MessagesRouteImport.update({
   id: '/messages',
   path: '/messages',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MusicRoute = MusicRouteImport.update({
+  id: '/music',
+  path: '/music',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OfflineRoute = OfflineRouteImport.update({
@@ -194,6 +200,7 @@ export interface FileRoutesByFullPath {
   '/live': typeof LiveRouteWithChildren
   '/make-gif': typeof MakeGifRoute
   '/messages': typeof MessagesRoute
+  '/music': typeof MusicRoute
   '/offline': typeof OfflineRoute
   '/onboarding': typeof OnboardingRoute
   '/paywall': typeof PaywallRoute
@@ -224,6 +231,7 @@ export interface FileRoutesByTo {
   '/live': typeof LiveRouteWithChildren
   '/make-gif': typeof MakeGifRoute
   '/messages': typeof MessagesRoute
+  '/music': typeof MusicRoute
   '/offline': typeof OfflineRoute
   '/onboarding': typeof OnboardingRoute
   '/paywall': typeof PaywallRoute
@@ -256,6 +264,7 @@ export interface FileRoutesById {
   '/live': typeof LiveRouteWithChildren
   '/make-gif': typeof MakeGifRoute
   '/messages': typeof MessagesRoute
+  '/music': typeof MusicRoute
   '/offline': typeof OfflineRoute
   '/onboarding': typeof OnboardingRoute
   '/paywall': typeof PaywallRoute
@@ -289,6 +298,7 @@ export interface FileRouteTypes {
     | '/live'
     | '/make-gif'
     | '/messages'
+    | '/music'
     | '/offline'
     | '/onboarding'
     | '/paywall'
@@ -319,6 +329,7 @@ export interface FileRouteTypes {
     | '/live'
     | '/make-gif'
     | '/messages'
+    | '/music'
     | '/offline'
     | '/onboarding'
     | '/paywall'
@@ -350,6 +361,7 @@ export interface FileRouteTypes {
     | '/live'
     | '/make-gif'
     | '/messages'
+    | '/music'
     | '/offline'
     | '/onboarding'
     | '/paywall'
@@ -382,6 +394,7 @@ export interface RootRouteChildren {
   LiveRoute: typeof LiveRouteWithChildren
   MakeGifRoute: typeof MakeGifRoute
   MessagesRoute: typeof MessagesRoute
+  MusicRoute: typeof MusicRoute
   OfflineRoute: typeof OfflineRoute
   OnboardingRoute: typeof OnboardingRoute
   PaywallRoute: typeof PaywallRoute
@@ -458,6 +471,13 @@ declare module '@tanstack/react-router' {
       path: '/messages'
       fullPath: '/messages'
       preLoaderRoute: typeof MessagesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/music': {
+      id: '/music'
+      path: '/music'
+      fullPath: '/music'
+      preLoaderRoute: typeof MusicRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/offline': {
@@ -642,6 +662,7 @@ const rootRouteChildren: RootRouteChildren = {
   LiveRoute: LiveRouteWithChildren,
   MakeGifRoute: MakeGifRoute,
   MessagesRoute: MessagesRoute,
+  MusicRoute: MusicRoute,
   OfflineRoute: OfflineRoute,
   OnboardingRoute: OnboardingRoute,
   PaywallRoute: PaywallRoute,

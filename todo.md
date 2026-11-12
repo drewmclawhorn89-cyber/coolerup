@@ -1,23 +1,21 @@
-# Make Your Own GIFs (TikTok-style)
+# Music tab — full songs from the existing `sounds` table
 
-## Database & storage
-- [x] Add migration: `gifs` table, RLS, `gif_reports`, `gifs` public bucket (5MB), `gif_credit` columns on comments tables
-- [x] Update `src/integrations/supabase/types.ts` for new tables/columns
+## 1. Data layer
+- [x] `supabase/migrations/20261201000000_saved_sounds.sql` — `saved_sounds` join table (user_id, sound_id), RLS, no new songs table
+- [x] `supabase/sql-editor-saved-sounds.sql` — paste-into-SQL-Editor version + verification query
+- [x] `src/integrations/supabase/types.ts` — add `saved_sounds` types
+- [x] `src/lib/sounds.ts` — top/trending/saved queries, save/unsave, duration probe, cover helper
 
-## Core library
-- [x] Create `src/lib/gif.ts`: constants, list/search, upload+insert, delete, report, ffmpeg video→GIF conversion (trim/speed/crop/text/sticker, 5MB cap)
+## 2. Player (persists across tabs)
+- [x] `src/lib/songPlayer.ts` — module-level singleton audio store (survives route changes)
+- [x] `src/components/MusicPlayer.tsx` — add `SongPlayerBar` dock (seek/play/next/prev/loop/volume) + keep old exports intact
+- [x] mount `<SongPlayerBar />` in `__root.tsx` so it never stops on tab change
 
-## UI
-- [x] Create `src/components/MakeGif.tsx`: source pick (my videos / record 3s / upload), trim, edit, create, success
-- [x] Create `src/routes/make-gif.tsx` page
-- [x] Update `GifPicker.tsx`: keep search + grid + composer, add [+ Make GIF], Trending / My GIFs tabs, credit labels, report/delete
+## 3. UI
+- [x] `src/components/SongCard.tsx` — `SoundCover`, `SongCard` (carousel), `SongRow` (list)
+- [x] `src/routes/music.tsx` — search bar, 4 inner tabs, rows 1–4, safety note, Use this sound
+- [x] `src/routes/index.tsx` — add `🎵 Music` top tab after Videos
 
-## Integrations
-- [x] Comments (feed): store + show GIF credit
-- [x] Full-video comments (`watch.$id.tsx` + `fullVideos.ts`): store + show credit
-- [x] LIVE chat: carry + show GIF credit
-- [x] DMs / Inbox picker wiring (if composer exists)
-
-## Verify
-- [x] Install deps, typecheck/build, run tests
-- [x] Commit, push branch, open PR
+## 4. Verify
+- [x] `tsc --noEmit`, `vite build`, targeted vitest, eslint on changed files
+- [x] commit, push branch, open PR

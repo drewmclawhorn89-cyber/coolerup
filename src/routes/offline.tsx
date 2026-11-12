@@ -1,43 +1,68 @@
 import { parseCaption } from "@/lib/loop";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Download, Eye, Trash2, ArrowLeft } from "lucide-react";
+import { Download, Eye, Lock, Trash2, ArrowLeft, Play, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { formatBytes, getSaved, listSaved, onOfflineChange, removeOffline } from "@/lib/offline";
+import {
+  formatBytes,
+  getSaved,
+  listSaved,
+  listSavedFullVideos,
+  onOfflineChange,
+  removeOffline,
+  removeFullVideoOffline,
+  type SavedFullVideo,
+} from "@/lib/offline";
+import { useAuth } from "@/hooks/useAuth";
+import { hasOfflineAccess, offlinePlan } from "@/lib/subscriptions";
+import { useTrial } from "@/lib/trial";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/offline")({
-  head: () => ({
-    meta: [{ title: "Offline videos — Coolerup" }],
-  }),
+  head: () => ({ meta: [{ title: "Offline videos — Coolerup" }] }),
   component: OfflinePage,
 });
 
+type FeedItem = { id: string; video: any; size: number };
+
 function OfflinePage() {
-  const [items, setItems] = useState<{ id: string; video: any; size: number }[] | null>(null);
+  const auth = useAuth();
+  const unlocked = hasOfflineAccess(auth.handle);
+  const trial = useTrial(auth.handle, offlinePlan().id);
+  const [items, setItems] = useState<FeedItem[] | null>(null);
+  const [fullItems, setFullItems] = useState<SavedFullVideo[] | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
+  const [playing, setPlaying] = useState<{ url: string; title: string } | null>(null);
 
   useEffect(() => {
     let mounted = true;
     const refresh = async () => {
       try {
-        const saved = await listSaved();
+        const [saved, savedFull] = await Promise.all([listSaved(), listSavedFullVideos()]);
         if (!mounted) return;
         setItems(saved.map((s) => ({ id: s.id, video: s.video, size: s.size })));
+        setFullItems(savedFull);
       } catch (e) {
         console.error(e);
         if (!mounted) return;
         setItems([]);
+        setFullItems([]);
       }
     };
-
-    refresh();
+    void refresh();
     const off = onOfflineChange(refresh);
     return () => {
       mounted = false;
       off();
     };
   }, []);
+
+  useEffect(
+    () => () => {
+      if (playing?.url) URL.revokeObjectURL(playing.url);
+    },
+    [playing?.url],
+  );
 
   const handleView = async (id: string) => {
     try {
@@ -48,6 +73,7 @@ function OfflinePage() {
       }
       const url = URL.createObjectURL(saved.blob);
       window.open(url, "_blank", "noopener");
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
     } catch (e) {
       console.error(e);
       toast.error("Couldn't open saved video");
@@ -68,7 +94,7 @@ function OfflinePage() {
       document.body.appendChild(a);
       a.click();
       a.remove();
-      URL.revokeObjectURL(url);
+      window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
       toast.success("Download started");
     } catch (e) {
       console.error(e);
@@ -90,55 +116,268 @@ function OfflinePage() {
     }
   };
 
+  const handleFullView = async (item: SavedFullVideo) => {
+    try {
+      const url = URL.createObjectURL(item.blob);
+      setPlaying({ url, title: item.video.title });
+    } catch (e) {
+      console.error(e);
+      toast.error("Couldn't open saved video");
+    }
+  };
+
+  const handleFullDownload = async (item: SavedFullVideo) => {
+    try {
+      const url = URL.createObjectURL(item.blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `coolerup-${item.id}.mp4`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
+      toast.success("Download started");
+    } catch (e) {
+      console.error(e);
+      toast.error("Couldn't download saved video");
+    }
+  };
+
+  const handleFullRemove = async (id: string) => {
+    setRemovingId(id);
+    try {
+      await removeFullVideoOffline(id);
+      setFullItems((cur) => (cur ?? []).filter((item) => item.id !== id));
+      toast.success("Removed from offline");
+    } catch (e) {
+      console.error(e);
+      toast.error("Couldn't remove saved video");
+    } finally {
+      setRemovingId(null);
+    }
+  };
+
+  if (!unlocked) {
+    const plan = offlinePlan();
+    return (
+      <div className="mx-auto max-w-xl space-y-6 px-4 pb-10 pt-6">
+        <div className="flex items-center gap-3">
+          <Link
+            to="/settings"
+            aria-label="Back to settings"
+            className="text-muted-foreground hover:text-foreground"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Link>
+          <h1 className="font-display text-2xl">Offline videos</h1>
+        </div>
+        <div className="rounded-2xl border bg-card p-6 text-center">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+            <Lock className="h-6 w-6 text-muted-foreground" />
+          </div>
+          <h2 className="mt-3 font-semibold">
+            {trial.used ? `Your free trial has ended` : `Offline mode is a ${plan.label} feature`}
+          </h2>
+          <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">
+            {trial.used
+              ? `Subscribe to ${plan.label} or higher to keep saving videos for offline viewing. Offline video downloads start at $${plan.price.toFixed(2)}/mo.`
+              : `Try it free for one hour — no card needed. After that, offline video downloads come with ${plan.label} and up at $${plan.price.toFixed(2)}/mo.`}
+          </p>
+          {!trial.used && (
+            <button
+              type="button"
+              onClick={() => {
+                trial.start();
+                toast.success("1-hour free trial started");
+              }}
+              className="mt-4 inline-flex rounded-md bg-emerald-600 px-4 py-2 font-medium text-white"
+            >
+              Start 1-hour free trial
+            </button>
+          )}
+          <Link
+            to="/"
+            search={{ tab: "subscriptions" }}
+            className={`inline-flex rounded-md bg-black px-4 py-2 font-medium text-white ${trial.used ? "mt-4" : "mt-2"}`}
+          >
+            Get {plan.label} — ${plan.price.toFixed(2)}/mo
+          </Link>
+          <p className="mt-3 text-xs text-muted-foreground">
+            {auth.handle
+              ? "Already subscribed? Offline mode unlocks as soon as your plan is active."
+              : "Sign in first so we can check your plan."}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const isEmpty = items?.length === 0 && fullItems?.length === 0;
+
   return (
-    <div className="mx-auto max-w-xl px-4 pb-10 pt-6 space-y-6">
+    <div className="mx-auto max-w-3xl space-y-6 px-4 pb-10 pt-6">
       <div className="flex items-center gap-3">
-        <Link to="/settings" aria-label="Back to settings" className="text-muted-foreground hover:text-foreground">
+        <Link
+          to="/settings"
+          aria-label="Back to settings"
+          className="text-muted-foreground hover:text-foreground"
+        >
           <ArrowLeft className="h-5 w-5" />
         </Link>
         <h1 className="font-display text-2xl">Offline videos</h1>
       </div>
 
-      <div className="rounded-2xl border bg-card p-4">
-        {!items ? (
-          <div className="text-sm text-muted-foreground">Loading saved videos…</div>
-        ) : items.length === 0 ? (
-          <div className="text-sm text-muted-foreground">No saved videos</div>
-        ) : (
-          <div className="space-y-3">
-            {items.map((item) => (
-              <div key={item.id} className="flex items-center justify-between gap-3 rounded-md border bg-background px-3 py-2">
-                <div className="flex min-w-0 items-center gap-3">
-                  <div className="h-12 w-16 overflow-hidden rounded bg-zinc-800">
-                    {item.video?.poster_url ? (
-                      <img src={item.video.poster_url} alt="" className="h-full w-full object-cover" />
-                    ) : null}
-                  </div>
-                  <div className="min-w-0">
-                    <div className="truncate text-sm font-medium">{parseCaption(item.video?.caption ?? "").text || `@${item.video?.username}`}</div>
-                    <div className="text-xs text-muted-foreground">{formatBytes(item.size)}</div>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <Button size="sm" variant="outline" onClick={() => handleView(item.id)}>
-                    <Eye className="mr-1 h-4 w-4" />
-                    View
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={() => handleDownload(item.id)}>
-                    <Download className="mr-1 h-4 w-4" />
-                    Download
-                  </Button>
-                  <Button size="sm" variant="destructive" onClick={() => handleRemove(item.id)} disabled={removingId === item.id}>
-                    <Trash2 className="mr-1 h-4 w-4" />
-                    {removingId === item.id ? "Removing..." : "Remove"}
-                  </Button>
-                </div>
-              </div>
-            ))}
+      {playing && (
+        <div className="rounded-2xl border bg-card p-4">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h2 className="truncate font-semibold">{playing.title}</h2>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setPlaying(null)}
+              aria-label="Close offline player"
+            >
+              <X className="mr-1 h-4 w-4" /> Close
+            </Button>
           </div>
-        )}
-      </div>
+          <video
+            src={playing.url}
+            controls
+            autoPlay
+            playsInline
+            className="max-h-[70vh] w-full rounded-xl bg-black"
+          />
+        </div>
+      )}
+
+      <section className="space-y-3">
+        <h2 className="font-semibold">Short videos</h2>
+        <div className="rounded-2xl border bg-card p-4">
+          {!items || !fullItems ? (
+            <div className="text-sm text-muted-foreground">Loading saved videos…</div>
+          ) : items.length === 0 ? (
+            <div className="text-sm text-muted-foreground">No saved short videos</div>
+          ) : (
+            <div className="space-y-3">
+              {items.map((item) => (
+                <div
+                  key={item.id}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-md border bg-background px-3 py-2"
+                >
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="h-12 w-16 overflow-hidden rounded bg-zinc-800">
+                      {item.video?.poster_url ? (
+                        <img
+                          src={item.video.poster_url}
+                          alt=""
+                          className="h-full w-full object-cover"
+                        />
+                      ) : null}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-medium">
+                        {parseCaption(item.video?.caption ?? "").text || `@${item.video?.username}`}
+                      </div>
+                      <div className="text-xs text-muted-foreground">{formatBytes(item.size)}</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button size="sm" variant="outline" onClick={() => void handleView(item.id)}>
+                      <Eye className="mr-1 h-4 w-4" />
+                      View
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => void handleDownload(item.id)}
+                    >
+                      <Download className="mr-1 h-4 w-4" />
+                      Download
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => void handleRemove(item.id)}
+                      disabled={removingId === item.id}
+                    >
+                      <Trash2 className="mr-1 h-4 w-4" />
+                      {removingId === item.id ? "Removing…" : "Remove"}
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="font-semibold">Full-length videos</h2>
+        <div className="rounded-2xl border bg-card p-4">
+          {!fullItems || !items ? (
+            <div className="text-sm text-muted-foreground">Loading saved videos…</div>
+          ) : fullItems.length === 0 ? (
+            <div className="text-sm text-muted-foreground">No saved full-length videos</div>
+          ) : (
+            <div className="space-y-3">
+              {fullItems.map((item) => (
+                <div
+                  key={item.id}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-md border bg-background px-3 py-2"
+                >
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="h-12 w-16 shrink-0 overflow-hidden rounded bg-zinc-800">
+                      {item.video.thumbnail_url ? (
+                        <img
+                          src={item.video.thumbnail_url}
+                          alt=""
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <Play className="m-auto h-5 w-5" />
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-medium">{item.video.title}</div>
+                      <div className="truncate text-xs text-muted-foreground">
+                        @{item.video.username} · {formatBytes(item.size)}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button size="sm" variant="outline" onClick={() => void handleFullView(item)}>
+                      <Eye className="mr-1 h-4 w-4" />
+                      View
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => void handleFullDownload(item)}
+                    >
+                      <Download className="mr-1 h-4 w-4" />
+                      Download
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => void handleFullRemove(item.id)}
+                      disabled={removingId === item.id}
+                    >
+                      <Trash2 className="mr-1 h-4 w-4" />
+                      {removingId === item.id ? "Removing…" : "Remove"}
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+      {isEmpty && (
+        <p className="text-center text-sm text-muted-foreground">
+          No saved videos yet. Save videos from the feed or Videos tab.
+        </p>
+      )}
     </div>
   );
 }

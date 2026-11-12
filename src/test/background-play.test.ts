@@ -77,10 +77,13 @@ describe("background play", () => {
     expect(player).not.toContain("new Video(");
   });
 
-  it("explains the remaining iOS limit instead of claiming YouTube is blocked", () => {
+  it("keeps the iOS caveat out of the mini player UI", () => {
+    // The banner was removed from the mini player on request; the library still
+    // documents the limit for anyone wiring it up elsewhere.
     expect(lib).toContain("iOS suspends background web audio");
-    expect(lib).toContain("YOUTUBE_BACKGROUND_SHORT");
-    expect(mini).toContain("YOUTUBE_BACKGROUND_SHORT");
+    expect(mini).not.toContain("YOUTUBE_BACKGROUND_SHORT");
+    expect(mini).not.toContain("May pause on iPhone/iPad");
+    expect(mini).not.toContain("upgrade to keep music playing when you leave the app");
     expect(lib).not.toContain("YouTube blocks background play");
   });
 

@@ -809,8 +809,15 @@ function Index() {
     });
   };
 
+  // Bigger, higher-contrast tap targets on phones (44px-ish), compact on desktop.
   const tabArrowClass =
-    "flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/15 text-white transition hover:bg-white/25 disabled:bg-white/5 disabled:text-white/30";
+    "flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/20 text-white transition active:scale-95 hover:bg-white/30 disabled:border-transparent disabled:bg-white/5 disabled:text-white/25 md:h-7 md:w-7";
+
+  // Fade the right edge while there are more tabs to the right, so it's obvious
+  // the strip scrolls instead of looking like the list just ends.
+  const tabStripMask = tabStripEnds.atEnd
+    ? undefined
+    : "linear-gradient(to right, black 0, black calc(100% - 24px), transparent 100%)";
 
   const TopTabs = ({ className = "" }: { className?: string }) => (
     <div className={`${className} ${christmas ? "christmas-tabs" : ""}`}>
@@ -827,7 +834,8 @@ function Index() {
       <div
         ref={tabStripRef}
         onScroll={measureTabStrip}
-        className="no-scrollbar flex min-w-0 flex-1 items-center gap-3 overflow-x-auto scroll-smooth"
+        style={{ maskImage: tabStripMask, WebkitMaskImage: tabStripMask }}
+        className="no-scrollbar flex min-w-0 flex-1 snap-x snap-mandatory items-center gap-3 overflow-x-auto scroll-smooth"
       >
         {topTabItems.map((item, index) => (
           <button
@@ -838,8 +846,8 @@ function Index() {
             type="button"
             onClick={item.onClick}
             aria-current={item.active ? "page" : undefined}
-            className={`flex shrink-0 items-center gap-1 whitespace-nowrap border-b-2 pb-1 text-[15px] ${
-              item.active ? "border-white font-bold text-white" : "border-transparent text-white/60"
+            className={`flex min-h-9 shrink-0 snap-start items-center gap-1 whitespace-nowrap border-b-2 pb-1 text-[15px] md:min-h-0 ${
+              item.active ? "border-white font-bold text-white" : "border-transparent text-white/70"
             }`}
           >
             {item.icon}
@@ -863,7 +871,7 @@ function Index() {
           type="button"
           aria-label="Search videos"
           onClick={() => void navigate({ to: "/search" })}
-          className="flex h-7 w-7 items-center justify-center rounded-full bg-white/15 text-white transition hover:bg-white/25"
+          className="flex h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-white/20 text-white transition active:scale-95 hover:bg-white/30 md:h-7 md:w-7"
         >
           <Search className="size-4" />
         </button>
@@ -871,7 +879,7 @@ function Index() {
           type="button"
           aria-label={auth.user ? "Sign out" : "Sign in"}
           onClick={auth.user ? auth.signOut : auth.signIn}
-          className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-full bg-white/15 text-white transition hover:bg-white/25"
+          className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-white/15 bg-white/20 text-white transition active:scale-95 hover:bg-white/30 md:h-7 md:w-7"
         >
           {auth.avatar ? (
             <img src={auth.avatar} alt="" className="h-full w-full object-cover" />

@@ -105,6 +105,189 @@ type FeedTab =
   "home" | "following" | "foryou" | "explore" | "marketplace" | "groups" | "live" | "codes";
 type NotificationFilter = "all" | "unread";
 
+// One entry in the home-menu "top tabs" strip.
+type TopTabItem = {
+  key: string;
+  label: string;
+  icon?: React.ReactNode;
+  onClick: () => void;
+  active: boolean;
+};
+
+type TopTabsCtx = {
+  items: TopTabItem[];
+  christmas: boolean;
+  onSearch: () => void;
+  onAuth: () => void;
+  authUser: boolean;
+  authAvatar?: string | null;
+};
+
+// The top-tabs bar lives at module scope on purpose. When it was declared inside
+// `Index` it got a brand-new component identity on every render, so React tore
+// the strip down and rebuilt it — resetting its horizontal scroll position to 0
+// on every state change. That made the arrow buttons look dead: they scrolled,
+// then the strip remounted and snapped back. Keeping it stable fixes that.
+function TopTabs({ className = "", ctx }: { className?: string; ctx: TopTabsCtx }) {
+  const { items, christmas, onSearch, onAuth, authUser, authAvatar } = ctx;
+  const stripRef = useRef<HTMLDivElement | null>(null);
+  const btnRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const [ends, setEnds] = useState({ atStart: true, atEnd: false });
+
+  const measure = useCallback(() => {
+    const strip = stripRef.current;
+    if (!strip) return;
+    const max = strip.scrollWidth - strip.clientWidth;
+    const atStart = strip.scrollLeft <= 2;
+    const atEnd = strip.scrollLeft >= max - 2;
+    setEnds((prev) =>
+      prev.atStart === atStart && prev.atEnd === atEnd ? prev : { atStart, atEnd },
+    );
+  }, []);
+
+  // Re-measure on mount, on resize, and whenever the tab list changes.
+  useEffect(() => {
+    measure();
+    const strip = stripRef.current;
+    if (!strip || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(strip);
+    return () => observer.disconnect();
+  }, [measure, items.length]);
+
+  // Scroll one whole tab per arrow press. Pixel deltas used to fight the strip
+  // and land between tabs; stepping tab-to-tab is predictable and always reaches
+  // the end.
+  const step = (direction: "left" | "right") => {
+    const strip = stripRef.current;
+    if (!strip) return;
+    const stripRect = strip.getBoundingClientRect();
+    const positions = btnRefs.current
+      .map((btn) => {
+        if (!btn) return null;
+        const r = btn.getBoundingClientRect();
+        return { left: r.left - stripRect.left + strip.scrollLeft, width: r.width };
+      })
+      .filter((p): p is { left: number; width: number } => p !== null);
+    if (positions.length === 0) return;
+
+    const viewLeft = strip.scrollLeft;
+    // The tab currently sitting at the left edge.
+    let current = 0;
+    for (let i = 0; i < positions.length; i += 1) {
+      if ((positions[i]?.left ?? Infinity) <= viewLeft + 8) current = i;
+    }
+
+    const targetIndex = direction === "right" ? current + 1 : current - 1;
+    if (targetIndex < 0) {
+      strip.scrollTo({ left: 0, behavior: "smooth" });
+      return;
+    }
+    if (targetIndex >= positions.length) {
+      strip.scrollTo({ left: strip.scrollWidth, behavior: "smooth" });
+      return;
+    }
+    const target = positions[targetIndex];
+    if (!target) return;
+    strip.scrollTo({ left: Math.max(0, target.left - 4), behavior: "smooth" });
+  };
+
+  // Keep the active tab in view when the selection changes.
+  const activeIndex = items.findIndex((item) => item.active);
+  useEffect(() => {
+    const strip = stripRef.current;
+    const btn = activeIndex >= 0 ? btnRefs.current[activeIndex] : null;
+    if (!strip || !btn) return;
+    const stripRect = strip.getBoundingClientRect();
+    const btnRect = btn.getBoundingClientRect();
+    const fullyVisible = btnRect.left >= stripRect.left - 1 && btnRect.right <= stripRect.right + 1;
+    if (fullyVisible) return;
+    const start = btnRect.left - stripRect.left + strip.scrollLeft;
+    const target = start - (strip.clientWidth - btnRect.width) / 2;
+    strip.scrollTo({ left: Math.max(0, target), behavior: "smooth" });
+  }, [activeIndex, items.length]);
+
+  const arrowClass =
+    "flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white/20 text-white transition hover:bg-white/30 disabled:bg-white/5 disabled:text-white/25";
+  const mask = ends.atEnd
+    ? undefined
+    : "linear-gradient(to right, black 0, black calc(100% - 24px), transparent 100%)";
+
+  return (
+    <div className={`${className} ${christmas ? "christmas-tabs" : ""}`}>
+      {christmas && <ChristmasLights />}
+      <button
+        type="button"
+        onClick={() => step("left")}
+        disabled={ends.atStart}
+        aria-label="Show earlier tabs"
+        className={arrowClass}
+      >
+        <ChevronLeft className="size-4" />
+      </button>
+      <div
+        ref={stripRef}
+        onScroll={measure}
+        style={{ maskImage: mask, WebkitMaskImage: mask }}
+        className="no-scrollbar flex min-w-0 flex-1 items-center gap-2 overflow-x-auto"
+      >
+        {items.map((item, index) => (
+          <button
+            key={item.key}
+            ref={(node) => {
+              btnRefs.current[index] = node;
+            }}
+            type="button"
+            onClick={item.onClick}
+            aria-current={item.active ? "page" : undefined}
+            className={`flex shrink-0 items-center gap-1 whitespace-nowrap border-b-2 pb-0.5 text-[13px] ${
+              item.active ? "border-white font-bold text-white" : "border-transparent text-white/70"
+            }`}
+          >
+            {item.icon}
+            {item.label}
+          </button>
+        ))}
+      </div>
+      <button
+        type="button"
+        onClick={() => step("right")}
+        disabled={ends.atEnd}
+        aria-label="Show later tabs"
+        className={arrowClass}
+      >
+        <ChevronRight className="size-4" />
+      </button>
+      {/* Search + profile ride along on the right of the bar on phones so they
+          never overlap the tabs (they used to float on top of them). */}
+      <div className="ml-1 flex shrink-0 items-center gap-1 md:hidden">
+        <button
+          type="button"
+          aria-label="Search videos"
+          onClick={onSearch}
+          className="flex h-7 w-7 items-center justify-center rounded-full bg-white/20 text-white transition hover:bg-white/30"
+        >
+          <Search className="size-4" />
+        </button>
+        <button
+          type="button"
+          aria-label={authUser ? "Sign out" : "Sign in"}
+          onClick={onAuth}
+          className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-full bg-white/20 text-white transition hover:bg-white/30"
+        >
+          {authAvatar ? (
+            <img src={authAvatar} alt="" className="h-full w-full object-cover" />
+          ) : authUser ? (
+            <LogOut className="size-4" />
+          ) : (
+            <User className="size-4" />
+          )}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 type NotificationRow = {
   id: string;
   text: string | null;
@@ -671,13 +854,6 @@ function Index() {
   // It renders on every screen and at every breakpoint, and the strip can be
   // stepped left/right with the always-visible arrows so no tab is ever
   // unreachable — even on a narrow phone.
-  type TopTabItem = {
-    key: string;
-    label: string;
-    icon?: React.ReactNode;
-    onClick: () => void;
-    active: boolean;
-  };
   const topTabItems: TopTabItem[] = [
     { key: "home", label: "Home", onClick: () => pickFeedTab("home"), active: topTab === "home" },
     {
@@ -756,142 +932,17 @@ function Index() {
     { key: "shop", label: "Shop", onClick: () => setTab("shop"), active: topTab === "shop" },
   ];
 
-  const tabStripRef = useRef<HTMLDivElement | null>(null);
-  const tabBtnRefs = useRef<Array<HTMLButtonElement | null>>([]);
-  const [tabStripEnds, setTabStripEnds] = useState({ atStart: true, atEnd: false });
-
-  const measureTabStrip = useCallback(() => {
-    const strip = tabStripRef.current;
-    if (!strip) return;
-    const max = strip.scrollWidth - strip.clientWidth;
-    setTabStripEnds({
-      atStart: strip.scrollLeft <= 2,
-      atEnd: strip.scrollLeft >= max - 2,
-    });
-  }, []);
-
-  // Re-measure whenever the strip mounts or its contents change (e.g. Codes).
-  useEffect(() => {
-    measureTabStrip();
-    const strip = tabStripRef.current;
-    if (!strip || typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(measureTabStrip);
-    observer.observe(strip);
-    return () => observer.disconnect();
-  }, [measureTabStrip, codesSeason, christmas]);
-
-  // Keep the active tab centred in the strip whenever the selection changes.
-  useEffect(() => {
-    const strip = tabStripRef.current;
-    const index = topTabItems.findIndex((item) => item.active);
-    const btn = index >= 0 ? tabBtnRefs.current[index] : null;
-    if (!strip || !btn) return;
-    const stripRect = strip.getBoundingClientRect();
-    const btnRect = btn.getBoundingClientRect();
-    // Only scroll when the active tab is actually out of view. Centring every
-    // time pushed the first tabs ("Home") off the left edge on load, which
-    // looked broken.
-    const fullyVisible = btnRect.left >= stripRect.left - 1 && btnRect.right <= stripRect.right + 1;
-    if (fullyVisible) return;
-    const start = btnRect.left - stripRect.left + strip.scrollLeft;
-    const target = start - (strip.clientWidth - btnRect.width) / 2;
-    strip.scrollTo({ left: Math.max(0, target), behavior: "smooth" });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [topTab, codesSeason]);
-
-  const stepTabStrip = (direction: "left" | "right") => {
-    const strip = tabStripRef.current;
-    if (!strip) return;
-    const delta = Math.max(140, strip.clientWidth * 0.7);
-    strip.scrollTo({
-      left: strip.scrollLeft + (direction === "left" ? -delta : delta),
-      behavior: "smooth",
-    });
+  // Props for the shared (module-level) top-tabs bar. Passing one object keeps
+  // the seven render sites below tidy.
+  const topTabsCtx: TopTabsCtx = {
+    items: topTabItems,
+    christmas,
+    onSearch: () => void navigate({ to: "/search" }),
+    onAuth: auth.user ? auth.signOut : auth.signIn,
+    authUser: !!auth.user,
+    authAvatar: auth.avatar,
   };
 
-  // Bigger, higher-contrast tap targets on phones (44px-ish), compact on desktop.
-  const tabArrowClass =
-    "flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/20 text-white transition active:scale-95 hover:bg-white/30 disabled:border-transparent disabled:bg-white/5 disabled:text-white/25 md:h-7 md:w-7";
-
-  // Fade the right edge while there are more tabs to the right, so it's obvious
-  // the strip scrolls instead of looking like the list just ends.
-  const tabStripMask = tabStripEnds.atEnd
-    ? undefined
-    : "linear-gradient(to right, black 0, black calc(100% - 24px), transparent 100%)";
-
-  const TopTabs = ({ className = "" }: { className?: string }) => (
-    <div className={`${className} ${christmas ? "christmas-tabs" : ""}`}>
-      {christmas && <ChristmasLights />}
-      <button
-        type="button"
-        onClick={() => stepTabStrip("left")}
-        disabled={tabStripEnds.atStart}
-        aria-label="Show earlier tabs"
-        className={tabArrowClass}
-      >
-        <ChevronLeft className="size-4" />
-      </button>
-      <div
-        ref={tabStripRef}
-        onScroll={measureTabStrip}
-        style={{ maskImage: tabStripMask, WebkitMaskImage: tabStripMask }}
-        className="no-scrollbar flex min-w-0 flex-1 snap-x snap-mandatory items-center gap-3 overflow-x-auto scroll-smooth"
-      >
-        {topTabItems.map((item, index) => (
-          <button
-            key={item.key}
-            ref={(node) => {
-              tabBtnRefs.current[index] = node;
-            }}
-            type="button"
-            onClick={item.onClick}
-            aria-current={item.active ? "page" : undefined}
-            className={`flex min-h-9 shrink-0 snap-start items-center gap-1 whitespace-nowrap border-b-2 pb-1 text-[15px] md:min-h-0 ${
-              item.active ? "border-white font-bold text-white" : "border-transparent text-white/70"
-            }`}
-          >
-            {item.icon}
-            {item.label}
-          </button>
-        ))}
-      </div>
-      <button
-        type="button"
-        onClick={() => stepTabStrip("right")}
-        disabled={tabStripEnds.atEnd}
-        aria-label="Show later tabs"
-        className={tabArrowClass}
-      >
-        <ChevronRight className="size-4" />
-      </button>
-      {/* Search + profile ride along on the right of the bar on phones so they
-          never overlap the tabs (they used to float on top of them). */}
-      <div className="ml-1 flex shrink-0 items-center gap-1 md:hidden">
-        <button
-          type="button"
-          aria-label="Search videos"
-          onClick={() => void navigate({ to: "/search" })}
-          className="flex h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-white/20 text-white transition active:scale-95 hover:bg-white/30 md:h-7 md:w-7"
-        >
-          <Search className="size-4" />
-        </button>
-        <button
-          type="button"
-          aria-label={auth.user ? "Sign out" : "Sign in"}
-          onClick={auth.user ? auth.signOut : auth.signIn}
-          className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-white/15 bg-white/20 text-white transition active:scale-95 hover:bg-white/30 md:h-7 md:w-7"
-        >
-          {auth.avatar ? (
-            <img src={auth.avatar} alt="" className="h-full w-full object-cover" />
-          ) : auth.user ? (
-            <LogOut className="size-4" />
-          ) : (
-            <User className="size-4" />
-          )}
-        </button>
-      </div>
-    </div>
-  );
   // The bar sits in normal flow at the top of the screen on every breakpoint so
   // it never floats over the video (which made the tabs unreadable on phones).
   // Solid background + border keeps it legible over any content.
@@ -1090,7 +1141,7 @@ function Index() {
 
         {onLiveTab ? (
           <div className="relative flex min-h-0 flex-1 flex-col bg-black">
-            <TopTabs className={topTabsClass} />
+            <TopTabs className={topTabsClass} ctx={topTabsCtx} />
             <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto pt-2">
               <LiveNowList
                 hosts={liveHosts}
@@ -1110,21 +1161,21 @@ function Index() {
           </div>
         ) : feedTab === "codes" ? (
           <div className="relative flex min-h-0 flex-1 flex-col bg-black">
-            <TopTabs className={topTabsClass} />
+            <TopTabs className={topTabsClass} ctx={topTabsCtx} />
             <Suspense fallback={null}>
               <ChristmasCodesPanel handle={me} onSignIn={auth.signIn} />
             </Suspense>
           </div>
         ) : activeTab === "foryou" && feedTab === "marketplace" && !offlineMode ? (
           <div className="relative flex min-h-0 flex-1 flex-col">
-            <TopTabs className={topTabsClass} />
+            <TopTabs className={topTabsClass} ctx={topTabsCtx} />
             <Suspense fallback={null}>
               <Marketplace />
             </Suspense>
           </div>
         ) : activeTab === "shop" || activeTab === "subscriptions" ? (
           <div className="flex min-h-0 flex-1 flex-col">
-            <TopTabs className={topTabsStaticClass} />
+            <TopTabs className={topTabsStaticClass} ctx={topTabsCtx} />
             <div className="min-h-0 flex-1 overflow-y-auto">
               {activeTab === "subscriptions" ? (
                 <Suspense fallback={null}>
@@ -1139,7 +1190,7 @@ function Index() {
           </div>
         ) : activeTab === "foryou" && feedTab === "groups" && !offlineMode ? (
           <div className="relative flex min-h-0 flex-1 flex-col bg-black">
-            <TopTabs className={topTabsClass} />
+            <TopTabs className={topTabsClass} ctx={topTabsCtx} />
             <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto pt-2">
               <Suspense fallback={null}>
                 <GroupsPanel />
@@ -1148,7 +1199,7 @@ function Index() {
           </div>
         ) : activeTab === "inbox" ? (
           <div className="flex min-h-0 flex-1 flex-col">
-            <TopTabs className={topTabsStaticClass} />
+            <TopTabs className={topTabsStaticClass} ctx={topTabsCtx} />
             <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain">
               <div className="sticky top-0 z-10 border-b bg-black/85 px-6 pb-4 pt-4 backdrop-blur">
                 <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1277,7 +1328,7 @@ function Index() {
               )}
 
             <div className="relative flex min-h-0 flex-1 flex-col">
-              <TopTabs className={topTabsClass} />
+              <TopTabs className={topTabsClass} ctx={topTabsCtx} />
               <div className="no-scrollbar min-h-0 flex-1 snap-y snap-mandatory overflow-y-scroll overscroll-contain scroll-smooth">
                 {error && !offlineMode && !(videos && videos.length > 0) && (
                   <Empty text="Couldn't load videos. Refresh to try again." />

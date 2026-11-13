@@ -788,6 +788,11 @@ function Index() {
     if (!strip || !btn) return;
     const stripRect = strip.getBoundingClientRect();
     const btnRect = btn.getBoundingClientRect();
+    // Only scroll when the active tab is actually out of view. Centring every
+    // time pushed the first tabs ("Home") off the left edge on load, which
+    // looked broken.
+    const fullyVisible = btnRect.left >= stripRect.left - 1 && btnRect.right <= stripRect.right + 1;
+    if (fullyVisible) return;
     const start = btnRect.left - stripRect.left + strip.scrollLeft;
     const target = start - (strip.clientWidth - btnRect.width) / 2;
     strip.scrollTo({ left: Math.max(0, target), behavior: "smooth" });
@@ -851,20 +856,46 @@ function Index() {
       >
         <ChevronRight className="size-4" />
       </button>
+      {/* Search + profile ride along on the right of the bar on phones so they
+          never overlap the tabs (they used to float on top of them). */}
+      <div className="ml-1 flex shrink-0 items-center gap-1 md:hidden">
+        <button
+          type="button"
+          aria-label="Search videos"
+          onClick={() => void navigate({ to: "/search" })}
+          className="flex h-7 w-7 items-center justify-center rounded-full bg-white/15 text-white transition hover:bg-white/25"
+        >
+          <Search className="size-4" />
+        </button>
+        <button
+          type="button"
+          aria-label={auth.user ? "Sign out" : "Sign in"}
+          onClick={auth.user ? auth.signOut : auth.signIn}
+          className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-full bg-white/15 text-white transition hover:bg-white/25"
+        >
+          {auth.avatar ? (
+            <img src={auth.avatar} alt="" className="h-full w-full object-cover" />
+          ) : auth.user ? (
+            <LogOut className="size-4" />
+          ) : (
+            <User className="size-4" />
+          )}
+        </button>
+      </div>
     </div>
   );
-  // Mobile: floats over the video feed. Desktop: sits in normal flow under the
-  // header so the bar (and every tab on it) is always visible.
+  // The bar sits in normal flow at the top of the screen on every breakpoint so
+  // it never floats over the video (which made the tabs unreadable on phones).
+  // Solid background + border keeps it legible over any content.
   const topTabsClass =
-    "absolute inset-x-0 top-0 z-40 flex items-center gap-1 bg-gradient-to-b from-black/80 to-transparent px-2 pb-2 " +
-    "md:static md:inset-auto md:z-auto md:gap-2 md:border-b md:border-white/10 md:bg-transparent md:px-4 md:pb-2 md:pt-2 " +
+    "relative z-30 flex shrink-0 items-center gap-1 border-b border-white/10 bg-black px-2 pb-2 " +
+    "md:gap-2 md:px-4 md:pb-2 md:pt-2 " +
     (christmas
       ? "pt-[calc(max(0.5rem,env(safe-area-inset-top))+0.65rem)]"
       : "pt-[max(0.5rem,env(safe-area-inset-top))]");
-  // Static variant for the non-feed screens (Inbox, Shop, Subscriptions) where
-  // the bar sits in normal flow on every breakpoint.
+  // Non-feed screens (Inbox, Shop, Subscriptions) use the same solid bar.
   const topTabsStaticClass =
-    "flex shrink-0 items-center gap-1 border-b border-white/10 bg-black px-2 pb-2 pt-[calc(env(safe-area-inset-top)+5.5rem)] md:gap-2 md:px-4 md:pb-2 md:pt-2";
+    "relative z-30 flex shrink-0 items-center gap-1 border-b border-white/10 bg-black px-2 pb-2 pt-[calc(env(safe-area-inset-top)+0.5rem)] md:gap-2 md:px-4 md:pb-2 md:pt-2";
 
   const [title, sub] = query
     ? [`Results for "${query}"`, `${shown.length} videos`]
@@ -991,40 +1022,6 @@ function Index() {
       </aside>
 
       <main className="relative mx-auto flex h-[100dvh] w-full min-w-0 max-w-[430px] flex-1 flex-col bg-black md:h-auto md:max-w-none md:bg-transparent">
-        {/* Floating controls: no bar and no logo, just search + profile over the video. */}
-        <div
-          className={`pointer-events-none absolute inset-x-0 z-50 flex items-center justify-end gap-2 px-3 md:hidden ${
-            showCountdown
-              ? "top-[calc(env(safe-area-inset-top)+5rem)]"
-              : "top-[calc(env(safe-area-inset-top)+2.75rem)]"
-          }`}
-        >
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label="Search videos"
-            onClick={() => void navigate({ to: "/search" })}
-            className="pointer-events-auto rounded-full bg-black/35 text-white backdrop-blur-sm hover:bg-black/55 hover:text-white"
-          >
-            <Search />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label={auth.user ? "Sign out" : "Sign in"}
-            onClick={auth.user ? auth.signOut : auth.signIn}
-            className="pointer-events-auto rounded-full bg-black/35 text-white backdrop-blur-sm hover:bg-black/55 hover:text-white"
-          >
-            {auth.avatar ? (
-              <img src={auth.avatar} alt="" className="h-8 w-8 rounded-full object-cover" />
-            ) : auth.user ? (
-              <LogOut />
-            ) : (
-              <User />
-            )}
-          </Button>
-        </div>
-
         {offlineMode && (
           <div className="flex shrink-0 items-center gap-2 bg-primary/10 px-4 py-2 text-sm font-bold text-primary md:px-10">
             <WifiOff className="h-4 w-4" /> You're offline — watching saved videos
@@ -1086,7 +1083,7 @@ function Index() {
         {onLiveTab ? (
           <div className="relative flex min-h-0 flex-1 flex-col bg-black">
             <TopTabs className={topTabsClass} />
-            <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto pt-[calc(env(safe-area-inset-top)+5.5rem)] md:pt-2">
+            <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto pt-2">
               <LiveNowList
                 hosts={liveHosts}
                 onWatch={(host) => {
@@ -1135,7 +1132,7 @@ function Index() {
         ) : activeTab === "foryou" && feedTab === "groups" && !offlineMode ? (
           <div className="relative flex min-h-0 flex-1 flex-col bg-black">
             <TopTabs className={topTabsClass} />
-            <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto pt-[calc(env(safe-area-inset-top)+5.5rem)] md:pt-2">
+            <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto pt-2">
               <Suspense fallback={null}>
                 <GroupsPanel />
               </Suspense>

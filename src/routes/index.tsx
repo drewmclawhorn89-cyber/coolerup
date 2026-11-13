@@ -2,6 +2,8 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Fragment, Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Bell,
+  ChevronLeft,
+  ChevronRight,
   Download,
   Heart,
   Gift,
@@ -638,15 +640,17 @@ function Index() {
     key: auth.user?.id ?? null,
   });
 
-  const showTopTabs =
-    !offlineMode &&
-    (activeTab === "foryou" || activeTab === "following" || activeTab === "explore");
+  // The top tab bar is the home menu's primary navigation, so keep it on every
+  // screen (feed, inbox, shop, subscriptions, offline) and at every breakpoint.
+  const showTopTabs = true;
   const topTab =
     activeTab === "shop" || activeTab === "subscriptions"
       ? activeTab
       : activeTab === "following" || activeTab === "explore"
         ? activeTab
-        : feedTab;
+        : activeTab === "inbox" || activeTab === "saved" || activeTab === "liked"
+          ? activeTab
+          : feedTab;
   const pickFeedTab = (t: FeedTab) => {
     setFeedTab(t);
     setTab(t === "following" || t === "explore" ? t : "foryou");
@@ -662,71 +666,205 @@ function Index() {
     }
   }, [codesSeason, feedTab]);
 
-  // One shared top tab bar (Home | Following | For You | Marketplace | Groups | LIVE).
-  // Shop stays on the end of the scrollable row so that screen is still
-  // reachable on phones. Subscriptions now lives in Settings (/?tab=subscriptions
-  // deep links still resolve for upgrade prompts).
+  // One shared top tab bar (Home | Following | For You | Videos | Music |
+  // Coolerup Browser | Marketplace | Groups | LIVE | Codes | Explore | Shop).
+  // It renders on every screen and at every breakpoint, and the strip can be
+  // stepped left/right with the always-visible arrows so no tab is ever
+  // unreachable — even on a narrow phone.
+  type TopTabItem = {
+    key: string;
+    label: string;
+    icon?: React.ReactNode;
+    onClick: () => void;
+    active: boolean;
+  };
+  const topTabItems: TopTabItem[] = [
+    { key: "home", label: "Home", onClick: () => pickFeedTab("home"), active: topTab === "home" },
+    {
+      key: "following",
+      label: "Following",
+      onClick: () => pickFeedTab("following"),
+      active: topTab === "following",
+    },
+    {
+      key: "foryou",
+      label: "For You",
+      onClick: () => pickFeedTab("foryou"),
+      active: topTab === "foryou",
+    },
+    {
+      // Full-length videos live on their own YouTube-style page, not in the feed.
+      key: "videos",
+      label: "Videos",
+      icon: <Play className="size-3.5 fill-current" />,
+      onClick: () => void navigate({ to: "/videos" }),
+      active: false,
+    },
+    {
+      // Music lives on its own page so the song keeps playing while you browse.
+      key: "music",
+      label: "Music",
+      icon: <Music className="size-3.5" />,
+      onClick: () => void navigate({ to: "/music" }),
+      active: false,
+    },
+    {
+      // The in-app browser: a Coolerup-branded search + web view, not a Google embed.
+      key: "browser",
+      label: "Coolerup Browser",
+      icon: <Globe className="size-3.5" />,
+      onClick: () => void navigate({ to: "/browser" }),
+      active: false,
+    },
+    {
+      key: "marketplace",
+      label: "Marketplace",
+      onClick: () => pickFeedTab("marketplace"),
+      active: topTab === "marketplace",
+    },
+    {
+      key: "groups",
+      label: "Groups",
+      onClick: () => pickFeedTab("groups"),
+      active: topTab === "groups",
+    },
+    {
+      key: "live",
+      label: "LIVE",
+      icon: <span className="h-2 w-2 rounded-full bg-red-500" />,
+      onClick: () => pickFeedTab("live"),
+      active: topTab === "live",
+    },
+    // Christmas only: seasonal gift-code tab. Vanishes on Jan 2, returns Nov 15.
+    ...(codesSeason
+      ? [
+          {
+            key: "codes",
+            label: "Codes",
+            icon: <Gift className="size-3.5" />,
+            onClick: () => pickFeedTab("codes"),
+            active: topTab === "codes",
+          },
+        ]
+      : []),
+    {
+      key: "explore",
+      label: "Explore",
+      onClick: () => pickFeedTab("explore"),
+      active: topTab === "explore",
+    },
+    { key: "shop", label: "Shop", onClick: () => setTab("shop"), active: topTab === "shop" },
+  ];
+
+  const tabStripRef = useRef<HTMLDivElement | null>(null);
+  const tabBtnRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const [tabStripEnds, setTabStripEnds] = useState({ atStart: true, atEnd: false });
+
+  const measureTabStrip = useCallback(() => {
+    const strip = tabStripRef.current;
+    if (!strip) return;
+    const max = strip.scrollWidth - strip.clientWidth;
+    setTabStripEnds({
+      atStart: strip.scrollLeft <= 2,
+      atEnd: strip.scrollLeft >= max - 2,
+    });
+  }, []);
+
+  // Re-measure whenever the strip mounts or its contents change (e.g. Codes).
+  useEffect(() => {
+    measureTabStrip();
+    const strip = tabStripRef.current;
+    if (!strip || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measureTabStrip);
+    observer.observe(strip);
+    return () => observer.disconnect();
+  }, [measureTabStrip, codesSeason, christmas]);
+
+  // Keep the active tab centred in the strip whenever the selection changes.
+  useEffect(() => {
+    const strip = tabStripRef.current;
+    const index = topTabItems.findIndex((item) => item.active);
+    const btn = index >= 0 ? tabBtnRefs.current[index] : null;
+    if (!strip || !btn) return;
+    const stripRect = strip.getBoundingClientRect();
+    const btnRect = btn.getBoundingClientRect();
+    const start = btnRect.left - stripRect.left + strip.scrollLeft;
+    const target = start - (strip.clientWidth - btnRect.width) / 2;
+    strip.scrollTo({ left: Math.max(0, target), behavior: "smooth" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [topTab, codesSeason]);
+
+  const stepTabStrip = (direction: "left" | "right") => {
+    const strip = tabStripRef.current;
+    if (!strip) return;
+    const delta = Math.max(140, strip.clientWidth * 0.7);
+    strip.scrollTo({
+      left: strip.scrollLeft + (direction === "left" ? -delta : delta),
+      behavior: "smooth",
+    });
+  };
+
+  const tabArrowClass =
+    "flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/15 text-white transition hover:bg-white/25 disabled:bg-white/5 disabled:text-white/30";
+
   const TopTabs = ({ className = "" }: { className?: string }) => (
     <div className={`${className} ${christmas ? "christmas-tabs" : ""}`}>
       {christmas && <ChristmasLights />}
-      <button onClick={() => pickFeedTab("home")} className={tabClass("home")}>
-        Home
+      <button
+        type="button"
+        onClick={() => stepTabStrip("left")}
+        disabled={tabStripEnds.atStart}
+        aria-label="Show earlier tabs"
+        className={tabArrowClass}
+      >
+        <ChevronLeft className="size-4" />
       </button>
-      <button onClick={() => pickFeedTab("following")} className={tabClass("following")}>
-        Following
-      </button>
-      <button onClick={() => pickFeedTab("foryou")} className={tabClass("foryou")}>
-        For You
-      </button>
-      {/* Full-length videos live on their own YouTube-style page, not in the feed. */}
-      <button onClick={() => void navigate({ to: "/videos" })} className={tabClass("videos")}>
-        <Play className="size-3.5 fill-current" />
-        Videos
-      </button>
-      {/* Music lives on its own page so the song keeps playing while you
-          browse the feed. */}
-      <button onClick={() => void navigate({ to: "/music" })} className={tabClass("music")}>
-        <Music className="size-3.5" />
-        Music
-      </button>
-      {/* The in-app browser: a Coolerup-branded search + web view, not a
-          Google embed. History and bookmarks live under /browser. */}
-      <button onClick={() => void navigate({ to: "/browser" })} className={tabClass("browser")}>
-        <Globe className="size-3.5" />
-        Coolerup Browser
-      </button>
-      <button onClick={() => pickFeedTab("marketplace")} className={tabClass("marketplace")}>
-        Marketplace
-      </button>
-      <button onClick={() => pickFeedTab("groups")} className={tabClass("groups")}>
-        Groups
-      </button>
-      <button onClick={() => pickFeedTab("live")} className={tabClass("live")}>
-        <span className="h-2 w-2 rounded-full bg-red-500" />
-        LIVE
-      </button>
-      {/* Christmas only: seasonal gift-code tab. Vanishes on Jan 2, returns Nov 15. */}
-      {codesSeason && (
-        <button onClick={() => pickFeedTab("codes")} className={tabClass("codes")}>
-          <Gift className="size-3.5" />
-          Codes
-        </button>
-      )}
-      <button onClick={() => pickFeedTab("explore")} className={tabClass("explore")}>
-        Explore
-      </button>
-      <button onClick={() => setTab("shop")} className={tabClass("shop")}>
-        Shop
+      <div
+        ref={tabStripRef}
+        onScroll={measureTabStrip}
+        className="no-scrollbar flex min-w-0 flex-1 items-center gap-3 overflow-x-auto scroll-smooth"
+      >
+        {topTabItems.map((item, index) => (
+          <button
+            key={item.key}
+            ref={(node) => {
+              tabBtnRefs.current[index] = node;
+            }}
+            type="button"
+            onClick={item.onClick}
+            aria-current={item.active ? "page" : undefined}
+            className={`flex shrink-0 items-center gap-1 whitespace-nowrap border-b-2 pb-1 text-[15px] ${
+              item.active ? "border-white font-bold text-white" : "border-transparent text-white/60"
+            }`}
+          >
+            {item.icon}
+            {item.label}
+          </button>
+        ))}
+      </div>
+      <button
+        type="button"
+        onClick={() => stepTabStrip("right")}
+        disabled={tabStripEnds.atEnd}
+        aria-label="Show later tabs"
+        className={tabArrowClass}
+      >
+        <ChevronRight className="size-4" />
       </button>
     </div>
   );
+  // Mobile: floats over the video feed. Desktop: sits in normal flow under the
+  // header so the bar (and every tab on it) is always visible.
   const topTabsClass =
-    "absolute inset-x-0 top-0 z-40 flex justify-center gap-3 overflow-x-auto bg-gradient-to-b from-black/80 to-transparent px-3 pb-2 no-scrollbar [&>button]:shrink-0 [&>button]:whitespace-nowrap " +
+    "absolute inset-x-0 top-0 z-40 flex items-center gap-1 bg-gradient-to-b from-black/80 to-transparent px-2 pb-2 " +
+    "md:static md:inset-auto md:z-auto md:gap-2 md:border-b md:border-white/10 md:bg-transparent md:px-4 md:pb-2 md:pt-2 " +
     (christmas
       ? "pt-[calc(max(0.5rem,env(safe-area-inset-top))+0.65rem)]"
       : "pt-[max(0.5rem,env(safe-area-inset-top))]");
-  const tabClass = (t: string) =>
-    `flex items-center gap-1 border-b-2 pb-1 text-[15px] ${topTab === t ? "border-white font-bold text-white" : "border-transparent text-white/60"}`;
+  // Static variant for the non-feed screens (Inbox, Shop, Subscriptions) where
+  // the bar sits in normal flow on every breakpoint.
+  const topTabsStaticClass =
+    "flex shrink-0 items-center gap-1 border-b border-white/10 bg-black px-2 pb-2 pt-[calc(env(safe-area-inset-top)+5.5rem)] md:gap-2 md:px-4 md:pb-2 md:pt-2";
 
   const [title, sub] = query
     ? [`Results for "${query}"`, `${shown.length} videos`]
@@ -948,7 +1086,7 @@ function Index() {
         {onLiveTab ? (
           <div className="relative flex min-h-0 flex-1 flex-col bg-black">
             <TopTabs className={topTabsClass} />
-            <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto pt-[calc(env(safe-area-inset-top)+5.5rem)]">
+            <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto pt-[calc(env(safe-area-inset-top)+5.5rem)] md:pt-2">
               <LiveNowList
                 hosts={liveHosts}
                 onWatch={(host) => {
@@ -981,7 +1119,7 @@ function Index() {
           </div>
         ) : activeTab === "shop" || activeTab === "subscriptions" ? (
           <div className="flex min-h-0 flex-1 flex-col">
-            <TopTabs className="flex shrink-0 justify-center gap-3 overflow-x-auto bg-black px-3 pb-2 pt-[calc(env(safe-area-inset-top)+5.5rem)] no-scrollbar [&>button]:shrink-0 [&>button]:whitespace-nowrap md:hidden" />
+            <TopTabs className={topTabsStaticClass} />
             <div className="min-h-0 flex-1 overflow-y-auto">
               {activeTab === "subscriptions" ? (
                 <Suspense fallback={null}>
@@ -997,81 +1135,86 @@ function Index() {
         ) : activeTab === "foryou" && feedTab === "groups" && !offlineMode ? (
           <div className="relative flex min-h-0 flex-1 flex-col bg-black">
             <TopTabs className={topTabsClass} />
-            <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto pt-[calc(env(safe-area-inset-top)+5.5rem)]">
+            <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto pt-[calc(env(safe-area-inset-top)+5.5rem)] md:pt-2">
               <Suspense fallback={null}>
                 <GroupsPanel />
               </Suspense>
             </div>
           </div>
         ) : activeTab === "inbox" ? (
-          <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain">
-            <div className="sticky top-0 z-10 border-b bg-black/85 px-6 pb-4 pt-[calc(env(safe-area-inset-top)+5.75rem)] backdrop-blur">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <h2 className="text-2xl font-display font-bold">Inbox</h2>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    {notifications.length === 0
-                      ? "All your notifications in one place"
-                      : `${notifications.length} notification${notifications.length === 1 ? "" : "s"}${
-                          unreadCount > 0 ? ` \u00b7 ${unreadCount} unread` : ""
-                        }`}
-                  </p>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button
-                    variant={notificationFilter === "unread" ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setNotificationFilter((f) => (f === "all" ? "unread" : "all"))}
-                  >
-                    {notificationFilter === "all" ? "Unread only" : "Show all"}
-                  </Button>
-                  {unreadCount > 0 && (
-                    <Button variant="ghost" size="sm" onClick={markAllRead}>
-                      Mark all read
+          <div className="flex min-h-0 flex-1 flex-col">
+            <TopTabs className={topTabsStaticClass} />
+            <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain">
+              <div className="sticky top-0 z-10 border-b bg-black/85 px-6 pb-4 pt-4 backdrop-blur">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-2xl font-display font-bold">Inbox</h2>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {notifications.length === 0
+                        ? "All your notifications in one place"
+                        : `${notifications.length} notification${notifications.length === 1 ? "" : "s"}${
+                            unreadCount > 0 ? ` \u00b7 ${unreadCount} unread` : ""
+                          }`}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      variant={notificationFilter === "unread" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setNotificationFilter((f) => (f === "all" ? "unread" : "all"))}
+                    >
+                      {notificationFilter === "all" ? "Unread only" : "Show all"}
                     </Button>
-                  )}
-                  <Link
-                    to="/messages"
-                    className="flex items-center gap-3 rounded-xl px-4 py-3 font-bold transition hover:bg-secondary"
-                  >
-                    <MessageCircle className="h-5 w-5" />
-                    Messages
-                  </Link>
+                    {unreadCount > 0 && (
+                      <Button variant="ghost" size="sm" onClick={markAllRead}>
+                        Mark all read
+                      </Button>
+                    )}
+                    <Link
+                      to="/messages"
+                      className="flex items-center gap-3 rounded-xl px-4 py-3 font-bold transition hover:bg-secondary"
+                    >
+                      <MessageCircle className="h-5 w-5" />
+                      Messages
+                    </Link>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div className="mx-auto w-full max-w-2xl space-y-3 px-6 pb-28 pt-6">
-              {filteredNotifications.length === 0 ? (
-                <div className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">
-                  {notificationFilter === "unread" ? "No unread notifications" : "No notifications"}
-                </div>
-              ) : (
-                filteredNotifications.map((n) => (
-                  <div
-                    key={n.id}
-                    className={`flex items-center gap-3 rounded-xl border bg-card p-4 ${n.read ? "opacity-70" : ""}`}
-                    onClick={() => !n.read && markRead(n.id)}
-                  >
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-500/10 text-lg">
-                      {n.type === "like"
-                        ? "❤️"
-                        : n.type === "follow"
-                          ? "👤"
-                          : n.type === "gift"
-                            ? "🎁"
-                            : "💬"}
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-sm">{n.text}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {n.created_at ? new Date(n.created_at).toLocaleString() : ""}
-                      </p>
-                    </div>
-                    {!n.read && <div className="h-2 w-2 rounded-full bg-primary" />}
+              <div className="mx-auto w-full max-w-2xl space-y-3 px-6 pb-28 pt-6">
+                {filteredNotifications.length === 0 ? (
+                  <div className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">
+                    {notificationFilter === "unread"
+                      ? "No unread notifications"
+                      : "No notifications"}
                   </div>
-                ))
-              )}
+                ) : (
+                  filteredNotifications.map((n) => (
+                    <div
+                      key={n.id}
+                      className={`flex items-center gap-3 rounded-xl border bg-card p-4 ${n.read ? "opacity-70" : ""}`}
+                      onClick={() => !n.read && markRead(n.id)}
+                    >
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-500/10 text-lg">
+                        {n.type === "like"
+                          ? "❤️"
+                          : n.type === "follow"
+                            ? "👤"
+                            : n.type === "gift"
+                              ? "🎁"
+                              : "💬"}
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm">{n.text}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {n.created_at ? new Date(n.created_at).toLocaleString() : ""}
+                        </p>
+                      </div>
+                      {!n.read && <div className="h-2 w-2 rounded-full bg-primary" />}
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
           </div>
         ) : (
@@ -1129,7 +1272,7 @@ function Index() {
               )}
 
             <div className="relative flex min-h-0 flex-1 flex-col">
-              {showTopTabs && <TopTabs className={`${topTabsClass} md:hidden`} />}
+              <TopTabs className={topTabsClass} />
               <div className="no-scrollbar min-h-0 flex-1 snap-y snap-mandatory overflow-y-scroll overscroll-contain scroll-smooth">
                 {error && !offlineMode && !(videos && videos.length > 0) && (
                   <Empty text="Couldn't load videos. Refresh to try again." />

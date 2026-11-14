@@ -5,7 +5,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Download,
-  Ellipsis,
   Heart,
   Gift,
   Globe,
@@ -24,7 +23,6 @@ import {
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { VideoCard } from "@/components/VideoCard";
 import { SantaHat } from "@/components/SantaHat";
 import { ChristmasLights } from "@/components/ChristmasLights";
@@ -117,10 +115,7 @@ type TopTabItem = {
 };
 
 type TopTabsCtx = {
-  /** The five primary tabs that stay on the bar. */
   items: TopTabItem[];
-  /** Everything else — including Coolerup Browser — lives in the More sheet. */
-  moreItems: TopTabItem[];
   christmas: boolean;
   onSearch: () => void;
   onAuth: () => void;
@@ -134,12 +129,10 @@ type TopTabsCtx = {
 // on every state change. That made the arrow buttons look dead: they scrolled,
 // then the strip remounted and snapped back. Keeping it stable fixes that.
 function TopTabs({ className = "", ctx }: { className?: string; ctx: TopTabsCtx }) {
-  const { items, moreItems, christmas, onSearch, onAuth, authUser, authAvatar } = ctx;
+  const { items, christmas, onSearch, onAuth, authUser, authAvatar } = ctx;
   const stripRef = useRef<HTMLDivElement | null>(null);
   const btnRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const [ends, setEnds] = useState({ atStart: true, atEnd: false });
-  const [moreOpen, setMoreOpen] = useState(false);
-  const moreActive = moreItems.some((item) => item.active);
 
   const measure = useCallback(() => {
     const strip = stripRef.current;
@@ -256,20 +249,6 @@ function TopTabs({ className = "", ctx }: { className?: string; ctx: TopTabsCtx 
           </button>
         ))}
       </div>
-      {/* 5 main tabs + More. Browser, Marketplace, Groups, LIVE and the rest
-          live in this sheet so the bar never turns into a scroll marathon. */}
-      <button
-        type="button"
-        onClick={() => setMoreOpen(true)}
-        aria-label="More tabs"
-        aria-haspopup="dialog"
-        className={`flex shrink-0 items-center gap-1 whitespace-nowrap border-b-2 px-1 pb-0.5 text-[13px] ${
-          moreActive ? "border-white font-bold text-white" : "border-transparent text-white/70"
-        }`}
-      >
-        <Ellipsis className="size-4" />
-        More
-      </button>
       <button
         type="button"
         onClick={() => step("right")}
@@ -305,34 +284,6 @@ function TopTabs({ className = "", ctx }: { className?: string; ctx: TopTabsCtx 
           )}
         </button>
       </div>
-
-      <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
-        <SheetContent side="bottom" className="rounded-t-3xl border-white/10 bg-black text-white">
-          <SheetHeader>
-            <SheetTitle className="text-left text-base font-black text-white">More</SheetTitle>
-          </SheetHeader>
-          <div className="mt-3 grid grid-cols-2 gap-2 pb-4">
-            {moreItems.map((item) => (
-              <button
-                key={item.key}
-                type="button"
-                onClick={() => {
-                  setMoreOpen(false);
-                  item.onClick();
-                }}
-                className={`flex items-center gap-2 rounded-2xl border px-3 py-3 text-left text-sm font-bold transition ${
-                  item.active
-                    ? "border-primary bg-primary/15 text-white"
-                    : "border-white/10 bg-white/[0.06] text-white/85 hover:border-primary/60 hover:bg-white/[0.09]"
-                }`}
-              >
-                {item.icon}
-                <span className="min-w-0 truncate">{item.label}</span>
-              </button>
-            ))}
-          </div>
-        </SheetContent>
-      </Sheet>
     </div>
   );
 }
@@ -900,7 +851,7 @@ function Index() {
   // It renders on every screen and at every breakpoint, and the strip can be
   // stepped left/right with the always-visible arrows so no tab is ever
   // unreachable — even on a narrow phone.
-  const allTopTabItems: TopTabItem[] = [
+  const topTabItems: TopTabItem[] = [
     { key: "home", label: "Home", onClick: () => pickFeedTab("home"), active: topTab === "home" },
     {
       key: "following",
@@ -978,17 +929,10 @@ function Index() {
     { key: "shop", label: "Shop", onClick: () => setTab("shop"), active: topTab === "shop" },
   ];
 
-  // Keep the bar to five primary tabs; everything else (including Coolerup
-  // Browser) is one tap away in the More sheet.
-  const PRIMARY_TAB_KEYS = ["home", "following", "foryou", "videos", "music"];
-  const topTabItems = allTopTabItems.filter((item) => PRIMARY_TAB_KEYS.includes(item.key));
-  const moreTabItems = allTopTabItems.filter((item) => !PRIMARY_TAB_KEYS.includes(item.key));
-
   // Props for the shared (module-level) top-tabs bar. Passing one object keeps
   // the seven render sites below tidy.
   const topTabsCtx: TopTabsCtx = {
     items: topTabItems,
-    moreItems: moreTabItems,
     christmas,
     onSearch: () => void navigate({ to: "/search" }),
     onAuth: auth.user ? auth.signOut : auth.signIn,

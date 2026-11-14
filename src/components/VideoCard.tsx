@@ -656,25 +656,46 @@ function VideoCardImpl({
       setLikes((n) => n + (next ? -1 : 1));
       return;
     }
-    const { error } = next
-      ? await supabase.from("likes").insert({ video_id: video.id, user_id: authUser.id })
-      : await supabase.from("likes").delete().eq("video_id", video.id).eq("user_id", authUser.id);
-    if (error) {
-      onLikeChange(video.id, !next);
-      setLikes((n) => n + (next ? -1 : 1));
-      toast.error("Couldn't save your like");
-    } else if (next) {
-      // Save the in-app notification and push it to the owner's devices.
-      const ownerId = await profileIdForHandle(video.username);
-      if (ownerId) {
-        await notifyUser({
-          targetUserId: ownerId,
-          actorUserId: authUser.id,
-          type: "like",
-          videoId: video.id,
-          text: `${myUsername ?? "Someone"} liked your video`,
-          url: "/",
-        });
+    if (next) {
+      const { error } = await supabase
+        .from("likes")
+        .insert({ video_id: video.id, user_id: authUser.id });
+      // 23505 = this like already exists. That happens when the row was written
+      // on another device or before `fetchMyLikes()` caught up, so the local
+      // heart was still empty. Keep it filled instead of failing the tap.
+      if (error && error.code !== "23505") {
+        console.error(error);
+        onLikeChange(video.id, false);
+        setLikes((n) => Math.max(0, n - 1));
+        toast.error("Couldn't save your like");
+        return;
+      }
+      // Only notify the owner for a genuinely new like, so a stale local state
+      // can't spam duplicate notifications.
+      if (!error) {
+        const ownerId = await profileIdForHandle(video.username);
+        if (ownerId) {
+          await notifyUser({
+            targetUserId: ownerId,
+            actorUserId: authUser.id,
+            type: "like",
+            videoId: video.id,
+            text: `${myUsername ?? "Someone"} liked your video`,
+            url: "/",
+          });
+        }
+      }
+    } else {
+      const { error } = await supabase
+        .from("likes")
+        .delete()
+        .eq("video_id", video.id)
+        .eq("user_id", authUser.id);
+      if (error) {
+        console.error(error);
+        onLikeChange(video.id, true);
+        setLikes((n) => n + 1);
+        toast.error("Couldn't remove your like");
       }
     }
   }, [auth.user, auth.onboarding.needsOnboarding, liked, onLikeChange, video.id, video.username]);

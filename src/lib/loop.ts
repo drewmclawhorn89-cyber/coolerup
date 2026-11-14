@@ -273,8 +273,25 @@ export async function fetchMyLikes() {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return new Set<string>();
-  const { data } = await supabase.from("likes").select("video_id").eq("user_id", user.id);
-  return new Set((data ?? []).map((l) => l.video_id));
+  // Page through every like. Supabase caps a single response at ~1000 rows, so
+  // an unpaged select silently dropped a heavy liker's older likes — which made
+  // those videos look unliked and then fail with a duplicate-key error on tap.
+  const PAGE = 1000;
+  const ids = new Set<string>();
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabase
+      .from("likes")
+      .select("video_id")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .order("video_id", { ascending: true })
+      .range(from, from + PAGE - 1);
+    if (error) break;
+    const rows = (data ?? []) as { video_id: string }[];
+    for (const row of rows) ids.add(row.video_id);
+    if (rows.length < PAGE) break;
+  }
+  return ids;
 }
 
 /**

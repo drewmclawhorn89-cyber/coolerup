@@ -590,9 +590,6 @@ function Index() {
       if (el) el.scrollTop = 0;
     }, 300);
 
-    fetchMyLikes()
-      .then(setLiked)
-      .catch(() => {});
     const refresh = () =>
       listSaved()
         .then((s) => {
@@ -969,6 +966,34 @@ function Index() {
       return n;
     });
   }, []);
+
+  // Keep the "liked" set in sync with the signed-in account. This runs when the
+  // user signs in/out and whenever the app returns to the foreground, so likes
+  // made on another device (or before a stale session) show as filled hearts.
+  const authUserId = auth.user?.id;
+  useEffect(() => {
+    if (!authUserId) {
+      setLiked(new Set());
+      return;
+    }
+    let alive = true;
+    const sync = () => {
+      fetchMyLikes()
+        .then((ids) => {
+          if (alive) setLiked(ids);
+        })
+        .catch(() => {});
+    };
+    sync();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") sync();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      alive = false;
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [authUserId]);
   const handleToggleMute = useCallback(() => setMuted((m) => !m), []);
   const handleFollowChange = useCallback((username: string, following: boolean) => {
     setFollowingList((list) =>

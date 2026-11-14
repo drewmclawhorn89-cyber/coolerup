@@ -1,4 +1,5 @@
-import { ArrowRight, Clock, Sparkles, Star, TrendingUp } from "lucide-react";
+import { useState } from "react";
+import { ArrowRight, Clock, Search, Sparkles, Star, TrendingUp } from "lucide-react";
 import { SHORTCUTS, type BrowserHistoryRow } from "@/lib/coolerupBrowser";
 
 /**
@@ -19,6 +20,15 @@ export function BrowserHome({
   onSearch: (query: string) => void;
 }) {
   const suggestions = ["mgk starman", "funny cat videos", "how to make a gif", "nba scores"];
+  const [query, setQuery] = useState("");
+
+  const submit = (event: React.FormEvent) => {
+    event.preventDefault();
+    const trimmed = query.trim();
+    if (!trimmed) return;
+    onSearch(trimmed);
+    setQuery("");
+  };
 
   return (
     <div className="min-h-[60vh] bg-[#0b1220] px-4 pb-8 pt-5 text-white">
@@ -27,14 +37,35 @@ export function BrowserHome({
         <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-blue-100">
           <Sparkles className="h-3.5 w-3.5" /> Coolerup Browser
         </p>
-        <h2 className="mt-1 text-xl font-black leading-tight">
-          The whole web,
-          <br />
-          still inside Coolerup.
-        </h2>
+        <h2 className="mt-1 text-xl font-black leading-tight">Welcome to Coolerup Browser</h2>
         <p className="mt-1.5 text-xs text-blue-100">
           Search, browse and save — your top bar never leaves the app.
         </p>
+
+        {/* Coolerup search bar — not a Google homepage */}
+        <form
+          onSubmit={submit}
+          className="mt-3 flex items-center gap-2 rounded-full bg-white px-3 py-1 shadow-sm ring-1 ring-black/5"
+        >
+          <Search className="h-4 w-4 shrink-0 text-[#2563EB]" />
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search with Coolerup Browser"
+            aria-label="Search with Coolerup Browser"
+            inputMode="search"
+            autoComplete="off"
+            spellCheck={false}
+            className="h-9 w-full min-w-0 bg-transparent text-sm text-neutral-900 outline-none placeholder:text-neutral-500"
+          />
+          <button
+            type="submit"
+            aria-label="Search"
+            className="flex h-7 shrink-0 items-center justify-center rounded-full bg-[#2563EB] px-3 text-[11px] font-bold text-white hover:bg-[#1d4fc4]"
+          >
+            Go
+          </button>
+        </form>
       </div>
 
       {/* Shortcuts */}

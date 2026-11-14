@@ -212,7 +212,12 @@ export function Comments({
     >
       <aside
         onClick={(e) => e.stopPropagation()}
-        className="mobile-comments flex h-[75dvh] w-full max-w-md flex-col rounded-t-2xl border bg-card sm:h-full sm:rounded-none sm:border-l"
+        onTouchStart={(e) => e.stopPropagation()}
+        onTouchMove={(e) => e.stopPropagation()}
+        onWheel={(e) => e.stopPropagation()}
+        className={`mobile-comments flex w-full max-w-md flex-col rounded-t-2xl border bg-card sm:h-full sm:rounded-none sm:border-l ${
+          showGifs ? "h-[70dvh]" : "h-[75dvh]"
+        }`}
       >
         <header className="flex items-center justify-between border-b p-4">
           <h2 className="font-bold">Comments {items ? `(${items.length})` : ""}</h2>

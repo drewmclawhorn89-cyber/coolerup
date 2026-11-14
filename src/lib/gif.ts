@@ -91,40 +91,61 @@ async function attachHandles(rows: GifRow[]): Promise<GifRow[]> {
 }
 
 /** Public GIFs, newest first — the "Trending" tab. */
-export async function listTrendingGifs(limit = 24): Promise<GifRow[]> {
+export async function listTrendingGifs(limit = 20, offset = 0): Promise<GifRow[]> {
+  const from = Math.max(0, offset);
+  const to = from + Math.max(1, limit) - 1;
   const { data, error } = await supabase
     .from("gifs")
     .select(GIF_COLS)
     .eq("is_public", true)
     .order("created_at", { ascending: false })
-    .limit(limit);
+    .range(from, to);
   if (error) throw error;
   return attachHandles((data ?? []) as GifRow[]);
 }
 
-/** The signed-in user's GIFs, newest first — the "My GIFs" tab. */
-export async function listMyGifs(userId: string, limit = 60): Promise<GifRow[]> {
-  const { data, error } = await supabase
+/** Count of the signed-in user's GIFs for the My GIFs (N) tab badge. */
+export async function countMyGifs(userId: string): Promise<number> {
+  const { count, error } = await supabase
     .from("gifs")
-    .select(GIF_COLS)
-    .eq("user_id", userId)
-    .order("created_at", { ascending: false })
-    .limit(limit);
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", userId);
+  if (error) return 0;
+  return count ?? 0;
+}
+
+/** The signed-in user's GIFs, newest first — the "My GIFs" tab. */
+export async function listMyGifs(
+  userId: string,
+  limit = 20,
+  offset = 0,
+  q = "",
+): Promise<GifRow[]> {
+  const from = Math.max(0, offset);
+  const to = from + Math.max(1, limit) - 1;
+  const term = q.trim();
+  let query = supabase.from("gifs").select(GIF_COLS).eq("user_id", userId);
+  if (term) {
+    query = query.ilike("title", `%${term.replace(/[%_]/g, "")}%`);
+  }
+  const { data, error } = await query.order("created_at", { ascending: false }).range(from, to);
   if (error) throw error;
   return attachHandles((data ?? []) as GifRow[]);
 }
 
 /** Title search across public GIFs (used by the picker's search box). */
-export async function searchGifs(q: string, limit = 24): Promise<GifRow[]> {
+export async function searchGifs(q: string, limit = 20, offset = 0): Promise<GifRow[]> {
   const term = q.trim();
-  if (!term) return listTrendingGifs(limit);
+  if (!term) return listTrendingGifs(limit, offset);
+  const from = Math.max(0, offset);
+  const to = from + Math.max(1, limit) - 1;
   const { data, error } = await supabase
     .from("gifs")
     .select(GIF_COLS)
     .eq("is_public", true)
     .ilike("title", `%${term.replace(/[%_]/g, "")}%`)
     .order("created_at", { ascending: false })
-    .limit(limit);
+    .range(from, to);
   if (error) throw error;
   return attachHandles((data ?? []) as GifRow[]);
 }

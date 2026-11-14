@@ -44,6 +44,7 @@ import { Route as SoundSoundIdRouteImport } from './routes/sound.$soundId'
 import { Route as UUsernameRouteImport } from './routes/u.$username'
 import { Route as WatchIndexRouteImport } from './routes/watch.index'
 import { Route as WatchIdRouteImport } from './routes/watch.$id'
+import { Route as ApiBrowserProxyRouteImport } from './routes/api/browser/proxy'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -220,6 +221,11 @@ const WatchIdRoute = WatchIdRouteImport.update({
   path: '/watch/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiBrowserProxyRoute = ApiBrowserProxyRouteImport.update({
+  id: '/api/browser/proxy',
+  path: '/api/browser/proxy',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -257,6 +263,7 @@ export interface FileRoutesByFullPath {
   '/browser/': typeof BrowserIndexRoute
   '/groups/': typeof GroupsIndexRoute
   '/watch/': typeof WatchIndexRoute
+  '/api/browser/proxy': typeof ApiBrowserProxyRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -292,6 +299,7 @@ export interface FileRoutesByTo {
   '/browser': typeof BrowserIndexRoute
   '/groups': typeof GroupsIndexRoute
   '/watch': typeof WatchIndexRoute
+  '/api/browser/proxy': typeof ApiBrowserProxyRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -330,6 +338,7 @@ export interface FileRoutesById {
   '/browser/': typeof BrowserIndexRoute
   '/groups/': typeof GroupsIndexRoute
   '/watch/': typeof WatchIndexRoute
+  '/api/browser/proxy': typeof ApiBrowserProxyRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -369,6 +378,7 @@ export interface FileRouteTypes {
     | '/browser/'
     | '/groups/'
     | '/watch/'
+    | '/api/browser/proxy'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -404,6 +414,7 @@ export interface FileRouteTypes {
     | '/browser'
     | '/groups'
     | '/watch'
+    | '/api/browser/proxy'
   id:
     | '__root__'
     | '/'
@@ -441,6 +452,7 @@ export interface FileRouteTypes {
     | '/browser/'
     | '/groups/'
     | '/watch/'
+    | '/api/browser/proxy'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -473,6 +485,7 @@ export interface RootRouteChildren {
   UUsernameRoute: typeof UUsernameRoute
   WatchIdRoute: typeof WatchIdRoute
   WatchIndexRoute: typeof WatchIndexRoute
+  ApiBrowserProxyRoute: typeof ApiBrowserProxyRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -722,6 +735,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WatchIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/browser/proxy': {
+      id: '/api/browser/proxy'
+      path: '/api/browser/proxy'
+      fullPath: '/api/browser/proxy'
+      preLoaderRoute: typeof ApiBrowserProxyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -793,6 +813,7 @@ const rootRouteChildren: RootRouteChildren = {
   UUsernameRoute: UUsernameRoute,
   WatchIdRoute: WatchIdRoute,
   WatchIndexRoute: WatchIndexRoute,
+  ApiBrowserProxyRoute: ApiBrowserProxyRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

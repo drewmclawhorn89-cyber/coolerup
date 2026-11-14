@@ -30,7 +30,6 @@ import {
   embedUrlFor,
   hostLabel,
   isBlockedUrl,
-  isEmbeddable,
   isInternalUrl,
   listBookmarks,
   listHistory,
@@ -46,7 +45,8 @@ import {
   type BrowserHistoryRow,
   type SearchResult,
 } from "@/lib/coolerupBrowser";
-import { fetchBrowserPage, searchCoolerupBrowser } from "@/lib/coolerupBrowser.functions";
+import { searchCoolerupBrowser } from "@/lib/coolerupBrowser.functions";
+import { proxyUrlFor, targetFromProxyUrl } from "@/lib/browserProxy";
 import { addYouTubeSong } from "@/lib/youtubeSongs";
 
 /* -------------------------------------------------------------------------- */
@@ -213,6 +213,20 @@ export function CoolerupBrowser() {
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
   }, [openUrl]);
+
+  /* When the proxied page navigates itself (a link, a redirect, an SPA route
+     change) the address bar follows it. We don't push a new tab entry — the
+     iframe keeps its own history — but we do record it. */
+  const lastFrameUrl = useRef<string | null>(null);
+  const handleFrameNavigate = useCallback(
+    (url: string) => {
+      setAddress(url);
+      if (lastFrameUrl.current === url) return;
+      lastFrameUrl.current = url;
+      void saveHistory({ url }).then(refreshPanels);
+    },
+    [refreshPanels],
+  );
 
   /* Deep links from History / Bookmarks: /browser?q=... or /browser?url=... */
   const { q: deepQuery, url: deepUrl } = useSearch({ from: "/browser/" });
@@ -735,24 +749,15 @@ export function CoolerupBrowser() {
             allow="clipboard-write; encrypted-media; picture-in-picture; fullscreen"
             allowFullScreen
           />
-        ) : isEmbeddable(entry.url) ? (
-          <iframe
-            key={`${entry.url}-${reloadKey}`}
-            src={entry.url}
-            title="Coolerup Browser"
-            className="h-[68vh] w-full rounded-2xl border border-white/10 bg-white"
-            referrerPolicy="no-referrer"
-            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-presentation"
-            allow="clipboard-write; encrypted-media; picture-in-picture; fullscreen"
-          />
         ) : (
-          /* TikTok, Instagram, X and friends refuse framing. Coolerup fetches
-             the page itself so it still opens in-app instead of bouncing out. */
-          <ProxyView
+          /* Every other site goes through Coolerup's own reverse proxy, so
+             sites that refuse framing (TikTok, Instagram, X, most news sites)
+             still open in-app — with their real JavaScript running. */
+          <SiteView
             url={entry.url}
             reloadKey={reloadKey}
             onOpenExternal={openExternal}
-            onNavigate={openUrl}
+            onAddressChange={handleFrameNavigate}
           />
         )}
       </div>
@@ -881,182 +886,117 @@ function BlockedView({ url }: { url: string }) {
 }
 
 /**
- * Renders a site that refuses to be framed.
+ * Renders any website inside Coolerup through the reverse proxy.
  *
- * Coolerup fetches the page on the server, strips anything executable, and
- * paints the result with `srcDoc`. The page therefore opens *inside* the
- * browser — TikTok, Instagram and X all work — with the Coolerup top bar
- * still in place. If the fetch itself fails we fall back to the "Open in
- * Chrome" popup rather than showing a blank box.
+ * The proxy serves the page from our own origin (so frame-blocking headers no
+ * longer matter) and leaves the site's JavaScript intact, which is what makes
+ * real web apps — React, Vue, Angular, Next — actually run instead of showing
+ * a static summary.
  */
-function ProxyView({
+function SiteView({
   url,
   reloadKey,
   onOpenExternal,
-  onNavigate,
+  onAddressChange,
 }: {
   url: string;
   reloadKey: number;
   onOpenExternal: (url: string) => void;
-  onNavigate: (url: string) => void;
+  onAddressChange: (url: string) => void;
 }) {
-  const fetchPage = useServerFn(fetchBrowserPage);
-  const [state, setState] = useState<
-    | { status: "loading" }
-    | {
-        status: "ok";
-        mode: "page" | "summary";
-        html: string;
-        title: string;
-        description: string;
-        image: string;
-        links: { label: string; url: string }[];
-      }
-    | { status: "error" }
-  >({ status: "loading" });
+  const frameRef = useRef<HTMLIFrameElement>(null);
+  const lastTarget = useRef<string>(url);
+  const [status, setStatus] = useState<"loading" | "ready">("loading");
 
   useEffect(() => {
-    let alive = true;
-    setState({ status: "loading" });
-    fetchPage({ data: { url } })
-      .then((page) => {
-        if (!alive) return;
-        setState(
-          page.ok
-            ? {
-                status: "ok",
-                mode: page.mode,
-                html: page.html,
-                title: page.title,
-                description: page.description,
-                image: page.image,
-                links: page.links,
-              }
-            : { status: "error" },
-        );
-      })
-      .catch(() => {
-        if (alive) setState({ status: "error" });
-      });
-    return () => {
-      alive = false;
+    setStatus("loading");
+    lastTarget.current = url;
+  }, [url, reloadKey]);
+
+  /* The proxied page reports SPA route changes (pushState / back / forward) so
+     the address bar and history stay accurate. */
+  useEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      if (event.source !== frameRef.current?.contentWindow) return;
+      const data = event.data as { coolerupAddress?: unknown } | null;
+      if (data && typeof data.coolerupAddress === "string") {
+        lastTarget.current = data.coolerupAddress;
+        onAddressChange(data.coolerupAddress);
+      }
     };
-  }, [url, reloadKey, fetchPage]);
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [onAddressChange]);
 
-  if (state.status === "loading") {
-    return (
-      <div className="flex h-[68vh] flex-col items-center justify-center gap-3 rounded-2xl border border-white/10 bg-[#0b1220] text-center">
-        <Loader2 className="h-6 w-6 animate-spin text-[#93c5fd]" />
-        <p className="text-xs text-white/50">Opening {hostLabel(url)} inside Coolerup…</p>
-      </div>
-    );
-  }
+  const onLoad = () => {
+    setStatus("ready");
+    // Same-origin frame → read where it actually landed so the address bar
+    // stays honest through redirects and full-page link clicks.
+    try {
+      const href = frameRef.current?.contentWindow?.location.href;
+      const target = href ? targetFromProxyUrl(href) : null;
+      if (target) {
+        lastTarget.current = target;
+        onAddressChange(target);
+      }
+    } catch {
+      /* cross-origin or blocked — leave the address bar as it is */
+    }
+  };
 
-  if (state.status === "error") {
-    return <FrameBlockedView url={url} onOpenExternal={onOpenExternal} />;
-  }
-
-  if (state.mode === "summary") {
-    return (
-      <div className="rounded-2xl border border-white/10 bg-[#111a2e] p-4">
-        <div className="flex items-center gap-2">
-          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#2563EB] text-[13px] font-black text-white">
-            {hostLabel(url).charAt(0).toUpperCase()}
-          </span>
-          <span className="truncate text-[11px] font-bold uppercase tracking-wide text-white/45">
-            {hostLabel(url)}
-          </span>
-        </div>
-        <h2 className="mt-3 text-lg font-black leading-snug text-white">{state.title}</h2>
-        {state.description && (
-          <p className="mt-2 text-sm leading-relaxed text-white/65">{state.description}</p>
-        )}
-        {state.image && (
-          <img
-            src={state.image}
-            alt=""
-            className="mt-3 max-h-56 w-full rounded-xl border border-white/10 object-cover"
-            loading="lazy"
-          />
-        )}
-        <p className="mt-4 rounded-xl bg-white/5 px-3 py-2 text-[11px] leading-relaxed text-white/45">
-          {hostLabel(url)} builds its page with JavaScript, so Coolerup shows the page summary
-          instead. Everything else still opens right here.
-        </p>
-        {state.links.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-1.5">
-            {state.links.slice(0, 6).map((link) => (
-              <button
-                key={link.url}
-                type="button"
-                onClick={() => onNavigate(link.url)}
-                className="max-w-full truncate rounded-full bg-[#2563EB]/20 px-3 py-1 text-[11px] font-semibold text-[#93c5fd] hover:bg-[#2563EB]/35"
-              >
-                {link.label}
-              </button>
-            ))}
-          </div>
-        )}
-        <button
-          type="button"
-          onClick={() => onOpenExternal(url)}
-          className="mt-4 flex w-full items-center justify-center gap-1.5 rounded-full bg-[#2563EB] px-4 py-2 text-xs font-bold text-white hover:bg-[#1d4fc4]"
-        >
-          <ExternalLink className="h-3.5 w-3.5" /> Open {hostLabel(url)} in Chrome
-        </button>
-      </div>
-    );
-  }
+  const reload = () => {
+    setStatus("loading");
+    // Re-open through the proxy at the *current* target. A plain
+    // location.reload() would 404 after an SPA route change, because the frame
+    // URL is then a same-origin path like /learn rather than the proxy.
+    const frame = frameRef.current;
+    if (frame) frame.src = proxyUrlFor(lastTarget.current);
+  };
 
   return (
     <div className="overflow-hidden rounded-2xl border border-white/10 bg-white">
       <div className="flex items-center justify-between gap-2 bg-[#1d4fc4] px-3 py-1.5">
-        <span className="truncate text-[11px] font-bold text-white/80">
-          Coolerup view · {hostLabel(url)}
+        <span className="truncate text-[11px] font-bold text-white/85">
+          Coolerup Browser · {hostLabel(url)}
         </span>
-        <button
-          type="button"
-          onClick={() => onOpenExternal(url)}
-          className="shrink-0 rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-bold text-white hover:bg-white/25"
-        >
-          Open in Chrome
-        </button>
+        <div className="flex shrink-0 items-center gap-1">
+          <button
+            type="button"
+            onClick={reload}
+            className="rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-bold text-white hover:bg-white/25"
+          >
+            Reload
+          </button>
+          <button
+            type="button"
+            onClick={() => onOpenExternal(url)}
+            className="rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-bold text-white hover:bg-white/25"
+          >
+            Open outside
+          </button>
+        </div>
       </div>
-      <iframe
-        key={`${url}-${reloadKey}`}
-        srcDoc={state.html}
-        title="Coolerup Browser"
-        className="h-[64vh] w-full bg-white"
-        referrerPolicy="no-referrer"
-        sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox allow-forms"
-      />
-    </div>
-  );
-}
 
-function FrameBlockedView({
-  url,
-  onOpenExternal,
-}: {
-  url: string;
-  onOpenExternal: (url: string) => void;
-}) {
-  return (
-    <div className="flex h-[50vh] flex-col items-center justify-center gap-3 rounded-2xl border border-white/10 bg-[#0b1220] px-6 text-center">
-      <span className="text-4xl" aria-hidden>
-        🔒
-      </span>
-      <p className="text-sm font-bold">This site can&apos;t open inside Coolerup Browser</p>
-      <p className="max-w-sm text-xs text-white/50">
-        {hostLabel(url)} blocks being shown in another app. You can still open it in Chrome.
-      </p>
-      <button
-        type="button"
-        onClick={() => onOpenExternal(url)}
-        className="flex items-center gap-1.5 rounded-full bg-[#2563EB] px-3 py-1.5 text-xs font-bold text-white hover:bg-[#1d4fc4]"
-      >
-        <ExternalLink className="h-3.5 w-3.5" /> Open in Chrome
-      </button>
+      <div className="relative">
+        {status === "loading" && (
+          <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-[#0b1220]/90">
+            <Loader2 className="h-6 w-6 animate-spin text-[#93c5fd]" />
+            <p className="text-xs text-white/60">Opening {hostLabel(url)} in Coolerup…</p>
+          </div>
+        )}
+        <iframe
+          ref={frameRef}
+          key={`${url}-${reloadKey}`}
+          src={proxyUrlFor(url)}
+          title={`Coolerup Browser — ${hostLabel(url)}`}
+          className="h-[68vh] w-full bg-white"
+          referrerPolicy="no-referrer"
+          sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals allow-presentation allow-downloads"
+          allow="clipboard-write; encrypted-media; picture-in-picture; fullscreen; autoplay"
+          allowFullScreen
+          onLoad={onLoad}
+        />
+      </div>
     </div>
   );
 }

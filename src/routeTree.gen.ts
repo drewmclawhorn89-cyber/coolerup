@@ -35,6 +35,7 @@ import { Route as AdminPayoutsRouteImport } from './routes/admin_.payouts'
 import { Route as AdminSubscriptionsRouteImport } from './routes/admin_.subscriptions'
 import { Route as BrowserIndexRouteImport } from './routes/browser.index'
 import { Route as BrowserBookmarksRouteImport } from './routes/browser.bookmarks'
+import { Route as BrowserDownloadsRouteImport } from './routes/browser.downloads'
 import { Route as BrowserHistoryRouteImport } from './routes/browser.history'
 import { Route as CoinsRechargeRouteImport } from './routes/coins.recharge'
 import { Route as GroupsIndexRouteImport } from './routes/groups.index'
@@ -175,6 +176,11 @@ const BrowserBookmarksRoute = BrowserBookmarksRouteImport.update({
   path: '/bookmarks',
   getParentRoute: () => BrowserRoute,
 } as any)
+const BrowserDownloadsRoute = BrowserDownloadsRouteImport.update({
+  id: '/downloads',
+  path: '/downloads',
+  getParentRoute: () => BrowserRoute,
+} as any)
 const BrowserHistoryRoute = BrowserHistoryRouteImport.update({
   id: '/history',
   path: '/history',
@@ -247,6 +253,7 @@ export interface FileRoutesByFullPath {
   '/admin/payouts': typeof AdminPayoutsRoute
   '/admin/subscriptions': typeof AdminSubscriptionsRoute
   '/browser/bookmarks': typeof BrowserBookmarksRoute
+  '/browser/downloads': typeof BrowserDownloadsRoute
   '/browser/history': typeof BrowserHistoryRoute
   '/coins/recharge': typeof CoinsRechargeRoute
   '/groups/$groupId': typeof GroupsGroupIdRoute
@@ -282,6 +289,7 @@ export interface FileRoutesByTo {
   '/admin/payouts': typeof AdminPayoutsRoute
   '/admin/subscriptions': typeof AdminSubscriptionsRoute
   '/browser/bookmarks': typeof BrowserBookmarksRoute
+  '/browser/downloads': typeof BrowserDownloadsRoute
   '/browser/history': typeof BrowserHistoryRoute
   '/coins/recharge': typeof CoinsRechargeRoute
   '/groups/$groupId': typeof GroupsGroupIdRoute
@@ -320,6 +328,7 @@ export interface FileRoutesById {
   '/admin_/payouts': typeof AdminPayoutsRoute
   '/admin_/subscriptions': typeof AdminSubscriptionsRoute
   '/browser/bookmarks': typeof BrowserBookmarksRoute
+  '/browser/downloads': typeof BrowserDownloadsRoute
   '/browser/history': typeof BrowserHistoryRoute
   '/coins/recharge': typeof CoinsRechargeRoute
   '/groups/$groupId': typeof GroupsGroupIdRoute
@@ -359,6 +368,7 @@ export interface FileRouteTypes {
     | '/admin/payouts'
     | '/admin/subscriptions'
     | '/browser/bookmarks'
+    | '/browser/downloads'
     | '/browser/history'
     | '/coins/recharge'
     | '/groups/$groupId'
@@ -394,6 +404,7 @@ export interface FileRouteTypes {
     | '/admin/payouts'
     | '/admin/subscriptions'
     | '/browser/bookmarks'
+    | '/browser/downloads'
     | '/browser/history'
     | '/coins/recharge'
     | '/groups/$groupId'
@@ -431,6 +442,7 @@ export interface FileRouteTypes {
     | '/admin_/payouts'
     | '/admin_/subscriptions'
     | '/browser/bookmarks'
+    | '/browser/downloads'
     | '/browser/history'
     | '/coins/recharge'
     | '/groups/$groupId'
@@ -659,6 +671,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BrowserBookmarksRouteImport
       parentRoute: typeof BrowserRoute
     }
+    '/browser/downloads': {
+      id: '/browser/downloads'
+      path: '/downloads'
+      fullPath: '/browser/downloads'
+      preLoaderRoute: typeof BrowserDownloadsRouteImport
+      parentRoute: typeof BrowserRoute
+    }
     '/browser/history': {
       id: '/browser/history'
       path: '/history'
@@ -727,12 +746,14 @@ declare module '@tanstack/react-router' {
 
 interface BrowserRouteChildren {
   BrowserBookmarksRoute: typeof BrowserBookmarksRoute
+  BrowserDownloadsRoute: typeof BrowserDownloadsRoute
   BrowserHistoryRoute: typeof BrowserHistoryRoute
   BrowserIndexRoute: typeof BrowserIndexRoute
 }
 
 const BrowserRouteChildren: BrowserRouteChildren = {
   BrowserBookmarksRoute: BrowserBookmarksRoute,
+  BrowserDownloadsRoute: BrowserDownloadsRoute,
   BrowserHistoryRoute: BrowserHistoryRoute,
   BrowserIndexRoute: BrowserIndexRoute,
 }

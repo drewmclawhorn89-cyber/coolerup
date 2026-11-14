@@ -20,7 +20,7 @@ import { supabase } from "@/integrations/supabase/client";
  *   * adult and gambling domains are blocked outright
  *   * executable downloads are blocked; only images may leave the sandbox
  *   * the iframe is sandboxed without `allow-downloads`
- *   * sites that refuse framing get a Coolerup popup with "Open in Chrome"
+ *   * sites that refuse framing get a Coolerup popup with "Open outside"
  */
 
 /* -------------------------------------------------------------------------- */
@@ -379,7 +379,7 @@ export function isEmbeddable(url: string): boolean {
  *
  * YouTube and TikTok both ship a frame-friendly player. Using it means a video
  * link pasted into Coolerup Browser actually plays inside the app instead of
- * bouncing out to Chrome.
+ * bouncing out of Coolerup Browser.
  */
 export function embedUrlFor(url: string): string | null {
   const youtubeId = youtubeIdFromBrowserUrl(url);
@@ -593,4 +593,80 @@ export async function addBookmark(url: string, title: string): Promise<boolean> 
 
 export async function removeBookmark(id: string): Promise<void> {
   await supabase.from("browser_bookmarks").delete().eq("id", id);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Downloads                                                                  */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Downloads are Coolerup's own list, not Chrome's.
+ *
+ * The Android shell cannot hand arbitrary files to Chrome (that would escape
+ * the sandbox), so Coolerup records what the person chose to keep and shows it
+ * on the Downloads page. Only images are accepted — the same rule the sandbox
+ * enforces — and the list is stored locally on the device.
+ */
+export type BrowserDownloadRow = {
+  id: string;
+  url: string;
+  title: string;
+  created_at: string;
+};
+
+const DOWNLOADS_KEY = "coolerup.browser.downloads";
+const DOWNLOADS_LIMIT = 100;
+
+const readDownloads = (): BrowserDownloadRow[] => {
+  if (typeof localStorage === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(DOWNLOADS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (row): row is BrowserDownloadRow =>
+        !!row &&
+        typeof row === "object" &&
+        typeof (row as BrowserDownloadRow).id === "string" &&
+        typeof (row as BrowserDownloadRow).url === "string",
+    );
+  } catch {
+    return [];
+  }
+};
+
+const writeDownloads = (rows: BrowserDownloadRow[]): void => {
+  if (typeof localStorage === "undefined") return;
+  try {
+    localStorage.setItem(DOWNLOADS_KEY, JSON.stringify(rows.slice(0, DOWNLOADS_LIMIT)));
+  } catch {
+    /* storage full or disabled — downloads are a nicety, never fatal */
+  }
+};
+
+/** Newest first. */
+export function listDownloads(): BrowserDownloadRow[] {
+  return readDownloads().sort((a, b) => b.created_at.localeCompare(a.created_at));
+}
+
+/** Record an image the person chose to keep. Returns null when refused. */
+export function addDownload(url: string, title?: string): BrowserDownloadRow | null {
+  if (!isAllowedDownload(url)) return null;
+  const row: BrowserDownloadRow = {
+    id: `dl-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
+    url,
+    title: (title || displayTitle(url)).slice(0, 120),
+    created_at: new Date().toISOString(),
+  };
+  writeDownloads([row, ...readDownloads()]);
+  return row;
+}
+
+export function removeDownload(id: string): void {
+  writeDownloads(readDownloads().filter((row) => row.id !== id));
+}
+
+export function clearDownloads(): void {
+  writeDownloads([]);
 }

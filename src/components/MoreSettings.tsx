@@ -446,6 +446,7 @@ export function MoreSettings() {
         />
       </Card>
       <Card title="Support and about">
+        <Row label="About Coolerup" to="/about" />
         <Row label="Report a problem" onClick={report} />
         <Row label="Help center" onClick={open("Help center")} />
         <Row label="Community guidelines" onClick={open("Community guidelines")} />

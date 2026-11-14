@@ -82,19 +82,35 @@ import { supabase } from "@/integrations/supabase/client";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Coolerup — For You" },
+      { title: "Coolerup — Short Videos, Full Songs & Browser by Drew McLawhorn" },
       {
         name: "description",
-        content: "A fresh perspective with every scroll. Less perfect, more real.",
+        content:
+          "Coolerup by Drew McLawhorn (@drewmclawhorn3). Watch Shorts, play full songs, use Coolerup Browser. Last update Nov 15 2026 — Christmas Update. Released Oct 2026.",
       },
-      { property: "og:title", content: "Coolerup — A little more you" },
+      { name: "author", content: "Drew McLawhorn" },
+      { property: "og:title", content: "Coolerup by Drew McLawhorn" },
       {
         property: "og:description",
-        content: "A fresh perspective with every scroll. Less perfect, more real.",
+        content:
+          "Shorts + Full Songs + Coolerup Browser — by Drew McLawhorn — Last update Nov 15 2026",
       },
       { property: "og:type", content: "website" },
+      { property: "og:url", content: "https://coolerup.lovable.app/" },
+      { property: "og:image", content: "https://coolerup.lovable.app/og-cover.png" },
+      { property: "og:image", content: "https://coolerup.lovable.app/screenshot-foryou.png" },
+      { property: "og:image", content: "https://coolerup.lovable.app/screenshot-music.png" },
+      { property: "og:image", content: "https://coolerup.lovable.app/screenshot-browser.png" },
       { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "Coolerup by Drew McLawhorn" },
+      {
+        name: "twitter:description",
+        content:
+          "Shorts + Full Songs + Coolerup Browser — by Drew McLawhorn — Last update Nov 15 2026",
+      },
+      { name: "twitter:image", content: "https://coolerup.lovable.app/og-cover.png" },
     ],
+    links: [{ rel: "canonical", href: "https://coolerup.lovable.app/" }],
   }),
   component: Index,
 });

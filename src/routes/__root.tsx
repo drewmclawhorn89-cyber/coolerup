@@ -137,6 +137,28 @@ function ErrorComponent({ error, reset }: ErrorComponentProps) {
   );
 }
 
+const COOLERUP_JSON_LD = JSON.stringify({
+  "@context": "https://schema.org",
+  "@type": "MobileApplication",
+  name: "Coolerup",
+  author: {
+    "@type": "Person",
+    name: "Drew McLawhorn",
+    url: "https://coolerup.lovable.app/about",
+  },
+  datePublished: "2026-10-01",
+  dateModified: "2026-11-15",
+  version: "2.0 — Christmas Update",
+  applicationCategory: "SocialNetworkingApplication",
+  operatingSystem: "Web, Android, iOS",
+  screenshot: [
+    "https://coolerup.lovable.app/screenshot-foryou.png",
+    "https://coolerup.lovable.app/screenshot-music.png",
+    "https://coolerup.lovable.app/screenshot-browser.png",
+  ],
+  offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+});
+
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   head: () => {
     const supabaseUrl = import.meta.env["VITE_SUPABASE_URL"] as string | undefined;
@@ -145,10 +167,33 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       meta: [
         { charSet: "utf-8" },
         { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
-        { title: "coolerup" },
-        { name: "description", content: "Short videos, less perfect, more real." },
+        { title: "Coolerup — Short Videos, Full Songs & Browser by Drew McLawhorn" },
+        {
+          name: "description",
+          content:
+            "Coolerup by Drew McLawhorn (@drewmclawhorn3). Watch Shorts, play full songs, use Coolerup Browser. Last update Nov 15 2026 — Christmas Update. Released Oct 2026.",
+        },
+        { name: "author", content: "Drew McLawhorn" },
         { property: "og:type", content: "website" },
+        { property: "og:site_name", content: "Coolerup" },
+        { property: "og:title", content: "Coolerup by Drew McLawhorn" },
+        {
+          property: "og:description",
+          content:
+            "Shorts + Full Songs + Coolerup Browser — by Drew McLawhorn — Last update Nov 15 2026",
+        },
+        { property: "og:image", content: "https://coolerup.lovable.app/og-cover.png" },
+        { property: "og:image", content: "https://coolerup.lovable.app/screenshot-foryou.png" },
+        { property: "og:image", content: "https://coolerup.lovable.app/screenshot-music.png" },
+        { property: "og:image", content: "https://coolerup.lovable.app/screenshot-browser.png" },
         { name: "twitter:card", content: "summary_large_image" },
+        { name: "twitter:title", content: "Coolerup by Drew McLawhorn" },
+        {
+          name: "twitter:description",
+          content:
+            "Shorts + Full Songs + Coolerup Browser — by Drew McLawhorn — Last update Nov 15 2026",
+        },
+        { name: "twitter:image", content: "https://coolerup.lovable.app/og-cover.png" },
         { name: "theme-color", content: "#000000" },
         { name: "mobile-web-app-capable", content: "yes" },
         { name: "apple-mobile-web-app-capable", content: "yes" },
@@ -191,6 +236,7 @@ function RootShell({ children }: { children: ReactNode }) {
     <html lang="en">
       <head>
         <HeadContent />
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: COOLERUP_JSON_LD }} />
       </head>
       <body>
         {children}

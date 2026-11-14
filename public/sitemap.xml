@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+  <url>
+    <loc>https://coolerup.lovable.app/</loc>
+    <lastmod>2026-11-15</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+    <image:image>
+      <image:loc>https://coolerup.lovable.app/og-cover.png</image:loc>
+      <image:title>Coolerup by Drew McLawhorn</image:title>
+    </image:image>
+    <image:image>
+      <image:loc>https://coolerup.lovable.app/screenshot-foryou.png</image:loc>
+      <image:title>Coolerup For You Short Videos</image:title>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://coolerup.lovable.app/about</loc>
+    <lastmod>2026-11-15</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+    <image:image>
+      <image:loc>https://coolerup.lovable.app/screenshot-foryou.png</image:loc>
+      <image:title>Coolerup For You Feed</image:title>
+    </image:image>
+    <image:image>
+      <image:loc>https://coolerup.lovable.app/screenshot-music.png</image:loc>
+      <image:title>Coolerup Music Tab — Full Songs</image:title>
+    </image:image>
+    <image:image>
+      <image:loc>https://coolerup.lovable.app/screenshot-browser.png</image:loc>
+      <image:title>Coolerup Browser</image:title>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://coolerup.lovable.app/music</loc>
+    <lastmod>2026-11-15</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://coolerup.lovable.app/browser</loc>
+    <lastmod>2026-11-15</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://coolerup.lovable.app/privacy</loc>
+    <lastmod>2026-11-15</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.4</priority>
+  </url>
+</urlset>

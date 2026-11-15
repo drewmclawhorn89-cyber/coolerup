@@ -1045,6 +1045,47 @@ export type Database = {
           },
         ];
       };
+      group_post_comments: {
+        Row: {
+          body: string;
+          created_at: string;
+          gif_credit: string | null;
+          gif_url: string | null;
+          id: string;
+          post_id: string;
+          user_id: string;
+          username: string;
+        };
+        Insert: {
+          body?: string;
+          created_at?: string;
+          gif_credit?: string | null;
+          gif_url?: string | null;
+          id?: string;
+          post_id: string;
+          user_id: string;
+          username: string;
+        };
+        Update: {
+          body?: string;
+          created_at?: string;
+          gif_credit?: string | null;
+          gif_url?: string | null;
+          id?: string;
+          post_id?: string;
+          user_id?: string;
+          username?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "group_post_comments_post_id_fkey";
+            columns: ["post_id"];
+            isOneToOne: false;
+            referencedRelation: "group_posts";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       group_post_likes: {
         Row: {
           created_at: string;

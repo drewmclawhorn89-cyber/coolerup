@@ -8,7 +8,10 @@ import {
   Heart,
   ImagePlus,
   Lock,
+  MessageCircle,
+  Send,
   Shield,
+  Smile,
   Trash2,
   UserMinus,
   UserPlus,
@@ -16,14 +19,18 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { GroupVideo } from "@/components/GroupVideo";
+import { GifPicker } from "@/components/GifPicker";
 import { useAuth } from "@/hooks/useAuth";
 import {
   approveMember,
   canModerate,
   createGroupPost,
+  createGroupPostComment,
   deleteGroupPost,
+  deleteGroupPostComment,
   fetchGroup,
   fetchGroupMembers,
+  fetchGroupPostComments,
   fetchGroupPosts,
   fetchGroupPostLikes,
   formatMembers,
@@ -39,6 +46,7 @@ import {
   type Group,
   type GroupMember,
   type GroupPost,
+  type GroupPostComment,
 } from "@/lib/groups";
 
 export const Route = createFileRoute("/groups/$groupId")({
@@ -125,7 +133,9 @@ function GroupPage() {
         },
       ]);
       if (role === "member") setGroup({ ...group, members_count: (group.members_count ?? 0) + 1 });
-      toast.success(role === "pending" ? "Request sent — an admin will review it." : `Joined ${group.name}`);
+      toast.success(
+        role === "pending" ? "Request sent — an admin will review it." : `Joined ${group.name}`,
+      );
     } catch (err: any) {
       toast.error(err?.message ?? "Couldn't join.");
     } finally {
@@ -139,7 +149,8 @@ function GroupPage() {
     try {
       await leaveGroup(group.id, auth.user.id, myRole ?? undefined);
       setMembers((list) => list.filter((m) => m.user_id !== auth.user!.id));
-      if (isActiveMember(myRole)) setGroup({ ...group, members_count: Math.max(0, (group.members_count ?? 1) - 1) });
+      if (isActiveMember(myRole))
+        setGroup({ ...group, members_count: Math.max(0, (group.members_count ?? 1) - 1) });
       toast.success("Left group");
     } catch (err: any) {
       toast.error(err?.message ?? "Couldn't leave.");
@@ -149,7 +160,11 @@ function GroupPage() {
   };
 
   if (loading) {
-    return <div className="flex min-h-dvh items-center justify-center bg-black text-gray-400">Loading group…</div>;
+    return (
+      <div className="flex min-h-dvh items-center justify-center bg-black text-gray-400">
+        Loading group…
+      </div>
+    );
   }
 
   if (!group) {
@@ -170,7 +185,11 @@ function GroupPage() {
   return (
     <div className="mx-auto min-h-dvh w-full max-w-[430px] bg-black pb-24 text-white">
       <div className="relative">
-        <img src={group.cover_image || FALLBACK_COVER} alt="" className="h-40 w-full object-cover" />
+        <img
+          src={group.cover_image || FALLBACK_COVER}
+          alt=""
+          className="h-40 w-full object-cover"
+        />
         <button
           onClick={() => void navigate({ to: "/groups" })}
           aria-label="Back to groups"
@@ -188,8 +207,13 @@ function GroupPage() {
         />
         <h1 className="mt-2 font-bold text-[20px]">{group.name}</h1>
         <p className="flex items-center gap-1 text-[12px] text-gray-400">
-          {group.privacy === "private" ? <Lock className="h-3 w-3" /> : <Globe className="h-3 w-3" />}
-          {formatMembers(group.members_count)} • {group.privacy === "private" ? "Private group" : "Public group"}
+          {group.privacy === "private" ? (
+            <Lock className="h-3 w-3" />
+          ) : (
+            <Globe className="h-3 w-3" />
+          )}
+          {formatMembers(group.members_count)} •{" "}
+          {group.privacy === "private" ? "Private group" : "Public group"}
         </p>
 
         <div className="mt-3 flex gap-2">
@@ -240,7 +264,9 @@ function GroupPage() {
         {tab === "about" && (
           <div className="rounded-xl bg-[#222] p-4">
             <h2 className="mb-1 font-bold text-[15px]">About</h2>
-            <p className="text-[13px] text-gray-300">{group.description || "No description yet."}</p>
+            <p className="text-[13px] text-gray-300">
+              {group.description || "No description yet."}
+            </p>
             <div className="mt-3 space-y-1 text-[12px] text-gray-400">
               <p>Created by @{group.creator_username}</p>
               <p>Created {new Date(group.created_at).toLocaleDateString()}</p>
@@ -278,10 +304,13 @@ function GroupPage() {
           <div className="rounded-xl bg-[#222] p-4">
             <h2 className="mb-2 font-bold text-[15px]">Settings</h2>
             <p className="text-[13px] text-gray-400">
-              You're the admin of this group. Manage members and pending requests from the Members tab.
+              You're the admin of this group. Manage members and pending requests from the Members
+              tab.
             </p>
             <div className="mt-3 space-y-2 text-[13px] text-gray-300">
-              <p>Privacy: {group.privacy === "private" ? "Private (approval required)" : "Public"}</p>
+              <p>
+                Privacy: {group.privacy === "private" ? "Private (approval required)" : "Public"}
+              </p>
               <p>Members: {group.members_count}</p>
               <p>Posts: {posts.length}</p>
             </div>
@@ -313,8 +342,13 @@ function PostsTab({
 }) {
   const auth = useAuth();
   const [caption, setCaption] = useState("");
-  const [media, setMedia] = useState<{ url: string; previewUrl: string; kind: "image" | "video" } | null>(null);
+  const [media, setMedia] = useState<{
+    url: string;
+    previewUrl: string;
+    kind: "image" | "video";
+  } | null>(null);
   const [posting, setPosting] = useState(false);
+  const [openCommentsPostId, setOpenCommentsPostId] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const attach = async (file: File | undefined) => {
@@ -414,7 +448,12 @@ function PostsTab({
               {media.kind === "image" ? (
                 <img src={media.previewUrl} alt="" className="max-h-64 w-full object-cover" />
               ) : (
-                <video src={media.previewUrl} controls playsInline className="max-h-64 w-full object-cover" />
+                <video
+                  src={media.previewUrl}
+                  controls
+                  playsInline
+                  className="max-h-64 w-full object-cover"
+                />
               )}
               <button
                 onClick={() => setMedia(null)}
@@ -449,13 +488,18 @@ function PostsTab({
           </div>
         </div>
       ) : (
-        <button onClick={onJoin} className="w-full rounded-xl bg-[#222] p-4 text-[13px] text-gray-300">
+        <button
+          onClick={onJoin}
+          className="w-full rounded-xl bg-[#222] p-4 text-[13px] text-gray-300"
+        >
           Join this group to post, comment and react.
         </button>
       )}
 
       {posts.length === 0 && (
-        <div className="rounded-xl bg-[#222] p-6 text-center text-[13px] text-gray-400">No posts yet.</div>
+        <div className="rounded-xl bg-[#222] p-6 text-center text-[13px] text-gray-400">
+          No posts yet.
+        </div>
       )}
 
       {posts.map((post) => (
@@ -469,24 +513,279 @@ function PostsTab({
               <p className="text-[11px] text-gray-400">{timeAgo(post.created_at)}</p>
             </div>
             {admin && (
-              <button onClick={() => remove(post)} aria-label="Delete post" className="text-gray-500">
+              <button
+                onClick={() => remove(post)}
+                aria-label="Delete post"
+                className="text-gray-500"
+              >
                 <Trash2 className="h-4 w-4" />
               </button>
             )}
           </div>
           {post.caption && <p className="px-3 pb-2 text-[14px] text-gray-200">{post.caption}</p>}
-          {post.image_url && <img src={post.image_url} alt="" className="w-full object-cover" loading="lazy" />}
+          {post.image_url && (
+            <img src={post.image_url} alt="" className="w-full object-cover" loading="lazy" />
+          )}
           {post.video_url && <GroupVideo src={post.video_url} />}
-          <div className="flex items-center gap-4 p-3">
+          <div className="flex items-center gap-5 border-t border-white/10 px-3 py-2.5">
             <button
               onClick={() => toggleLike(post)}
-              className={`flex items-center gap-1 text-[12px] ${liked.has(post.id) ? "text-red-400" : "text-gray-400"}`}
+              className={`flex items-center gap-1.5 text-[12px] ${liked.has(post.id) ? "text-red-400" : "text-gray-400"}`}
             >
-              <Heart className={`h-4 w-4 ${liked.has(post.id) ? "fill-current" : ""}`} /> {post.likes ?? 0}
+              <Heart className={`h-4 w-4 ${liked.has(post.id) ? "fill-current" : ""}`} />{" "}
+              {post.likes ?? 0}
+            </button>
+            <button
+              type="button"
+              onClick={() => setOpenCommentsPostId((cur) => (cur === post.id ? null : post.id))}
+              aria-expanded={openCommentsPostId === post.id}
+              aria-label={`Comments for post by @${post.username}`}
+              className={`flex items-center gap-1.5 text-[12px] ${
+                openCommentsPostId === post.id ? "font-bold text-white" : "text-gray-400"
+              }`}
+            >
+              <MessageCircle className="h-4 w-4" />
+              <span>
+                {post.comments_count ?? 0}{" "}
+                {(post.comments_count ?? 0) === 1 ? "Comment" : "Comments"}
+              </span>
             </button>
           </div>
+          {openCommentsPostId === post.id && (
+            <GroupPostComments
+              postId={post.id}
+              member={member}
+              moderator={admin}
+              onJoin={onJoin}
+              onCountChange={(nextCount) =>
+                setPosts((list) =>
+                  list.map((p) => (p.id === post.id ? { ...p, comments_count: nextCount } : p)),
+                )
+              }
+            />
+          )}
         </article>
       ))}
+    </div>
+  );
+}
+
+function GroupPostComments({
+  postId,
+  member,
+  moderator,
+  onJoin,
+  onCountChange,
+}: {
+  postId: string;
+  member: boolean;
+  moderator: boolean;
+  onJoin: () => void;
+  onCountChange: (count: number) => void;
+}) {
+  const auth = useAuth();
+  const [comments, setComments] = useState<GroupPostComment[] | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [body, setBody] = useState("");
+  const [gif, setGif] = useState<string | null>(null);
+  const [gifCredit, setGifCredit] = useState<string | null>(null);
+  const [showGifs, setShowGifs] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const onCountChangeRef = useRef(onCountChange);
+  onCountChangeRef.current = onCountChange;
+
+  const loadComments = useCallback(async () => {
+    setLoadError(null);
+    try {
+      const rows = await fetchGroupPostComments(postId);
+      setComments(rows);
+    } catch (err: unknown) {
+      const msg = (err as { message?: string })?.message;
+      setLoadError(msg ?? "Couldn't load comments.");
+      setComments([]);
+    }
+  }, [postId]);
+
+  useEffect(() => {
+    void loadComments();
+  }, [loadComments]);
+
+  useEffect(() => {
+    if (comments !== null && !loadError) {
+      onCountChangeRef.current(comments.length);
+    }
+  }, [comments, loadError]);
+
+  const submitComment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!auth.user || !auth.handle) {
+      toast.error("Sign in to comment.");
+      return;
+    }
+    if (!body.trim() && !gif) return;
+    setSubmitting(true);
+    try {
+      const created = await createGroupPostComment({
+        postId,
+        userId: auth.user.id,
+        username: auth.handle,
+        body,
+        gifUrl: gif,
+        gifCredit,
+      });
+      setComments((prev) => [...(prev ?? []), created]);
+      setBody("");
+      setGif(null);
+      setGifCredit(null);
+      setShowGifs(false);
+    } catch (err: unknown) {
+      const msg = (err as { message?: string })?.message;
+      toast.error(msg ?? "Couldn't post comment.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const removeComment = async (comment: GroupPostComment) => {
+    try {
+      await deleteGroupPostComment(comment.id);
+      setComments((prev) => (prev ?? []).filter((c) => c.id !== comment.id));
+    } catch (err: unknown) {
+      const msg = (err as { message?: string })?.message;
+      toast.error(msg ?? "Couldn't delete comment.");
+    }
+  };
+
+  return (
+    <div className="border-t border-white/10 bg-[#181818] p-3">
+      {comments === null && <p className="text-[12px] text-gray-400">Loading comments…</p>}
+      {loadError && <p className="mb-2 text-[12px] text-red-400">{loadError}</p>}
+      {comments !== null && comments.length === 0 && !loadError && (
+        <p className="mb-2 text-[12px] text-gray-400">No comments yet. Be the first.</p>
+      )}
+
+      {comments && comments.length > 0 && (
+        <div className="mb-3 max-h-64 space-y-2.5 overflow-y-auto pr-1">
+          {comments.map((c) => {
+            const canDelete = moderator || (!!auth.user && c.user_id === auth.user.id);
+            return (
+              <div key={c.id} className="flex items-start gap-2">
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-black text-[11px] font-bold uppercase text-gray-300">
+                  {c.username?.[0] ?? "?"}
+                </div>
+                <div className="min-w-0 flex-1 rounded-xl bg-[#262626] px-3 py-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="truncate text-[12px] font-bold text-white">@{c.username}</p>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <span className="text-[10px] text-gray-400">{timeAgo(c.created_at)}</span>
+                      {canDelete && (
+                        <button
+                          type="button"
+                          onClick={() => void removeComment(c)}
+                          aria-label={`Delete comment by @${c.username}`}
+                          className="text-gray-400 transition hover:text-red-400"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  {c.body && (
+                    <p className="mt-0.5 whitespace-pre-wrap break-words text-[13px] text-gray-200">
+                      {c.body}
+                    </p>
+                  )}
+                  {c.gif_url && (
+                    <div className="mt-1.5">
+                      <img
+                        src={c.gif_url}
+                        alt="Comment GIF"
+                        loading="lazy"
+                        referrerPolicy="no-referrer"
+                        className="max-h-36 rounded-lg object-cover"
+                      />
+                      {c.gif_credit && (
+                        <p className="mt-0.5 text-[10px] text-gray-400">Made by {c.gif_credit}</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {member ? (
+        <div>
+          {showGifs && (
+            <div className="mb-2 overflow-hidden rounded-xl border border-white/10 bg-[#222]">
+              <GifPicker
+                onPick={(u, meta) => {
+                  setGif(u);
+                  setGifCredit(meta?.username ? `@${meta.username}` : null);
+                  setShowGifs(false);
+                }}
+                onClose={() => setShowGifs(false)}
+              />
+            </div>
+          )}
+          {gif && (
+            <div className="relative mb-2 inline-block">
+              <img
+                src={gif}
+                alt="Selected GIF"
+                referrerPolicy="no-referrer"
+                className="max-h-24 rounded-lg"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  setGif(null);
+                  setGifCredit(null);
+                }}
+                aria-label="Remove GIF"
+                className="absolute right-1 top-1 rounded-full bg-black/80 p-1 text-white"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          )}
+          <form onSubmit={submitComment} className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowGifs((v) => !v)}
+              aria-label="Add GIF"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#262626] text-gray-300 transition hover:text-white"
+            >
+              <Smile className="h-4 w-4" />
+            </button>
+            <input
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              placeholder="Write a comment…"
+              aria-label="Write a comment"
+              className="min-w-0 flex-1 rounded-full bg-[#262626] px-3.5 py-2 text-[13px] text-white outline-none placeholder:text-gray-500"
+            />
+            <button
+              type="submit"
+              disabled={submitting || (!body.trim() && !gif)}
+              aria-label="Post comment"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-black transition disabled:opacity-40"
+            >
+              <Send className="h-3.5 w-3.5" />
+            </button>
+          </form>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={onJoin}
+          className="w-full rounded-full bg-[#262626] py-2 text-[12px] font-bold text-gray-300 transition hover:text-white"
+        >
+          Join this group to comment
+        </button>
+      )}
     </div>
   );
 }
@@ -515,7 +814,9 @@ function MembersTab({
   const approve = async (m: GroupMember) => {
     try {
       await approveMember(group.id, m.user_id);
-      setMembers((list) => list.map((x) => (x.user_id === m.user_id ? { ...x, role: "member" } : x)));
+      setMembers((list) =>
+        list.map((x) => (x.user_id === m.user_id ? { ...x, role: "member" } : x)),
+      );
       setGroup({ ...group, members_count: (group.members_count ?? 0) + 1 });
       toast.success(`Approved @${m.username}`);
     } catch (err: any) {
@@ -526,7 +827,9 @@ function MembersTab({
   const makeModerator = async (m: GroupMember) => {
     try {
       await setMemberRole(group.id, m.user_id, "moderator");
-      setMembers((list) => list.map((x) => (x.user_id === m.user_id ? { ...x, role: "moderator" } : x)));
+      setMembers((list) =>
+        list.map((x) => (x.user_id === m.user_id ? { ...x, role: "moderator" } : x)),
+      );
       toast.success(`@${m.username} is now a moderator`);
     } catch (err: any) {
       toast.error(err?.message ?? "Couldn't update that member.");
@@ -537,10 +840,13 @@ function MembersTab({
     try {
       await removeMember(group.id, m.user_id, { ban, role: m.role });
       if (ban) {
-        setMembers((list) => list.map((x) => (x.user_id === m.user_id ? { ...x, role: "banned" } : x)));
+        setMembers((list) =>
+          list.map((x) => (x.user_id === m.user_id ? { ...x, role: "banned" } : x)),
+        );
       } else {
         setMembers((list) => list.filter((x) => x.user_id !== m.user_id));
-        if (isActiveMember(m.role)) setGroup({ ...group, members_count: Math.max(0, (group.members_count ?? 1) - 1) });
+        if (isActiveMember(m.role))
+          setGroup({ ...group, members_count: Math.max(0, (group.members_count ?? 1) - 1) });
       }
       toast.success(ban ? `Banned @${m.username}` : `Removed @${m.username}`);
     } catch (err: any) {
@@ -552,7 +858,9 @@ function MembersTab({
     <div className="space-y-3">
       {admin && pending.length > 0 && (
         <div className="rounded-xl bg-[#222] p-3">
-          <h3 className="mb-2 text-[13px] font-bold text-white">Join requests ({pending.length})</h3>
+          <h3 className="mb-2 text-[13px] font-bold text-white">
+            Join requests ({pending.length})
+          </h3>
           <div className="space-y-2">
             {pending.map((m) => (
               <div key={m.id} className="flex items-center gap-2">

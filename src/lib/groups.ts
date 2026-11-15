@@ -46,6 +46,18 @@ export type GroupPost = {
   image_url: string | null;
   created_at: string;
   likes: number | null;
+  comments_count?: number;
+};
+
+export type GroupPostComment = {
+  id: string;
+  post_id: string;
+  user_id: string;
+  username: string;
+  body: string;
+  gif_url?: string | null;
+  gif_credit?: string | null;
+  created_at: string;
 };
 
 export type GroupInput = {
@@ -139,9 +151,17 @@ export async function fetchGroupPosts(groupId: string): Promise<GroupPost[]> {
   if (error) throw error;
   const rows = (data ?? []) as GroupPost[];
 
+  const postIds = rows.map((p) => p.id);
   // The `likes` column is only a cache; the join table is the source of truth.
-  const { counts } = await fetchGroupPostLikes(rows.map((p) => p.id));
-  const withCounts = rows.map((p) => ({ ...p, likes: counts[p.id] ?? 0 }));
+  const [{ counts }, commentCounts] = await Promise.all([
+    fetchGroupPostLikes(postIds),
+    fetchGroupPostCommentCounts(postIds),
+  ]);
+  const withCounts = rows.map((p) => ({
+    ...p,
+    likes: counts[p.id] ?? 0,
+    comments_count: commentCounts[p.id] ?? 0,
+  }));
 
   return Promise.all(withCounts.map(hydratePostMedia));
 }
@@ -402,6 +422,82 @@ export async function fetchGroupPostLikes(
 
 export async function deleteGroupPost(postId: string): Promise<void> {
   const { error } = await db.from("group_posts").delete().eq("id", postId);
+  if (error) throw error;
+}
+
+export async function fetchGroupPostCommentCounts(
+  postIds: string[],
+): Promise<Record<string, number>> {
+  const counts: Record<string, number> = {};
+  if (postIds.length === 0) return counts;
+  const { data, error } = await db
+    .from("group_post_comments")
+    .select("post_id")
+    .in("post_id", postIds);
+  if (error) return counts;
+  for (const row of (data ?? []) as { post_id: string }[]) {
+    counts[row.post_id] = (counts[row.post_id] ?? 0) + 1;
+  }
+  return counts;
+}
+
+export async function fetchGroupPostComments(postId: string): Promise<GroupPostComment[]> {
+  const { data, error } = await db
+    .from("group_post_comments")
+    .select("id, post_id, user_id, username, body, gif_url, gif_credit, created_at")
+    .eq("post_id", postId)
+    .order("created_at", { ascending: true })
+    .limit(200);
+  if (error) throw error;
+  return (data ?? []) as GroupPostComment[];
+}
+
+export async function createGroupPostComment(input: {
+  postId: string;
+  userId: string;
+  username: string;
+  body?: string;
+  gifUrl?: string | null;
+  gifCredit?: string | null;
+}): Promise<GroupPostComment> {
+  const body = input.body?.trim() ?? "";
+  const gifUrl = input.gifUrl ?? null;
+  const gifCredit = input.gifCredit ?? null;
+  if (!body && !gifUrl) {
+    throw new Error("Write a comment or pick a GIF first.");
+  }
+
+  const { data, error } = await db
+    .from("group_post_comments")
+    .insert({
+      post_id: input.postId,
+      user_id: input.userId,
+      username: input.username,
+      body,
+      gif_url: gifUrl,
+      gif_credit: gifCredit,
+    })
+    .select("id, post_id, user_id, username, body, gif_url, gif_credit, created_at")
+    .single();
+  if (error) throw error;
+
+  return (
+    (data as GroupPostComment | null) ?? {
+      id:
+        typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`,
+      post_id: input.postId,
+      user_id: input.userId,
+      username: input.username,
+      body,
+      gif_url: gifUrl,
+      gif_credit: gifCredit,
+      created_at: new Date().toISOString(),
+    }
+  );
+}
+
+export async function deleteGroupPostComment(commentId: string): Promise<void> {
+  const { error } = await db.from("group_post_comments").delete().eq("id", commentId);
   if (error) throw error;
 }
 

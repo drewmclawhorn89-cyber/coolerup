@@ -20,7 +20,7 @@ export type FirebasePhoneConfig = {
 };
 
 export type FirebasePhoneError = {
-  code?: string;
+  code?: string | undefined;
   message: string;
 };
 

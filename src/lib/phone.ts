@@ -1,7 +1,7 @@
 /**
- * Phone-number helpers for SMS sign-up.
+ * Phone-number helpers for Firebase SMS sign-up.
  *
- * Supabase's `signInWithOtp({ phone })` only accepts strict E.164 ("+15551234567"),
+ * Firebase's `signInWithPhoneNumber` only accepts strict E.164 ("+15551234567"),
  * so anything the user types has to be normalised first — otherwise the request is
  * rejected before an SMS is ever sent.
  */
@@ -50,45 +50,84 @@ export function normalizePhone(value: string): string | null {
   return E164.test(candidate) ? candidate : null;
 }
 
-/** Supabase errors are accurate but not always actionable. Translate the common ones. */
-export function explainAuthError(message: string, fallback: string): string {
+export const FREE_SMS_LIMIT_MESSAGE =
+  "Free daily text limit reached — please use Google or Email for now, phone texts reset tomorrow";
+
+/** Auth errors are accurate but not always actionable. Translate the common ones. */
+export function explainAuthError(message: string, fallback: string, code?: string): string {
+  const c = (code ?? "").toLowerCase();
   const m = message.toLowerCase();
-  if (m.includes("not configured in this preview environment")) {
-    return "Phone verification isn't connected in this preview environment (Supabase keys are missing). Test phone sign-in on your live Lovable / Supabase app or add VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY.";
-  }
+
   if (
+    c === "auth/quota-exceeded" ||
+    c === "auth/too-many-requests" ||
+    m.includes("quota-exceeded") ||
+    m.includes("too-many-requests") ||
+    m.includes("rate limit") ||
+    m.includes("too many") ||
+    m.includes("security purposes") ||
+    (m.includes("daily") && m.includes("limit")) ||
+    (m.includes("sms") && m.includes("quota"))
+  ) {
+    return FREE_SMS_LIMIT_MESSAGE;
+  }
+
+  if (
+    c === "firebase/not-configured" ||
+    (m.includes("firebase") && m.includes("not configured")) ||
+    m.includes("not configured in this preview environment")
+  ) {
+    return "Phone verification needs your Firebase project keys (VITE_FIREBASE_API_KEY, VITE_FIREBASE_AUTH_DOMAIN, VITE_FIREBASE_PROJECT_ID) in your environment. You can use Google or Email right now.";
+  }
+
+  if (
+    c === "auth/operation-not-allowed" ||
+    m.includes("operation-not-allowed") ||
     (m.includes("provider") &&
       (m.includes("disabled") || m.includes("not enabled") || m.includes("unsupported"))) ||
     (m.includes("phone") && m.includes("disabled"))
   ) {
-    return "Phone sign-in isn't switched on for this app yet. Use email, Apple or Google — or enable the Phone provider in Supabase → Auth → Providers.";
+    return "Phone sign-in isn't enabled in Firebase yet. Enable Phone in Firebase Authentication → Sign-in method, or use Google or Email.";
   }
-  if (m.includes("signups not allowed")) {
-    return "New phone sign-ups are turned off in Supabase Auth settings. Turn on 'Allow new users to sign up' or sign in with an existing account.";
+
+  if (c === "auth/unauthorized-domain" || m.includes("unauthorized-domain")) {
+    return "This domain isn't authorized for Firebase Phone Auth yet. Add it in Firebase → Authentication → Settings → Authorized domains, or use Google or Email.";
   }
+
+  if (c === "auth/captcha-check-failed" || m.includes("captcha")) {
+    return "Verification check couldn't complete. Please try again, or use Google or Email.";
+  }
+
   if (
-    (m.includes("sms") &&
-      (m.includes("disabled") || m.includes("not configured") || m.includes("failed"))) ||
-    m.includes("error sending confirmation otp") ||
-    m.includes("unable to get sms")
+    c === "auth/code-expired" ||
+    m.includes("code-expired") ||
+    (m.includes("expired") && !m.includes("invalid"))
   ) {
-    return `Text messages aren't configured or failed to send (${message}). Check your Twilio / SMS settings in Supabase → Auth → Providers → Phone.`;
+    return "That code expired. Tap Resend code to get a new one.";
   }
-  if (m.includes("rate limit") || m.includes("too many") || m.includes("security purposes")) {
-    return "Too many attempts. Wait a minute, then try again.";
-  }
-  // Supabase returns "Token has expired or is invalid" for both wrong codes and expired codes.
+
   if (m.includes("expired") && m.includes("invalid")) {
     return "That code is wrong or expired. Double-check the 6 digits and try again, or tap Resend code for a new one.";
   }
-  if (m.includes("expired")) {
-    return "That code expired. Tap Resend code to get a new one.";
-  }
-  if (m.includes("invalid") && (m.includes("phone") || m.includes("number"))) {
-    return "That number doesn't look valid. Include the country code, e.g. +1 555 123 4567.";
-  }
-  if (m.includes("invalid") && m.includes("token")) {
+
+  if (
+    c === "auth/invalid-verification-code" ||
+    c === "auth/missing-verification-code" ||
+    m.includes("invalid-verification-code") ||
+    (m.includes("invalid") && m.includes("token"))
+  ) {
     return "Wrong code — check the 6 digits and try again.";
   }
+
+  if (
+    c === "auth/invalid-phone-number" ||
+    c === "auth/missing-phone-number" ||
+    m.includes("invalid-phone-number") ||
+    m.includes("missing-phone-number") ||
+    (m.includes("invalid") && (m.includes("phone") || m.includes("number")))
+  ) {
+    return "That number doesn't look valid. Include the country code, e.g. +1 555 123 4567.";
+  }
+
   return message || fallback;
 }

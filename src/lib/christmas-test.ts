@@ -63,7 +63,7 @@ export function setChristmasTestMode(on: boolean): void {
  * key, and when the page becomes visible again.
  */
 export function useChristmasTestMode(): boolean {
-  const [on, setOn] = useState<boolean>(() => isChristmasTestMode());
+  const [on, setOn] = useState<boolean>(false);
 
   useEffect(() => {
     const refresh = () => setOn(isChristmasTestMode());

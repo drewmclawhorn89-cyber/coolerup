@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { explainAuthError, normalizePhone } from "@/lib/phone";
+import { FREE_SMS_LIMIT_MESSAGE, explainAuthError, normalizePhone } from "@/lib/phone";
 
 /**
- * Supabase rejects anything that isn't strict E.164 before it ever sends an SMS,
+ * Firebase rejects anything that isn't strict E.164 before it ever sends an SMS,
  * so normalisation is the difference between "code sent" and a dead sign-up.
  */
 describe("normalizePhone", () => {
@@ -50,33 +50,55 @@ describe("normalizePhone", () => {
 });
 
 describe("explainAuthError", () => {
-  it("turns a disabled provider into an actionable message", () => {
-    expect(explainAuthError("Phone provider is disabled", "fallback")).toContain("Supabase");
+  it("shows the exact free daily SMS limit message on quota errors and never mentions Twilio", () => {
+    const quotaMsg = explainAuthError(
+      "Firebase: Error (auth/quota-exceeded).",
+      "x",
+      "auth/quota-exceeded",
+    );
+    expect(quotaMsg).toBe(FREE_SMS_LIMIT_MESSAGE);
+    expect(quotaMsg).toBe(
+      "Free daily text limit reached — please use Google or Email for now, phone texts reset tomorrow",
+    );
+
+    const rateMsg = explainAuthError("Too many requests", "x", "auth/too-many-requests");
+    expect(rateMsg).toBe(FREE_SMS_LIMIT_MESSAGE);
+    expect(quotaMsg.toLowerCase()).not.toContain("twilio");
   });
 
-  it("explains rate limits", () => {
-    expect(
-      explainAuthError(
-        "For security purposes, you can only request this once every 60 seconds",
-        "x",
-      ),
-    ).toContain("Too many attempts");
+  it("turns a disabled provider into a Firebase-specific actionable message", () => {
+    const msg = explainAuthError("Operation not allowed", "fallback", "auth/operation-not-allowed");
+    expect(msg).toContain("Firebase");
+    expect(msg.toLowerCase()).not.toContain("twilio");
+  });
+
+  it("explains missing Firebase env configuration clearly", () => {
+    const msg = explainAuthError(
+      "Firebase Phone Auth is not configured in environment variables.",
+      "fallback",
+      "firebase/not-configured",
+    );
+    expect(msg).toContain("VITE_FIREBASE_API_KEY");
+    expect(msg).toContain("Google or Email");
+    expect(msg.toLowerCase()).not.toContain("twilio");
   });
 
   it("explains expired or invalid codes clearly", () => {
-    const msg = explainAuthError("Token has expired or is invalid", "x");
-    expect(msg).toContain("expired");
-    expect(msg).toContain("wrong");
-    expect(explainAuthError("OTP expired", "x")).toContain("That code expired");
+    expect(explainAuthError("Code expired", "x", "auth/code-expired")).toContain(
+      "That code expired",
+    );
+    expect(explainAuthError("Invalid code", "x", "auth/invalid-verification-code")).toContain(
+      "Wrong code",
+    );
+    const combined = explainAuthError("Token has expired or is invalid", "x");
+    expect(combined).toContain("expired");
+    expect(combined).toContain("wrong");
   });
 
-  it("explains SMS provider send failures with the underlying reason", () => {
-    const msg = explainAuthError(
-      "Error sending confirmation OTP to provider: 21608 unverified",
-      "x",
+  it("explains invalid phone numbers clearly", () => {
+    expect(explainAuthError("Invalid phone number", "x", "auth/invalid-phone-number")).toContain(
+      "country code",
     );
-    expect(msg).toContain("Supabase → Auth → Providers → Phone");
-    expect(msg).toContain("21608 unverified");
   });
 
   it("falls back to the original message", () => {

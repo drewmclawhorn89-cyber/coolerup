@@ -32,9 +32,7 @@ export const SEASON_END_DAY = 1;
  * The season wraps the new year, so "between Nov 15 and Jan 1" is two separate
  * comparisons rather than a single range: from Nov 15 to Dec 31, *or* on Jan 1.
  */
-export function isChristmasCodesSeason(now: Date = new Date()): boolean {
-  // The owner can force the seasonal tab on from Settings to preview it.
-  if (isChristmasTestMode()) return true;
+function isChristmasCodesDateSeason(now: Date = new Date()): boolean {
   const month = now.getMonth();
   const day = now.getDate();
 
@@ -44,6 +42,12 @@ export function isChristmasCodesSeason(now: Date = new Date()): boolean {
   // Jan 1 only
   if (month === SEASON_END_MONTH) return day <= SEASON_END_DAY;
   return false;
+}
+
+export function isChristmasCodesSeason(now: Date = new Date()): boolean {
+  // The owner can force the seasonal tab on from Settings to preview it.
+  if (isChristmasTestMode()) return true;
+  return isChristmasCodesDateSeason(now);
 }
 
 /**
@@ -77,7 +81,7 @@ export function christmasCodesSeasonLabel(now: Date = new Date()): string {
  * an app left open across midnight on Nov 15 (or Jan 2) flips without a reload.
  */
 export function useChristmasCodesSeason(): boolean {
-  const [on, setOn] = useState<boolean>(() => isChristmasCodesSeason());
+  const [on, setOn] = useState<boolean>(() => isChristmasCodesDateSeason());
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined;

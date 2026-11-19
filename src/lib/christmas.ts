@@ -31,13 +31,18 @@ export const CHRISTMAS_END = new Date(CHRISTMAS_END_ISO);
  * Dates are intentionally local-time `new Date("YYYY-MM-DDTHH:mm:ss")` strings
  * (not UTC) so the update flips at midnight where the user actually is.
  */
-export const isChristmasMode = () => {
-  // The owner can force the update on from Settings to preview it off-season.
-  if (isChristmasTestMode()) return true;
+/** Pure date-window check (safe across SSR/client without reading localStorage). */
+function isChristmasDateActive(): boolean {
   const now = new Date();
   const start = new Date("2026-11-15T00:00:00");
   const end = new Date("2027-01-01T23:59:59");
   return now >= start && now <= end;
+}
+
+export const isChristmasMode = () => {
+  // The owner can force the update on from Settings to preview it off-season.
+  if (isChristmasTestMode()) return true;
+  return isChristmasDateActive();
 };
 
 /**
@@ -64,7 +69,7 @@ export function daysUntilChristmas(from: Date = new Date()): number {
  * a reload.
  */
 export function useChristmasMode(): boolean {
-  const [on, setOn] = useState<boolean>(() => isChristmasMode());
+  const [on, setOn] = useState<boolean>(() => isChristmasDateActive());
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined;

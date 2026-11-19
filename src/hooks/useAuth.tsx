@@ -1,6 +1,8 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { User } from "@supabase/supabase-js";
+import type { User as FirebaseUser } from "firebase/auth";
 import { supabase } from "@/integrations/supabase/client";
+import { onFirebasePhoneUserChange, signOutFirebasePhone } from "@/lib/firebase";
 import { toast } from "sonner";
 
 export type Profile = {
@@ -32,6 +34,8 @@ export type OnboardingStatus = {
 /** How long after signup we treat an account as "new" and force onboarding. */
 const NEW_USER_WINDOW_MS = 30 * 60 * 1000;
 
+const FIREBASE_PROFILE_PREFIX = "coolerup:firebase-profile:";
+
 const PROFILE_EVENT = "loop-profile-changed";
 /** Tell every screen to reload the signed-in profile (after editing it). */
 export const refreshProfile = () => window.dispatchEvent(new Event(PROFILE_EVENT));
@@ -53,14 +57,54 @@ export type AuthValue = {
   signOut: () => Promise<void>;
 };
 
+function mapFirebaseUserToSessionUser(fb: FirebaseUser): User {
+  return {
+    id: fb.uid,
+    aud: "authenticated",
+    role: "authenticated",
+    phone: fb.phoneNumber ?? undefined,
+    email: fb.email ?? undefined,
+    created_at: fb.metadata.creationTime
+      ? new Date(fb.metadata.creationTime).toISOString()
+      : new Date().toISOString(),
+    app_metadata: { provider: "phone", providers: ["phone"] },
+    user_metadata: {
+      phone_number: fb.phoneNumber ?? undefined,
+      full_name: fb.displayName ?? undefined,
+      avatar_url: fb.photoURL ?? undefined,
+    },
+  } as User;
+}
+
+function readLocalFirebaseProfile(uid: string): Profile | null {
+  try {
+    const raw = localStorage.getItem(`${FIREBASE_PROFILE_PREFIX}${uid}`);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Profile | null;
+    return parsed && parsed.id === uid && parsed.handle ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeLocalFirebaseProfile(profile: Profile): void {
+  try {
+    localStorage.setItem(`${FIREBASE_PROFILE_PREFIX}${profile.id}`, JSON.stringify(profile));
+  } catch {
+    // Ignore storage quota errors in private browsing.
+  }
+}
+
 /**
  * The auth session is app-global, so it must be loaded exactly once and shared.
  * Previously every VideoCard ran its own subscription + profile fetch, which
  * meant ~20 duplicate auth listeners and network requests per feed page.
  */
 function useAuthState(): AuthValue {
-  const [user, setUser] = useState<User | null>(null);
-  const [ready, setReady] = useState(false);
+  const [supabaseUser, setSupabaseUser] = useState<User | null>(null);
+  const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
+  const [sbReady, setSbReady] = useState(false);
+  const [fbReady, setFbReady] = useState(false);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [resolvedAvatar, setResolvedAvatar] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -69,20 +113,32 @@ function useAuthState(): AuthValue {
 
   useEffect(() => {
     const { data } = supabase.auth.onAuthStateChange((_e, session) => {
-      setUser(session?.user ?? null);
-      setReady(true);
+      setSupabaseUser(session?.user ?? null);
+      setSbReady(true);
     });
     supabase.auth.getSession().then(({ data }) => {
-      setUser(data.session?.user ?? null);
-      setReady(true);
+      setSupabaseUser(data.session?.user ?? null);
+      setSbReady(true);
+    });
+    const unsubFirebase = onFirebasePhoneUserChange((fbUser) => {
+      setFirebaseUser(fbUser);
+      setFbReady(true);
     });
     const bump = () => setVersion((v) => v + 1);
     window.addEventListener(PROFILE_EVENT, bump);
     return () => {
       data.subscription.unsubscribe();
+      unsubFirebase();
       window.removeEventListener(PROFILE_EVENT, bump);
     };
   }, []);
+
+  const isFirebaseSession = !supabaseUser && !!firebaseUser;
+  const user = useMemo<User | null>(
+    () => supabaseUser ?? (firebaseUser ? mapFirebaseUserToSessionUser(firebaseUser) : null),
+    [supabaseUser, firebaseUser],
+  );
+  const ready = sbReady && fbReady;
 
   const googleName: string | null =
     user?.user_metadata?.["full_name"] ||
@@ -110,6 +166,29 @@ function useAuthState(): AuthValue {
     let alive = true;
     setProfileLoaded(false);
     (async () => {
+      if (isFirebaseSession) {
+        const existing = readLocalFirebaseProfile(user.id);
+        const fallbackHandle = derivedHandle ?? `user${user.id.slice(0, 4)}`;
+        const row: Profile = existing ?? {
+          id: user.id,
+          handle: fallbackHandle,
+          username: fallbackHandle,
+          display_name: null,
+          bio: null,
+          avatar_url: null,
+          onboarding_complete: true,
+        };
+        if (!existing) {
+          writeLocalFirebaseProfile(row);
+        }
+        if (!alive) return;
+        setProfile(row);
+        setResolvedAvatar(row.avatar_url ?? null);
+        setIsAdmin(false);
+        setProfileLoaded(true);
+        return;
+      }
+
       // `my_profile()` is a SECURITY DEFINER function that returns the caller's
       // own row, including the private columns (birthday, venmo_handle) that are
       // no longer granted to clients on the table itself.
@@ -162,7 +241,7 @@ function useAuthState(): AuthValue {
     return () => {
       alive = false;
     };
-  }, [user?.id, derivedHandle, version]);
+  }, [user?.id, isFirebaseSession, derivedHandle, googleName, version]);
 
   const handle = profile?.handle ?? null;
   const name: string | null = profile?.display_name || googleName;
@@ -171,8 +250,9 @@ function useAuthState(): AuthValue {
   // Onboarding is derived from the profile row so it updates the moment the
   // user finishes /onboarding (refreshProfile bumps `version`).
   const onboarding = useMemo<OnboardingStatus>(() => {
-    const complete =
-      !!profile?.username && !!profile?.birthday && profile.onboarding_complete === true;
+    const complete = isFirebaseSession
+      ? true
+      : !!profile?.username && !!profile?.birthday && profile.onboarding_complete === true;
     const createdMs = user?.created_at ? new Date(user.created_at).getTime() : 0;
     const isNewUser = !!user && createdMs > 0 && Date.now() - createdMs < NEW_USER_WINDOW_MS;
     return {
@@ -183,13 +263,13 @@ function useAuthState(): AuthValue {
       username: profile?.username ?? null,
       birthday: profile?.birthday ?? null,
     };
-  }, [user, profile, profileLoaded]);
+  }, [user, profile, profileLoaded, isFirebaseSession]);
 
   const signIn = async () => {
     openAuthDialog();
   };
   const signOut = async () => {
-    await supabase.auth.signOut();
+    await Promise.all([supabase.auth.signOut(), signOutFirebasePhone()]);
   };
 
   return useMemo(

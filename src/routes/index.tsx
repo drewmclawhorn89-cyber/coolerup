@@ -377,52 +377,47 @@ function Index() {
   const [saved, setSaved] = useState<Video[]>([]);
   const [online, setOnline] = useState(true);
   const [liked, setLiked] = useState<Set<string>>(new Set());
-  const [tab, setTab] = useState<Tab>(() => {
-    // Deep link support: /?tab=subscriptions lets upgrade prompts land the
-    // user straight on the plans instead of the feed.
-    if (typeof window !== "undefined") {
-      const wanted = new URLSearchParams(window.location.search).get("tab");
-      if (wanted === "subscriptions" || wanted === "shop") return wanted;
-    }
-    return "foryou";
-  });
-  const [feedTab, setFeedTab] = useState<FeedTab>(() => {
-    // Deep link support: /?feed=groups (and friends) lands on that top tab.
-    if (typeof window !== "undefined") {
-      const wanted = new URLSearchParams(window.location.search).get("feed");
-      if (
-        wanted === "home" ||
-        wanted === "following" ||
-        wanted === "foryou" ||
-        wanted === "explore" ||
-        wanted === "marketplace" ||
-        wanted === "groups" ||
-        wanted === "live"
-      ) {
-        return wanted;
-      }
-    }
-    return "foryou";
-  });
+  const [tab, setTab] = useState<Tab>("foryou");
+  const [feedTab, setFeedTab] = useState<FeedTab>("foryou");
   const [followingList, setFollowingList] = useState<string[]>([]);
   const [repostedFeed, setRepostedFeed] = useState<Video[]>([]);
   /** videoId -> handle of whoever reposted it, for the "@name reposted" label. */
   const [repostBy, setRepostBy] = useState<Map<string, string>>(new Map());
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
-  const [challengeHidden, setChallengeHidden] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return window.sessionStorage.getItem("loop-christmas-challenge-hidden") === "1";
-  });
+  const [challengeHidden, setChallengeHidden] = useState(false);
 
   // Moderation: videos the user tapped "Not interested" on, plus blocked authors.
   const { blocked } = useBlocked();
-  const [notInterested, setNotInterested] = useState<Set<string>>(() => {
-    try {
-      return new Set(JSON.parse(localStorage.getItem("loop-not-interested") || "[]") as string[]);
-    } catch {
-      return new Set<string>();
+  const [notInterested, setNotInterested] = useState<Set<string>>(() => new Set());
+
+  // Apply deep links (?tab=..., ?feed=...) and dismissed challenge state after hydration.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const wantedTab = params.get("tab");
+    if (wantedTab === "subscriptions" || wantedTab === "shop") setTab(wantedTab);
+
+    const wantedFeed = params.get("feed");
+    if (
+      wantedFeed === "home" ||
+      wantedFeed === "following" ||
+      wantedFeed === "foryou" ||
+      wantedFeed === "explore" ||
+      wantedFeed === "marketplace" ||
+      wantedFeed === "groups" ||
+      wantedFeed === "live"
+    ) {
+      setFeedTab(wantedFeed);
     }
-  });
+
+    try {
+      if (window.sessionStorage.getItem("loop-christmas-challenge-hidden") === "1") {
+        setChallengeHidden(true);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
   useEffect(() => {
     const sync = () => {
       try {
@@ -433,6 +428,7 @@ function Index() {
         /* ignore */
       }
     };
+    sync();
     window.addEventListener("loop-not-interested-changed", sync);
     return () => window.removeEventListener("loop-not-interested-changed", sync);
   }, []);

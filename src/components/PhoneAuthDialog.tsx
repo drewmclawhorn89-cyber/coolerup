@@ -1,12 +1,17 @@
-// Phone login requires the Phone provider (with an SMS provider like Twilio) to be enabled:
-// Enable Phone in Supabase Dashboard > Auth > Providers.
-// Apple login requires the Apple provider (Service ID + key) in the same place.
+// Phone login uses free Firebase Authentication Phone (10 SMS/day free).
+// Configure VITE_FIREBASE_API_KEY, VITE_FIREBASE_AUTH_DOMAIN, and VITE_FIREBASE_PROJECT_ID.
+// Apple / Google / Email auth continue working via their existing providers.
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import type { ConfirmationResult } from "firebase/auth";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
 import { OPEN_AUTH_EVENT } from "@/hooks/useAuth";
+import {
+  clearFirebaseRecaptcha,
+  confirmFirebasePhoneCode,
+  sendFirebasePhoneCode,
+} from "@/lib/firebase";
 import { explainAuthError, normalizePhone } from "@/lib/phone";
 import { EmailAuthForm } from "@/components/EmailAuthForm";
 import { Button } from "@/components/ui/button";
@@ -34,10 +39,20 @@ export function PhoneAuthForm({ onSuccess }: { onSuccess: () => void }) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const verifyingRef = useRef(false);
   const submittedTokenRef = useRef<string | null>(null);
+  const confirmationRef = useRef<ConfirmationResult | null>(null);
+  const recaptchaRef = useRef<HTMLDivElement | null>(null);
   const onSuccessRef = useRef(onSuccess);
   onSuccessRef.current = onSuccess;
 
-  // Countdown so people can't hammer Supabase's SMS rate limit.
+  // Clean up reCAPTCHA widget if dialog closes or unmounts.
+  useEffect(() => {
+    const el = recaptchaRef.current;
+    return () => {
+      clearFirebaseRecaptcha(el);
+    };
+  }, []);
+
+  // Countdown so people don't burn through the free daily SMS quota.
   useEffect(() => {
     if (cooldown <= 0) return;
     const id = window.setTimeout(() => setCooldown((c) => c - 1), 1000);
@@ -55,19 +70,18 @@ export function PhoneAuthForm({ onSuccess }: { onSuccess: () => void }) {
         toast.error(msg);
         return;
       }
+      if (!recaptchaRef.current) return;
       setErrorMessage(null);
       setLoading(true);
-      const { error } = await supabase.auth.signInWithOtp({
-        phone: target,
-        options: { shouldCreateUser: true },
-      });
+      const { confirmation, error } = await sendFirebasePhoneCode(target, recaptchaRef.current);
       setLoading(false);
-      if (error) {
-        const friendly = explainAuthError(error.message, "Couldn't send code");
+      if (error || !confirmation) {
+        const friendly = explainAuthError(error?.message ?? "", "Couldn't send code", error?.code);
         setErrorMessage(friendly);
         toast.error(friendly);
         return;
       }
+      confirmationRef.current = confirmation;
       submittedTokenRef.current = null;
       setSentTo(target);
       setToken("");
@@ -81,42 +95,30 @@ export function PhoneAuthForm({ onSuccess }: { onSuccess: () => void }) {
     async (e?: FormEvent) => {
       e?.preventDefault();
       const code = token.replace(/\D/g, "");
-      if (!sentTo || code.length !== OTP_LENGTH || verifyingRef.current) return;
+      if (!sentTo || !confirmationRef.current || code.length !== OTP_LENGTH || verifyingRef.current)
+        return;
       verifyingRef.current = true;
       submittedTokenRef.current = code;
       setErrorMessage(null);
       setLoading(true);
       try {
-        const { data, error } = await supabase.auth.verifyOtp({
-          phone: sentTo,
-          token: code,
-          type: "sms",
-        });
-        if (error) {
-          const friendly = explainAuthError(error.message, "Invalid code");
+        const { user, error } = await confirmFirebasePhoneCode(confirmationRef.current, code);
+        if (error || !user) {
+          const friendly = explainAuthError(error?.message ?? "", "Invalid code", error?.code);
           setErrorMessage(friendly);
           toast.error(friendly);
           setToken("");
           if (
-            error.message.toLowerCase().includes("expired") &&
-            !error.message.toLowerCase().includes("invalid")
+            error?.code === "auth/code-expired" ||
+            ((error?.message ?? "").toLowerCase().includes("expired") &&
+              !(error?.message ?? "").toLowerCase().includes("invalid"))
           ) {
             setCooldown(0);
           }
           return;
         }
-        if (!data.session) {
-          const { data: sessionData } = await supabase.auth.getSession();
-          if (!sessionData.session) {
-            const msg = "Couldn't finish signing in. Tap Resend code to try again.";
-            setErrorMessage(msg);
-            toast.error(msg);
-            setToken("");
-            return;
-          }
-        }
-        // Reset before notifying parent so closing the dialog can never re-trigger verifyOtp
-        // with an already-consumed token.
+        // Reset before notifying parent so closing the dialog can never re-trigger verify.
+        confirmationRef.current = null;
         setSentTo(null);
         setToken("");
         setCooldown(0);
@@ -164,99 +166,101 @@ export function PhoneAuthForm({ onSuccess }: { onSuccess: () => void }) {
     setToken(clean);
   };
 
-  if (!sentTo) {
-    return (
-      <form onSubmit={sendCode} className="flex flex-col gap-3">
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="auth-phone">Phone number</Label>
-          <Input
-            id="auth-phone"
-            type="tel"
-            inputMode="tel"
-            autoComplete="tel"
-            placeholder="+1 555 123 4567"
-            value={phone}
-            onChange={(e) => handlePhoneChange(e.target.value)}
-            autoFocus
-          />
-          <p className="text-xs text-muted-foreground">
-            Include your country code. We'll text you a 6-digit code — new numbers get an account
-            automatically.
+  return (
+    <>
+      <div ref={recaptchaRef} />
+      {!sentTo ? (
+        <form onSubmit={sendCode} className="flex flex-col gap-3">
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="auth-phone">Phone number</Label>
+            <Input
+              id="auth-phone"
+              type="tel"
+              inputMode="tel"
+              autoComplete="tel"
+              placeholder="+1 555 123 4567"
+              value={phone}
+              onChange={(e) => handlePhoneChange(e.target.value)}
+              autoFocus
+            />
+            <p className="text-xs text-muted-foreground">
+              Include your country code. We'll text you a 6-digit code — new numbers get an account
+              automatically.
+            </p>
+            {errorMessage && (
+              <p role="alert" className="text-xs text-destructive">
+                {errorMessage}
+              </p>
+            )}
+          </div>
+          <Button type="submit" className="w-full rounded-full" disabled={loading}>
+            {loading && <Loader2 className="animate-spin" />}
+            Send Code
+          </Button>
+        </form>
+      ) : (
+        <form onSubmit={verify} className="flex flex-col items-center gap-4">
+          <p className="text-center text-sm text-muted-foreground">
+            Enter the 6-digit code sent to{" "}
+            <span className="font-semibold text-foreground">{sentTo}</span>
           </p>
+          <InputOTP
+            maxLength={OTP_LENGTH}
+            value={token}
+            onChange={handleOtpChange}
+            pasteTransformer={(pasted) => pasted.replace(/\D/g, "")}
+            autoComplete="one-time-code"
+            inputMode="numeric"
+            pattern="^[0-9]*$"
+            aria-label="Verification code"
+            autoFocus
+          >
+            <InputOTPGroup>
+              {Array.from({ length: OTP_LENGTH }, (_, i) => (
+                <InputOTPSlot key={i} index={i} />
+              ))}
+            </InputOTPGroup>
+          </InputOTP>
           {errorMessage && (
-            <p role="alert" className="text-xs text-destructive">
+            <p role="alert" className="text-center text-xs text-destructive">
               {errorMessage}
             </p>
           )}
-        </div>
-        <Button type="submit" className="w-full rounded-full" disabled={loading}>
-          {loading && <Loader2 className="animate-spin" />}
-          Send Code
-        </Button>
-      </form>
-    );
-  }
-
-  return (
-    <form onSubmit={verify} className="flex flex-col items-center gap-4">
-      <p className="text-center text-sm text-muted-foreground">
-        Enter the 6-digit code sent to{" "}
-        <span className="font-semibold text-foreground">{sentTo}</span>
-      </p>
-      <InputOTP
-        maxLength={OTP_LENGTH}
-        value={token}
-        onChange={handleOtpChange}
-        pasteTransformer={(pasted) => pasted.replace(/\D/g, "")}
-        autoComplete="one-time-code"
-        inputMode="numeric"
-        pattern="^[0-9]*$"
-        aria-label="Verification code"
-        autoFocus
-      >
-        <InputOTPGroup>
-          {Array.from({ length: OTP_LENGTH }, (_, i) => (
-            <InputOTPSlot key={i} index={i} />
-          ))}
-        </InputOTPGroup>
-      </InputOTP>
-      {errorMessage && (
-        <p role="alert" className="text-center text-xs text-destructive">
-          {errorMessage}
-        </p>
+          <Button
+            type="submit"
+            className="w-full rounded-full"
+            disabled={loading || token.length !== OTP_LENGTH}
+          >
+            {loading && <Loader2 className="animate-spin" />}
+            Verify
+          </Button>
+          <div className="flex w-full justify-between text-sm">
+            <button
+              type="button"
+              className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+              onClick={() => {
+                confirmationRef.current = null;
+                submittedTokenRef.current = null;
+                setSentTo(null);
+                setToken("");
+                setCooldown(0);
+                setErrorMessage(null);
+              }}
+            >
+              Change number
+            </button>
+            <button
+              type="button"
+              className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline disabled:opacity-50"
+              onClick={() => void sendCode()}
+              disabled={loading || cooldown > 0}
+            >
+              {cooldown > 0 ? `Resend in ${cooldown}s` : "Resend code"}
+            </button>
+          </div>
+        </form>
       )}
-      <Button
-        type="submit"
-        className="w-full rounded-full"
-        disabled={loading || token.length !== OTP_LENGTH}
-      >
-        {loading && <Loader2 className="animate-spin" />}
-        Verify
-      </Button>
-      <div className="flex w-full justify-between text-sm">
-        <button
-          type="button"
-          className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-          onClick={() => {
-            submittedTokenRef.current = null;
-            setSentTo(null);
-            setToken("");
-            setCooldown(0);
-            setErrorMessage(null);
-          }}
-        >
-          Change number
-        </button>
-        <button
-          type="button"
-          className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline disabled:opacity-50"
-          onClick={() => void sendCode()}
-          disabled={loading || cooldown > 0}
-        >
-          {cooldown > 0 ? `Resend in ${cooldown}s` : "Resend code"}
-        </button>
-      </div>
-    </form>
+    </>
   );
 }
 

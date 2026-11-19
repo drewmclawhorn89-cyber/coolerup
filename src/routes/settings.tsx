@@ -19,6 +19,7 @@ import { refreshProfile, useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { writePref } from "@/lib/prefs";
+import { getFirebaseConfigSummary } from "@/lib/firebase";
 import { normalizePhone } from "@/lib/phone";
 import { MoreSettings } from "@/components/MoreSettings";
 import {
@@ -851,7 +852,7 @@ function Settings() {
       </div>
       <div className="rounded-lg border bg-card p-6">
         <h2 className="font-semibold">Phone Number</h2>
-        <p className="mt-1 text-sm text-muted-foreground">Add your phone number to your account </p>
+        <p className="mt-1 text-sm text-muted-foreground">Add your phone number to your account</p>
         <div className="mt-3 flex gap-2">
           <input
             value={phone}
@@ -869,6 +870,14 @@ function Settings() {
           </button>
         </div>
         {phone && <p className="mt-2 text-xs text-muted-foreground">Saved: {phone}</p>}
+        <p className="mt-3 text-xs text-muted-foreground">
+          {(() => {
+            const fb = getFirebaseConfigSummary();
+            return fb.configured
+              ? `SMS sign-in connected via Firebase (${fb.projectId}) — free 10 texts/day.`
+              : "SMS sign-in uses free Firebase Phone Auth (10 texts/day). Set VITE_FIREBASE_API_KEY, VITE_FIREBASE_AUTH_DOMAIN, and VITE_FIREBASE_PROJECT_ID in environment variables.";
+          })()}
+        </p>
       </div>
       <div className="rounded-lg border bg-card p-6">
         <div className="flex items-center gap-2">

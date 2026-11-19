@@ -17,6 +17,7 @@ export type FirebasePhoneConfig = {
   appId?: string;
   storageBucket?: string;
   messagingSenderId?: string;
+  measurementId?: string;
 };
 
 export type FirebasePhoneError = {
@@ -31,7 +32,8 @@ const FIREBASE_DEFAULTS: Record<string, string> = {
   VITE_FIREBASE_PROJECT_ID: "coolerup-95946",
   VITE_FIREBASE_STORAGE_BUCKET: "coolerup-95946.firebasestorage.app",
   VITE_FIREBASE_MESSAGING_SENDER_ID: "52316688457",
-  VITE_FIREBASE_APP_ID: "1:52316688457:web:300831d4b76c1175d26f98",
+  VITE_FIREBASE_APP_ID: "1:52316688457:web:ed9d905a4407914bd26f98",
+  VITE_FIREBASE_MEASUREMENT_ID: "G-2LR4EWJ3DM",
 };
 
 function readEnv(key: string): string {
@@ -50,6 +52,7 @@ export function getFirebasePhoneConfig(): FirebasePhoneConfig | null {
   const appId = readEnv("VITE_FIREBASE_APP_ID");
   const storageBucket = readEnv("VITE_FIREBASE_STORAGE_BUCKET");
   const messagingSenderId = readEnv("VITE_FIREBASE_MESSAGING_SENDER_ID");
+  const measurementId = readEnv("VITE_FIREBASE_MEASUREMENT_ID");
 
   return {
     apiKey,
@@ -58,6 +61,7 @@ export function getFirebasePhoneConfig(): FirebasePhoneConfig | null {
     ...(appId ? { appId } : {}),
     ...(storageBucket ? { storageBucket } : {}),
     ...(messagingSenderId ? { messagingSenderId } : {}),
+    ...(measurementId ? { measurementId } : {}),
   };
 }
 

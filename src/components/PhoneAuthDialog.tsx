@@ -340,7 +340,15 @@ export function PhoneAuthDialog() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="max-w-sm border-border bg-card">
+      <DialogContent
+        className="max-w-sm border-border bg-card"
+        onInteractOutside={(e) => {
+          const target = e.target as HTMLElement | null;
+          if (target?.closest?.('iframe[src*="recaptcha"], .g-recaptcha')) {
+            e.preventDefault();
+          }
+        }}
+      >
         <DialogHeader>
           <DialogTitle>Sign in to coolerup</DialogTitle>
           <DialogDescription>

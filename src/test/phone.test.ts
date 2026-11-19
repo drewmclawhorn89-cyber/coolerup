@@ -72,6 +72,26 @@ describe("explainAuthError", () => {
     expect(msg.toLowerCase()).not.toContain("twilio");
   });
 
+  it("explains SMS region policy blocks accurately", () => {
+    const msg = explainAuthError(
+      "OPERATION_NOT_ALLOWED : SMS unable to be sent until this region enabled by the app developer.",
+      "fallback",
+      "auth/operation-not-allowed",
+    );
+    expect(msg).toContain("SMS region policy");
+    expect(msg.toLowerCase()).not.toContain("twilio");
+  });
+
+  it("explains Firebase billing-not-enabled errors without crashing", () => {
+    const msg = explainAuthError(
+      "Firebase: Error (auth/billing-not-enabled).",
+      "fallback",
+      "auth/billing-not-enabled",
+    );
+    expect(msg).toContain("Blaze");
+    expect(msg).toContain("Google or Email");
+  });
+
   it("explains missing Firebase env configuration clearly", () => {
     const msg = explainAuthError(
       "Firebase Phone Auth is not configured in environment variables.",

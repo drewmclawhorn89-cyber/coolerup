@@ -80,6 +80,14 @@ export function explainAuthError(message: string, fallback: string, code?: strin
     return "Phone verification needs your Firebase project keys (VITE_FIREBASE_API_KEY, VITE_FIREBASE_AUTH_DOMAIN, VITE_FIREBASE_PROJECT_ID) in your environment. You can use Google or Email right now.";
   }
 
+  if (m.includes("region") && (m.includes("sms") || m.includes("operation-not-allowed"))) {
+    return "SMS isn't enabled for this country/region in Firebase yet. Allow your region (e.g. United States +1) in Firebase Authentication → Settings → SMS region policy, or use Google or Email.";
+  }
+
+  if (c === "auth/billing-not-enabled" || m.includes("billing-not-enabled")) {
+    return "Firebase requires a Blaze plan to send Phone SMS (first 10 SMS/day are free). Enable Blaze in Firebase Console or use Google or Email.";
+  }
+
   if (
     c === "auth/operation-not-allowed" ||
     m.includes("operation-not-allowed") ||
@@ -87,7 +95,7 @@ export function explainAuthError(message: string, fallback: string, code?: strin
       (m.includes("disabled") || m.includes("not enabled") || m.includes("unsupported"))) ||
     (m.includes("phone") && m.includes("disabled"))
   ) {
-    return "Phone sign-in isn't enabled in Firebase yet. Enable Phone in Firebase Authentication → Sign-in method, or use Google or Email.";
+    return "Phone sign-in isn't enabled in Firebase yet. Enable Phone in Firebase Authentication → Sign-in method (and check Authentication → Settings → SMS region policy), or use Google or Email.";
   }
 
   if (c === "auth/unauthorized-domain" || m.includes("unauthorized-domain")) {

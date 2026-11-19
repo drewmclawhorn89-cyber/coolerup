@@ -17,10 +17,11 @@ export function normalizePhone(value: string): string | null {
   let trimmed = value.trim();
   if (!trimmed) return null;
 
-  // If the user pasted a full "+..." number after the prefilled "+1",
+  // If the user pasted a full "+..." number onto an existing "+..." prefix,
   // keep from the last "+" onward instead of concatenating two country codes.
+  const firstPlus = trimmed.indexOf("+");
   const lastPlus = trimmed.lastIndexOf("+");
-  if (lastPlus > 0) {
+  if (firstPlus !== -1 && lastPlus > firstPlus) {
     trimmed = trimmed.slice(lastPlus);
   }
 
@@ -32,7 +33,7 @@ export function normalizePhone(value: string): string | null {
 
   const hadPlus = trimmed.startsWith("+");
 
-  // Bare 10-digit North American number -> assume +1 (matches the "+1" default).
+  // Bare 10-digit North American number -> assume +1.
   if (!hadPlus && digits.length === 10) digits = `1${digits}`;
 
   // If "+1" was prefilled and the user pasted an 11-digit "1..." number on top,
@@ -52,11 +53,26 @@ export function normalizePhone(value: string): string | null {
 /** Supabase errors are accurate but not always actionable. Translate the common ones. */
 export function explainAuthError(message: string, fallback: string): string {
   const m = message.toLowerCase();
-  if (m.includes("provider") && (m.includes("disabled") || m.includes("not enabled"))) {
+  if (m.includes("not configured in this preview environment")) {
+    return "Phone verification isn't connected in this preview environment (Supabase keys are missing). Test phone sign-in on your live Lovable / Supabase app or add VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY.";
+  }
+  if (
+    (m.includes("provider") &&
+      (m.includes("disabled") || m.includes("not enabled") || m.includes("unsupported"))) ||
+    (m.includes("phone") && m.includes("disabled"))
+  ) {
     return "Phone sign-in isn't switched on for this app yet. Use email, Apple or Google — or enable the Phone provider in Supabase → Auth → Providers.";
   }
-  if (m.includes("sms") && (m.includes("disabled") || m.includes("not configured"))) {
-    return "Text messages aren't configured for this app yet. Use email, Apple or Google instead.";
+  if (m.includes("signups not allowed")) {
+    return "New phone sign-ups are turned off in Supabase Auth settings. Turn on 'Allow new users to sign up' or sign in with an existing account.";
+  }
+  if (
+    (m.includes("sms") &&
+      (m.includes("disabled") || m.includes("not configured") || m.includes("failed"))) ||
+    m.includes("error sending confirmation otp") ||
+    m.includes("unable to get sms")
+  ) {
+    return "Text messages aren't configured or failed to send from the SMS provider. Check your Twilio / SMS settings in Supabase → Auth → Providers → Phone.";
   }
   if (m.includes("rate limit") || m.includes("too many") || m.includes("security purposes")) {
     return "Too many attempts. Wait a minute, then try again.";

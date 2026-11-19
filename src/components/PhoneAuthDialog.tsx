@@ -26,7 +26,7 @@ const OTP_LENGTH = 6;
 const RESEND_SECONDS = 60;
 
 export function PhoneAuthForm({ onSuccess }: { onSuccess: () => void }) {
-  const [phone, setPhone] = useState("+1");
+  const [phone, setPhone] = useState("");
   const [sentTo, setSentTo] = useState<string | null>(null);
   const [token, setToken] = useState("");
   const [loading, setLoading] = useState(false);
@@ -146,8 +146,9 @@ export function PhoneAuthForm({ onSuccess }: { onSuccess: () => void }) {
 
   const handlePhoneChange = (raw: string) => {
     setErrorMessage(null);
+    const firstPlus = raw.indexOf("+");
     const lastPlus = raw.lastIndexOf("+");
-    if (lastPlus > 0) {
+    if (firstPlus !== -1 && lastPlus > firstPlus) {
       setPhone(raw.slice(lastPlus));
       return;
     }

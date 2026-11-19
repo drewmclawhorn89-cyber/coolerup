@@ -19,6 +19,7 @@ import { refreshProfile, useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { writePref } from "@/lib/prefs";
+import { normalizePhone } from "@/lib/phone";
 import { MoreSettings } from "@/components/MoreSettings";
 import {
   backgroundPlayPlan,
@@ -95,12 +96,21 @@ function Settings() {
   const { subscriptions: openSubscriptions } = Route.useSearch();
   const [showSubscriptions, setShowSubscriptions] = useState(Boolean(openSubscriptions));
   const savePhone = () => {
+    const trimmed = phone.trim();
+    const normalized = trimmed ? normalizePhone(trimmed) : "";
+    if (trimmed && !normalized) {
+      toast.error("Enter a valid phone number with country code, e.g. +1 555 123 4567");
+      return;
+    }
     try {
-      localStorage.setItem("settings:phone", phone);
-      // If you use Supabase / Lovable Auth, this also saves to your account
-      // so it won't delete anything - just adds phone to your profile
+      if (normalized) {
+        localStorage.setItem("settings:phone", normalized);
+        setPhone(normalized);
+      } else {
+        localStorage.removeItem("settings:phone");
+      }
     } catch {}
-    toast.success("Phone number saved");
+    toast.success(normalized ? "Phone number saved" : "Phone number cleared");
   };
   const saveLinks = () => {
     try {
@@ -167,12 +177,12 @@ function Settings() {
       const allowed = savedOffline && hasOfflineAccess(auth.handle);
       setOfflineMode(allowed);
       setPrivateAccount(localStorage.getItem("settings:private") === "true");
-      setPhone(localStorage.getItem("settings:phone") || "");
+      setPhone(localStorage.getItem("settings:phone") || auth.user?.phone || "");
       setTiktokLink(localStorage.getItem("settings:tiktok") || "");
       setInstagramLink(localStorage.getItem("settings:instagram") || "");
       setYoutubeLink(localStorage.getItem("settings:youtube") || "");
     } catch {}
-  }, [auth.ready, auth.handle]);
+  }, [auth.ready, auth.handle, auth.user?.phone]);
 
   const toggleOffline = () => {
     if (!offlineMode && !offlineUnlocked) {

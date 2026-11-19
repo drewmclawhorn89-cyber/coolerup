@@ -31,7 +31,11 @@ export function PhoneAuthForm({ onSuccess }: { onSuccess: () => void }) {
   const [token, setToken] = useState("");
   const [loading, setLoading] = useState(false);
   const [cooldown, setCooldown] = useState(0);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const verifyingRef = useRef(false);
+  const submittedTokenRef = useRef<string | null>(null);
+  const onSuccessRef = useRef(onSuccess);
+  onSuccessRef.current = onSuccess;
 
   // Countdown so people can't hammer Supabase's SMS rate limit.
   useEffect(() => {
@@ -44,11 +48,14 @@ export function PhoneAuthForm({ onSuccess }: { onSuccess: () => void }) {
     async (e?: FormEvent) => {
       e?.preventDefault();
       if (loading || cooldown > 0) return;
-      const target = normalizePhone(phone);
+      const target = sentTo ?? normalizePhone(phone);
       if (!target) {
-        toast.error("Enter a valid phone number with country code");
+        const msg = "Enter a valid phone number with country code, e.g. +1 555 123 4567";
+        setErrorMessage(msg);
+        toast.error(msg);
         return;
       }
+      setErrorMessage(null);
       setLoading(true);
       const { error } = await supabase.auth.signInWithOtp({
         phone: target,
@@ -56,44 +63,105 @@ export function PhoneAuthForm({ onSuccess }: { onSuccess: () => void }) {
       });
       setLoading(false);
       if (error) {
-        toast.error(explainAuthError(error.message, "Couldn't send code"));
+        const friendly = explainAuthError(error.message, "Couldn't send code");
+        setErrorMessage(friendly);
+        toast.error(friendly);
         return;
       }
+      submittedTokenRef.current = null;
       setSentTo(target);
       setToken("");
       setCooldown(RESEND_SECONDS);
       toast.success(`Code sent to ${target}`);
     },
-    [phone, loading, cooldown],
+    [phone, sentTo, loading, cooldown],
   );
 
   const verify = useCallback(
     async (e?: FormEvent) => {
       e?.preventDefault();
-      if (!sentTo || token.length !== OTP_LENGTH || verifyingRef.current) return;
+      const code = token.replace(/\D/g, "");
+      if (!sentTo || code.length !== OTP_LENGTH || verifyingRef.current) return;
       verifyingRef.current = true;
+      submittedTokenRef.current = code;
+      setErrorMessage(null);
       setLoading(true);
-      const { error } = await supabase.auth.verifyOtp({
-        phone: sentTo,
-        token,
-        type: "sms",
-      });
-      setLoading(false);
-      verifyingRef.current = false;
-      if (error) {
-        toast.error(explainAuthError(error.message, "Invalid code"));
+      try {
+        const { data, error } = await supabase.auth.verifyOtp({
+          phone: sentTo,
+          token: code,
+          type: "sms",
+        });
+        if (error) {
+          const friendly = explainAuthError(error.message, "Invalid code");
+          setErrorMessage(friendly);
+          toast.error(friendly);
+          setToken("");
+          if (
+            error.message.toLowerCase().includes("expired") &&
+            !error.message.toLowerCase().includes("invalid")
+          ) {
+            setCooldown(0);
+          }
+          return;
+        }
+        if (!data.session) {
+          const { data: sessionData } = await supabase.auth.getSession();
+          if (!sessionData.session) {
+            const msg = "Couldn't finish signing in. Tap Resend code to try again.";
+            setErrorMessage(msg);
+            toast.error(msg);
+            setToken("");
+            return;
+          }
+        }
+        // Reset before notifying parent so closing the dialog can never re-trigger verifyOtp
+        // with an already-consumed token.
+        setSentTo(null);
         setToken("");
-        return;
+        setCooldown(0);
+        setErrorMessage(null);
+        onSuccessRef.current();
+      } finally {
+        verifyingRef.current = false;
+        setLoading(false);
       }
-      onSuccess();
     },
-    [sentTo, token, onSuccess],
+    [sentTo, token],
   );
 
-  // Auto-submit as soon as the sixth digit lands, like a native SMS autofill.
+  // Auto-submit once as soon as the sixth digit lands, like native SMS autofill.
   useEffect(() => {
-    if (sentTo && token.length === OTP_LENGTH && !loading) void verify();
+    const code = token.replace(/\D/g, "");
+    if (
+      sentTo &&
+      code.length === OTP_LENGTH &&
+      !loading &&
+      !verifyingRef.current &&
+      submittedTokenRef.current !== code
+    ) {
+      void verify();
+    }
   }, [token, sentTo, loading, verify]);
+
+  const handlePhoneChange = (raw: string) => {
+    setErrorMessage(null);
+    const lastPlus = raw.lastIndexOf("+");
+    if (lastPlus > 0) {
+      setPhone(raw.slice(lastPlus));
+      return;
+    }
+    setPhone(raw);
+  };
+
+  const handleOtpChange = (val: string) => {
+    const clean = val.replace(/\D/g, "").slice(0, OTP_LENGTH);
+    if (clean.length < OTP_LENGTH) {
+      submittedTokenRef.current = null;
+    }
+    if (clean.length > 0) setErrorMessage(null);
+    setToken(clean);
+  };
 
   if (!sentTo) {
     return (
@@ -107,13 +175,18 @@ export function PhoneAuthForm({ onSuccess }: { onSuccess: () => void }) {
             autoComplete="tel"
             placeholder="+1 555 123 4567"
             value={phone}
-            onChange={(e) => setPhone(e.target.value)}
+            onChange={(e) => handlePhoneChange(e.target.value)}
             autoFocus
           />
           <p className="text-xs text-muted-foreground">
             Include your country code. We'll text you a 6-digit code — new numbers get an account
             automatically.
           </p>
+          {errorMessage && (
+            <p role="alert" className="text-xs text-destructive">
+              {errorMessage}
+            </p>
+          )}
         </div>
         <Button type="submit" className="w-full rounded-full" disabled={loading}>
           {loading && <Loader2 className="animate-spin" />}
@@ -132,7 +205,8 @@ export function PhoneAuthForm({ onSuccess }: { onSuccess: () => void }) {
       <InputOTP
         maxLength={OTP_LENGTH}
         value={token}
-        onChange={setToken}
+        onChange={handleOtpChange}
+        pasteTransformer={(pasted) => pasted.replace(/\D/g, "")}
         autoComplete="one-time-code"
         inputMode="numeric"
         pattern="^[0-9]*$"
@@ -145,6 +219,11 @@ export function PhoneAuthForm({ onSuccess }: { onSuccess: () => void }) {
           ))}
         </InputOTPGroup>
       </InputOTP>
+      {errorMessage && (
+        <p role="alert" className="text-center text-xs text-destructive">
+          {errorMessage}
+        </p>
+      )}
       <Button
         type="submit"
         className="w-full rounded-full"
@@ -158,9 +237,11 @@ export function PhoneAuthForm({ onSuccess }: { onSuccess: () => void }) {
           type="button"
           className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
           onClick={() => {
+            submittedTokenRef.current = null;
             setSentTo(null);
             setToken("");
             setCooldown(0);
+            setErrorMessage(null);
           }}
         >
           Change number
@@ -223,10 +304,10 @@ export function PhoneAuthDialog() {
     return () => window.removeEventListener(OPEN_AUTH_EVENT, show);
   }, []);
 
-  const handleSuccess = () => {
+  const handleSuccess = useCallback(() => {
     setOpen(false);
     toast.success("You're signed in");
-  };
+  }, []);
 
   const signInWithOAuth = async (provider: "apple" | "google") => {
     if (oauth) return;

@@ -31,13 +31,21 @@ describe("normalizePhone", () => {
     expect(normalizePhone("00447911123456")).toBe("+447911123456");
   });
 
-  it("rejects junk instead of sending an SMS into the void", () => {
+  it("recovers when a user pastes a full number after the prefilled +1", () => {
+    expect(normalizePhone("+1+1 (555) 123-4567")).toBe("+15551234567");
+    expect(normalizePhone("+1+447911123456")).toBe("+447911123456");
+    expect(normalizePhone("+115551234567")).toBe("+15551234567");
+  });
+
+  it("rejects junk and malformed +1 lengths instead of sending an SMS into the void", () => {
     expect(normalizePhone("")).toBeNull();
     expect(normalizePhone("   ")).toBeNull();
     expect(normalizePhone("+")).toBeNull();
     expect(normalizePhone("abc")).toBeNull();
     expect(normalizePhone("12345")).toBeNull();
     expect(normalizePhone("+0123456789")).toBeNull();
+    expect(normalizePhone("+1555123456")).toBeNull();
+    expect(normalizePhone("+155512345678")).toBeNull();
   });
 });
 
@@ -55,8 +63,11 @@ describe("explainAuthError", () => {
     ).toContain("Too many attempts");
   });
 
-  it("explains expired codes", () => {
-    expect(explainAuthError("Token has expired or is invalid", "x")).toContain("expired");
+  it("explains expired or invalid codes clearly", () => {
+    const msg = explainAuthError("Token has expired or is invalid", "x");
+    expect(msg).toContain("expired");
+    expect(msg).toContain("wrong");
+    expect(explainAuthError("OTP expired", "x")).toContain("That code expired");
   });
 
   it("falls back to the original message", () => {

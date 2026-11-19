@@ -121,13 +121,21 @@ function useAuthState(): AuthValue {
 
       let row = await readMine();
       if (!row && derivedHandle) {
-        const res = await supabase
+        let res = await supabase
           .from("profiles")
           .insert({ id: user.id, handle: derivedHandle })
           .select("id")
           .single();
-        if (res.error?.code === "23505")
+        if (res.error?.code === "23505" && !googleName) {
+          res = await supabase
+            .from("profiles")
+            .insert({ id: user.id, handle: `${derivedHandle}_${user.id.slice(0, 4)}` })
+            .select("id")
+            .single();
+        }
+        if (res.error?.code === "23505") {
           toast.error(`@${derivedHandle} is taken — pick a username in Settings`);
+        }
         row = res.error ? null : await readMine();
       }
       const { data: role } = await supabase

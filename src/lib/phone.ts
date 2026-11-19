@@ -14,8 +14,15 @@ const E164 = /^\+[1-9]\d{7,14}$/;
  * "0015551234567", and numbers with a stray leading zero.
  */
 export function normalizePhone(value: string): string | null {
-  const trimmed = value.trim();
+  let trimmed = value.trim();
   if (!trimmed) return null;
+
+  // If the user pasted a full "+..." number after the prefilled "+1",
+  // keep from the last "+" onward instead of concatenating two country codes.
+  const lastPlus = trimmed.lastIndexOf("+");
+  if (lastPlus > 0) {
+    trimmed = trimmed.slice(lastPlus);
+  }
 
   let digits = trimmed.replace(/\D/g, "");
   if (!digits) return null;
@@ -28,8 +35,15 @@ export function normalizePhone(value: string): string | null {
   // Bare 10-digit North American number -> assume +1 (matches the "+1" default).
   if (!hadPlus && digits.length === 10) digits = `1${digits}`;
 
+  // If "+1" was prefilled and the user pasted an 11-digit "1..." number on top,
+  // strip the accidental doubled "1" (there is no +11 country code in E.164).
+  if (digits.length === 12 && digits.startsWith("11")) digits = digits.slice(1);
+
   // A leading 0 is never a country code; drop it and let the rest stand.
   if (!hadPlus && digits.startsWith("0")) digits = digits.replace(/^0+/, "");
+
+  // Zone 1 (+1 NANP) numbers are always exactly 11 digits (1 + 10 digits).
+  if (digits.startsWith("1") && digits.length !== 11) return null;
 
   const candidate = `+${digits}`;
   return E164.test(candidate) ? candidate : null;
@@ -46,6 +60,10 @@ export function explainAuthError(message: string, fallback: string): string {
   }
   if (m.includes("rate limit") || m.includes("too many") || m.includes("security purposes")) {
     return "Too many attempts. Wait a minute, then try again.";
+  }
+  // Supabase returns "Token has expired or is invalid" for both wrong codes and expired codes.
+  if (m.includes("expired") && m.includes("invalid")) {
+    return "That code is wrong or expired. Double-check the 6 digits and try again, or tap Resend code for a new one.";
   }
   if (m.includes("expired")) {
     return "That code expired. Tap Resend code to get a new one.";

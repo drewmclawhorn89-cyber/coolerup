@@ -24,9 +24,20 @@ export type FirebasePhoneError = {
   message: string;
 };
 
+// Public Firebase web config (safe to ship in client code).
+const FIREBASE_DEFAULTS: Record<string, string> = {
+  VITE_FIREBASE_API_KEY: "AIzaSyCFhH-JLAmkx0mCtUO7Bj2PXCr_XaWuOOI",
+  VITE_FIREBASE_AUTH_DOMAIN: "coolerup-95946.firebaseapp.com",
+  VITE_FIREBASE_PROJECT_ID: "coolerup-95946",
+  VITE_FIREBASE_STORAGE_BUCKET: "coolerup-95946.firebasestorage.app",
+  VITE_FIREBASE_MESSAGING_SENDER_ID: "52316688457",
+  VITE_FIREBASE_APP_ID: "1:52316688457:web:ed9d905a4407914bd26f98",
+};
+
 function readEnv(key: string): string {
   const value = (import.meta.env as Record<string, string | undefined>)[key];
-  return typeof value === "string" ? value.trim() : "";
+  const v = typeof value === "string" ? value.trim() : "";
+  return v || FIREBASE_DEFAULTS[key] || "";
 }
 
 export function getFirebasePhoneConfig(): FirebasePhoneConfig | null {

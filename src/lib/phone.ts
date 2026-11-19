@@ -72,7 +72,7 @@ export function explainAuthError(message: string, fallback: string): string {
     m.includes("error sending confirmation otp") ||
     m.includes("unable to get sms")
   ) {
-    return "Text messages aren't configured or failed to send from the SMS provider. Check your Twilio / SMS settings in Supabase → Auth → Providers → Phone.";
+    return `Text messages aren't configured or failed to send (${message}). Check your Twilio / SMS settings in Supabase → Auth → Providers → Phone.`;
   }
   if (m.includes("rate limit") || m.includes("too many") || m.includes("security purposes")) {
     return "Too many attempts. Wait a minute, then try again.";

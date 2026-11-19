@@ -70,6 +70,15 @@ describe("explainAuthError", () => {
     expect(explainAuthError("OTP expired", "x")).toContain("That code expired");
   });
 
+  it("explains SMS provider send failures with the underlying reason", () => {
+    const msg = explainAuthError(
+      "Error sending confirmation OTP to provider: 21608 unverified",
+      "x",
+    );
+    expect(msg).toContain("Supabase → Auth → Providers → Phone");
+    expect(msg).toContain("21608 unverified");
+  });
+
   it("falls back to the original message", () => {
     expect(explainAuthError("Something odd happened", "fallback")).toBe("Something odd happened");
     expect(explainAuthError("", "fallback")).toBe("fallback");

@@ -113,3 +113,17 @@ export function buildTwitchChatEmbedUrl(channel: string, parents: string[]): str
   }
   return `https://www.twitch.tv/embed/${encodeURIComponent(clean)}/chat?${params.toString()}`;
 }
+
+// Public channels shown when the Twitch API directory is unavailable (no server keys).
+// They only use the public Twitch Embed Player, so no login or API key is needed.
+// Live status isn't known without the API; Twitch's own player shows "offline" if needed.
+export const FEATURED_TWITCH_CHANNELS: ReadonlyArray<{ login: string; name: string }> = [
+  { login: "kaicenat", name: "KaiCenat" },
+  { login: "xqc", name: "xQc" },
+  { login: "shroud", name: "shroud" },
+  { login: "pokimane", name: "Pokimane" },
+  { login: "ibai", name: "Ibai" },
+  { login: "hasanabi", name: "HasanAbi" },
+  { login: "summit1g", name: "summit1g" },
+  { login: "ninja", name: "Ninja" },
+];

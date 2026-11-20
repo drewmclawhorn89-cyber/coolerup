@@ -16,6 +16,7 @@ import {
   buildTwitchChatEmbedUrl,
   buildTwitchParentParams,
   buildTwitchPlayerEmbedUrl,
+  FEATURED_TWITCH_CHANNELS,
   formatTwitchThumbnail,
   formatViewerCount,
   normalizeTwitchChannel,
@@ -179,7 +180,8 @@ export function TwitchPanel() {
       };
       if (!res.ok || !data.url) {
         setConnecting(false);
-        toast.error(data.error || "Twitch OAuth is not configured yet.");
+        // Connecting is optional: streams and chat play fine without it.
+        toast("Twitch sign-in isn't available right now. You can still watch streams and chat.");
         return;
       }
 
@@ -240,11 +242,6 @@ export function TwitchPanel() {
   };
 
   const toggleFollow = async (stream: TwitchStream) => {
-    if (!twitchUser) {
-      toast("Connect Twitch to follow streamers and chat");
-      void handleConnectTwitch();
-      return;
-    }
     if (followBusy) return;
     const key = stream.user_login.toLowerCase();
     const nextValue = !follows[key];
@@ -255,15 +252,17 @@ export function TwitchPanel() {
       return next;
     });
     try {
-      await fetch("/api/twitch/follow", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          broadcasterId: stream.user_id,
-          broadcasterLogin: stream.user_login,
-          follow: nextValue,
-        }),
-      });
+      // Without a connected Twitch account the follow is just saved on this device.
+      if (twitchUser && stream.user_id)
+        await fetch("/api/twitch/follow", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            broadcasterId: stream.user_id,
+            broadcasterLogin: stream.user_login,
+            follow: nextValue,
+          }),
+        });
       toast.success(nextValue ? `Following ${stream.user_name}` : `Unfollowed ${stream.user_name}`);
     } catch {
       toast.success(nextValue ? `Following ${stream.user_name}` : `Unfollowed ${stream.user_name}`);
@@ -435,14 +434,29 @@ export function TwitchPanel() {
               ))}
             </div>
           ) : !configured ? (
-            <div className="rounded-2xl border border-white/15 bg-white/5 p-4 text-sm text-white/80">
-              <p className="font-bold text-white">Twitch API keys needed for the live directory</p>
-              <p className="mt-1 text-xs text-white/65">
-                Add <code className="text-white">TWITCH_CLIENT_ID</code> and{" "}
-                <code className="text-white">TWITCH_CLIENT_SECRET</code> in your app environment to
-                browse all LIVE NOW streams, top games, and Connect Twitch OAuth — or search any
-                streamer name above to watch their live stream &amp; chat right now.
+            <div>
+              <p className="mb-2 text-xs text-white/60">
+                Pick a channel to watch with Twitch&apos;s public player, or search any channel name
+                above. No login needed.
               </p>
+              <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+                {FEATURED_TWITCH_CHANNELS.map((c) => (
+                  <button
+                    key={c.login}
+                    type="button"
+                    onClick={() => openDirectChannel(c.login)}
+                    className="flex items-center gap-2.5 rounded-2xl border border-white/10 bg-white/5 p-2.5 text-left transition hover:border-[#FE2C55]"
+                  >
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#FE2C55] text-xs font-black uppercase text-white">
+                      {c.name.slice(0, 2)}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-bold text-white">{c.name}</span>
+                      <span className="block text-[11px] font-semibold text-[#FE2C55]">Watch</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
             </div>
           ) : error ? (
             <div className="rounded-2xl border border-white/15 bg-white/5 p-4 text-sm text-white/70">
@@ -497,79 +511,77 @@ export function TwitchPanel() {
           )}
         </section>
 
-        {/* BROWSE BY GAME row */}
-        <section aria-labelledby="twitch-browse-games-heading">
-          <div className="mb-2.5 flex items-center gap-2">
-            <Gamepad2 className="h-4 w-4 text-[#FE2C55]" />
-            <h3
-              id="twitch-browse-games-heading"
-              className="text-xs font-extrabold uppercase tracking-[0.16em] text-white"
-            >
-              BROWSE BY GAME
-            </h3>
-          </div>
+        {/* BROWSE BY GAME row (needs the Twitch API, so hidden in embed-only mode) */}
+        {configured && (
+          <section aria-labelledby="twitch-browse-games-heading">
+            <div className="mb-2.5 flex items-center gap-2">
+              <Gamepad2 className="h-4 w-4 text-[#FE2C55]" />
+              <h3
+                id="twitch-browse-games-heading"
+                className="text-xs font-extrabold uppercase tracking-[0.16em] text-white"
+              >
+                BROWSE BY GAME
+              </h3>
+            </div>
 
-          {loading ? (
-            <div className="flex gap-3 overflow-x-auto pb-2">
-              {Array.from({ length: 4 }, (_, idx) => (
-                <div
-                  key={idx}
-                  className="w-28 shrink-0 animate-pulse rounded-xl border border-white/10 bg-white/5 p-1.5"
-                >
-                  <div className="aspect-[3/4] w-full rounded-lg bg-white/10" />
-                  <div className="mt-2 h-3 w-4/5 rounded bg-white/10" />
-                </div>
-              ))}
-            </div>
-          ) : games.length === 0 ? (
-            <p className="text-xs text-white/50">
-              {configured
-                ? "No games matching your filter."
-                : "Top Twitch games will appear here once TWITCH_CLIENT_ID and TWITCH_CLIENT_SECRET are added."}
-            </p>
-          ) : (
-            <div className="no-scrollbar flex snap-x gap-3 overflow-x-auto pb-2 touch-pan-x">
-              {games.map((game) => {
-                const selected = selectedGame?.id === game.id;
-                return (
-                  <button
-                    key={game.id}
-                    type="button"
-                    onClick={() => {
-                      setAppliedQuery("");
-                      setSearchInput("");
-                      setSelectedGame((curr) => (curr?.id === game.id ? null : game));
-                    }}
-                    aria-pressed={selected}
-                    className={`w-28 shrink-0 snap-start overflow-hidden rounded-xl border p-1.5 text-left transition ${
-                      selected
-                        ? "border-[#FE2C55] bg-[#FE2C55]/15"
-                        : "border-white/10 bg-white/5 hover:border-white/30"
-                    }`}
+            {loading ? (
+              <div className="flex gap-3 overflow-x-auto pb-2">
+                {Array.from({ length: 4 }, (_, idx) => (
+                  <div
+                    key={idx}
+                    className="w-28 shrink-0 animate-pulse rounded-xl border border-white/10 bg-white/5 p-1.5"
                   >
-                    <div className="aspect-[3/4] w-full overflow-hidden rounded-lg bg-zinc-900">
-                      {game.box_art_url ? (
-                        <img
-                          src={formatTwitchThumbnail(game.box_art_url, 285, 380)}
-                          alt={game.name}
-                          className="h-full w-full object-cover"
-                          loading="lazy"
-                        />
-                      ) : (
-                        <div className="flex h-full w-full items-center justify-center text-white/40">
-                          <Gamepad2 className="h-6 w-6" />
-                        </div>
-                      )}
-                    </div>
-                    <p className="mt-1.5 line-clamp-2 text-xs font-bold leading-tight text-white">
-                      {game.name}
-                    </p>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </section>
+                    <div className="aspect-[3/4] w-full rounded-lg bg-white/10" />
+                    <div className="mt-2 h-3 w-4/5 rounded bg-white/10" />
+                  </div>
+                ))}
+              </div>
+            ) : games.length === 0 ? (
+              <p className="text-xs text-white/50">No games matching your filter.</p>
+            ) : (
+              <div className="no-scrollbar flex snap-x gap-3 overflow-x-auto pb-2 touch-pan-x">
+                {games.map((game) => {
+                  const selected = selectedGame?.id === game.id;
+                  return (
+                    <button
+                      key={game.id}
+                      type="button"
+                      onClick={() => {
+                        setAppliedQuery("");
+                        setSearchInput("");
+                        setSelectedGame((curr) => (curr?.id === game.id ? null : game));
+                      }}
+                      aria-pressed={selected}
+                      className={`w-28 shrink-0 snap-start overflow-hidden rounded-xl border p-1.5 text-left transition ${
+                        selected
+                          ? "border-[#FE2C55] bg-[#FE2C55]/15"
+                          : "border-white/10 bg-white/5 hover:border-white/30"
+                      }`}
+                    >
+                      <div className="aspect-[3/4] w-full overflow-hidden rounded-lg bg-zinc-900">
+                        {game.box_art_url ? (
+                          <img
+                            src={formatTwitchThumbnail(game.box_art_url, 285, 380)}
+                            alt={game.name}
+                            className="h-full w-full object-cover"
+                            loading="lazy"
+                          />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center text-white/40">
+                            <Gamepad2 className="h-6 w-6" />
+                          </div>
+                        )}
+                      </div>
+                      <p className="mt-1.5 line-clamp-2 text-xs font-bold leading-tight text-white">
+                        {game.name}
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        )}
       </div>
 
       {/* Full-screen Twitch Embed Player + Live Chat overlay inside Coolerup */}
@@ -682,7 +694,7 @@ export function TwitchPanel() {
           {!twitchUser && (
             <div className="flex shrink-0 items-center justify-between gap-2 border-b border-white/10 bg-zinc-950 px-3.5 py-2">
               <p className="text-[11px] text-white/75">
-                Connect your Twitch account to follow streamers and send chat messages.
+                Optional: connect Twitch to sync follows. You can also log in inside the chat below.
               </p>
               <button
                 type="button"

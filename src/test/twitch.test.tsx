@@ -159,4 +159,36 @@ describe("TwitchPanel", () => {
     });
     openSpy.mockRestore();
   });
+
+  it("works without server keys: shows featured channels and plays the public embed", async () => {
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.startsWith("/api/twitch/streams")) {
+        return Promise.resolve(
+          new Response(JSON.stringify({ configured: false, streams: [], games: [] }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }),
+        );
+      }
+      return Promise.resolve(
+        new Response(JSON.stringify({ user: null }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      );
+    });
+    render(<TwitchPanel />);
+
+    expect(screen.queryByText(/TWITCH_CLIENT_ID/)).not.toBeInTheDocument();
+    const channelBtn = await screen.findByText("shroud");
+    fireEvent.click(channelBtn);
+
+    const dialog = await screen.findByRole("dialog", { name: /shroud Twitch player/i });
+    const playerFrame = within(dialog).getByTitle("shroud live video player") as HTMLIFrameElement;
+    expect(playerFrame.src).toContain("https://player.twitch.tv/?channel=shroud");
+    // Follow works locally without connecting.
+    fireEvent.click(within(dialog).getByRole("button", { name: /^Follow$/i }));
+    expect(await within(dialog).findByRole("button", { name: /Following/i })).toBeInTheDocument();
+  });
 });

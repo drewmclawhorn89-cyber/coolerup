@@ -21,6 +21,7 @@ import { toast } from "sonner";
 import { writePref } from "@/lib/prefs";
 import { getFirebaseConfigSummary } from "@/lib/firebase";
 import { normalizePhone } from "@/lib/phone";
+import { useShowOnlineSetting } from "@/lib/onlineStatus";
 import { MoreSettings } from "@/components/MoreSettings";
 import {
   backgroundPlayPlan,
@@ -162,6 +163,7 @@ function Settings() {
   const [readReceipts, setReadReceipts] = useState(
     localStorage.getItem("readReceipts") !== "false",
   );
+  const [showOnline, setShowOnline] = useShowOnlineSetting();
   // Theme
   const [theme, setTheme] = useState<string>(() => {
     try {
@@ -588,10 +590,37 @@ function Settings() {
         </div>
       </div>
 
-      {/* Privacy / Blocked users */}
+      {/* Privacy / Online status & Blocked users */}
       <div className="rounded-2xl border bg-card p-4">
         <h2 className="font-semibold">Privacy</h2>
-        <p className="mt-1 text-sm text-muted-foreground">Manage blocked users.</p>
+        <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-black px-4 py-3 text-white">
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-white">Show when I&apos;m online</p>
+            <p className="mt-0.5 text-xs text-white/60">
+              When off, others can&apos;t see when you&apos;re online or active, and you won&apos;t
+              see theirs.
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={showOnline}
+            aria-label="Show when I'm online"
+            onClick={() => {
+              const next = !showOnline;
+              setShowOnline(next);
+              toast.success(next ? "Online status ON" : "Online status OFF");
+            }}
+            className="flex h-7 w-12 shrink-0 items-center rounded-full p-1 transition"
+            style={{ backgroundColor: showOnline ? "#25D366" : "#333" }}
+          >
+            <span
+              className="h-5 w-5 rounded-full bg-white transition"
+              style={{ transform: showOnline ? "translateX(20px)" : "translateX(0)" }}
+            />
+          </button>
+        </div>
+        <p className="mt-4 text-sm text-muted-foreground">Manage blocked users.</p>
         <div className="mt-3 flex gap-2">
           <input
             value={blockTarget}

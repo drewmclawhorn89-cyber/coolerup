@@ -1,0 +1,52 @@
+{
+  "entities": {
+    "UserPresence": {
+      "title": "UserPresence",
+      "description": "Real-time online presence and last active status for a Coolerup account (without any PII or location).",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Authenticated user ID that owns this presence document.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "handle": {
+          "type": "string",
+          "description": "Normalized lowercase Coolerup handle for the account.",
+          "minLength": 1,
+          "maxLength": 40,
+          "pattern": "^[a-z0-9._]+$"
+        },
+        "isOnline": {
+          "type": "boolean",
+          "description": "Whether the user is currently active inside Coolerup."
+        },
+        "lastActive": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of the user's most recent activity or disconnect."
+        },
+        "showOnline": {
+          "type": "boolean",
+          "description": "Privacy flag ('Show when I'm online'). When false, status is hidden from others."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the presence document was first created."
+        }
+      },
+      "required": ["uid", "handle", "isOnline", "lastActive", "showOnline", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/user_presence/{presenceId}": {
+      "schema": {
+        "$ref": "#/entities/UserPresence"
+      },
+      "description": "Stores live online/offline presence (isOnline, lastActive, showOnline) keyed by deterministic handle ID."
+    }
+  }
+}

@@ -1,0 +1,75 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidHandle(handle) {
+      return handle is string && handle.size() >= 1 && handle.size() <= 40 && handle.matches('^[a-z0-9._]+$');
+    }
+
+    function isValidUserPresence(data) {
+      return data.keys().hasAll(['uid', 'handle', 'isOnline', 'lastActive', 'showOnline', 'createdAt'])
+        && data.keys().hasOnly(['uid', 'handle', 'isOnline', 'lastActive', 'showOnline', 'createdAt'])
+        && isValidId(data.uid)
+        && data.uid == request.auth.uid
+        && isValidHandle(data.handle)
+        && data.isOnline is bool
+        && data.showOnline is bool
+        && (data.showOnline == true || data.isOnline == false)
+        && data.lastActive is timestamp
+        && data.createdAt is timestamp;
+    }
+
+    function isPresenceStatusUpdate() {
+      return existing().uid == request.auth.uid
+        && incoming().uid == existing().uid
+        && incoming().handle == existing().handle
+        && incoming().createdAt == existing().createdAt
+        && incoming().lastActive == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['isOnline', 'lastActive', 'showOnline']);
+    }
+
+    match /user_presence/{presenceId} {
+      allow get: if isSignedIn()
+        && isValidId(presenceId)
+        && (resource == null || existing().uid == request.auth.uid || existing().showOnline == true);
+
+      allow list: if isSignedIn()
+        && (resource.data.uid == request.auth.uid || resource.data.showOnline == true);
+
+      allow create: if isSignedIn()
+        && isValidId(presenceId)
+        && isValidUserPresence(incoming())
+        && incoming().createdAt == request.time
+        && incoming().lastActive == request.time;
+
+      allow update: if isSignedIn()
+        && isValidId(presenceId)
+        && isValidUserPresence(incoming())
+        && isPresenceStatusUpdate();
+
+      allow delete: if isSignedIn()
+        && isValidId(presenceId)
+        && existing().uid == request.auth.uid;
+    }
+  }
+}

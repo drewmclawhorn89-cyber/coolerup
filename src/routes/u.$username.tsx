@@ -1,6 +1,6 @@
 import { findItem, useEquipped } from "@/lib/shop";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -45,6 +45,8 @@ import { useChristmasMode } from "@/lib/christmas";
 import { toast } from "sonner";
 import { followUser, isFollowing as checkIsFollowing, unfollowUser } from "@/lib/follow";
 import type { Profile as ProfileRow } from "@/hooks/useAuth";
+import { OnlineDot, OnlineStatusSubtitle } from "@/components/OnlineStatusBadge";
+import { normalizePresenceHandle, useOnlineStatus, useOnlineStatuses } from "@/lib/onlineStatus";
 
 export const Route = createFileRoute("/u/$username")({
   component: Profile,
@@ -160,6 +162,15 @@ function Profile() {
   const isOwn = !!auth.handle && auth.handle === username;
   const showLiked = profile?.show_liked !== false;
   const canSeeLiked = showLiked || isOwn;
+  const profilePresence = useOnlineStatus(username);
+  const dialogHandles = useMemo(
+    () => [
+      ...(followingUsers ?? []).map((u) => u.handle),
+      ...(followersUsers ?? []).map((u) => u.handle),
+    ],
+    [followingUsers, followersUsers],
+  );
+  const dialogPresence = useOnlineStatuses(dialogHandles);
 
   useEffect(() => {
     if (!username || !auth.user || isOwn) {
@@ -539,6 +550,11 @@ function Profile() {
                 )}
               </div>
             </button>
+            <OnlineDot
+              visible={profilePresence.visible && profilePresence.isOnline}
+              size="lg"
+              className={isOwn ? "absolute bottom-1 left-1" : "absolute bottom-1 right-1"}
+            />
             {isOwn && (
               <>
                 <button
@@ -564,9 +580,14 @@ function Profile() {
             <h1 className={`text-2xl ${findItem(equipped.name)?.className ?? ""}`}>
               {findItem(equipped.top)?.emoji} {displayName}
             </h1>
-            <p className="flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
+            <p className="flex flex-wrap items-center justify-center gap-1.5 text-sm text-muted-foreground">
               <span>@{username}</span>
             </p>
+            {profilePresence.visible && !profilePresence.isOnline && (
+              <div className="mt-0.5 flex justify-center">
+                <OnlineStatusSubtitle status={profilePresence} />
+              </div>
+            )}
           </div>
           {!isOwn && auth.ready && (
             <Button
@@ -811,34 +832,51 @@ function Profile() {
               </p>
             ) : (
               <ul className="divide-y">
-                {followingUsers.map((u) => (
-                  <li key={u.handle}>
-                    <Link
-                      to="/u/$username"
-                      params={{ username: u.handle }}
-                      onClick={() => setFollowingOpen(false)}
-                      className="flex items-center gap-3 py-3 hover:opacity-80"
-                    >
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary text-sm uppercase text-primary-foreground">
-                        {u.avatar ? (
-                          <img
-                            src={u.avatar}
-                            alt={u.display_name || u.handle}
-                            className="h-full w-full object-cover"
+                {followingUsers.map((u) => {
+                  const st = dialogPresence[normalizePresenceHandle(u.handle)] ?? {
+                    visible: false,
+                    isOnline: false,
+                    statusText: null,
+                  };
+                  return (
+                    <li key={u.handle}>
+                      <Link
+                        to="/u/$username"
+                        params={{ username: u.handle }}
+                        onClick={() => setFollowingOpen(false)}
+                        className="flex items-center gap-3 py-3 hover:opacity-80"
+                      >
+                        <div className="relative shrink-0">
+                          <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-primary text-sm uppercase text-primary-foreground">
+                            {u.avatar ? (
+                              <img
+                                src={u.avatar}
+                                alt={u.display_name || u.handle}
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              u.handle[0]
+                            )}
+                          </div>
+                          <OnlineDot
+                            visible={st.visible && st.isOnline}
+                            size="md"
+                            className="absolute bottom-0 right-0"
                           />
-                        ) : (
-                          u.handle[0]
-                        )}
-                      </div>
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold">
-                          {u.display_name || u.handle}
-                        </p>
-                        <p className="truncate text-xs text-muted-foreground">@{u.handle}</p>
-                      </div>
-                    </Link>
-                  </li>
-                ))}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold">
+                            {u.display_name || u.handle}
+                          </p>
+                          <p className="truncate text-xs text-muted-foreground">@{u.handle}</p>
+                          {st.visible && !st.isOnline && st.statusText && (
+                            <OnlineStatusSubtitle status={st} className="block truncate" />
+                          )}
+                        </div>
+                      </Link>
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </div>
@@ -866,34 +904,51 @@ function Profile() {
               </p>
             ) : (
               <ul className="divide-y">
-                {followersUsers.map((u) => (
-                  <li key={u.handle}>
-                    <Link
-                      to="/u/$username"
-                      params={{ username: u.handle }}
-                      onClick={() => setFollowersOpen(false)}
-                      className="flex items-center gap-3 py-3 hover:opacity-80"
-                    >
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary text-sm uppercase text-primary-foreground">
-                        {u.avatar ? (
-                          <img
-                            src={u.avatar}
-                            alt={u.display_name || u.handle}
-                            className="h-full w-full object-cover"
+                {followersUsers.map((u) => {
+                  const st = dialogPresence[normalizePresenceHandle(u.handle)] ?? {
+                    visible: false,
+                    isOnline: false,
+                    statusText: null,
+                  };
+                  return (
+                    <li key={u.handle}>
+                      <Link
+                        to="/u/$username"
+                        params={{ username: u.handle }}
+                        onClick={() => setFollowersOpen(false)}
+                        className="flex items-center gap-3 py-3 hover:opacity-80"
+                      >
+                        <div className="relative shrink-0">
+                          <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-primary text-sm uppercase text-primary-foreground">
+                            {u.avatar ? (
+                              <img
+                                src={u.avatar}
+                                alt={u.display_name || u.handle}
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              u.handle[0]
+                            )}
+                          </div>
+                          <OnlineDot
+                            visible={st.visible && st.isOnline}
+                            size="md"
+                            className="absolute bottom-0 right-0"
                           />
-                        ) : (
-                          u.handle[0]
-                        )}
-                      </div>
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold">
-                          {u.display_name || u.handle}
-                        </p>
-                        <p className="truncate text-xs text-muted-foreground">@{u.handle}</p>
-                      </div>
-                    </Link>
-                  </li>
-                ))}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold">
+                            {u.display_name || u.handle}
+                          </p>
+                          <p className="truncate text-xs text-muted-foreground">@{u.handle}</p>
+                          {st.visible && !st.isOnline && st.statusText && (
+                            <OnlineStatusSubtitle status={st} className="block truncate" />
+                          )}
+                        </div>
+                      </Link>
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </div>

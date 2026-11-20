@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Image as ImageIcon, Phone, Video } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -8,6 +8,8 @@ import { useCall } from "@/lib/calls";
 import { Button } from "@/components/ui/button";
 import { notifyUser } from "@/lib/notify";
 import { GifPicker } from "@/components/GifPicker";
+import { OnlineDot, OnlineStatusSubtitle } from "@/components/OnlineStatusBadge";
+import { normalizePresenceHandle, useOnlineStatuses } from "@/lib/onlineStatus";
 
 export const Route = createFileRoute("/messages")({
   head: () => ({
@@ -70,22 +72,24 @@ function Messages() {
     const body = text.trim();
     const to = toUser.trim().replace(/^@/, "").toLowerCase();
     if ((!body && !draftGif) || !to || !auth.user || !me) return;
-    const { data: target } = await supabase.from("profiles").select("id").eq("handle", to).maybeSingle();
+    const { data: target } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("handle", to)
+      .maybeSingle();
     if (!target) {
       toast.error(`@${to} hasn't joined Loop yet`);
       return;
     }
-    const { error } = await supabase
-      .from("direct_messages")
-      .insert({
-        from_id: auth.user.id,
-        to_id: target.id,
-        from_username: me,
-        to_username: to,
-        message: body,
-        gif_url: draftGif,
-        gif_credit: draftGifCredit,
-      });
+    const { error } = await supabase.from("direct_messages").insert({
+      from_id: auth.user.id,
+      to_id: target.id,
+      from_username: me,
+      to_username: to,
+      message: body,
+      gif_url: draftGif,
+      gif_credit: draftGifCredit,
+    });
     if (error) {
       toast.error("Couldn't send message");
       return;
@@ -108,7 +112,11 @@ function Messages() {
 
   const placeCall = async (withVideo: boolean) => {
     const handle = toUser.trim().replace(/^@/, "").toLowerCase();
-    const { data: target } = await supabase.from("profiles").select("id").eq("handle", handle).maybeSingle();
+    const { data: target } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("handle", handle)
+      .maybeSingle();
     if (!target) {
       toast.error(`@${handle} hasn't joined Loop yet`);
       return;
@@ -120,13 +128,33 @@ function Messages() {
   msgs.forEach((m) => inbox.set(m.from_username === me ? m.to_username : m.from_username, m));
   const convo = msgs.filter((m) => m.from_username === toUser || m.to_username === toUser);
 
+  const trackedHandles = useMemo(() => {
+    const set = new Set<string>();
+    for (const m of msgs) {
+      const other = m.from_username === me ? m.to_username : m.from_username;
+      const n = normalizePresenceHandle(other);
+      if (n) set.add(n);
+    }
+    const active = normalizePresenceHandle(toUser);
+    if (active) set.add(active);
+    return Array.from(set);
+  }, [msgs, me, toUser]);
+  const presenceByHandle = useOnlineStatuses(trackedHandles);
+  const activePresence = presenceByHandle[normalizePresenceHandle(toUser)] ?? {
+    visible: false,
+    isOnline: false,
+    statusText: null,
+  };
+
   if (auth.ready && !auth.user) {
     return (
       <div className="flex h-dvh flex-col items-center justify-center gap-4 bg-background p-6 text-center">
         <p className="font-display text-2xl">Your messages</p>
         <p className="text-muted-foreground">Sign in to send and read private messages.</p>
         <Button onClick={auth.signIn}>Sign in</Button>
-        <Link to="/" className="text-sm text-muted-foreground">Back to Loop</Link>
+        <Link to="/" className="text-sm text-muted-foreground">
+          Back to Loop
+        </Link>
       </div>
     );
   }
@@ -135,7 +163,13 @@ function Messages() {
     <div className="mx-auto flex h-dvh max-w-md flex-col bg-background pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)]">
       <div className="border-b p-4">
         <div className="flex items-center gap-3">
-          <Link to="/" aria-label="Back to Loop" className="text-muted-foreground hover:text-foreground"><ArrowLeft className="h-5 w-5" /></Link>
+          <Link
+            to="/"
+            aria-label="Back to Loop"
+            className="text-muted-foreground hover:text-foreground"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Link>
           <h1 className="font-display text-xl">Messages</h1>
         </div>
         <input
@@ -152,22 +186,59 @@ function Messages() {
           {inbox.size === 0 ? (
             <p className="mt-20 text-center text-muted-foreground">No messages yet</p>
           ) : (
-            [...inbox.entries()].reverse().map(([user, last]) => (
-              <button key={user} onClick={() => setToUser(user)} className="flex w-full items-center gap-3 rounded-xl p-3 text-left hover:bg-secondary">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary font-display uppercase text-primary-foreground">{user[0]}</div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-bold">@{user}</p>
-                  <p className="truncate text-xs text-muted-foreground">{last.message}</p>
-                </div>
-              </button>
-            ))
+            [...inbox.entries()].reverse().map(([user, last]) => {
+              const st = presenceByHandle[normalizePresenceHandle(user)] ?? {
+                visible: false,
+                isOnline: false,
+                statusText: null,
+              };
+              return (
+                <button
+                  key={user}
+                  onClick={() => setToUser(user)}
+                  className="flex w-full items-center gap-3 rounded-xl p-3 text-left hover:bg-secondary"
+                >
+                  <div className="relative shrink-0">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary font-display uppercase text-primary-foreground">
+                      {user[0]}
+                    </div>
+                    <OnlineDot
+                      visible={st.visible && st.isOnline}
+                      size="md"
+                      className="absolute bottom-0 right-0"
+                    />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-bold">@{user}</p>
+                    {st.visible && !st.isOnline && st.statusText && (
+                      <OnlineStatusSubtitle status={st} className="block truncate" />
+                    )}
+                    <p className="truncate text-xs text-muted-foreground">{last.message}</p>
+                  </div>
+                </button>
+              );
+            })
           )}
         </div>
       ) : (
         <>
           <div className="flex items-center gap-2 border-b p-3">
-            <button onClick={() => setToUser("")} className="text-sm font-bold text-primary">← Inbox</button>
-            <span className="font-bold">@{toUser}</span>
+            <button onClick={() => setToUser("")} className="text-sm font-bold text-primary">
+              ← Inbox
+            </button>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className="truncate font-bold">@{toUser}</span>
+                <OnlineDot
+                  visible={activePresence.visible && activePresence.isOnline}
+                  size="sm"
+                  className="border-0"
+                />
+              </div>
+              {activePresence.visible && !activePresence.isOnline && activePresence.statusText && (
+                <OnlineStatusSubtitle status={activePresence} className="block truncate" />
+              )}
+            </div>
             <button
               onClick={() => placeCall(true)}
               className="ml-auto rounded-full p-2 text-muted-foreground hover:bg-secondary hover:text-foreground"
@@ -192,12 +263,7 @@ function Messages() {
                 {m.message}
                 {m.gif_url && (
                   <div className={m.message ? "mt-1" : ""}>
-                    <img
-                      src={m.gif_url}
-                      alt="GIF"
-                      loading="lazy"
-                      className="max-h-40 rounded-lg"
-                    />
+                    <img src={m.gif_url} alt="GIF" loading="lazy" className="max-h-40 rounded-lg" />
                     {m.gif_credit && (
                       <p className="mt-0.5 text-[10px] font-semibold opacity-70">
                         Made by {m.gif_credit}
@@ -254,7 +320,9 @@ function Messages() {
             >
               <ImageIcon className="h-4 w-4" />
             </button>
-            <Button onClick={send} className="rounded-full">Send</Button>
+            <Button onClick={send} className="rounded-full">
+              Send
+            </Button>
           </div>
         </>
       )}

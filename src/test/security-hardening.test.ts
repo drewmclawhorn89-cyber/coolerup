@@ -276,6 +276,45 @@ describe("giphy key is not shipped to the browser", () => {
     expect(picker).not.toContain("getGiphyKey");
     expect(picker).toContain("searchGiphy");
   });
+
+  it("reads the key only from the server-side GIPHY_API_KEY secret", () => {
+    expect(giphy).toContain('process.env["GIPHY_API_KEY"]');
+    // The file may *mention* VITE_GIPHY_API_KEY in a comment explaining why it
+    // is unsafe, but it must never read it.
+    expect(giphy).not.toMatch(/process\.env\[["']VITE_GIPHY_API_KEY["']\]/);
+    expect(giphy).not.toMatch(/import\.meta\.env/);
+  });
+
+  it("never hardcodes a key literal", () => {
+    // A real Giphy key is a long alphanumeric run. If one is ever pasted into
+    // the source, this fails before it can reach a commit.
+    expect(giphy).not.toMatch(/["'][A-Za-z0-9]{25,}["']/);
+  });
+});
+
+describe("secrets cannot be committed", () => {
+  const gitignore = read(".gitignore");
+  const envExample = read(".env.example");
+
+  it("gitignores .env while keeping the template", () => {
+    expect(gitignore).toMatch(/^\.env$/m);
+    expect(gitignore).toContain("!.env.example");
+  });
+
+  it("does not advertise the VITE_ Giphy variant", () => {
+    // Vite inlines VITE_* into the browser bundle, so this name is a trap: it
+    // looks like config but publishes the key to every visitor.
+    expect(envExample).not.toContain("VITE_GIPHY_API_KEY");
+    expect(envExample).toContain("GIPHY_API_KEY=");
+  });
+
+  it("ships the template with blank values only", () => {
+    const assigned = envExample
+      .split("\n")
+      .filter((line) => /^[A-Z0-9_]+=/.test(line))
+      .filter((line) => line.split("=").slice(1).join("=").trim() !== "");
+    expect(assigned).toEqual([]);
+  });
 });
 
 describe("remaining findings follow-up migration", () => {

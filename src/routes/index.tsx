@@ -6,16 +6,16 @@ import {
   ChevronRight,
   Download,
   Heart,
-  Gift,
-  Globe,
   Home,
   LogOut,
   MessageCircle,
+  MoreHorizontal,
   Music,
   Play,
   Plus,
   Search,
   ShoppingBag,
+  Tv,
   User,
   Users,
   Wifi,
@@ -60,6 +60,12 @@ const RecordDialog = lazy(() =>
 );
 const PhotoDialog = lazy(() =>
   import("@/components/PhotoDialog").then((m) => ({ default: m.PhotoDialog })),
+);
+const TwitchPanel = lazy(() =>
+  import("@/components/TwitchPanel").then((m) => ({ default: m.TwitchPanel })),
+);
+const MorePanel = lazy(() =>
+  import("@/components/MorePanel").then((m) => ({ default: m.MorePanel })),
 );
 import {
   fetchMyLikes,
@@ -118,7 +124,16 @@ export const Route = createFileRoute("/")({
 type Tab =
   "foryou" | "explore" | "following" | "liked" | "saved" | "inbox" | "shop" | "subscriptions";
 type FeedTab =
-  "home" | "following" | "foryou" | "explore" | "marketplace" | "groups" | "live" | "codes";
+  | "home"
+  | "following"
+  | "foryou"
+  | "twitch"
+  | "more"
+  | "explore"
+  | "marketplace"
+  | "groups"
+  | "live"
+  | "codes";
 type NotificationFilter = "all" | "unread";
 
 // One entry in the home-menu "top tabs" strip.
@@ -245,7 +260,7 @@ function TopTabs({ className = "", ctx }: { className?: string; ctx: TopTabsCtx 
         ref={stripRef}
         onScroll={measure}
         style={{ maskImage: mask, WebkitMaskImage: mask }}
-        className="no-scrollbar flex min-w-0 flex-1 items-center gap-2 overflow-x-auto"
+        className="no-scrollbar flex min-w-0 flex-1 items-center gap-2 overflow-x-auto touch-pan-x"
       >
         {items.map((item, index) => (
           <button
@@ -858,11 +873,18 @@ function Index() {
     }
   }, [codesSeason, feedTab]);
 
-  // One shared top tab bar (Home | Following | For You | Videos | Music |
-  // Coolerup Browser | Marketplace | Groups | LIVE | Codes | Explore | Shop).
-  // It renders on every screen and at every breakpoint, and the strip can be
-  // stepped left/right with the always-visible arrows so no tab is ever
-  // unreachable — even on a narrow phone.
+  // One shared top tab bar (Home | Following | For You | Videos | Music | Twitch | More).
+  // It renders on every screen and at every breakpoint, scrolls smoothly with touch/wheel,
+  // and steps left/right with the always-visible arrows so no tab is ever unreachable.
+  const isMoreSectionActive =
+    topTab === "more" ||
+    topTab === "marketplace" ||
+    topTab === "groups" ||
+    topTab === "live" ||
+    topTab === "codes" ||
+    topTab === "explore" ||
+    topTab === "shop";
+
   const topTabItems: TopTabItem[] = [
     { key: "home", label: "Home", onClick: () => pickFeedTab("home"), active: topTab === "home" },
     {
@@ -894,51 +916,19 @@ function Index() {
       active: false,
     },
     {
-      // The in-app browser: a Coolerup-branded search + web view, not a Google embed.
-      key: "browser",
-      label: "Coolerup Browser",
-      icon: <Globe className="size-3.5" />,
-      onClick: () => void navigate({ to: "/browser" }),
-      active: false,
+      key: "twitch",
+      label: "Twitch",
+      icon: <Tv className="size-3.5" />,
+      onClick: () => pickFeedTab("twitch"),
+      active: topTab === "twitch",
     },
     {
-      key: "marketplace",
-      label: "Marketplace",
-      onClick: () => pickFeedTab("marketplace"),
-      active: topTab === "marketplace",
+      key: "more",
+      label: "More",
+      icon: <MoreHorizontal className="size-3.5" />,
+      onClick: () => pickFeedTab("more"),
+      active: isMoreSectionActive,
     },
-    {
-      key: "groups",
-      label: "Groups",
-      onClick: () => pickFeedTab("groups"),
-      active: topTab === "groups",
-    },
-    {
-      key: "live",
-      label: "LIVE",
-      icon: <span className="h-2 w-2 rounded-full bg-red-500" />,
-      onClick: () => pickFeedTab("live"),
-      active: topTab === "live",
-    },
-    // Christmas only: seasonal gift-code tab. Vanishes on Jan 2, returns Nov 15.
-    ...(codesSeason
-      ? [
-          {
-            key: "codes",
-            label: "Codes",
-            icon: <Gift className="size-3.5" />,
-            onClick: () => pickFeedTab("codes"),
-            active: topTab === "codes",
-          },
-        ]
-      : []),
-    {
-      key: "explore",
-      label: "Explore",
-      onClick: () => pickFeedTab("explore"),
-      active: topTab === "explore",
-    },
-    { key: "shop", label: "Shop", onClick: () => setTab("shop"), active: topTab === "shop" },
   ];
 
   // Props for the shared (module-level) top-tabs bar. Passing one object keeps
@@ -1176,7 +1166,31 @@ function Index() {
           </div>
         )}
 
-        {onLiveTab ? (
+        {activeTab === "foryou" && feedTab === "twitch" ? (
+          <div className="relative flex min-h-0 flex-1 flex-col bg-black">
+            <TopTabs className={topTabsClass} ctx={topTabsCtx} />
+            <Suspense fallback={null}>
+              <TwitchPanel />
+            </Suspense>
+          </div>
+        ) : activeTab === "foryou" && feedTab === "more" ? (
+          <div className="relative flex min-h-0 flex-1 flex-col bg-black">
+            <TopTabs className={topTabsClass} ctx={topTabsCtx} />
+            <Suspense fallback={null}>
+              <MorePanel
+                codesSeason={codesSeason}
+                onOpenBrowser={() => void navigate({ to: "/browser" })}
+                onSelectMarketplace={() => pickFeedTab("marketplace")}
+                onSelectGroups={() => pickFeedTab("groups")}
+                onSelectLive={() => pickFeedTab("live")}
+                onSelectCodes={() => pickFeedTab("codes")}
+                onSelectExplore={() => pickFeedTab("explore")}
+                onSelectShop={() => setTab("shop")}
+                onOpenSettings={() => void navigate({ to: "/settings" })}
+              />
+            </Suspense>
+          </div>
+        ) : onLiveTab ? (
           <div className="relative flex min-h-0 flex-1 flex-col bg-black">
             <TopTabs className={topTabsClass} ctx={topTabsCtx} />
             <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto pt-2">

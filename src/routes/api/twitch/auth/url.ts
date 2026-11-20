@@ -7,14 +7,14 @@ export const Route = createFileRoute("/api/twitch/auth/url")({
       GET: ({ request }) => {
         const result = buildTwitchAuthorizeUrl(request);
         if (!result) {
+          // Optional feature: not an error. Watching streams never needs OAuth.
           return Response.json(
             {
               configured: false,
               redirectUri: getTwitchRedirectUri(request),
-              error:
-                "Twitch OAuth needs TWITCH_CLIENT_ID and TWITCH_CLIENT_SECRET set on the server.",
+              error: "Twitch sign-in isn't set up on this server. Watching streams still works.",
             },
-            { status: 400, headers: { "cache-control": "no-store" } },
+            { headers: { "cache-control": "no-store" } },
           );
         }
         return Response.json(

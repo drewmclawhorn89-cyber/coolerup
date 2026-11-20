@@ -9,7 +9,6 @@ import {
   Home,
   LogOut,
   MessageCircle,
-  MoreHorizontal,
   Music,
   Play,
   Plus,
@@ -873,18 +872,9 @@ function Index() {
     }
   }, [codesSeason, feedTab]);
 
-  // One shared top tab bar (Home | Following | For You | Videos | Music | Twitch | More).
+  // One shared top tab bar (Home | Following | For You | Videos | Music | Twitch).
   // It renders on every screen and at every breakpoint, scrolls smoothly with touch/wheel,
   // and steps left/right with the always-visible arrows so no tab is ever unreachable.
-  const isMoreSectionActive =
-    topTab === "more" ||
-    topTab === "marketplace" ||
-    topTab === "groups" ||
-    topTab === "live" ||
-    topTab === "codes" ||
-    topTab === "explore" ||
-    topTab === "shop";
-
   const topTabItems: TopTabItem[] = [
     { key: "home", label: "Home", onClick: () => pickFeedTab("home"), active: topTab === "home" },
     {
@@ -921,13 +911,6 @@ function Index() {
       icon: <Tv className="size-3.5" />,
       onClick: () => pickFeedTab("twitch"),
       active: topTab === "twitch",
-    },
-    {
-      key: "more",
-      label: "More",
-      icon: <MoreHorizontal className="size-3.5" />,
-      onClick: () => pickFeedTab("more"),
-      active: isMoreSectionActive,
     },
   ];
 

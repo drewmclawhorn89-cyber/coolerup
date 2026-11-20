@@ -48,6 +48,83 @@ service cloud.firestore {
         && incoming().diff(existing()).affectedKeys().hasOnly(['isOnline', 'lastActive', 'showOnline']);
     }
 
+    function isValidWatchSource(source) {
+      return source in ['foryou', 'videos', 'youtube', 'tiktok', 'instagram'];
+    }
+
+    function isValidWatchHistoryEntry(data) {
+      return data.keys().hasAll([
+          'uid',
+          'videoId',
+          'source',
+          'title',
+          'creator',
+          'thumbnailUrl',
+          'videoUrl',
+          'sourceUrl',
+          'watchRouteId',
+          'youtubeId',
+          'watchedAt',
+          'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'uid',
+          'videoId',
+          'source',
+          'title',
+          'creator',
+          'thumbnailUrl',
+          'videoUrl',
+          'sourceUrl',
+          'watchRouteId',
+          'youtubeId',
+          'watchedAt',
+          'createdAt'
+        ])
+        && isValidId(data.uid)
+        && data.uid == request.auth.uid
+        && data.videoId is string && data.videoId.size() >= 1 && data.videoId.size() <= 180
+        && data.source is string && isValidWatchSource(data.source)
+        && data.title is string && data.title.size() <= 300
+        && data.creator is string && data.creator.size() <= 100
+        && data.thumbnailUrl is string && data.thumbnailUrl.size() <= 1000
+        && data.videoUrl is string && data.videoUrl.size() <= 1000
+        && data.sourceUrl is string && data.sourceUrl.size() <= 1000
+        && data.watchRouteId is string && data.watchRouteId.size() <= 180
+        && data.youtubeId is string && data.youtubeId.size() <= 64
+        && data.watchedAt is timestamp
+        && data.createdAt is timestamp;
+    }
+
+    function isWatchHistoryUpdate() {
+      return existing().uid == request.auth.uid
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().watchedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'videoId',
+          'source',
+          'title',
+          'creator',
+          'thumbnailUrl',
+          'videoUrl',
+          'sourceUrl',
+          'watchRouteId',
+          'youtubeId',
+          'watchedAt'
+        ]);
+    }
+
+    function isValidWatchHistorySettings(data, userId) {
+      return data.keys().hasAll(['uid', 'saveWatchHistory', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'saveWatchHistory', 'updatedAt'])
+        && isValidId(data.uid)
+        && data.uid == request.auth.uid
+        && data.uid == userId
+        && data.saveWatchHistory is bool
+        && data.updatedAt is timestamp;
+    }
+
     match /user_presence/{presenceId} {
       allow get: if isSignedIn()
         && isValidId(presenceId)
@@ -69,6 +146,57 @@ service cloud.firestore {
 
       allow delete: if isSignedIn()
         && isValidId(presenceId)
+        && existing().uid == request.auth.uid;
+    }
+
+    match /watch_history/{historyDocId} {
+      allow get: if isSignedIn()
+        && isValidId(historyDocId)
+        && (resource == null || existing().uid == request.auth.uid);
+
+      allow list: if isSignedIn()
+        && resource.data.uid == request.auth.uid;
+
+      allow create: if isSignedIn()
+        && isValidId(historyDocId)
+        && isValidWatchHistoryEntry(incoming())
+        && incoming().createdAt == request.time
+        && incoming().watchedAt == request.time;
+
+      allow update: if isSignedIn()
+        && isValidId(historyDocId)
+        && isValidWatchHistoryEntry(incoming())
+        && isWatchHistoryUpdate();
+
+      allow delete: if isSignedIn()
+        && isValidId(historyDocId)
+        && existing().uid == request.auth.uid;
+    }
+
+    match /watch_history_settings/{userId} {
+      allow get: if isSignedIn()
+        && isValidId(userId)
+        && request.auth.uid == userId;
+
+      allow list: if isSignedIn()
+        && resource.data.uid == request.auth.uid;
+
+      allow create: if isSignedIn()
+        && isValidId(userId)
+        && isValidWatchHistorySettings(incoming(), userId)
+        && incoming().updatedAt == request.time;
+
+      allow update: if isSignedIn()
+        && isValidId(userId)
+        && isValidWatchHistorySettings(incoming(), userId)
+        && existing().uid == request.auth.uid
+        && incoming().uid == existing().uid
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['saveWatchHistory', 'updatedAt']);
+
+      allow delete: if isSignedIn()
+        && isValidId(userId)
+        && request.auth.uid == userId
         && existing().uid == request.auth.uid;
     }
   }

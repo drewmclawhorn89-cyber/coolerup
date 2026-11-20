@@ -58,6 +58,7 @@ import { followUser, unfollowUser } from "@/lib/follow";
 import { useChristmasMode } from "@/lib/christmas";
 import { QUALITY_OPTIONS, resolveQualitySource, useVideoQuality } from "@/lib/videoQuality";
 import { QualitySelector } from "@/components/QualitySelector";
+import { createWatchDurationTracker, recordWatchHistory } from "@/lib/watchHistory";
 
 const Comments = lazy(() => import("./Comments").then((m) => ({ default: m.Comments })));
 const ShareMenu = lazy(() => import("./ShareMenu").then((m) => ({ default: m.ShareMenu })));
@@ -168,6 +169,7 @@ function VideoCardImpl({
   const resumeRef = useRef(0);
   // Video id whose view has already been reported this session.
   const viewRecordedRef = useRef<string | null>(null);
+  const watchTrackerRef = useRef<ReturnType<typeof createWatchDurationTracker> | null>(null);
   useEffect(() => {
     resumeRef.current = 0;
   }, [video.id]);
@@ -816,14 +818,42 @@ function VideoCardImpl({
     el.currentTime = ((e.clientX - rect.left) / rect.width) * el.duration;
   };
 
+  // Who uploaded the video. Resolved from videos.user_id → profiles.handle by
+  // the feed; `video.username` is the same value when the join isn't available.
+  const poster = posterUsername ?? video.poster_username ?? video.username;
+
+  useEffect(() => {
+    const uid = auth.user?.id;
+    if (!uid || isImage) {
+      watchTrackerRef.current = null;
+      return;
+    }
+    const tracker = createWatchDurationTracker({
+      onTrigger: () => {
+        void recordWatchHistory(uid, {
+          videoId: video.id,
+          source: "foryou",
+          title: captionText.trim() || `Video by @${poster}`,
+          creator: poster,
+          thumbnailUrl: "",
+          videoUrl: video.video_url,
+        });
+      },
+    });
+    watchTrackerRef.current = tracker;
+    if (ref.current && !ref.current.paused) {
+      tracker.start();
+    }
+    return () => {
+      tracker.dispose();
+      if (watchTrackerRef.current === tracker) watchTrackerRef.current = null;
+    };
+  }, [auth.user?.id, video.id, video.video_url, captionText, poster, isImage]);
+
   if (deleted || isBanned || notInterested) return null;
 
   // Never label a creator's own repost of their own video — TikTok doesn't.
   const reposter = repostedBy && repostedBy !== video.username ? repostedBy : null;
-
-  // Who uploaded the video. Resolved from videos.user_id → profiles.handle by
-  // the feed; `video.username` is the same value when the join isn't available.
-  const poster = posterUsername ?? video.poster_username ?? video.username;
 
   return (
     <section className="feed-card relative h-full w-full snap-start snap-always bg-black md:flex md:items-center md:justify-center md:bg-transparent md:py-4">
@@ -897,7 +927,10 @@ function VideoCardImpl({
                     v.currentTime = Math.min(resumeRef.current, v.duration - 0.25);
                   }
                 }}
-                onError={() => setLoadState("error")}
+                onError={() => {
+                  setLoadState("error");
+                  watchTrackerRef.current?.pause();
+                }}
                 onPlay={() => {
                   setPlaying(true);
                   syncSound(true);
@@ -913,16 +946,26 @@ function VideoCardImpl({
                       void recordVideoView(id);
                     }, 2000);
                   }
+                  if (auth.user?.id) {
+                    watchTrackerRef.current?.start();
+                  }
                 }}
                 onPause={() => {
                   setPlaying(false);
                   syncSound(false);
+                  watchTrackerRef.current?.pause();
+                }}
+                onEnded={() => {
+                  watchTrackerRef.current?.pause();
                 }}
                 onSeeking={() => syncSound(true)}
                 onSeeked={() => syncSound(true)}
                 onTimeUpdate={(e) => {
                   const v = e.currentTarget;
                   resumeRef.current = v.currentTime;
+                  if (auth.user?.id && !v.paused) {
+                    watchTrackerRef.current?.tick();
+                  }
                   if (v.duration && progressRef.current) {
                     progressRef.current.style.width = `${(v.currentTime / v.duration) * 100}%`;
                   }

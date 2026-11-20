@@ -31,6 +31,7 @@ import { getPendingVideo } from "@/lib/pendingUploads";
 import { useFullVideoSave } from "@/lib/savedFullVideos";
 import { useFullVideoOffline } from "@/lib/useFullVideoOffline";
 import { formatBytes } from "@/lib/offline";
+import { createWatchDurationTracker, recordWatchHistory } from "@/lib/watchHistory";
 import {
   addComment,
   deleteFullVideo,
@@ -59,7 +60,10 @@ export const Route = createFileRoute("/watch/$id")({
       { title: "Watch — Coolerup" },
       { name: "description", content: "Watch full-length videos on Coolerup." },
       { property: "og:title", content: "Watch — Coolerup" },
-      { property: "og:description", content: "Watch full-length videos and YouTube picks on Coolerup." },
+      {
+        property: "og:description",
+        content: "Watch full-length videos and YouTube picks on Coolerup.",
+      },
       { property: "og:type", content: "video.other" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
@@ -240,6 +244,51 @@ function WatchPage() {
       clearInterval(timer);
     };
   }, [video?.status, video?.id]);
+
+  const recordWatchedVideo = useCallback(() => {
+    if (!auth.user?.id || !video) return;
+    const isYt = Boolean(video.is_youtube && video.youtube_id);
+    const ytThumb = isYt
+      ? `https://i.ytimg.com/vi/${encodeURIComponent(video.youtube_id!)}/hqdefault.jpg`
+      : "";
+    void recordWatchHistory(auth.user.id, {
+      videoId: video.id,
+      source: isYt ? "youtube" : "videos",
+      title: video.title,
+      creator: video.username,
+      thumbnailUrl: poster || video.thumbnail_url || ytThumb,
+      videoUrl: video.video_url,
+      sourceUrl: isYt
+        ? `https://www.youtube.com/watch?v=${encodeURIComponent(video.youtube_id!)}`
+        : "",
+      watchRouteId: video.id,
+      youtubeId: isYt ? (video.youtube_id ?? "") : "",
+    });
+  }, [auth.user?.id, poster, video]);
+
+  // Embedded YouTube player has no native onPlay callback on the iframe; count
+  // >3 seconds while the tab is visible and the embed is on-screen.
+  useEffect(() => {
+    if (!auth.user?.id || !video?.is_youtube || !video.youtube_id) return;
+    const tracker = createWatchDurationTracker({
+      onTrigger: () => {
+        recordWatchedVideo();
+      },
+    });
+    const syncVisibility = () => {
+      if (typeof document === "undefined" || document.visibilityState === "visible") {
+        tracker.start();
+      } else {
+        tracker.pause();
+      }
+    };
+    syncVisibility();
+    document.addEventListener("visibilitychange", syncVisibility);
+    return () => {
+      document.removeEventListener("visibilitychange", syncVisibility);
+      tracker.dispose();
+    };
+  }, [auth.user?.id, video?.id, video?.is_youtube, video?.youtube_id, recordWatchedVideo]);
 
   /* ---------------- subscription state ---------------- */
 
@@ -577,6 +626,7 @@ function WatchPage() {
               poster={poster || undefined}
               sources={renditions}
               onFirstPlay={countView}
+              onWatchThreshold={recordWatchedVideo}
               className="sm:rounded-xl"
             />
           )}
@@ -917,9 +967,7 @@ function CommentRow({
           @{comment.username}{" "}
           <span className="font-normal text-muted-foreground">{timeAgo(comment.created_at)}</span>
         </p>
-        {comment.body && (
-          <p className="whitespace-pre-wrap break-words text-sm">{comment.body}</p>
-        )}
+        {comment.body && <p className="whitespace-pre-wrap break-words text-sm">{comment.body}</p>}
         {comment.gif_url && (
           <>
             <img

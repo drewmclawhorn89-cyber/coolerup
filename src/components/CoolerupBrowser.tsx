@@ -48,6 +48,11 @@ import {
 import { searchCoolerupBrowser } from "@/lib/coolerupBrowser.functions";
 import { proxyUrlFor, targetFromProxyUrl } from "@/lib/browserProxy";
 import { addYouTubeSong } from "@/lib/youtubeSongs";
+import {
+  createWatchDurationTracker,
+  detectExternalVideoSource,
+  recordWatchHistory,
+} from "@/lib/watchHistory";
 
 /* -------------------------------------------------------------------------- */
 /* Model                                                                      */
@@ -218,15 +223,47 @@ export function CoolerupBrowser() {
      change) the address bar follows it. We don't push a new tab entry — the
      iframe keeps its own history — but we do record it. */
   const lastFrameUrl = useRef<string | null>(null);
+  const [trackedSiteUrl, setTrackedSiteUrl] = useState<string | null>(null);
   const handleFrameNavigate = useCallback(
     (url: string) => {
       setAddress(url);
+      setTrackedSiteUrl(url);
       if (lastFrameUrl.current === url) return;
       lastFrameUrl.current = url;
       void saveHistory({ url }).then(refreshPanels);
     },
     [refreshPanels],
   );
+
+  useEffect(() => {
+    setTrackedSiteUrl(entry?.kind === "site" ? entry.url : null);
+  }, [entry]);
+
+  useEffect(() => {
+    if (!auth.user?.id || !trackedSiteUrl || isBlockedUrl(trackedSiteUrl)) return;
+    const detected = detectExternalVideoSource(trackedSiteUrl);
+    if (!detected) return;
+
+    const uid = auth.user.id;
+    const tracker = createWatchDurationTracker({
+      onTrigger: () => {
+        void recordWatchHistory(uid, detected);
+      },
+    });
+    const syncVisibility = () => {
+      if (typeof document === "undefined" || document.visibilityState === "visible") {
+        tracker.start();
+      } else {
+        tracker.pause();
+      }
+    };
+    syncVisibility();
+    document.addEventListener("visibilitychange", syncVisibility);
+    return () => {
+      document.removeEventListener("visibilitychange", syncVisibility);
+      tracker.dispose();
+    };
+  }, [auth.user?.id, trackedSiteUrl]);
 
   /* Deep links from History / Bookmarks: /browser?q=... or /browser?url=... */
   const { q: deepQuery, url: deepUrl } = useSearch({ from: "/browser/" });

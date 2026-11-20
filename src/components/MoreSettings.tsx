@@ -387,6 +387,7 @@ export function MoreSettings() {
         <Toggle id="personalized-ads" label="Personalized ads" def />
       </Card>
       <Card title="Content preferences">
+        <Row label="Watch History" desc="View or clear videos you've watched" to="/watch-history" />
         <Toggle id="autoplay" label="Autoplay next video" def />
         <Toggle id="captions" label="Always show captions" />
         <Toggle

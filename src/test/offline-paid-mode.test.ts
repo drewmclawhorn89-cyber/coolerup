@@ -11,6 +11,7 @@ import {
 import { syncOfflineLibrary } from "@/lib/offlineAutoDownload";
 import {
   confirmPayment,
+  getSubscription,
   planUnlocksOffline,
   requestPayment,
   updatePaymentMethod,
@@ -165,7 +166,7 @@ describe("paid-only gating", () => {
   });
 
   it("the per-video hook opens a paywall instead of downloading", () => {
-    expect(hook).toContain("planUnlocksOffline");
+    expect(hook).toContain("useOfflineUnlocked");
     expect(hook).not.toContain("useTrial");
     expect(hook).toContain("setPaywallOpen(true)");
     expect(hook.indexOf("setPaywallOpen(true)")).toBeLessThan(
@@ -188,7 +189,7 @@ describe("Settings > Offline Mode", () => {
   it("has an Offline Mode toggle wired to the paid check", () => {
     expect(settings).toContain("Offline Mode");
     expect(settings).toContain('aria-label="Toggle Offline Mode"');
-    expect(settings).toContain("planUnlocksOffline(auth.handle)");
+    expect(settings).toContain("useOfflineUnlocked(auth.handle)");
     expect(settings).toContain("setOfflineModeOn");
   });
 
@@ -229,7 +230,7 @@ describe("Videos > Offline tab", () => {
 
 describe("automatic downloads", () => {
   it("only runs for paid plans with Offline Mode on", () => {
-    expect(watcher).toContain("planUnlocksOffline");
+    expect(watcher).toContain("useOfflineUnlocked");
     expect(watcher).toContain("syncOfflineLibrary");
     expect(watcher).toContain("offlineMode");
   });
@@ -250,5 +251,69 @@ describe("automatic downloads", () => {
     expect(src).toContain("if (video.is_youtube) return false;");
     expect(src).toContain('video.status === "processing"');
     expect(src).toContain('video.status === "failed"');
+  });
+});
+
+describe("a paid plan stored on the server", () => {
+  const cache = (grant: Record<string, unknown>) =>
+    localStorage.setItem(`lifetime:${H}`, JSON.stringify(grant));
+
+  it("unlocks offline for a Pro row that is not a lifetime grant", () => {
+    // The bug: only `is_lifetime` rows were honoured, so a real Pro
+    // subscriber whose plan lived in `public.subscriptions` read as "no plan"
+    // and saw the Plus upsell.
+    cache({ plan: "pro", status: "active", isLifetime: false });
+    expect(planUnlocksOffline(H)).toBe(true);
+    expect(getSubscription(H)?.planId).toBe("pro");
+    expect(getSubscription(H)?.isLifetime).toBe(false);
+  });
+
+  it("unlocks offline for every paid tier", () => {
+    for (const plan of ["plus", "pro", "vip"]) {
+      localStorage.clear();
+      cache({ plan, status: "active", isLifetime: false });
+      expect(planUnlocksOffline(H)).toBe(true);
+    }
+  });
+
+  it("still unlocks the lifetime all-access grant", () => {
+    cache({ plan: "all", status: "active", isLifetime: true });
+    expect(planUnlocksOffline(H)).toBe(true);
+    expect(getSubscription(H)?.isLifetime).toBe(true);
+  });
+
+  it("does not unlock a pending or canceled server row", () => {
+    cache({ plan: "pro", status: "pending", isLifetime: false });
+    expect(planUnlocksOffline(H)).toBe(false);
+
+    localStorage.clear();
+    cache({ plan: "pro", status: "canceled", isLifetime: false });
+    expect(planUnlocksOffline(H)).toBe(false);
+    expect(getSubscription(H)).toBeNull();
+  });
+
+  it("does not unlock an unknown plan id", () => {
+    cache({ plan: "platinum", status: "active", isLifetime: false });
+    expect(planUnlocksOffline(H)).toBe(false);
+  });
+
+  it("offline surfaces read the plan reactively", () => {
+    const subs = read("src/lib/subscriptions.ts");
+    expect(subs).toContain("export function useOfflineUnlocked");
+    for (const file of [
+      "src/routes/videos.tsx",
+      "src/routes/settings.tsx",
+      "src/routes/offline.tsx",
+      "src/lib/useFullVideoOffline.ts",
+      "src/components/ShareMenu.tsx",
+      "src/components/OfflineAutoDownloadWatcher.tsx",
+    ]) {
+      expect(read(file)).toContain("useOfflineUnlocked");
+    }
+  });
+
+  it("the paywall says every paid plan includes offline mode", () => {
+    expect(paywall).toContain("every paid plan");
+    expect(paywall).toContain("Plus, Pro and VIP");
   });
 });

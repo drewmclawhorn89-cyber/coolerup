@@ -38,8 +38,9 @@ export function OfflinePaywallDialog({
             Offline Mode is for Paid Subscribers
           </DialogTitle>
           <DialogDescription className="text-center text-sm text-white/70">
-            Subscribe to {plan.label} or higher to download videos and watch them without a
-            connection. Nothing will be downloaded until your plan is active.
+            Offline Mode is included with every paid plan — Plus, Pro and VIP. Subscribe to
+            download videos and watch them without a connection. Nothing is downloaded until your
+            plan is active.
           </DialogDescription>
         </DialogHeader>
         <DialogFooter className="mt-2 flex-col gap-2 sm:flex-col">
@@ -48,7 +49,7 @@ export function OfflinePaywallDialog({
             onClick={subscribe}
             className="w-full rounded-md bg-white px-4 py-2 font-semibold text-black transition hover:bg-white/90"
           >
-            Subscribe · ${plan.price.toFixed(2)}/mo
+            Subscribe · from ${plan.price.toFixed(2)}/mo
           </button>
           <button
             type="button"

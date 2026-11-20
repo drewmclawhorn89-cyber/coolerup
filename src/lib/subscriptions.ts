@@ -300,7 +300,14 @@ export function getSubscription(handle?: string | null): Subscription | null {
 
   const lifetime = cachedLifetime(handle);
   if (isLifetimeRevoked(lifetime)) return null;
-  if (isLifetimeActive(lifetime) && lifetime) {
+
+  // The server row wins whenever it says the plan is live. That covers both a
+  // lifetime grant *and* an ordinary paid plan that was applied in the database
+  // (an owner comp, a card charged outside the app). Before this, only lifetime
+  // rows were honoured, so a real Pro/VIP subscriber whose plan lived in
+  // `public.subscriptions` read as "no plan" and got the upgrade prompt.
+  if (lifetime && lifetime.status === "active" && planById(lifetime.plan)) {
+    const isLifetime = isLifetimeActive(lifetime);
     return {
       planId: lifetime.plan,
       status: "active",
@@ -309,9 +316,10 @@ export function getSubscription(handle?: string | null): Subscription | null {
       paymentMethod: null,
       source: "payment",
       code: null,
-      // Never expires. Deliberately null, and never read while isLifetime.
+      // A lifetime grant never expires; a server-side monthly plan has no
+      // client-known renewal date, so it stays active until the row changes.
       currentPeriodEnd: null,
-      isLifetime: true,
+      isLifetime,
       grantedBy: lifetime.grantedBy,
     };
   }
@@ -516,6 +524,34 @@ export function planUnlocksOffline(handle?: string | null): boolean {
   const sub = getSubscription(handle);
   if (!isActive(sub)) return false;
   return planIncludesOffline(sub?.planId);
+}
+
+/**
+ * Reactive `planUnlocksOffline`.
+ *
+ * Reads the plan on the first render, then re-reads whenever the local record
+ * changes, the server-side grant changes, or the window regains focus. It also
+ * asks the server once on mount, so a plan applied in the database unlocks the
+ * offline surfaces without a reload.
+ */
+export function useOfflineUnlocked(handle?: string | null): boolean {
+  const [unlocked, setUnlocked] = useState(() => planUnlocksOffline(handle));
+
+  useEffect(() => {
+    const sync = () => setUnlocked(planUnlocksOffline(handle));
+    sync();
+    window.addEventListener(EVT, sync);
+    window.addEventListener(LIFETIME_EVENT, sync);
+    window.addEventListener("focus", sync);
+    void refreshLifetime(handle).then(sync);
+    return () => {
+      window.removeEventListener(EVT, sync);
+      window.removeEventListener(LIFETIME_EVENT, sync);
+      window.removeEventListener("focus", sync);
+    };
+  }, [handle]);
+
+  return unlocked;
 }
 
 /** Why offline mode is locked, so the UI can say something useful. */

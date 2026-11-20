@@ -14,7 +14,7 @@ import {
   type SavedFullVideo,
 } from "@/lib/offline";
 import { useAuth } from "@/hooks/useAuth";
-import { offlinePlan, planUnlocksOffline } from "@/lib/subscriptions";
+import { offlinePlan, useOfflineUnlocked } from "@/lib/subscriptions";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/offline")({
@@ -26,7 +26,7 @@ type FeedItem = { id: string; video: any; size: number };
 
 function OfflinePage() {
   const auth = useAuth();
-  const unlocked = planUnlocksOffline(auth.handle);
+  const unlocked = useOfflineUnlocked(auth.handle);
   const [items, setItems] = useState<FeedItem[] | null>(null);
   const [fullItems, setFullItems] = useState<SavedFullVideo[] | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
@@ -175,7 +175,7 @@ function OfflinePage() {
           </div>
           <h2 className="mt-3 font-semibold">Offline Mode is for Paid Subscribers</h2>
           <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">
-            {`Subscribe to ${plan.label} or higher to save videos for offline viewing. Offline video downloads start at $${plan.price.toFixed(2)}/mo.`}
+            {`Offline Mode is included with every paid plan — Plus, Pro and VIP. Plans start at $${plan.price.toFixed(2)}/mo.`}
           </p>
           <Link
             to="/"

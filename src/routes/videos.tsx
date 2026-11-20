@@ -7,7 +7,7 @@ import { useYouTubeDurations, withYouTubeDurations } from "@/lib/useYouTubeDurat
 import { FullVideoCard } from "@/components/FullVideoCard";
 import { EditFullVideoDialog } from "@/components/EditFullVideoDialog";
 import { useAuth } from "@/hooks/useAuth";
-import { planUnlocksOffline } from "@/lib/subscriptions";
+import { useOfflineUnlocked } from "@/lib/subscriptions";
 import { FULL_VIDEO_CATEGORIES, listFullVideos, type FullVideo } from "@/lib/fullVideos";
 import type { Video } from "@/lib/loop";
 import {
@@ -54,7 +54,7 @@ export const Route = createFileRoute("/videos")({
 function VideosPage() {
   const auth = useAuth();
   // Offline Mode is paid-only: a live, active subscription on any paid tier.
-  const offlineUnlocked = planUnlocksOffline(auth.handle);
+  const offlineUnlocked = useOfflineUnlocked(auth.handle);
   const online = useIsOnline();
   const navigate = useNavigate();
 

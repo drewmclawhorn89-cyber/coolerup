@@ -4,7 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { syncOfflineLibrary } from "@/lib/offlineAutoDownload";
 import { OFFLINE_SYNC_EVENT } from "@/lib/offlineEvents";
 import { OFFLINE_MODE_EVENT, useOfflineMode } from "@/lib/offlineMode";
-import { planUnlocksOffline } from "@/lib/subscriptions";
+import { useOfflineUnlocked } from "@/lib/subscriptions";
 
 /** How often a long-lived session re-checks likes/saves in the background. */
 const SYNC_INTERVAL_MS = 5 * 60 * 1000;
@@ -21,7 +21,7 @@ const DEBOUNCE_MS = 1500;
 export function OfflineAutoDownloadWatcher() {
   const auth = useAuth();
   const offlineMode = useOfflineMode();
-  const paid = planUnlocksOffline(auth.handle);
+  const paid = useOfflineUnlocked(auth.handle);
   const running = useRef(false);
   const warnedCap = useRef(false);
 

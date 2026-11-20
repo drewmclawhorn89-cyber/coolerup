@@ -2238,6 +2238,41 @@ export type Database = {
           },
         ]
       }
+      user_presence: {
+        Row: {
+          handle: string
+          is_online: boolean
+          last_active: string
+          show_online: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          handle: string
+          is_online?: boolean
+          last_active?: string
+          show_online?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          handle?: string
+          is_online?: boolean
+          last_active?: string
+          show_online?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_presence_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           id: string
@@ -2365,6 +2400,88 @@ export type Database = {
             columns: ["sound_id"]
             isOneToOne: false
             referencedRelation: "sounds"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      watch_history: {
+        Row: {
+          created_at: string
+          creator: string
+          id: string
+          source: string
+          source_url: string
+          thumbnail_url: string
+          title: string
+          user_id: string
+          video_id: string
+          video_url: string
+          watch_route_id: string
+          watched_at: string
+          youtube_id: string
+        }
+        Insert: {
+          created_at?: string
+          creator?: string
+          id: string
+          source: string
+          source_url?: string
+          thumbnail_url?: string
+          title?: string
+          user_id: string
+          video_id: string
+          video_url?: string
+          watch_route_id?: string
+          watched_at?: string
+          youtube_id?: string
+        }
+        Update: {
+          created_at?: string
+          creator?: string
+          id?: string
+          source?: string
+          source_url?: string
+          thumbnail_url?: string
+          title?: string
+          user_id?: string
+          video_id?: string
+          video_url?: string
+          watch_route_id?: string
+          watched_at?: string
+          youtube_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "watch_history_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      watch_history_settings: {
+        Row: {
+          save_watch_history: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          save_watch_history?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          save_watch_history?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "watch_history_settings_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]

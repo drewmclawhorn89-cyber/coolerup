@@ -65,6 +65,9 @@ const RecordDialog = lazy(() =>
 const PhotoDialog = lazy(() =>
   import("@/components/PhotoDialog").then((m) => ({ default: m.PhotoDialog })),
 );
+const FacebookPanel = lazy(() =>
+  import("@/components/FacebookPanel").then((m) => ({ default: m.FacebookPanel })),
+);
 const TwitchPanel = lazy(() =>
   import("@/components/TwitchPanel").then((m) => ({ default: m.TwitchPanel })),
 );
@@ -129,6 +132,7 @@ type FeedTab =
   | "following"
   | "foryou"
   | "twitch"
+  | "facebook"
   | "explore"
   | "marketplace"
   | "groups"
@@ -914,6 +918,13 @@ function Index() {
       active: topTab === "twitch",
     },
     {
+      key: "facebook",
+      label: "Facebook",
+      icon: <Tv className="size-3.5" />,
+      onClick: () => pickFeedTab("facebook"),
+      active: topTab === "facebook",
+    },
+    {
       key: "browser",
       label: "Browser",
       icon: <Globe className="size-3.5" />,
@@ -1203,7 +1214,14 @@ function Index() {
           </div>
         )}
 
-        {activeTab === "foryou" && feedTab === "twitch" ? (
+        {activeTab === "foryou" && feedTab === "facebook" ? (
+          <div className="relative flex min-h-0 flex-1 flex-col bg-black">
+            <TopTabs className={topTabsClass} ctx={topTabsCtx} />
+            <Suspense fallback={null}>
+              <FacebookPanel />
+            </Suspense>
+          </div>
+        ) : activeTab === "foryou" && feedTab === "twitch" ? (
           <div className="relative flex min-h-0 flex-1 flex-col bg-black">
             <TopTabs className={topTabsClass} ctx={topTabsCtx} />
             <Suspense fallback={null}>

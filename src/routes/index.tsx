@@ -17,7 +17,6 @@ import {
   Plus,
   Radio,
   Search,
-  Settings,
   ShoppingBag,
   Store,
   Tv,
@@ -874,7 +873,7 @@ function Index() {
     }
   }, [codesSeason, feedTab]);
 
-  // One shared top tab bar (Home | Following | For You | Videos | Music | Twitch | Browser | Marketplace | Groups | LIVE | Codes | Explore | Shop | Settings).
+  // One shared top tab bar (Home | Following | For You | Videos | Music | Twitch | Browser | Marketplace | Groups | LIVE | Codes | Explore | Shop).
   // It renders on every screen and at every breakpoint, scrolls smoothly with touch/wheel,
   // and steps left/right with the always-visible arrows so no tab is ever unreachable.
   const topTabItems: TopTabItem[] = [
@@ -966,13 +965,6 @@ function Index() {
       icon: <ShoppingBag className="size-3.5" />,
       onClick: () => setTab("shop"),
       active: topTab === "shop",
-    },
-    {
-      key: "settings",
-      label: "Settings",
-      icon: <Settings className="size-3.5" />,
-      onClick: () => void navigate({ to: "/settings" }),
-      active: false,
     },
   ];
 

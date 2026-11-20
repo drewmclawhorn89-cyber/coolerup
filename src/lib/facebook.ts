@@ -42,3 +42,44 @@ export function normalizeFacebookVideoUrl(input: string): string | null {
 export function buildFacebookEmbedUrl(videoUrl: string, width = 560): string {
   return `https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(videoUrl)}&show_text=false&width=${width}`;
 }
+
+/** True for links Facebook only knows how to resolve server-side (short / share links). */
+export function needsFacebookResolve(url: string): boolean {
+  try {
+    const u = new URL(url);
+    return u.hostname === "fb.watch" || /^\/share\//.test(u.pathname);
+  } catch {
+    return false;
+  }
+}
+
+/** Facebook bounces logged-out visitors to /login/?next=<real url>; recover the real url. */
+export function unwrapFacebookLoginRedirect(location: string): string {
+  let current = location;
+  for (let i = 0; i < 5; i++) {
+    try {
+      const u = new URL(current);
+      if (!/^\/login/.test(u.pathname)) return current;
+      const next = u.searchParams.get("next");
+      if (!next) return current;
+      current = next;
+    } catch {
+      return current;
+    }
+  }
+  return current;
+}
+
+/** Pull the canonical video url out of a Facebook page's og:url / canonical tag. */
+export function extractFacebookCanonical(html: string): string | null {
+  const patterns = [
+    /<meta[^>]+property=["']og:url["'][^>]+content=["']([^"']+)["']/i,
+    /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:url["']/i,
+    /<link[^>]+rel=["']canonical["'][^>]+href=["']([^"']+)["']/i,
+  ];
+  for (const re of patterns) {
+    const m = re.exec(html);
+    if (m?.[1]) return m[1].replace(/&/g, "&");
+  }
+  return null;
+}

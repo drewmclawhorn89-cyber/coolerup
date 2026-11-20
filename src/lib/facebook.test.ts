@@ -25,3 +25,21 @@ describe("facebook embed", () => {
     expect(buildFacebookEmbedUrl("https://fb.watch/a/")).toMatch(/^https:\/\/www\.facebook\.com\/plugins\/video\.php\?href=/);
   });
 });
+
+import { extractFacebookCanonical, needsFacebookResolve, unwrapFacebookLoginRedirect } from "./facebook";
+describe("facebook link resolving", () => {
+  it("detects share and fb.watch links", () => {
+    expect(needsFacebookResolve("https://www.facebook.com/share/v/1Ab/")).toBe(true);
+    expect(needsFacebookResolve("https://fb.watch/abc/")).toBe(true);
+    expect(needsFacebookResolve("https://www.facebook.com/watch/?v=1")).toBe(false);
+  });
+  it("unwraps login redirects", () => {
+    const real = "https://www.facebook.com/reel/123";
+    expect(unwrapFacebookLoginRedirect(`https://www.facebook.com/login/?next=${encodeURIComponent(real)}`)).toBe(real);
+    expect(unwrapFacebookLoginRedirect(real)).toBe(real);
+  });
+  it("reads og:url", () => {
+    expect(extractFacebookCanonical('<meta property="og:url" content="https://www.facebook.com/reel/9?a=1&b=2" />')).toBe("https://www.facebook.com/reel/9?a=1&b=2");
+    expect(extractFacebookCanonical("<html></html>")).toBeNull();
+  });
+});

@@ -4,8 +4,8 @@
 -- persisted across sessions and logouts with strict owner-only RLS.
 
 create table if not exists public.watch_history (
+  id text primary key,
   user_id uuid not null references public.profiles (id) on delete cascade,
-  item_key text not null,
   video_id text not null,
   source text not null check (source in ('foryou', 'videos', 'youtube', 'tiktok', 'instagram')),
   title text not null default '',
@@ -17,7 +17,7 @@ create table if not exists public.watch_history (
   youtube_id text not null default '',
   watched_at timestamptz not null default now(),
   created_at timestamptz not null default now(),
-  primary key (user_id, item_key)
+  unique (user_id, source, video_id)
 );
 
 create index if not exists watch_history_user_watched_idx

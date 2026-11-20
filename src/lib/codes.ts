@@ -11,10 +11,11 @@
 import { supabase } from "@/integrations/supabase/client";
 import { applyCodeSubscription, type Subscription } from "@/lib/subscriptions";
 
-export type CodePlan = "basic" | "premium";
+export type CodePlan = "basic" | "pro" | "premium";
 
 export const CODE_PLANS: Record<CodePlan, { label: string; planId: string; emoji: string }> = {
   basic: { label: "Basic", planId: "plus", emoji: "⭐" },
+  pro: { label: "Pro", planId: "pro", emoji: "🚀" },
   premium: { label: "Premium", planId: "vip", emoji: "👑" },
 };
 
@@ -191,7 +192,7 @@ export type AdminResult<T> = { ok: true; value: T } | { ok: false; message: stri
 const ADMIN_ERRORS: Record<string, string> = {
   not_admin: "Only @drewmclawhorn3 can manage codes",
   missing_code: "Enter a code name",
-  invalid_plan: "Choose Basic or Premium",
+  invalid_plan: "Choose Basic, Pro or Premium",
   invalid_months: "Choose 1, 3 or 12 months",
   invalid_max_uses: "Max uses must be at least 1",
   duplicate: "That code already exists",

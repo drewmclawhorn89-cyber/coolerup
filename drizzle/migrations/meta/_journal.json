@@ -85,6 +85,13 @@
       "when": 1794184088150,
       "tag": "0011_add_youtube_full_videos",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1795216429143,
+      "tag": "0012_security_fixes",
+      "breakpoints": true
     }
   ]
 }

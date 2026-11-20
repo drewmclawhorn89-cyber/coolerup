@@ -219,6 +219,25 @@ export type Subscription = {
 };
 
 const key = (handle: string) => `subscription:${handle}`;
+
+/**
+ * Remembers the plan a user cancelled on this device.
+ *
+ * A plan that lives in `public.subscriptions` cannot be deleted by the client
+ * (the table has no write policy), so without this marker the server row would
+ * resurrect the plan the moment the local record was cleared. It stores the
+ * plan id that was cancelled; buying again clears it.
+ */
+const cancelKey = (handle: string) => `subscription-canceled:${handle}`;
+
+function cancelledPlan(handle: string): string | null {
+  try {
+    return localStorage.getItem(cancelKey(handle));
+  } catch {
+    return null;
+  }
+}
+
 /** Fired whenever the stored subscription changes, so the UI can re-render. */
 export const SUBSCRIPTION_EVENT = "subscription-change";
 const EVT = SUBSCRIPTION_EVENT;
@@ -301,13 +320,12 @@ export function getSubscription(handle?: string | null): Subscription | null {
   const lifetime = cachedLifetime(handle);
   if (isLifetimeRevoked(lifetime)) return null;
 
-  // The server row wins whenever it says the plan is live. That covers both a
-  // lifetime grant *and* an ordinary paid plan that was applied in the database
-  // (an owner comp, a card charged outside the app). Before this, only lifetime
-  // rows were honoured, so a real Pro/VIP subscriber whose plan lived in
-  // `public.subscriptions` read as "no plan" and got the upgrade prompt.
-  if (lifetime && lifetime.status === "active" && planById(lifetime.plan)) {
-    const isLifetime = isLifetimeActive(lifetime);
+  const raw = localStorage.getItem(key(handle));
+  const local = raw ? migrate(raw) : null;
+
+  // A real lifetime grant outranks everything, including a local record: it
+  // never expires and cannot be bought again.
+  if (lifetime && isLifetimeActive(lifetime)) {
     return {
       planId: lifetime.plan,
       status: "active",
@@ -316,17 +334,41 @@ export function getSubscription(handle?: string | null): Subscription | null {
       paymentMethod: null,
       source: "payment",
       code: null,
-      // A lifetime grant never expires; a server-side monthly plan has no
-      // client-known renewal date, so it stays active until the row changes.
       currentPeriodEnd: null,
-      isLifetime,
+      isLifetime: true,
       grantedBy: lifetime.grantedBy,
     };
   }
 
-  const raw = localStorage.getItem(key(handle));
-  if (!raw) return null;
-  return migrate(raw);
+  // The device's own record wins while it is live. That record is the user's
+  // most recent action - a purchase, a plan switch or a code redemption - and
+  // letting the server row outrank it made "Cancel" and "Change plan" silently
+  // do nothing, which read as the whole subscription screen being broken.
+  if (local && local.status !== "expired") return local;
+
+  // No live local plan. A row in `public.subscriptions` can still supply one
+  // (an owner comp, a card charged outside the app), which is what unlocks the
+  // perks of a real Plus/Pro/VIP subscriber whose plan lives server-side. A
+  // plan the user cancelled here stays cancelled until they buy again.
+  if (lifetime && lifetime.status === "active" && planById(lifetime.plan)) {
+    if (cancelledPlan(handle) === lifetime.plan) return local;
+    return {
+      planId: lifetime.plan,
+      status: "active",
+      startedAt: lifetime.grantedAt ?? new Date().toISOString(),
+      paidAt: lifetime.grantedAt ?? null,
+      paymentMethod: null,
+      source: "payment",
+      code: null,
+      // A server-side monthly plan has no client-known renewal date, so it
+      // stays active until the row changes.
+      currentPeriodEnd: null,
+      isLifetime: false,
+      grantedBy: lifetime.grantedBy,
+    };
+  }
+
+  return local;
 }
 
 /** True when there is a usable card on file. */
@@ -335,8 +377,13 @@ export function hasPaymentMethod(handle?: string | null): boolean {
 }
 
 function write(handle: string, sub: Subscription | null) {
-  if (sub) localStorage.setItem(key(handle), JSON.stringify(sub));
-  else localStorage.removeItem(key(handle));
+  if (sub) {
+    localStorage.setItem(key(handle), JSON.stringify(sub));
+    // A new plan supersedes any cancellation the user made earlier.
+    localStorage.removeItem(cancelKey(handle));
+  } else {
+    localStorage.removeItem(key(handle));
+  }
   window.dispatchEvent(new Event(EVT));
 }
 
@@ -420,6 +467,17 @@ export function applyCodeSubscription(
 }
 
 export function cancelSubscription(handle: string) {
+  // Remember which plan was cancelled so a server row cannot bring it back on
+  // the next refresh. The client cannot delete the row itself - the table has
+  // no write policy - so this marker is what makes Cancel stick.
+  const existing = getSubscription(handle);
+  if (existing?.planId) {
+    try {
+      localStorage.setItem(cancelKey(handle), existing.planId);
+    } catch {
+      // Ignore storage quota errors in private browsing.
+    }
+  }
   write(handle, null);
 }
 

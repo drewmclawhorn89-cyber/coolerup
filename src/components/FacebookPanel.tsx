@@ -1,7 +1,8 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { ExternalLink, Facebook, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { buildFacebookEmbedUrl, normalizeFacebookVideoUrl } from "@/lib/facebook";
+import { normalizeFacebookVideoUrl } from "@/lib/facebook";
+import { FacebookPlayer } from "@/components/FacebookPlayer";
 
 const KEY = "coolerup:facebook-videos";
 
@@ -67,14 +68,7 @@ export function FacebookPanel() {
                 <Trash2 className="size-4" />
               </button>
             </div>
-            <iframe
-              title="Facebook video"
-              src={buildFacebookEmbedUrl(link)}
-              className="aspect-video w-full rounded-lg border-0 bg-black"
-              loading="lazy"
-              allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
-              allowFullScreen
-            />
+            <FacebookPlayer url={link} />
           </div>
         ))}
       </div>

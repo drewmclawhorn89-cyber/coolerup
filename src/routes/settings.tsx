@@ -27,7 +27,7 @@ import {
   backgroundPlayPlan,
   hasBackgroundPlayAccess,
   offlinePlan,
-  planUnlocksOffline,
+  useOfflineUnlocked,
   useSubscription,
 } from "@/lib/subscriptions";
 import { OfflinePaywallDialog } from "@/components/OfflinePaywallDialog";
@@ -95,7 +95,7 @@ function Settings() {
   const mediaSessionReady = isMediaSessionSupported();
   // Offline Mode is paid-only: a live, active subscription on any paid tier.
   const subscription = useSubscription(auth.handle);
-  const offlineUnlocked = planUnlocksOffline(auth.handle);
+  const offlineUnlocked = useOfflineUnlocked(auth.handle);
   const offlinePrice = offlinePlan().price;
   const offlineMode = useOfflineMode();
   const [editing, setEditing] = useState(false);
@@ -183,9 +183,6 @@ function Settings() {
   });
   useEffect(() => {
     try {
-      // A lapsed plan turns the setting off, but never deletes anything
-      // already downloaded.
-      if (!planUnlocksOffline(auth.handle)) setOfflineModeOn(false);
       setPrivateAccount(localStorage.getItem("settings:private") === "true");
       setPhone(localStorage.getItem("settings:phone") || auth.user?.phone || "");
       setTiktokLink(localStorage.getItem("settings:tiktok") || "");
@@ -1057,7 +1054,7 @@ function Settings() {
               <div className="min-w-0">
                 <p className="text-sm font-semibold">Offline Mode is for Paid Subscribers</p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Subscribe to {offlinePlan().label} or higher to download videos. Nothing is
+                  Offline Mode is included with every paid plan — Plus, Pro and VIP. Nothing is
                   downloaded on a free account.
                 </p>
               </div>

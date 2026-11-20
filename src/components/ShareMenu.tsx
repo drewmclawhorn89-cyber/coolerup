@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { deleteVideo, resolveVideoUrl, type Video } from "@/lib/loop";
 import { formatBytes, getSaved, removeOffline, saveOffline } from "@/lib/offline";
-import { planUnlocksOffline } from "@/lib/subscriptions";
+import { useOfflineUnlocked } from "@/lib/subscriptions";
 import { OfflinePaywallDialog } from "@/components/OfflinePaywallDialog";
 
 export function ShareMenu({
@@ -28,7 +28,7 @@ export function ShareMenu({
   const auth = useAuth();
   const [paywallOpen, setPaywallOpen] = useState(false);
   // Offline mode is a paid feature — no trial, no downloads without a plan.
-  const offlineUnlocked = planUnlocksOffline(auth.handle);
+  const offlineUnlocked = useOfflineUnlocked(auth.handle);
   const isOwner = !!auth.user && !!auth.handle && auth.handle === video.username;
   const url = typeof window !== "undefined" ? `${window.location.origin}/v/${video.id}` : "";
 

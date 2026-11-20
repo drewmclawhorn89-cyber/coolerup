@@ -7,7 +7,7 @@ import {
   removeFullVideoOffline,
   saveFullVideoOffline,
 } from "@/lib/offline";
-import { planUnlocksOffline } from "@/lib/subscriptions";
+import { useOfflineUnlocked } from "@/lib/subscriptions";
 import type { FullVideo } from "@/lib/fullVideos";
 
 /**
@@ -28,7 +28,7 @@ export function useFullVideoOffline(video: Pick<FullVideo, "id"> & Partial<FullV
   const [busy, setBusy] = useState(false);
   const [paywallOpen, setPaywallOpen] = useState(false);
 
-  const offlineUnlocked = planUnlocksOffline(auth.handle);
+  const offlineUnlocked = useOfflineUnlocked(auth.handle);
   const isSaved = savedSize !== null;
 
   useEffect(() => {

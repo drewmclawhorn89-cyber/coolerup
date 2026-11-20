@@ -1,31 +1,21 @@
-# Offline Mode for Paid Subscribers — Coolerup
+# Restore GIF search with a rotated Giphy key as a real secret
 
-## Core
-- [x] Gate Offline Mode on a live paid plan (`planUnlocksOffline`), not the free trial
-- [x] Add "Offline Mode is for Paid Subscribers" popup with Subscribe button
-- [x] Ensure nothing downloads for non-paid accounts
-- [x] Add Offline Mode toggle in Settings (paid only)
-- [x] Auto-download liked and saved videos when the toggle is ON
-- [x] Enforce a 50-video cap in the offline store
-- [x] Show storage used in Settings > Offline Mode with a Clear Downloads button
-- [x] Show an Offline tab in Videos when the device has no connection, playing local downloads
-- [x] Keep black background / white text; change nothing else
+## Findings
+- Server proxy `src/lib/giphy.functions.ts` already reads `process.env["GIPHY_API_KEY"]` — correct pattern, matches every other secret in the repo.
+- Root cause of the repeated rotations: `.env` was **tracked by git** and `.gitignore` had no `.env` rule.
+- Old key `99etiVJS...` was committed in `04a6a46` and only blanked in `de72a8e`. Still in history, which is why Giphy banned it.
+- `.env.example` still advertised `VITE_GIPHY_API_KEY`, the insecure variant that gets inlined into the client bundle.
+- `nodejs_compat` is enabled in the generated `wrangler.json`, so `process.env` is populated from Worker bindings — the secret will be visible at runtime once set.
 
-## Surfaces updated
-- [x] `src/lib/offline.ts` — `MAX_OFFLINE_VIDEOS`, `OfflineLimitError`, cap check
-- [x] `src/lib/offlineMode.ts` — persisted toggle + online status hooks
-- [x] `src/lib/offlineEvents.ts` — sync event bus
-- [x] `src/lib/offlineAutoDownload.ts` — liked/saved sync engine
-- [x] `src/components/OfflineAutoDownloadWatcher.tsx` — background sync
-- [x] `src/components/OfflinePaywallDialog.tsx` — paid-only popup
-- [x] `src/lib/useFullVideoOffline.ts` — paid-only, opens paywall
-- [x] `src/components/ShareMenu.tsx` / `FullVideoShareMenu.tsx` — paid-only
-- [x] `src/routes/settings.tsx` — toggle, meter, Clear Downloads
-- [x] `src/routes/videos.tsx` — Offline tab, local playback, offline banner
-- [x] `src/routes/offline.tsx` — paid-only messaging
-- [x] `src/components/FullVideoCard.tsx` — `onOpen` for local playback
+## Tasks
+- [x] Stop secrets from being committable: add `.env` rules to `.gitignore`
+- [x] Untrack `.env` (local file kept, dropped from the index)
+- [x] Remove the `VITE_GIPHY_API_KEY` trap from `.env.example`
+- [x] Add regression tests guarding the secret boundary (5 new)
+- [x] Document the secret setup so the next rotation is a one-liner
+- [x] Verify: tsc clean, 698 tests pass, vite build succeeds
+- [x] Commit on a new branch, push, open PR
 
-## Verification
-- [x] `vitest run` — 668 tests pass (22 new in `offline-paid-mode.test.ts`)
-- [x] `vite build` succeeds
-- [x] Commit, push branch, open PR
+## Remaining (user action, cannot be done from the repo)
+- [ ] Set the rotated key as a host secret: `npx wrangler secret put GIPHY_API_KEY`
+- [ ] Redeploy so the Worker picks up the binding

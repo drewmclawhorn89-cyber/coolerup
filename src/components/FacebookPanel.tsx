@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { ExternalLink, Facebook, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { normalizeFacebookVideoUrl } from "@/lib/facebook";
+import { needsFacebookResolve, normalizeFacebookVideoUrl } from "@/lib/facebook";
 import { FacebookPlayer } from "@/components/FacebookPlayer";
 
 const KEY = "coolerup:facebook-videos";
@@ -29,14 +29,29 @@ export function FacebookPanel() {
     }
   };
 
-  const onSubmit = (e: FormEvent) => {
+  const [adding, setAdding] = useState(false);
+
+  const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    const url = normalizeFacebookVideoUrl(value);
+    let url = normalizeFacebookVideoUrl(value);
     if (!url) {
       toast.error("Paste a link from Facebook (video, reel, share or fb.watch)");
       return;
     }
-    persist([url, ...links.filter((l) => l !== url)]);
+    if (needsFacebookResolve(url)) {
+      setAdding(true);
+      try {
+        const res = await fetch(`/api/facebook/resolve?url=${encodeURIComponent(url)}`);
+        const data = (await res.json()) as { url?: string };
+        if (data.url) url = data.url;
+      } catch {
+        /* keep the pasted link */
+      } finally {
+        setAdding(false);
+      }
+    }
+    const added = url;
+    persist([added, ...links.filter((l) => l !== added)]);
     setValue("");
   };
 
@@ -49,8 +64,8 @@ export function FacebookPanel() {
           placeholder="Paste Facebook video link"
           className="min-w-0 flex-1 rounded-full bg-white/10 px-4 py-2 text-sm outline-none"
         />
-        <button type="submit" className="rounded-full bg-[#1877f2] px-4 py-2 text-sm font-semibold">
-          Add
+        <button type="submit" disabled={adding} className="rounded-full bg-[#1877f2] px-4 py-2 text-sm font-semibold disabled:opacity-60">
+          {adding ? "Adding…" : "Add"}
         </button>
       </form>
       <p className="mx-auto mt-2 max-w-xl text-center text-[11px] text-white/60">
@@ -69,6 +84,12 @@ export function FacebookPanel() {
               </button>
             </div>
             <FacebookPlayer url={link} />
+            <p className="mt-1.5 text-[11px] text-white/60">
+              Says "Video Unavailable"? Facebook only embeds public videos (not Groups or Friends-only posts).{" "}
+              <a href={link} target="_blank" rel="noopener noreferrer" className="font-semibold text-[#6ea8ff] underline">
+                Open on Facebook
+              </a>
+            </p>
           </div>
         ))}
       </div>

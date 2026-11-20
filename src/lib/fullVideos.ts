@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { requestOfflineSync } from "./offlineEvents";
 
 /**
  * Long-form ("YouTube style") videos.
@@ -231,6 +232,19 @@ export async function getFullVideo(id: string): Promise<FullVideo | null> {
   return (data ?? null) as FullVideo | null;
 }
 
+/**
+ * Fetch several full videos by id in one round trip. Used by Offline Mode to
+ * pull the rows behind a user's liked and saved ids before downloading them.
+ * Missing/deleted rows are simply absent from the result.
+ */
+export async function listFullVideosByIds(ids: string[]): Promise<FullVideo[]> {
+  const unique = [...new Set(ids.filter(Boolean))];
+  if (unique.length === 0) return [];
+  const { data, error } = await db.from("full_videos").select("*").in("id", unique);
+  if (error) throw error;
+  return (data ?? []) as FullVideo[];
+}
+
 /** Related videos for the "Up Next" rail: same category first, then recent. */
 export async function listRelatedVideos(video: FullVideo, limit = 12): Promise<FullVideo[]> {
   const build = (hideInFlight: boolean) => {
@@ -332,6 +346,7 @@ export async function setReaction(
       .eq("video_id", videoId)
       .eq("user_id", userId);
     if (error) throw error;
+    requestOfflineSync();
     return;
   }
   const { error } = await db
@@ -341,6 +356,7 @@ export async function setReaction(
       { onConflict: "video_id,user_id" },
     );
   if (error) throw error;
+  requestOfflineSync();
 }
 
 /* ------------------------------------------------------------------ */

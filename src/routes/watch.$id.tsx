@@ -18,7 +18,7 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
-import { offlinePlan } from "@/lib/subscriptions";
+import { OfflinePaywallDialog } from "@/components/OfflinePaywallDialog";
 import { YouTubePlayer } from "@/components/YouTubePlayer";
 import { EditFullVideoDialog } from "@/components/EditFullVideoDialog";
 import { FullVideoShareMenu } from "@/components/FullVideoShareMenu";
@@ -770,10 +770,8 @@ function WatchPage() {
                   : offline.isSaved
                     ? "Offline"
                     : offline.offlineUnlocked
-                      ? offline.trialActive
-                        ? offline.trialLabel
-                        : "Download"
-                      : offlinePlan().label}
+                      ? "Download"
+                      : "Offline"}
               </button>
               <button
                 type="button"
@@ -930,6 +928,8 @@ function WatchPage() {
       {video && shareOpen && (
         <FullVideoShareMenu video={video} onClose={() => setShareOpen(false)} />
       )}
+
+      <OfflinePaywallDialog open={offline.paywallOpen} onClose={offline.closePaywall} />
 
       {video && auth.user && (
         <EditFullVideoDialog

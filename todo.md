@@ -1,21 +1,31 @@
-# Music tab — full songs from the existing `sounds` table
+# Offline Mode for Paid Subscribers — Coolerup
 
-## 1. Data layer
-- [x] `supabase/migrations/20261201000000_saved_sounds.sql` — `saved_sounds` join table (user_id, sound_id), RLS, no new songs table
-- [x] `supabase/sql-editor-saved-sounds.sql` — paste-into-SQL-Editor version + verification query
-- [x] `src/integrations/supabase/types.ts` — add `saved_sounds` types
-- [x] `src/lib/sounds.ts` — top/trending/saved queries, save/unsave, duration probe, cover helper
+## Core
+- [x] Gate Offline Mode on a live paid plan (`planUnlocksOffline`), not the free trial
+- [x] Add "Offline Mode is for Paid Subscribers" popup with Subscribe button
+- [x] Ensure nothing downloads for non-paid accounts
+- [x] Add Offline Mode toggle in Settings (paid only)
+- [x] Auto-download liked and saved videos when the toggle is ON
+- [x] Enforce a 50-video cap in the offline store
+- [x] Show storage used in Settings > Offline Mode with a Clear Downloads button
+- [x] Show an Offline tab in Videos when the device has no connection, playing local downloads
+- [x] Keep black background / white text; change nothing else
 
-## 2. Player (persists across tabs)
-- [x] `src/lib/songPlayer.ts` — module-level singleton audio store (survives route changes)
-- [x] `src/components/MusicPlayer.tsx` — add `SongPlayerBar` dock (seek/play/next/prev/loop/volume) + keep old exports intact
-- [x] mount `<SongPlayerBar />` in `__root.tsx` so it never stops on tab change
+## Surfaces updated
+- [x] `src/lib/offline.ts` — `MAX_OFFLINE_VIDEOS`, `OfflineLimitError`, cap check
+- [x] `src/lib/offlineMode.ts` — persisted toggle + online status hooks
+- [x] `src/lib/offlineEvents.ts` — sync event bus
+- [x] `src/lib/offlineAutoDownload.ts` — liked/saved sync engine
+- [x] `src/components/OfflineAutoDownloadWatcher.tsx` — background sync
+- [x] `src/components/OfflinePaywallDialog.tsx` — paid-only popup
+- [x] `src/lib/useFullVideoOffline.ts` — paid-only, opens paywall
+- [x] `src/components/ShareMenu.tsx` / `FullVideoShareMenu.tsx` — paid-only
+- [x] `src/routes/settings.tsx` — toggle, meter, Clear Downloads
+- [x] `src/routes/videos.tsx` — Offline tab, local playback, offline banner
+- [x] `src/routes/offline.tsx` — paid-only messaging
+- [x] `src/components/FullVideoCard.tsx` — `onOpen` for local playback
 
-## 3. UI
-- [x] `src/components/SongCard.tsx` — `SoundCover`, `SongCard` (carousel), `SongRow` (list)
-- [x] `src/routes/music.tsx` — search bar, 4 inner tabs, rows 1–4, safety note, Use this sound
-- [x] `src/routes/index.tsx` — add `🎵 Music` top tab after Videos
-
-## 4. Verify
-- [x] `tsc --noEmit`, `vite build`, targeted vitest, eslint on changed files
-- [x] commit, push branch, open PR
+## Verification
+- [x] `vitest run` — 668 tests pass (22 new in `offline-paid-mode.test.ts`)
+- [x] `vite build` succeeds
+- [x] Commit, push branch, open PR

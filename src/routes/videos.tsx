@@ -1,23 +1,29 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Loader2, ArrowLeft, Search, Upload, WifiOff, Plus } from "lucide-react";
+import { Loader2, ArrowLeft, Search, Upload, WifiOff, Plus, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AddYouTubeModal } from "@/components/AddYouTubeModal";
 import { useYouTubeDurations, withYouTubeDurations } from "@/lib/useYouTubeDurations";
 import { FullVideoCard } from "@/components/FullVideoCard";
 import { EditFullVideoDialog } from "@/components/EditFullVideoDialog";
 import { useAuth } from "@/hooks/useAuth";
-import { hasOfflineAccess, offlinePlan } from "@/lib/subscriptions";
-import { useTrial } from "@/lib/trial";
+import { planUnlocksOffline } from "@/lib/subscriptions";
 import { FULL_VIDEO_CATEGORIES, listFullVideos, type FullVideo } from "@/lib/fullVideos";
+import type { Video } from "@/lib/loop";
 import {
+  MAX_OFFLINE_VIDEOS,
   clearAllDownloads,
   formatStorage,
   getOfflineUsage,
+  getSaved,
+  getSavedFullVideo,
+  listSaved,
   listSavedFullVideos,
   onOfflineChange,
   type OfflineUsage,
 } from "@/lib/offline";
+import { useIsOnline } from "@/lib/offlineMode";
+import { OfflinePaywallDialog } from "@/components/OfflinePaywallDialog";
 
 /**
  * How many cards to fetch per page. Two screens' worth on a phone, so the grid
@@ -47,9 +53,9 @@ export const Route = createFileRoute("/videos")({
 
 function VideosPage() {
   const auth = useAuth();
-  // Offline mode ships with Pro and VIP, with one free hour to try it.
-  const offlineUnlocked = hasOfflineAccess(auth.handle);
-  const trial = useTrial(auth.handle, offlinePlan().id);
+  // Offline Mode is paid-only: a live, active subscription on any paid tier.
+  const offlineUnlocked = planUnlocksOffline(auth.handle);
+  const online = useIsOnline();
   const navigate = useNavigate();
 
   const [category, setCategory] = useState<string>("All");
@@ -65,7 +71,11 @@ function VideosPage() {
   /** When true the grid shows only videos downloaded for offline viewing. */
   const [offlineOnly, setOfflineOnly] = useState(false);
   const [savedVideos, setSavedVideos] = useState<FullVideo[]>([]);
+  const [savedShorts, setSavedShorts] = useState<Video[]>([]);
   const [savedLoading, setSavedLoading] = useState(false);
+  /** Local blob URL currently playing from the offline shelf. */
+  const [offlinePlaying, setOfflinePlaying] = useState<{ url: string; title: string } | null>(null);
+  const [showOfflinePaywall, setShowOfflinePaywall] = useState(false);
   /** Bytes used by downloads, shown as a meter above the offline shelf. */
   const [usage, setUsage] = useState<OfflineUsage | null>(null);
   const [clearing, setClearing] = useState(false);
@@ -131,14 +141,18 @@ function VideosPage() {
     let alive = true;
     const refresh = () => {
       setSavedLoading(true);
-      void Promise.all([listSavedFullVideos(), getOfflineUsage()])
-        .then(([rows, nextUsage]) => {
+      void Promise.all([listSavedFullVideos(), listSaved(), getOfflineUsage()])
+        .then(([rows, shorts, nextUsage]) => {
           if (!alive) return;
           setSavedVideos(rows.map((r) => r.video));
+          setSavedShorts(shorts.map((r) => r.video));
           setUsage(nextUsage);
         })
         .catch(() => {
-          if (alive) setSavedVideos([]);
+          if (alive) {
+            setSavedVideos([]);
+            setSavedShorts([]);
+          }
         })
         .finally(() => {
           if (alive) setSavedLoading(false);
@@ -151,6 +165,37 @@ function VideosPage() {
       off();
     };
   }, [offlineOnly]);
+
+  // When the connection drops, land on the Offline shelf so the user sees the
+  // videos that still play. Coming back online leaves the tab where it is.
+  useEffect(() => {
+    if (!online && offlineUnlocked) setOfflineOnly(true);
+  }, [online, offlineUnlocked]);
+
+  // Revoke the local blob URL when the player closes or the page unmounts.
+  useEffect(
+    () => () => {
+      if (offlinePlaying?.url) URL.revokeObjectURL(offlinePlaying.url);
+    },
+    [offlinePlaying?.url],
+  );
+
+  /** Play a downloaded full video straight from IndexedDB (no network). */
+  const playSavedFull = useCallback(async (video: FullVideo) => {
+    const saved = await getSavedFullVideo(video.id);
+    if (!saved?.blob) return;
+    setOfflinePlaying({ url: URL.createObjectURL(saved.blob), title: video.title });
+  }, []);
+
+  /** Play a downloaded feed video straight from IndexedDB (no network). */
+  const playSavedShort = useCallback(async (video: Video) => {
+    const saved = await getSaved(video.id);
+    if (!saved?.blob) return;
+    setOfflinePlaying({
+      url: URL.createObjectURL(saved.blob),
+      title: video.caption || `@${video.username}`,
+    });
+  }, []);
 
   /** Wipe every download after a confirm; the shelf refreshes via onOfflineChange. */
   const clearDownloads = useCallback(async () => {
@@ -292,9 +337,20 @@ function VideosPage() {
           ))}
           <button
             type="button"
-            onClick={() => setOfflineOnly((v) => !v)}
+            onClick={() => {
+              // Paid subscribers only; free accounts get the subscribe popup.
+              if (!offlineUnlocked) {
+                setShowOfflinePaywall(true);
+                return;
+              }
+              setOfflineOnly((v) => !v);
+            }}
             aria-pressed={offlineOnly}
-            title="Show videos downloaded for offline viewing"
+            title={
+              offlineUnlocked
+                ? "Show videos downloaded for offline viewing"
+                : "Offline Mode is for Paid Subscribers"
+            }
             className={`flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-3 py-1.5 text-[13px] font-medium transition ${
               offlineOnly
                 ? "bg-emerald-600 text-white"
@@ -307,6 +363,13 @@ function VideosPage() {
         </div>
       </div>
 
+      {!online && offlineUnlocked && (
+        <div className="mt-3 flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
+          <WifiOff className="h-4 w-4 shrink-0" />
+          You're offline. Showing videos downloaded for offline viewing.
+        </div>
+      )}
+
       {error && (
         <p className="mt-4 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
           {error}
@@ -318,17 +381,14 @@ function VideosPage() {
           <div className="flex items-center justify-center py-20 text-muted-foreground">
             <Loader2 className="h-6 w-6 animate-spin" />
           </div>
-        ) : savedVideos.length === 0 ? (
+        ) : savedVideos.length === 0 && savedShorts.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <WifiOff className="h-8 w-8 text-muted-foreground" />
             <p className="mt-3 text-base font-semibold">Nothing saved offline yet</p>
             <p className="mt-1 max-w-xs text-sm text-muted-foreground">
               {offlineUnlocked
-                ? "Open any video and tap Download on the watch page to keep it available without a connection."
-                : trial.used
-                  ? `Your free trial has ended. Offline downloads are part of ${offlinePlan().label} and VIP.`
-                  : "Start a free one-hour trial from any video's watch page, or upgrade to " +
-                    `${offlinePlan().label} to save videos for offline viewing.`}
+                ? "Turn on Offline Mode in Settings and like or save videos — they download automatically."
+                : "Offline Mode is for Paid Subscribers. Subscribe to download videos and watch them without a connection."}
             </p>
             <button
               type="button"
@@ -355,7 +415,7 @@ function VideosPage() {
                     />
                   </div>
                   <p className="mt-1 text-[11px] text-muted-foreground">
-                    {usage.count} {usage.count === 1 ? "video" : "videos"} saved for offline
+                    {usage.count} of {MAX_OFFLINE_VIDEOS} videos saved for offline
                   </p>
                 </div>
                 <button
@@ -368,11 +428,63 @@ function VideosPage() {
                 </button>
               </div>
             )}
-            <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-5 sm:grid-cols-3 lg:grid-cols-4">
-              {savedVideos.map((v) => (
-                <FullVideoCard key={v.id} video={v} showBadge={false} />
-              ))}
-            </div>
+            {offlinePlaying && (
+              <div className="mt-3 rounded-2xl border border-white/15 bg-black p-3 text-white">
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <h2 className="truncate text-sm font-semibold">{offlinePlaying.title}</h2>
+                  <button
+                    type="button"
+                    onClick={() => setOfflinePlaying(null)}
+                    className="shrink-0 rounded-full border border-white/20 px-3 py-1 text-xs font-medium text-white hover:bg-white/10"
+                  >
+                    Close
+                  </button>
+                </div>
+                <video
+                  src={offlinePlaying.url}
+                  controls
+                  autoPlay
+                  playsInline
+                  className="max-h-[70vh] w-full rounded-xl bg-black"
+                />
+              </div>
+            )}
+
+            {savedVideos.length > 0 && (
+              <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-5 sm:grid-cols-3 lg:grid-cols-4">
+                {savedVideos.map((v) => (
+                  <FullVideoCard
+                    key={v.id}
+                    video={v}
+                    showBadge={false}
+                    onOpen={() => void playSavedFull(v)}
+                  />
+                ))}
+              </div>
+            )}
+
+            {savedShorts.length > 0 && (
+              <div className="mt-6">
+                <h2 className="mb-2 text-sm font-semibold text-white">Short videos</h2>
+                <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6">
+                  {savedShorts.map((v) => (
+                    <button
+                      key={v.id}
+                      type="button"
+                      onClick={() => void playSavedShort(v)}
+                      className="relative aspect-[9/16] overflow-hidden rounded-lg bg-black text-left"
+                    >
+                      <div className="flex h-full w-full items-center justify-center bg-zinc-900 text-white">
+                        <Play className="h-6 w-6" />
+                      </div>
+                      <span className="absolute inset-x-0 bottom-0 line-clamp-2 bg-black/70 px-1.5 py-1 text-[11px] font-medium text-white">
+                        {v.caption || `@${v.username}`}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </>
         )
       ) : loading ? (
@@ -465,6 +577,10 @@ function VideosPage() {
           onDeleted={(id) => setVideos((prev) => prev.filter((v) => v.id !== id))}
         />
       )}
+      <OfflinePaywallDialog
+        open={showOfflinePaywall}
+        onClose={() => setShowOfflinePaywall(false)}
+      />
     </div>
   );
 }

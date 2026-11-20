@@ -5,8 +5,8 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { deleteVideo, resolveVideoUrl, type Video } from "@/lib/loop";
 import { formatBytes, getSaved, removeOffline, saveOffline } from "@/lib/offline";
-import { hasOfflineAccess, offlinePlan } from "@/lib/subscriptions";
-import { useTrial } from "@/lib/trial";
+import { planUnlocksOffline } from "@/lib/subscriptions";
+import { OfflinePaywallDialog } from "@/components/OfflinePaywallDialog";
 
 export function ShareMenu({
   video,
@@ -26,9 +26,9 @@ export function ShareMenu({
   const [savedSize, setSavedSize] = useState<number | null>(null);
   const [progress, setProgress] = useState<number | null>(null);
   const auth = useAuth();
-  // Offline mode ships with Pro and VIP, with one free hour to try it.
-  const trial = useTrial(auth.handle, offlinePlan().id);
-  const offlineUnlocked = hasOfflineAccess(auth.handle);
+  const [paywallOpen, setPaywallOpen] = useState(false);
+  // Offline mode is a paid feature — no trial, no downloads without a plan.
+  const offlineUnlocked = planUnlocksOffline(auth.handle);
   const isOwner = !!auth.user && !!auth.handle && auth.handle === video.username;
   const url = typeof window !== "undefined" ? `${window.location.origin}/v/${video.id}` : "";
 
@@ -39,19 +39,10 @@ export function ShareMenu({
   }, [video.id]);
 
   const save = async () => {
+    // Paid subscribers only — nothing is downloaded for anyone else.
     if (!offlineUnlocked) {
-      // A first-time viewer gets the hour instead of a paywall; once it is
-      // spent, saving is a paid feature again.
-      if (trial.used) {
-        const plan = offlinePlan();
-        toast.error(
-          `Your free trial has ended. Offline mode is part of ${plan.label} ($${plan.price.toFixed(2)}/mo)`,
-        );
-        window.location.href = "/?tab=subscriptions";
-        return;
-      }
-      trial.start();
-      toast.success("1-hour free trial started");
+      setPaywallOpen(true);
+      return;
     }
     setProgress(0);
     try {
@@ -224,10 +215,8 @@ export function ShareMenu({
               {savedSize
                 ? `Remove (${formatBytes(savedSize)})`
                 : offlineUnlocked
-                  ? trial.active
-                    ? `Trial · ${trial.label}`
-                    : "Save offline"
-                  : `${offlinePlan().label} only`}
+                  ? "Save offline"
+                  : "Offline · Paid"}
             </span>
           </button>
 
@@ -260,6 +249,8 @@ export function ShareMenu({
 
         <div className="text-xs text-zinc-500 text-center pt-2">{url}</div>
       </div>
+
+      <OfflinePaywallDialog open={paywallOpen} onClose={() => setPaywallOpen(false)} />
     </div>
   );
 }

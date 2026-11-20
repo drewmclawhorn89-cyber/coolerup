@@ -124,8 +124,8 @@ export type ChristmasCodeHighlight = {
   title: string;
   blurb: string;
   emoji: string;
-  /** Matches the `plan` column: basic -> Plus, premium -> VIP. */
-  plan: "basic" | "premium";
+  /** Matches the `plan` column: basic -> Plus, pro -> Pro, premium -> VIP. */
+  plan: "basic" | "pro" | "premium";
   months: number;
   /** Cosmetic only — the database is the real source of truth for limits. */
   note: string;
@@ -133,11 +133,57 @@ export type ChristmasCodeHighlight = {
 
 /**
  * The codes the tab advertises. These are seeded by
- * `supabase/migrations/20261124000000_bulk_subscription_codes.sql`; anything
+ * `supabase/migrations/20261124000000_bulk_subscription_codes.sql` and
+ * `supabase/migrations/20261213000000_new_subscription_codes.sql`; anything
  * deleted or deactivated in /admin/codes will simply fail to redeem, and the
  * error the user sees comes straight from the RPC.
  */
 export const CHRISTMAS_CODE_HIGHLIGHTS: ChristmasCodeHighlight[] = [
+  {
+    code: "THANKSGIVING-2026",
+    title: "Thanksgiving drop",
+    blurb: "A month of Basic while the turkey cools. Gratitude included.",
+    emoji: "\U0001F983",
+    plan: "basic",
+    months: 1,
+    note: "1,000 uses",
+  },
+  {
+    code: "BLACKFRIDAY-2026",
+    title: "Black Friday",
+    blurb: "Three months of Premium for the biggest sale of the year.",
+    emoji: "\U0001F6CD\uFE0F",
+    plan: "premium",
+    months: 3,
+    note: "500 uses",
+  },
+  {
+    code: "CYBERMONDAY-2026",
+    title: "Cyber Monday",
+    blurb: "One month of Premium to close out the sale weekend.",
+    emoji: "\U0001F4BB",
+    plan: "premium",
+    months: 1,
+    note: "1,000 uses",
+  },
+  {
+    code: "COOLERUP-PRO-1M",
+    title: "Pro for a month",
+    blurb: "The middle tier, free for a month. Offline video and priority uploads.",
+    emoji: "\U0001F680",
+    plan: "pro",
+    months: 1,
+    note: "100 uses",
+  },
+  {
+    code: "CREATOR-PRO",
+    title: "Creator Pro",
+    blurb: "Three months of Pro for the people posting the videos.",
+    emoji: "\U0001F3AC",
+    plan: "pro",
+    months: 3,
+    note: "100 uses",
+  },
   {
     code: "CHRISTMAS-2026",
     title: "Christmas gift",

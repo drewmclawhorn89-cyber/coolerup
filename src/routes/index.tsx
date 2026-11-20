@@ -4,7 +4,10 @@ import {
   Bell,
   ChevronLeft,
   ChevronRight,
+  Compass,
   Download,
+  Gift,
+  Globe,
   Heart,
   Home,
   LogOut,
@@ -12,8 +15,11 @@ import {
   Music,
   Play,
   Plus,
+  Radio,
   Search,
+  Settings,
   ShoppingBag,
+  Store,
   Tv,
   User,
   Users,
@@ -62,9 +68,6 @@ const PhotoDialog = lazy(() =>
 );
 const TwitchPanel = lazy(() =>
   import("@/components/TwitchPanel").then((m) => ({ default: m.TwitchPanel })),
-);
-const MorePanel = lazy(() =>
-  import("@/components/MorePanel").then((m) => ({ default: m.MorePanel })),
 );
 import {
   fetchMyLikes,
@@ -127,7 +130,6 @@ type FeedTab =
   | "following"
   | "foryou"
   | "twitch"
-  | "more"
   | "explore"
   | "marketplace"
   | "groups"
@@ -872,7 +874,7 @@ function Index() {
     }
   }, [codesSeason, feedTab]);
 
-  // One shared top tab bar (Home | Following | For You | Videos | Music | Twitch).
+  // One shared top tab bar (Home | Following | For You | Videos | Music | Twitch | Browser | Marketplace | Groups | LIVE | Codes | Explore | Shop | Settings).
   // It renders on every screen and at every breakpoint, scrolls smoothly with touch/wheel,
   // and steps left/right with the always-visible arrows so no tab is ever unreachable.
   const topTabItems: TopTabItem[] = [
@@ -911,6 +913,66 @@ function Index() {
       icon: <Tv className="size-3.5" />,
       onClick: () => pickFeedTab("twitch"),
       active: topTab === "twitch",
+    },
+    {
+      key: "browser",
+      label: "Browser",
+      icon: <Globe className="size-3.5" />,
+      onClick: () => void navigate({ to: "/browser" }),
+      active: false,
+    },
+    {
+      key: "marketplace",
+      label: "Marketplace",
+      icon: <Store className="size-3.5" />,
+      onClick: () => pickFeedTab("marketplace"),
+      active: topTab === "marketplace",
+    },
+    {
+      key: "groups",
+      label: "Groups",
+      icon: <Users className="size-3.5" />,
+      onClick: () => pickFeedTab("groups"),
+      active: topTab === "groups",
+    },
+    {
+      key: "live",
+      label: "LIVE",
+      icon: <Radio className="size-3.5" />,
+      onClick: () => pickFeedTab("live"),
+      active: topTab === "live",
+    },
+    ...(codesSeason
+      ? [
+          {
+            key: "codes",
+            label: "Codes",
+            icon: <Gift className="size-3.5" />,
+            onClick: () => pickFeedTab("codes"),
+            active: topTab === "codes",
+          },
+        ]
+      : []),
+    {
+      key: "explore",
+      label: "Explore",
+      icon: <Compass className="size-3.5" />,
+      onClick: () => pickFeedTab("explore"),
+      active: topTab === "explore",
+    },
+    {
+      key: "shop",
+      label: "Shop",
+      icon: <ShoppingBag className="size-3.5" />,
+      onClick: () => setTab("shop"),
+      active: topTab === "shop",
+    },
+    {
+      key: "settings",
+      label: "Settings",
+      icon: <Settings className="size-3.5" />,
+      onClick: () => void navigate({ to: "/settings" }),
+      active: false,
     },
   ];
 
@@ -1154,23 +1216,6 @@ function Index() {
             <TopTabs className={topTabsClass} ctx={topTabsCtx} />
             <Suspense fallback={null}>
               <TwitchPanel />
-            </Suspense>
-          </div>
-        ) : activeTab === "foryou" && feedTab === "more" ? (
-          <div className="relative flex min-h-0 flex-1 flex-col bg-black">
-            <TopTabs className={topTabsClass} ctx={topTabsCtx} />
-            <Suspense fallback={null}>
-              <MorePanel
-                codesSeason={codesSeason}
-                onOpenBrowser={() => void navigate({ to: "/browser" })}
-                onSelectMarketplace={() => pickFeedTab("marketplace")}
-                onSelectGroups={() => pickFeedTab("groups")}
-                onSelectLive={() => pickFeedTab("live")}
-                onSelectCodes={() => pickFeedTab("codes")}
-                onSelectExplore={() => pickFeedTab("explore")}
-                onSelectShop={() => setTab("shop")}
-                onOpenSettings={() => void navigate({ to: "/settings" })}
-              />
             </Suspense>
           </div>
         ) : onLiveTab ? (

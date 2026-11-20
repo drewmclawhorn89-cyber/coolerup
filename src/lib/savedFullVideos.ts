@@ -2,6 +2,7 @@ import { useCallback, useEffect, useSyncExternalStore } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { requestOfflineSync } from "@/lib/offlineEvents";
 
 /**
  * Saved ("Vault") state for full-length videos, shared by every surface.
@@ -148,7 +149,10 @@ export async function setFullVideoSaved(
         .eq("video_id", videoId);
 
   // 23505 = already saved; the desired end state is the same, so treat as fine.
-  if (!error || error.code === "23505") return { ok: true, persisted: true };
+  if (!error || error.code === "23505") {
+    requestOfflineSync();
+    return { ok: true, persisted: true };
+  }
 
   if (isMissingTable(error)) {
     // The button stays yellow for this session so the UI doesn't ignore the tap,

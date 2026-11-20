@@ -30,6 +30,7 @@ import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as UploadFullRouteImport } from './routes/upload-full'
 import { Route as VideosRouteImport } from './routes/videos'
 import { Route as WalletRouteImport } from './routes/wallet'
+import { Route as WatchHistoryRouteImport } from './routes/watch-history'
 import { Route as AdminCodesRouteImport } from './routes/admin_.codes'
 import { Route as AdminFreeCoinsRouteImport } from './routes/admin_.free-coins'
 import { Route as AdminPayoutsRouteImport } from './routes/admin_.payouts'
@@ -46,6 +47,12 @@ import { Route as UUsernameRouteImport } from './routes/u.$username'
 import { Route as WatchIndexRouteImport } from './routes/watch.index'
 import { Route as WatchIdRouteImport } from './routes/watch.$id'
 import { Route as ApiBrowserProxyRouteImport } from './routes/api/browser/proxy'
+import { Route as ApiFacebookResolveRouteImport } from './routes/api/facebook/resolve'
+import { Route as ApiTwitchFollowRouteImport } from './routes/api/twitch/follow'
+import { Route as ApiTwitchMeRouteImport } from './routes/api/twitch/me'
+import { Route as ApiTwitchStreamsRouteImport } from './routes/api/twitch/streams'
+import { Route as ApiTwitchAuthCallbackRouteImport } from './routes/api/twitch/auth/callback'
+import { Route as ApiTwitchAuthUrlRouteImport } from './routes/api/twitch/auth/url'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -152,6 +159,11 @@ const WalletRoute = WalletRouteImport.update({
   path: '/wallet',
   getParentRoute: () => rootRouteImport,
 } as any)
+const WatchHistoryRoute = WatchHistoryRouteImport.update({
+  id: '/watch-history',
+  path: '/watch-history',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminCodesRoute = AdminCodesRouteImport.update({
   id: '/admin_/codes',
   path: '/admin/codes',
@@ -232,6 +244,36 @@ const ApiBrowserProxyRoute = ApiBrowserProxyRouteImport.update({
   path: '/api/browser/proxy',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiFacebookResolveRoute = ApiFacebookResolveRouteImport.update({
+  id: '/api/facebook/resolve',
+  path: '/api/facebook/resolve',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiTwitchFollowRoute = ApiTwitchFollowRouteImport.update({
+  id: '/api/twitch/follow',
+  path: '/api/twitch/follow',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiTwitchMeRoute = ApiTwitchMeRouteImport.update({
+  id: '/api/twitch/me',
+  path: '/api/twitch/me',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiTwitchStreamsRoute = ApiTwitchStreamsRouteImport.update({
+  id: '/api/twitch/streams',
+  path: '/api/twitch/streams',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiTwitchAuthCallbackRoute = ApiTwitchAuthCallbackRouteImport.update({
+  id: '/api/twitch/auth/callback',
+  path: '/api/twitch/auth/callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiTwitchAuthUrlRoute = ApiTwitchAuthUrlRouteImport.update({
+  id: '/api/twitch/auth/url',
+  path: '/api/twitch/auth/url',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -255,6 +297,7 @@ export interface FileRoutesByFullPath {
   '/upload-full': typeof UploadFullRoute
   '/videos': typeof VideosRoute
   '/wallet': typeof WalletRoute
+  '/watch-history': typeof WatchHistoryRoute
   '/admin/codes': typeof AdminCodesRoute
   '/admin/free-coins': typeof AdminFreeCoinsRoute
   '/admin/payouts': typeof AdminPayoutsRoute
@@ -271,6 +314,12 @@ export interface FileRoutesByFullPath {
   '/groups/': typeof GroupsIndexRoute
   '/watch/': typeof WatchIndexRoute
   '/api/browser/proxy': typeof ApiBrowserProxyRoute
+  '/api/facebook/resolve': typeof ApiFacebookResolveRoute
+  '/api/twitch/follow': typeof ApiTwitchFollowRoute
+  '/api/twitch/me': typeof ApiTwitchMeRoute
+  '/api/twitch/streams': typeof ApiTwitchStreamsRoute
+  '/api/twitch/auth/callback': typeof ApiTwitchAuthCallbackRoute
+  '/api/twitch/auth/url': typeof ApiTwitchAuthUrlRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -292,6 +341,7 @@ export interface FileRoutesByTo {
   '/upload-full': typeof UploadFullRoute
   '/videos': typeof VideosRoute
   '/wallet': typeof WalletRoute
+  '/watch-history': typeof WatchHistoryRoute
   '/admin/codes': typeof AdminCodesRoute
   '/admin/free-coins': typeof AdminFreeCoinsRoute
   '/admin/payouts': typeof AdminPayoutsRoute
@@ -308,6 +358,12 @@ export interface FileRoutesByTo {
   '/groups': typeof GroupsIndexRoute
   '/watch': typeof WatchIndexRoute
   '/api/browser/proxy': typeof ApiBrowserProxyRoute
+  '/api/facebook/resolve': typeof ApiFacebookResolveRoute
+  '/api/twitch/follow': typeof ApiTwitchFollowRoute
+  '/api/twitch/me': typeof ApiTwitchMeRoute
+  '/api/twitch/streams': typeof ApiTwitchStreamsRoute
+  '/api/twitch/auth/callback': typeof ApiTwitchAuthCallbackRoute
+  '/api/twitch/auth/url': typeof ApiTwitchAuthUrlRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -332,6 +388,7 @@ export interface FileRoutesById {
   '/upload-full': typeof UploadFullRoute
   '/videos': typeof VideosRoute
   '/wallet': typeof WalletRoute
+  '/watch-history': typeof WatchHistoryRoute
   '/admin_/codes': typeof AdminCodesRoute
   '/admin_/free-coins': typeof AdminFreeCoinsRoute
   '/admin_/payouts': typeof AdminPayoutsRoute
@@ -348,6 +405,12 @@ export interface FileRoutesById {
   '/groups/': typeof GroupsIndexRoute
   '/watch/': typeof WatchIndexRoute
   '/api/browser/proxy': typeof ApiBrowserProxyRoute
+  '/api/facebook/resolve': typeof ApiFacebookResolveRoute
+  '/api/twitch/follow': typeof ApiTwitchFollowRoute
+  '/api/twitch/me': typeof ApiTwitchMeRoute
+  '/api/twitch/streams': typeof ApiTwitchStreamsRoute
+  '/api/twitch/auth/callback': typeof ApiTwitchAuthCallbackRoute
+  '/api/twitch/auth/url': typeof ApiTwitchAuthUrlRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -373,6 +436,7 @@ export interface FileRouteTypes {
     | '/upload-full'
     | '/videos'
     | '/wallet'
+    | '/watch-history'
     | '/admin/codes'
     | '/admin/free-coins'
     | '/admin/payouts'
@@ -389,6 +453,12 @@ export interface FileRouteTypes {
     | '/groups/'
     | '/watch/'
     | '/api/browser/proxy'
+    | '/api/facebook/resolve'
+    | '/api/twitch/follow'
+    | '/api/twitch/me'
+    | '/api/twitch/streams'
+    | '/api/twitch/auth/callback'
+    | '/api/twitch/auth/url'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -410,6 +480,7 @@ export interface FileRouteTypes {
     | '/upload-full'
     | '/videos'
     | '/wallet'
+    | '/watch-history'
     | '/admin/codes'
     | '/admin/free-coins'
     | '/admin/payouts'
@@ -426,6 +497,12 @@ export interface FileRouteTypes {
     | '/groups'
     | '/watch'
     | '/api/browser/proxy'
+    | '/api/facebook/resolve'
+    | '/api/twitch/follow'
+    | '/api/twitch/me'
+    | '/api/twitch/streams'
+    | '/api/twitch/auth/callback'
+    | '/api/twitch/auth/url'
   id:
     | '__root__'
     | '/'
@@ -449,6 +526,7 @@ export interface FileRouteTypes {
     | '/upload-full'
     | '/videos'
     | '/wallet'
+    | '/watch-history'
     | '/admin_/codes'
     | '/admin_/free-coins'
     | '/admin_/payouts'
@@ -465,6 +543,12 @@ export interface FileRouteTypes {
     | '/groups/'
     | '/watch/'
     | '/api/browser/proxy'
+    | '/api/facebook/resolve'
+    | '/api/twitch/follow'
+    | '/api/twitch/me'
+    | '/api/twitch/streams'
+    | '/api/twitch/auth/callback'
+    | '/api/twitch/auth/url'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -489,6 +573,7 @@ export interface RootRouteChildren {
   UploadFullRoute: typeof UploadFullRoute
   VideosRoute: typeof VideosRoute
   WalletRoute: typeof WalletRoute
+  WatchHistoryRoute: typeof WatchHistoryRoute
   AdminCodesRoute: typeof AdminCodesRoute
   AdminFreeCoinsRoute: typeof AdminFreeCoinsRoute
   AdminPayoutsRoute: typeof AdminPayoutsRoute
@@ -499,6 +584,12 @@ export interface RootRouteChildren {
   WatchIdRoute: typeof WatchIdRoute
   WatchIndexRoute: typeof WatchIndexRoute
   ApiBrowserProxyRoute: typeof ApiBrowserProxyRoute
+  ApiFacebookResolveRoute: typeof ApiFacebookResolveRoute
+  ApiTwitchFollowRoute: typeof ApiTwitchFollowRoute
+  ApiTwitchMeRoute: typeof ApiTwitchMeRoute
+  ApiTwitchStreamsRoute: typeof ApiTwitchStreamsRoute
+  ApiTwitchAuthCallbackRoute: typeof ApiTwitchAuthCallbackRoute
+  ApiTwitchAuthUrlRoute: typeof ApiTwitchAuthUrlRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -650,6 +741,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WalletRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/watch-history': {
+      id: '/watch-history'
+      path: '/watch-history'
+      fullPath: '/watch-history'
+      preLoaderRoute: typeof WatchHistoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin_/codes': {
       id: '/admin_/codes'
       path: '/admin/codes'
@@ -762,6 +860,48 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiBrowserProxyRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/facebook/resolve': {
+      id: '/api/facebook/resolve'
+      path: '/api/facebook/resolve'
+      fullPath: '/api/facebook/resolve'
+      preLoaderRoute: typeof ApiFacebookResolveRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/twitch/follow': {
+      id: '/api/twitch/follow'
+      path: '/api/twitch/follow'
+      fullPath: '/api/twitch/follow'
+      preLoaderRoute: typeof ApiTwitchFollowRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/twitch/me': {
+      id: '/api/twitch/me'
+      path: '/api/twitch/me'
+      fullPath: '/api/twitch/me'
+      preLoaderRoute: typeof ApiTwitchMeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/twitch/streams': {
+      id: '/api/twitch/streams'
+      path: '/api/twitch/streams'
+      fullPath: '/api/twitch/streams'
+      preLoaderRoute: typeof ApiTwitchStreamsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/twitch/auth/callback': {
+      id: '/api/twitch/auth/callback'
+      path: '/api/twitch/auth/callback'
+      fullPath: '/api/twitch/auth/callback'
+      preLoaderRoute: typeof ApiTwitchAuthCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/twitch/auth/url': {
+      id: '/api/twitch/auth/url'
+      path: '/api/twitch/auth/url'
+      fullPath: '/api/twitch/auth/url'
+      preLoaderRoute: typeof ApiTwitchAuthUrlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -825,6 +965,7 @@ const rootRouteChildren: RootRouteChildren = {
   UploadFullRoute: UploadFullRoute,
   VideosRoute: VideosRoute,
   WalletRoute: WalletRoute,
+  WatchHistoryRoute: WatchHistoryRoute,
   AdminCodesRoute: AdminCodesRoute,
   AdminFreeCoinsRoute: AdminFreeCoinsRoute,
   AdminPayoutsRoute: AdminPayoutsRoute,
@@ -835,6 +976,12 @@ const rootRouteChildren: RootRouteChildren = {
   WatchIdRoute: WatchIdRoute,
   WatchIndexRoute: WatchIndexRoute,
   ApiBrowserProxyRoute: ApiBrowserProxyRoute,
+  ApiFacebookResolveRoute: ApiFacebookResolveRoute,
+  ApiTwitchFollowRoute: ApiTwitchFollowRoute,
+  ApiTwitchMeRoute: ApiTwitchMeRoute,
+  ApiTwitchStreamsRoute: ApiTwitchStreamsRoute,
+  ApiTwitchAuthCallbackRoute: ApiTwitchAuthCallbackRoute,
+  ApiTwitchAuthUrlRoute: ApiTwitchAuthUrlRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

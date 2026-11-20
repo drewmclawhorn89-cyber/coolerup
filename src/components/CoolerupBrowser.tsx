@@ -212,6 +212,10 @@ export function CoolerupBrowser() {
      stays in the Coolerup chrome instead of escaping to another origin. */
   useEffect(() => {
     const onMessage = (event: MessageEvent) => {
+      // Only accept navigation requests from Coolerup's own proxied frames.
+      if (event.origin !== window.location.origin) return;
+      const frames = Array.from(document.querySelectorAll("iframe"));
+      if (!frames.some((frame) => frame.contentWindow === event.source)) return;
       const data = event.data as { coolerupNavigate?: unknown } | null;
       if (data && typeof data.coolerupNavigate === "string") openUrl(data.coolerupNavigate);
     };

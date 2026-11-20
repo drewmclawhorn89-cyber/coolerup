@@ -42,6 +42,9 @@ async function handle(request: Request): Promise<Response> {
   }
 
   const method = request.method.toUpperCase();
+  if (method !== "GET" && method !== "HEAD") {
+    return errorResponse("Coolerup Browser can only open pages, not submit data.", target, 405);
+  }
   const outbound = new Headers();
   outbound.set("user-agent", UA);
   outbound.set("accept", request.headers.get("accept") ?? "text/html,*/*;q=0.8");
@@ -53,17 +56,12 @@ async function handle(request: Request): Promise<Response> {
   const range = request.headers.get("range");
   if (range) outbound.set("range", range);
 
-  let body: ArrayBuffer | null = null;
-  if (method !== "GET" && method !== "HEAD") {
-    body = (await request.arrayBuffer().catch(() => null)) ?? null;
-  }
 
   let upstream: Response;
   try {
     upstream = await fetch(target, {
       method,
       headers: outbound,
-      body,
       redirect: "manual",
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });

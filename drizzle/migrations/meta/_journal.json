@@ -92,6 +92,20 @@
       "when": 1795216429143,
       "tag": "0012_security_fixes",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1795217353720,
+      "tag": "0013_security_fixes_round2",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1795217447327,
+      "tag": "0014_offline_entitlement",
+      "breakpoints": true
     }
   ]
 }

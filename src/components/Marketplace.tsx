@@ -165,13 +165,13 @@ export function Marketplace() {
       let up = await supabase.storage.from(bucket).upload(path, file, { contentType: file.type });
       if (up.error) {
         bucket = "videos";
-        up = await supabase.storage.from(bucket).upload(`marketplace/${path}`, file, { contentType: file.type });
+        up = await supabase.storage.from(bucket).upload(`${auth.user.id}/marketplace/${path.slice(auth.user.id.length + 1)}`, file, { contentType: file.type });
       }
       if (up.error) {
         toast.error(`Couldn't upload the photo: ${up.error.message}`);
         return false;
       }
-      imageUrl = supabase.storage.from(bucket).getPublicUrl(bucket === "videos" ? `marketplace/${path}` : path).data.publicUrl;
+      imageUrl = supabase.storage.from(bucket).getPublicUrl(bucket === "videos" ? `${auth.user.id}/marketplace/${path.slice(auth.user.id.length + 1)}` : path).data.publicUrl;
     }
     const { data, error } = await (supabase as any)
       .from("marketplace_items")

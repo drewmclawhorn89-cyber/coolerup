@@ -14,6 +14,7 @@ const { inserts, uploads } = vi.hoisted(() => ({
 vi.mock("@/integrations/supabase/client", () => {
   return {
     supabase: {
+      auth: { getUser: async () => ({ data: { user: { id: "u1" } } }) },
       storage: {
         from: () => ({
           upload: async (path: string, _blob: Blob, opts?: { contentType?: string }) => {

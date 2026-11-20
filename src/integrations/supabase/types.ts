@@ -2741,6 +2741,7 @@ export type Database = {
       my_follower_reward: { Args: never; Returns: Json }
       my_gift_earnings: { Args: { p_limit?: number }; Returns: Json }
       my_lifetime_subscription: { Args: never; Returns: Json }
+      my_offline_entitlement: { Args: never; Returns: Json }
       my_payouts: { Args: { p_limit?: number }; Returns: Json }
       my_profile: {
         Args: never

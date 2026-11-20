@@ -32,7 +32,7 @@ export function FacebookPanel() {
     e.preventDefault();
     const url = normalizeFacebookVideoUrl(value);
     if (!url) {
-      toast.error("Paste a Facebook video, reel or fb.watch link");
+      toast.error("Paste a link from Facebook (video, reel, share or fb.watch)");
       return;
     }
     persist([url, ...links.filter((l) => l !== url)]);

@@ -14,6 +14,7 @@ import { Suspense, lazy, useEffect, useState, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
+import { pingTikTokSync } from "../lib/tiktokHeartbeat";
 import { CallProvider } from "../lib/calls";
 import { CallOverlay } from "../components/CallOverlay";
 import { PhoneAuthDialog } from "../components/PhoneAuthDialog";
@@ -306,6 +307,13 @@ function RootComponent() {
     if (!import.meta.env.PROD) return;
     if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return;
     navigator.serviceWorker.register("/sw.js").catch(() => undefined);
+  }, []);
+
+  // Nudge the TikTok ingestion job. This is the fallback for deployments with
+  // no cron secret and no scheduler: the database still enforces the real
+  // cadence, so a page load can only ever ask "is it time yet?".
+  useEffect(() => {
+    pingTikTokSync();
   }, []);
 
   return (

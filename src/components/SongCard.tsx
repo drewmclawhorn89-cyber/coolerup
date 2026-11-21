@@ -1,4 +1,4 @@
-import { Heart, Music2, Pause, Play } from "lucide-react";
+import { Heart, Music2, Pause, Play, Trash2 } from "lucide-react";
 import { DownloadButton } from "@/components/DownloadButton";
 import {
   formatDuration,
@@ -147,6 +147,7 @@ export function SongRow({
   onToggleSave,
   playing = false,
   index,
+  onDelete,
 }: {
   sound: Sound;
   onOpen: () => void;
@@ -154,6 +155,8 @@ export function SongRow({
   onToggleSave?: () => void;
   playing?: boolean;
   index?: number;
+  /** Owner-only: delete this song (used for songs the user uploaded). */
+  onDelete?: (() => void) | undefined;
 }) {
   return (
     <div className="flex items-center gap-3 rounded-xl p-1.5 hover:bg-white/5">
@@ -186,6 +189,17 @@ export function SongRow({
         </span>
       </button>
       <DownloadButton sound={sound} variant="pill" />
+      {onDelete && (
+        <button
+          type="button"
+          onClick={onDelete}
+          aria-label={`Delete ${sound.title}`}
+          title="Delete this upload"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-white/10 hover:text-red-400"
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
+      )}
       {onToggleSave && (
         <button
           type="button"

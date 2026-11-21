@@ -1,12 +1,22 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 import {
   ArrowLeft,
   Download,
+  FileAudio,
   Flame,
   HardDriveDownload,
   Headphones,
   Heart,
+  ImagePlus,
   Loader2,
   Lock,
   Music2,
@@ -18,6 +28,7 @@ import {
   Sparkles,
   TriangleAlert,
   Trash2,
+  Upload,
   WifiOff,
   Youtube,
   X,
@@ -66,6 +77,18 @@ import {
   incrementSoundPlay,
   youtubeSongId,
 } from "@/lib/youtubeSongs";
+import {
+  AUDIO_ACCEPT,
+  COVER_ACCEPT,
+  MAX_SONG_UPLOAD_MB,
+  deleteUploadedSong,
+  formatFileSize,
+  getMyUploadedSongs,
+  songTitleFromFileName,
+  uploadSong,
+  validateCoverFile,
+  validateSongFile,
+} from "@/lib/songUpload";
 import {
   formatStorage,
   listSavedSongs,
@@ -125,6 +148,13 @@ function MusicPage() {
   const [probing, setProbing] = useState(false);
   const [durationVersion, setDurationVersion] = useState(0);
   const [addingYouTube, setAddingYouTube] = useState(false);
+  /** "Upload a song" dialog. */
+  const [uploadingSong, setUploadingSong] = useState(false);
+  /** Songs this user uploaded directly (not from a video, not YouTube). */
+  const [myUploads, setMyUploads] = useState<Sound[]>([]);
+  /** Song queued for deletion (confirmation dialog). */
+  const [deletingSong, setDeletingSong] = useState<Sound | null>(null);
+  const [deleting, setDeleting] = useState(false);
   /** Songs stored in IndexedDB — these play with no signal at all. */
   const [downloadedSongs, setDownloadedSongs] = useState<SavedSong[]>([]);
   const [downloadBytes, setDownloadBytes] = useState(0);
@@ -152,12 +182,17 @@ function MusicPage() {
       setYoutubeSongs(youTube);
 
       if (auth.user) {
-        const mine = await getSavedSounds();
+        const [mine, uploads] = await Promise.all([
+          getSavedSounds(),
+          getMyUploadedSongs().catch(() => [] as Sound[]),
+        ]);
         setSaved(mine);
         setSavedIds(new Set(mine.map((s) => s.id)));
+        setMyUploads(uploads);
       } else {
         setSaved([]);
         setSavedIds(new Set());
+        setMyUploads([]);
       }
     } catch {
       setError("Couldn't load songs. Check your connection and try again.");
@@ -256,6 +291,30 @@ function MusicPage() {
     },
     [auth.user, savedIds, load],
   );
+
+  /** Delete one of the user's own uploads after they confirm. */
+  const confirmDelete = useCallback(async () => {
+    if (!deletingSong || deleting) return;
+    setDeleting(true);
+    const id = deletingSong.id;
+    try {
+      await deleteUploadedSong(deletingSong);
+      setMyUploads((prev) => prev.filter((s) => s.id !== id));
+      setAll((prev) => prev.filter((s) => s.id !== id));
+      setSaved((prev) => prev.filter((s) => s.id !== id));
+      setSavedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+      toast.success("Song deleted.");
+      setDeletingSong(null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't delete that song.");
+    } finally {
+      setDeleting(false);
+    }
+  }, [deletingSong, deleting]);
 
   /**
    * Play a song and queue up the rest of the list behind it.
@@ -417,19 +476,36 @@ function MusicPage() {
           <h1 className="flex items-center gap-1.5 text-lg font-black tracking-tight">
             <Music2 className="h-5 w-5 text-primary" /> Music
           </h1>
-          <button
-            type="button"
-            onClick={() => {
-              if (!auth.user) {
-                void auth.signIn();
-                return;
-              }
-              setAddingYouTube(true);
-            }}
-            className="ml-auto flex items-center gap-1 rounded-full bg-red-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-red-500"
-          >
-            <Plus className="h-3.5 w-3.5" /> Add YouTube Song
-          </button>
+          <div className="ml-auto flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => {
+                if (!auth.user) {
+                  void auth.signIn();
+                  return;
+                }
+                setUploadingSong(true);
+              }}
+              className="flex items-center gap-1 rounded-full bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground hover:opacity-90"
+            >
+              <Upload className="h-3.5 w-3.5" /> Upload
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (!auth.user) {
+                  void auth.signIn();
+                  return;
+                }
+                setAddingYouTube(true);
+              }}
+              aria-label="Add YouTube song"
+              title="Add YouTube song"
+              className="flex h-8 w-8 items-center justify-center rounded-full bg-red-600 text-white hover:bg-red-500"
+            >
+              <Youtube className="h-4 w-4" />
+            </button>
+          </div>
         </div>
 
         {/* Search */}
@@ -590,11 +666,18 @@ function MusicPage() {
               saved,
               auth.user ? "Tap the heart on a song to save it here." : "Sign in to save sounds.",
             )}
+            {myUploads.length > 0 &&
+              renderRow(
+                "Your Uploads",
+                <Upload className="h-4 w-4 text-primary" />,
+                myUploads,
+                "No uploads yet.",
+              )}
             {renderRow(
               "YouTube Songs",
               <Youtube className="h-4 w-4 text-red-600" />,
               youtubeSongs,
-              "No YouTube songs yet. Tap + Add YouTube Song to paste a link.",
+              "No YouTube songs yet. Tap the YouTube button to paste a link.",
             )}
             <section className="mb-6">
               <div className="mb-2 flex items-center gap-1.5 px-1">
@@ -618,6 +701,52 @@ function MusicPage() {
           </section>
         ) : tab === "mine" ? (
           <section>
+            <div className="mb-2 flex items-center gap-1.5 px-1">
+              <Upload className="h-4 w-4 text-primary" />
+              <h2 className="text-sm font-bold">Your Uploads</h2>
+              <span className="text-[11px] text-muted-foreground">{myUploads.length}</span>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!auth.user) {
+                    void auth.signIn();
+                    return;
+                  }
+                  setUploadingSong(true);
+                }}
+                className="ml-auto flex items-center gap-1 rounded-full border border-white/15 px-2 py-0.5 text-[11px] font-bold text-muted-foreground hover:text-foreground"
+              >
+                <Plus className="h-3 w-3" /> Upload
+              </button>
+            </div>
+            {myUploads.length ? (
+              <div className="space-y-0.5">
+                {myUploads.map((s, i) => (
+                  <SongRow
+                    key={s.id}
+                    sound={s}
+                    index={i}
+                    playing={nowPlayingId === s.id && player.playing}
+                    saved={savedIds.has(s.id)}
+                    onToggleSave={() => void toggleSave(s)}
+                    onOpen={() => void openSong(s, myUploads)}
+                    onDelete={() => setDeletingSong(s)}
+                  />
+                ))}
+              </div>
+            ) : (
+              <p className="px-1 py-4 text-sm text-muted-foreground">
+                {auth.user
+                  ? `No uploads yet. Tap Upload to add an MP3, M4A, WAV, OGG, OPUS or FLAC (up to ${MAX_SONG_UPLOAD_MB} MB).`
+                  : "Sign in to upload your own songs."}
+              </p>
+            )}
+
+            <div className="mb-2 mt-6 flex items-center gap-1.5 px-1">
+              <Heart className="h-4 w-4 text-red-500" />
+              <h2 className="text-sm font-bold">Saved Songs</h2>
+              <span className="text-[11px] text-muted-foreground">{saved.length}</span>
+            </div>
             {renderList(
               saved,
               auth.user
@@ -715,6 +844,41 @@ function MusicPage() {
           />
         )}
       </div>
+
+      <UploadSongDialog
+        open={uploadingSong}
+        onClose={() => setUploadingSong(false)}
+        onUploaded={(song) => {
+          setMyUploads((prev) => [song, ...prev.filter((s) => s.id !== song.id)]);
+          setAll((prev) => [song, ...prev.filter((s) => s.id !== song.id)]);
+          toast.success("Song uploaded to Music.");
+        }}
+      />
+
+      <Dialog
+        open={Boolean(deletingSong)}
+        onOpenChange={(next) => {
+          if (!next && !deleting) setDeletingSong(null);
+        }}
+      >
+        <DialogContent className="w-[calc(100%-2rem)] rounded-lg" aria-describedby={undefined}>
+          <DialogHeader>
+            <DialogTitle>Delete this song?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm leading-relaxed text-muted-foreground">
+            “{deletingSong?.title}” will be removed from Music and its file deleted. This can't be
+            undone.
+          </p>
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => setDeletingSong(null)} disabled={deleting}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={() => void confirmDelete()} disabled={deleting}>
+              {deleting ? <Loader2 className="animate-spin" /> : <Trash2 />} Delete
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <AddYouTubeSongDialog
         open={addingYouTube}
@@ -959,6 +1123,262 @@ function AddYouTubeSongDialog({
           <div className="flex justify-end">
             <Button type="submit" disabled={busy || !url.trim()}>
               {busy ? <Loader2 className="animate-spin" /> : <Plus />} {busy ? "Adding…" : "Add"}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/**
+ * "Upload a song" popup.
+ *
+ * Picks an audio file from the phone/computer (or drag-and-drop on desktop),
+ * lets the user name it and optionally add cover art, then stores it in the
+ * `sounds` bucket and creates a `sounds` row. The result plays in the Music tab
+ * like any other song and can be downloaded for offline listening.
+ */
+function UploadSongDialog({
+  open,
+  onClose,
+  onUploaded,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onUploaded: (song: Sound) => void;
+}) {
+  const [file, setFile] = useState<File | null>(null);
+  const [cover, setCover] = useState<File | null>(null);
+  const [title, setTitle] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [dragOver, setDragOver] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState("");
+  const fileRef = useRef<HTMLInputElement | null>(null);
+  const coverRef = useRef<HTMLInputElement | null>(null);
+
+  const reset = () => {
+    setFile(null);
+    setCover(null);
+    setTitle("");
+    setError("");
+    setDragOver(false);
+  };
+
+  // Preview the chosen file and release the blob URL when it changes/unmounts.
+  useEffect(() => {
+    if (!file) {
+      setPreviewUrl("");
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    setPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file]);
+
+  const chooseFile = (next: File | undefined) => {
+    if (!next) return;
+    const invalid = validateSongFile(next);
+    if (invalid) {
+      setError(invalid);
+      return;
+    }
+    setError("");
+    setFile(next);
+    setTitle((prev) => prev.trim() || songTitleFromFileName(next.name));
+  };
+
+  const chooseCover = (next: File | undefined) => {
+    if (!next) return;
+    const invalid = validateCoverFile(next);
+    if (invalid) {
+      setError(invalid);
+      return;
+    }
+    setError("");
+    setCover(next);
+  };
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (busy) return;
+    if (!file) {
+      setError("Choose an audio file first.");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      const song = await uploadSong({ file, title, cover });
+      onUploaded(song);
+      reset();
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't upload that song.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next && !busy) {
+          reset();
+          onClose();
+        }
+      }}
+    >
+      <DialogContent className="w-[calc(100%-2rem)] rounded-lg" aria-describedby={undefined}>
+        <DialogHeader>
+          <DialogTitle>Upload a song</DialogTitle>
+        </DialogHeader>
+        <form className="space-y-3" onSubmit={submit}>
+          <input
+            ref={fileRef}
+            type="file"
+            accept={AUDIO_ACCEPT}
+            className="hidden"
+            aria-label="Choose an audio file"
+            onChange={(e) => {
+              const next = e.target.files?.[0];
+              e.target.value = "";
+              chooseFile(next);
+            }}
+          />
+          <input
+            ref={coverRef}
+            type="file"
+            accept={COVER_ACCEPT}
+            className="hidden"
+            aria-label="Choose cover art"
+            onChange={(e) => {
+              const next = e.target.files?.[0];
+              e.target.value = "";
+              chooseCover(next);
+            }}
+          />
+
+          <button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDragOver(true);
+            }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragOver(false);
+              chooseFile(e.dataTransfer.files?.[0]);
+            }}
+            className={`flex w-full flex-col items-center gap-1.5 rounded-xl border-2 border-dashed px-4 py-6 text-center transition ${
+              dragOver ? "border-primary bg-primary/10" : "border-white/15 hover:border-white/30"
+            }`}
+          >
+            <FileAudio className="h-6 w-6 text-primary" />
+            <span className="text-sm font-semibold">
+              {file ? "Choose a different file" : "Choose an audio file"}
+            </span>
+            <span className="text-[11px] text-muted-foreground">
+              MP3, M4A, WAV, OGG, OPUS or FLAC · up to {MAX_SONG_UPLOAD_MB} MB
+            </span>
+          </button>
+
+          {file && (
+            <div className="rounded-xl border border-white/10 bg-white/5 p-2.5">
+              <div className="flex items-center gap-2">
+                <FileAudio className="h-4 w-4 shrink-0 text-emerald-400" />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-xs font-semibold">{file.name}</p>
+                  <p className="text-[11px] text-muted-foreground">{formatFileSize(file.size)}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setFile(null)}
+                  aria-label="Remove chosen file"
+                  className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-white/10 hover:text-foreground"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              {previewUrl && (
+                <audio src={previewUrl} controls preload="metadata" className="mt-2 h-8 w-full" />
+              )}
+            </div>
+          )}
+
+          <div>
+            <label
+              htmlFor="song-title"
+              className="mb-1 block text-xs font-semibold text-muted-foreground"
+            >
+              Song title
+            </label>
+            <Input
+              id="song-title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="My song"
+              maxLength={140}
+              disabled={busy}
+            />
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => coverRef.current?.click()}
+              disabled={busy}
+              className="flex items-center gap-1.5 rounded-full border border-white/15 px-3 py-1.5 text-[11px] font-semibold text-muted-foreground hover:text-foreground disabled:opacity-60"
+            >
+              <ImagePlus className="h-3.5 w-3.5" />{" "}
+              {cover ? "Change cover" : "Add cover art (optional)"}
+            </button>
+            {cover && (
+              <span className="flex min-w-0 items-center gap-1 text-[11px] text-muted-foreground">
+                <span className="max-w-[9rem] truncate">{cover.name}</span>
+                <button
+                  type="button"
+                  onClick={() => setCover(null)}
+                  aria-label="Remove cover art"
+                  className="text-muted-foreground hover:text-red-400"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            )}
+          </div>
+
+          {error && (
+            <p role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
+          )}
+
+          <p className="text-[11px] leading-relaxed text-muted-foreground">
+            Only upload music you own or have the rights to share. Copyrighted songs can get the
+            account banned.
+          </p>
+
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                if (busy) return;
+                reset();
+                onClose();
+              }}
+              disabled={busy}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={busy || !file}>
+              {busy ? <Loader2 className="animate-spin" /> : <Upload />}{" "}
+              {busy ? "Uploading…" : "Upload"}
             </Button>
           </div>
         </form>

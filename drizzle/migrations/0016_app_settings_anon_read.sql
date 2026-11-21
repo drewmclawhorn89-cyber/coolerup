@@ -1,0 +1,1 @@
+GRANT SELECT ON public.app_settings TO anon;

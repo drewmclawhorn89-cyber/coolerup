@@ -1,0 +1,1 @@
+CREATE POLICY "anyone reads video and avatar files" ON storage.objects FOR SELECT TO anon, authenticated USING (bucket_id IN ('videos','avatars'));

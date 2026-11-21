@@ -1,0 +1,1 @@
+CREATE POLICY "anyone reads feed videos" ON public.videos FOR SELECT TO anon, authenticated USING (true);

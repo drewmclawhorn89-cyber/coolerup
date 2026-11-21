@@ -562,8 +562,10 @@ function Index() {
     setLoadingMore(true);
     fetchVideos(pageNum, feedPageSize())
       .then((v: any) => {
-        if (!v || v.length === 0) setHasMore(false);
-        else {
+        if (!v || v.length === 0) {
+          setHasMore(false);
+          if (!append) setVideos((cur: any) => cur ?? []);
+        } else {
           if (append) setVideos((prev: any) => [...(prev || []), ...v]);
           else {
             setVideos(v);

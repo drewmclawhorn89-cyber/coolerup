@@ -132,8 +132,7 @@ export function filterLiveHosts(hosts: LiveHost[], raw: string): LiveHost[] {
   const q = sanitizeLike(raw).toLowerCase();
   if (!q) return hosts;
   return hosts.filter(
-    (host) =>
-      host.username.toLowerCase().includes(q) || host.title.toLowerCase().includes(q),
+    (host) => host.username.toLowerCase().includes(q) || host.title.toLowerCase().includes(q),
   );
 }
 
@@ -166,9 +165,7 @@ export async function searchUsers(raw: string, limit = 30): Promise<SearchUser[]
   const { data, error } = await supabase
     .from("profiles")
     .select("id, handle, display_name, avatar_url")
-    .or(
-      `username.ilike.%${term}%,handle.ilike.%${term}%,display_name.ilike.%${term}%`,
-    )
+    .or(`username.ilike.%${term}%,handle.ilike.%${term}%,display_name.ilike.%${term}%`)
     .limit(Math.max(1, Math.min(50, limit)));
   if (error) return [];
   return (data ?? []) as SearchUser[];
@@ -263,7 +260,10 @@ export async function loadSearchHistory(userId?: string | null): Promise<string[
 }
 
 /** Records a search, moving an existing entry back to the top. */
-export async function saveSearchTerm(userId: string | null | undefined, raw: string): Promise<void> {
+export async function saveSearchTerm(
+  userId: string | null | undefined,
+  raw: string,
+): Promise<void> {
   const query = normalizeQuery(raw);
   if (!query) return;
 
@@ -272,10 +272,12 @@ export async function saveSearchTerm(userId: string | null | undefined, raw: str
 
   if (!userId) return;
   // Upsert on (user_id, query_key) so "Cats" and "cats" are one row.
-  const { error } = await supabase.from("search_history").upsert(
-    { user_id: userId, query, created_at: new Date().toISOString() },
-    { onConflict: "user_id,query_key" },
-  );
+  const { error } = await supabase
+    .from("search_history")
+    .upsert(
+      { user_id: userId, query, created_at: new Date().toISOString() },
+      { onConflict: "user_id,query_key" },
+    );
   if (error) {
     // Unique-violation races are harmless; anything else is non-fatal.
     return;

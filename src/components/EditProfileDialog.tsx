@@ -65,7 +65,7 @@ export function EditProfileDialog({
     setLinks({ ...(auth.profile?.links ?? {}) });
     setShowLiked(auth.profile?.show_liked !== false);
     setPhoto(null);
-    let revoked: string | null = null;
+    const revoked: string | null = null;
     resolveAvatarUrl(auth.profile?.avatar_url).then((u) => setPreview(u));
     return () => {
       if (revoked) URL.revokeObjectURL(revoked);

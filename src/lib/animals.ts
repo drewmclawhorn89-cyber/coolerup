@@ -7,13 +7,52 @@ export type AnimalFilter = { id: string; name: string; icon: string; parts: Anim
 const top = (emoji: string): AnimalPart => ({ emoji, dx: 0, dy: -0.8, size: 0.75 });
 
 export const ANIMAL_FILTERS: AnimalFilter[] = [
-  { id: "dog", name: "Dog", icon: "🐶", parts: [top("🐶"), { emoji: "👃", dx: 0, dy: 0.12, size: 0.3 }, { emoji: "👅", dx: 0, dy: 0.45, size: 0.3 }] },
-  { id: "cat", name: "Cat", icon: "🐱", parts: [top("🐱"), { emoji: "🐾", dx: 0, dy: 0.15, size: 0.3 }] },
-  { id: "bunny", name: "Bunny", icon: "🐰", parts: [top("🐰"), { emoji: "🥕", dx: 0.45, dy: 0.5, size: 0.3 }] },
-  { id: "fox", name: "Fox", icon: "🦊", parts: [top("🦊"), { emoji: "🐾", dx: 0, dy: 0.15, size: 0.3 }] },
-  { id: "panda", name: "Panda", icon: "🐼", parts: [top("🐼"), { emoji: "🎋", dx: 0.5, dy: 0.5, size: 0.35 }] },
-  { id: "lion", name: "Lion", icon: "🦁", parts: [top("🦁"), { emoji: "👑", dx: 0, dy: -1.35, size: 0.45 }] },
-  { id: "frog", name: "Frog", icon: "🐸", parts: [top("🐸"), { emoji: "👅", dx: 0, dy: 0.45, size: 0.3 }] },
+  {
+    id: "dog",
+    name: "Dog",
+    icon: "🐶",
+    parts: [
+      top("🐶"),
+      { emoji: "👃", dx: 0, dy: 0.12, size: 0.3 },
+      { emoji: "👅", dx: 0, dy: 0.45, size: 0.3 },
+    ],
+  },
+  {
+    id: "cat",
+    name: "Cat",
+    icon: "🐱",
+    parts: [top("🐱"), { emoji: "🐾", dx: 0, dy: 0.15, size: 0.3 }],
+  },
+  {
+    id: "bunny",
+    name: "Bunny",
+    icon: "🐰",
+    parts: [top("🐰"), { emoji: "🥕", dx: 0.45, dy: 0.5, size: 0.3 }],
+  },
+  {
+    id: "fox",
+    name: "Fox",
+    icon: "🦊",
+    parts: [top("🦊"), { emoji: "🐾", dx: 0, dy: 0.15, size: 0.3 }],
+  },
+  {
+    id: "panda",
+    name: "Panda",
+    icon: "🐼",
+    parts: [top("🐼"), { emoji: "🎋", dx: 0.5, dy: 0.5, size: 0.35 }],
+  },
+  {
+    id: "lion",
+    name: "Lion",
+    icon: "🦁",
+    parts: [top("🦁"), { emoji: "👑", dx: 0, dy: -1.35, size: 0.45 }],
+  },
+  {
+    id: "frog",
+    name: "Frog",
+    icon: "🐸",
+    parts: [top("🐸"), { emoji: "👅", dx: 0, dy: 0.45, size: 0.3 }],
+  },
 ];
 
 export function getAnimal(id: string) {
@@ -23,7 +62,11 @@ export function getAnimal(id: string) {
 export const FACE_STALE_MS = 600;
 
 /** Draw the animal anchored to `face` (already in destination canvas coordinates). Does nothing without a fresh face. */
-export function drawAnimal(ctx: CanvasRenderingContext2D, animal: AnimalFilter | null, face: FaceBox | null) {
+export function drawAnimal(
+  ctx: CanvasRenderingContext2D,
+  animal: AnimalFilter | null,
+  face: FaceBox | null,
+) {
   if (!animal || !face || performance.now() - face.at > FACE_STALE_MS) return;
   ctx.save();
   ctx.setTransform(1, 0, 0, 1, 0, 0);

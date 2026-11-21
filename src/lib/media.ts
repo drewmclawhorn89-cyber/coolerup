@@ -26,7 +26,11 @@ export function storagePathOf(value: string | null | undefined): string | null {
   if (value.startsWith(STORAGE_PREFIX)) return value.slice(STORAGE_PREFIX.length);
   const at = value.indexOf(PUBLIC_MARKER);
   if (at !== -1) {
-    const raw = value.slice(at + PUBLIC_MARKER.length).split("?")[0]?.split("#")[0] ?? "";
+    const raw =
+      value
+        .slice(at + PUBLIC_MARKER.length)
+        .split("?")[0]
+        ?.split("#")[0] ?? "";
     try {
       return decodeURIComponent(raw);
     } catch {

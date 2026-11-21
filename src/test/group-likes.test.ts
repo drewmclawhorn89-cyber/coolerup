@@ -17,7 +17,8 @@ vi.mock("@/integrations/supabase/client", () => {
         if (opts?.head) {
           return {
             eq: (col: string, val: string) => {
-              if (state.failOn === "select") return Promise.resolve({ count: null, error: new Error("boom") });
+              if (state.failOn === "select")
+                return Promise.resolve({ count: null, error: new Error("boom") });
               const count = state.likeRows.filter((r) => (r as any)[col] === val).length;
               return Promise.resolve({ count, error: null });
             },
@@ -33,7 +34,8 @@ vi.mock("@/integrations/supabase/client", () => {
       },
       upsert: (row: { post_id: string; user_id: string }) => {
         state.calls.push(`${table}:upsert`);
-        if (state.failOn === "insert") return Promise.resolve({ error: new Error("insert denied") });
+        if (state.failOn === "insert")
+          return Promise.resolve({ error: new Error("insert denied") });
         const exists = state.likeRows.some(
           (r) => r.post_id === row.post_id && r.user_id === row.user_id,
         );
@@ -44,7 +46,8 @@ vi.mock("@/integrations/supabase/client", () => {
         eq: (col: string, val: string) => ({
           eq: (col2: string, val2: string) => {
             state.calls.push(`${table}:delete`);
-            if (state.failOn === "delete") return Promise.resolve({ error: new Error("delete denied") });
+            if (state.failOn === "delete")
+              return Promise.resolve({ error: new Error("delete denied") });
             state.likeRows = state.likeRows.filter(
               (r) => !((r as any)[col] === val && (r as any)[col2] === val2),
             );
@@ -68,7 +71,17 @@ vi.mock("@/integrations/supabase/client", () => {
 
 import { fetchGroupPostLikes, likeGroupPost } from "@/lib/groups";
 
-const post = (id: string) => ({ id, group_id: "g1", user_id: "u", username: "u", caption: null, video_url: null, image_url: null, created_at: "", likes: 0 });
+const post = (id: string) => ({
+  id,
+  group_id: "g1",
+  user_id: "u",
+  username: "u",
+  caption: null,
+  video_url: null,
+  image_url: null,
+  created_at: "",
+  likes: 0,
+});
 
 describe("likeGroupPost", () => {
   beforeEach(() => {

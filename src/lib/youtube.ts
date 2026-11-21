@@ -6,9 +6,12 @@ export function extractYouTubeId(input: string): string | null {
     const host = url.hostname.toLowerCase();
     let id: string | null = null;
     if (host === "youtu.be") id = url.pathname.split("/")[1] ?? null;
-    else if (["youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com"].includes(host)) {
+    else if (
+      ["youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com"].includes(host)
+    ) {
       if (url.pathname === "/watch") id = url.searchParams.get("v");
-      else if (/^\/(shorts|embed|live)\//.test(url.pathname)) id = url.pathname.split("/")[2] ?? null;
+      else if (/^\/(shorts|embed|live)\//.test(url.pathname))
+        id = url.pathname.split("/")[2] ?? null;
     }
     return id && /^[A-Za-z0-9_-]{1,64}$/.test(id) ? id : null;
   } catch {
@@ -16,8 +19,10 @@ export function extractYouTubeId(input: string): string | null {
   }
 }
 
-export const youtubeThumbnail = (id: string) => `https://i.ytimg.com/vi/${encodeURIComponent(id)}/hqdefault.jpg`;
-export const youtubeWatchUrl = (id: string) => `https://www.youtube.com/watch?v=${encodeURIComponent(id)}`;
+export const youtubeThumbnail = (id: string) =>
+  `https://i.ytimg.com/vi/${encodeURIComponent(id)}/hqdefault.jpg`;
+export const youtubeWatchUrl = (id: string) =>
+  `https://www.youtube.com/watch?v=${encodeURIComponent(id)}`;
 /** "PT1H2M3S" -> 3723. Returns null when the string isn't a duration. */
 export function parseIsoDuration(value: string): number | null {
   const match = /^P(?:(\d+)D)?T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?$/.exec(value.trim());

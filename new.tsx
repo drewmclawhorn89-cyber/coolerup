@@ -79,7 +79,11 @@ export function RecordDialog({ open, onOpenChange, onPosted }: RecordDialogProps
         }
       } catch (err) {
         const name = (err as DOMException)?.name;
-        if (name === "NotAllowedError" || name === "SecurityError" || name === "PermissionDeniedError") {
+        if (
+          name === "NotAllowedError" ||
+          name === "SecurityError" ||
+          name === "PermissionDeniedError"
+        ) {
           setPermissionDenied(true);
         } else if (name === "NotFoundError") {
           setCameraError("No camera found on this device.");
@@ -243,11 +247,11 @@ export function RecordDialog({ open, onOpenChange, onPosted }: RecordDialogProps
 
   return (
     <Dialog open={open} onOpenChange={(o) => !posting && onOpenChange(o)}>
-      <DialogContent
-        className="fixed inset-0 left-0 top-0 h-[100dvh] w-screen max-w-none translate-x-0 translate-y-0 gap-0 rounded-none border-0 bg-black p-0 text-white sm:max-w-none sm:rounded-none [&>button]:hidden"
-      >
+      <DialogContent className="fixed inset-0 left-0 top-0 h-[100dvh] w-screen max-w-none translate-x-0 translate-y-0 gap-0 rounded-none border-0 bg-black p-0 text-white sm:max-w-none sm:rounded-none [&>button]:hidden">
         <DialogTitle className="sr-only">Record video</DialogTitle>
-        <DialogDescription className="sr-only">Record a video up to 60 seconds and post it.</DialogDescription>
+        <DialogDescription className="sr-only">
+          Record a video up to 60 seconds and post it.
+        </DialogDescription>
 
         <div className="relative mx-auto flex h-full w-full max-w-[min(100vw,calc(100dvh*9/16))] items-center justify-center bg-black">
           {/* Close */}
@@ -266,8 +270,8 @@ export function RecordDialog({ open, onOpenChange, onPosted }: RecordDialogProps
             <div className="flex flex-col items-center gap-4 px-8 text-center">
               <p className="text-lg font-semibold">Allow camera access</p>
               <p className="text-sm text-white/70">
-                Coolerup needs camera and microphone permission to record. Enable it in your browser or app
-                settings, then try again.
+                Coolerup needs camera and microphone permission to record. Enable it in your browser
+                or app settings, then try again.
               </p>
               <Button variant="secondary" onClick={() => startCamera(facing)}>
                 Try again
@@ -297,7 +301,9 @@ export function RecordDialog({ open, onOpenChange, onPosted }: RecordDialogProps
 
               {/* Timer */}
               <div className="absolute left-1/2 top-[max(1rem,env(safe-area-inset-top))] z-10 -translate-x-1/2 rounded-full bg-black/50 px-3 py-1 text-sm font-medium tabular-nums">
-                {recording && <span className="mr-2 inline-block h-2 w-2 animate-pulse rounded-full bg-red-500" />}
+                {recording && (
+                  <span className="mr-2 inline-block h-2 w-2 animate-pulse rounded-full bg-red-500" />
+                )}
                 {fmt(elapsed)} / {fmt(MAX_SECONDS)}
               </div>
 

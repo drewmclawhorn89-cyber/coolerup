@@ -63,8 +63,13 @@ export function GroupCard({
           <div className="min-w-0 flex-1">
             <p className="truncate font-bold text-white text-[15px]">{group.name}</p>
             <p className="flex items-center gap-1 text-[12px] text-gray-400">
-              {group.privacy === "private" ? <Lock className="h-3 w-3" /> : <Globe className="h-3 w-3" />}
-              {formatMembers(group.members_count)} • {group.privacy === "private" ? "Private" : "Public"}
+              {group.privacy === "private" ? (
+                <Lock className="h-3 w-3" />
+              ) : (
+                <Globe className="h-3 w-3" />
+              )}
+              {formatMembers(group.members_count)} •{" "}
+              {group.privacy === "private" ? "Private" : "Public"}
             </p>
             {group.description ? (
               <p className="mt-1 line-clamp-2 text-[13px] text-gray-300">{group.description}</p>
@@ -165,7 +170,11 @@ function CreateGroupForm({
         onClick={() => coverInput.current?.click()}
         className="relative mb-3 block h-24 w-full overflow-hidden rounded-lg bg-black text-[12px] font-bold text-gray-400"
       >
-        {cover ? <img src={cover} alt="" className="h-full w-full object-cover" /> : "Add cover image"}
+        {cover ? (
+          <img src={cover} alt="" className="h-full w-full object-cover" />
+        ) : (
+          "Add cover image"
+        )}
       </button>
       <input
         ref={coverInput}
@@ -215,7 +224,10 @@ function CreateGroupForm({
       </select>
 
       <div className="flex gap-2">
-        <button onClick={onCancel} className="flex-1 rounded-full bg-gray-600 py-2 text-[14px] text-white">
+        <button
+          onClick={onCancel}
+          className="flex-1 rounded-full bg-gray-600 py-2 text-[14px] text-white"
+        >
           Cancel
         </button>
         <button
@@ -272,7 +284,10 @@ export function GroupsPanel({ className = "" }: { className?: string }) {
 
   const discover = useMemo(() => filtered, [filtered]);
   const yourFiltered = useMemo(
-    () => yourGroups.filter((g) => !query.trim() || g.name.toLowerCase().includes(query.trim().toLowerCase())),
+    () =>
+      yourGroups.filter(
+        (g) => !query.trim() || g.name.toLowerCase().includes(query.trim().toLowerCase()),
+      ),
     [yourGroups, query],
   );
 
@@ -297,10 +312,14 @@ export function GroupsPanel({ className = "" }: { className?: string }) {
       }));
       setGroups((list) =>
         (list ?? []).map((g) =>
-          g.id === group.id ? { ...g, members_count: (g.members_count ?? 0) + (role === "member" ? 1 : 0) } : g,
+          g.id === group.id
+            ? { ...g, members_count: (g.members_count ?? 0) + (role === "member" ? 1 : 0) }
+            : g,
         ),
       );
-      toast.success(role === "pending" ? "Request sent — an admin will review it." : `Joined ${group.name}`);
+      toast.success(
+        role === "pending" ? "Request sent — an admin will review it." : `Joined ${group.name}`,
+      );
     } catch (err: any) {
       toast.error(err?.message ?? "Couldn't join that group.");
     } finally {
@@ -376,7 +395,9 @@ export function GroupsPanel({ className = "" }: { className?: string }) {
         </div>
       )}
 
-      {groups === null && <p className="py-8 text-center text-[13px] text-gray-400">Loading groups…</p>}
+      {groups === null && (
+        <p className="py-8 text-center text-[13px] text-gray-400">Loading groups…</p>
+      )}
 
       {groups !== null && tab === "discover" && (
         <div className="flex flex-col gap-3">
@@ -386,7 +407,13 @@ export function GroupsPanel({ className = "" }: { className?: string }) {
             </div>
           )}
           {discover.map((g) => (
-            <GroupCard key={g.id} group={g} role={memberships[g.id]?.role} onJoin={handleJoin} busy={busyId === g.id} />
+            <GroupCard
+              key={g.id}
+              group={g}
+              role={memberships[g.id]?.role}
+              onJoin={handleJoin}
+              busy={busyId === g.id}
+            />
           ))}
         </div>
       )}
@@ -403,7 +430,13 @@ export function GroupsPanel({ className = "" }: { className?: string }) {
             </div>
           )}
           {yourFiltered.map((g) => (
-            <GroupCard key={g.id} group={g} role={memberships[g.id]?.role} onJoin={handleJoin} busy={busyId === g.id} />
+            <GroupCard
+              key={g.id}
+              group={g}
+              role={memberships[g.id]?.role}
+              onJoin={handleJoin}
+              busy={busyId === g.id}
+            />
           ))}
         </div>
       )}

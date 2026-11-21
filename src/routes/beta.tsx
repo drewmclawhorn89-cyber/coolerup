@@ -4,7 +4,13 @@ import { toast } from "sonner";
 import { BetaBanner } from "@/components/BetaBanner";
 import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/hooks/useAuth";
-import { BETA_FLAGS, canAccessBeta, loadBetaFlags, setBetaFlag, type BetaFlagName } from "@/lib/beta";
+import {
+  BETA_FLAGS,
+  canAccessBeta,
+  loadBetaFlags,
+  setBetaFlag,
+  type BetaFlagName,
+} from "@/lib/beta";
 
 export const Route = createFileRoute("/beta")({
   ssr: false,
@@ -65,7 +71,11 @@ function BetaPage() {
   }
 
   if (state === "checking") {
-    return <div className="flex h-dvh items-center justify-center bg-background text-muted-foreground">Checking access…</div>;
+    return (
+      <div className="flex h-dvh items-center justify-center bg-background text-muted-foreground">
+        Checking access…
+      </div>
+    );
   }
   if (state === "denied") {
     return (
@@ -77,18 +87,26 @@ function BetaPage() {
   }
 
   return (
-    <div className="min-h-dvh bg-background text-foreground" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
+    <div
+      className="min-h-dvh bg-background text-foreground"
+      style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+    >
       <BetaBanner />
       <main className="mx-auto max-w-xl space-y-8 px-4 py-8">
         <header>
           <h1 className="text-3xl font-extrabold">Coolerup Beta</h1>
-          <p className="text-muted-foreground">Same videos, likes and followers — test switches here don't change the main app.</p>
+          <p className="text-muted-foreground">
+            Same videos, likes and followers — test switches here don't change the main app.
+          </p>
         </header>
 
         <section className="space-y-3">
           <h2 className="text-lg font-bold">Beta settings</h2>
           {BETA_FLAGS.map((f) => (
-            <label key={f.name} className="flex items-center justify-between rounded-xl border border-border bg-card px-4 py-3">
+            <label
+              key={f.name}
+              className="flex items-center justify-between rounded-xl border border-border bg-card px-4 py-3"
+            >
               <span className="font-medium">{f.label}</span>
               <Switch checked={!!flags[f.name]} onCheckedChange={(v) => toggle(f.name, v)} />
             </label>
@@ -99,7 +117,11 @@ function BetaPage() {
           <h2 className="text-lg font-bold">Open the app</h2>
           <div className="grid grid-cols-2 gap-3">
             {SHORTCUTS.map((s) => (
-              <Link key={s.to} to={s.to} className="rounded-xl bg-primary px-4 py-3 text-center font-semibold text-primary-foreground">
+              <Link
+                key={s.to}
+                to={s.to}
+                className="rounded-xl bg-primary px-4 py-3 text-center font-semibold text-primary-foreground"
+              >
                 {s.label}
               </Link>
             ))}

@@ -12,7 +12,13 @@ describe("QualitySelector", () => {
 
   it("lists every quality with the current one checked", () => {
     render(
-      <QualitySelector open quality="720p" effectiveType="4g" onSelect={() => {}} onClose={() => {}} />,
+      <QualitySelector
+        open
+        quality="720p"
+        effectiveType="4g"
+        onSelect={() => {}}
+        onClose={() => {}}
+      />,
     );
     expect(screen.getByRole("dialog", { name: /video quality/i })).toBeInTheDocument();
     for (const label of ["Auto", "1080p", "720p", "480p", "360p", "Data Saver"]) {
@@ -25,7 +31,13 @@ describe("QualitySelector", () => {
 
   it("spells out what Auto is playing", () => {
     render(
-      <QualitySelector open quality="auto" effectiveType="3g" onSelect={() => {}} onClose={() => {}} />,
+      <QualitySelector
+        open
+        quality="auto"
+        effectiveType="3g"
+        onSelect={() => {}}
+        onClose={() => {}}
+      />,
     );
     expect(screen.getByText(/Auto · playing 720p/)).toBeInTheDocument();
   });
@@ -33,9 +45,7 @@ describe("QualitySelector", () => {
   it("selects a quality and closes", () => {
     const onSelect = vi.fn();
     const onClose = vi.fn();
-    render(
-      <QualitySelector open quality="auto" onSelect={onSelect} onClose={onClose} />,
-    );
+    render(<QualitySelector open quality="auto" onSelect={onSelect} onClose={onClose} />);
     fireEvent.click(screen.getByRole("button", { name: /Data Saver/ }));
     expect(onSelect).toHaveBeenCalledWith("data");
     expect(onClose).toHaveBeenCalled();

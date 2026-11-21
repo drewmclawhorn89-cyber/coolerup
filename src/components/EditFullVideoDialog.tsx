@@ -103,7 +103,9 @@ export function EditFullVideoDialog({ video, userId, open, onClose, onSaved, onD
     }
     setSaving(true);
     try {
-      const thumbnailUrl = thumbBlob ? await uploadFullVideoThumbnail(thumbBlob, userId) : undefined;
+      const thumbnailUrl = thumbBlob
+        ? await uploadFullVideoThumbnail(thumbBlob, userId)
+        : undefined;
       const next = await updateFullVideo(video.id, userId, {
         title,
         description,
@@ -299,7 +301,10 @@ export function EditFullVideoDialog({ video, userId, open, onClose, onSaved, onD
           </div>
 
           {error && (
-            <p role="alert" className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            <p
+              role="alert"
+              className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive"
+            >
               {error}
             </p>
           )}

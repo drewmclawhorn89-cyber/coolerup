@@ -85,7 +85,11 @@ describe("watchForUpdate", () => {
 describe("maintenance status", () => {
   it("reads the flag from a single-row RPC response", () => {
     const status = normalizeStatus([
-      { is_maintenance: true, maintenance_message: "Back in 5", updated_at: "2024-01-01T00:00:00Z" },
+      {
+        is_maintenance: true,
+        maintenance_message: "Back in 5",
+        updated_at: "2024-01-01T00:00:00Z",
+      },
     ]);
     expect(status.maintenance).toBe(true);
     expect(status.message).toBe("Back in 5");

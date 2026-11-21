@@ -17,7 +17,11 @@ export function FilterBar({
   return (
     <>
       {onAnimalChange && (
-        <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 pb-2" role="radiogroup" aria-label="Animal filters">
+        <div
+          className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 pb-2"
+          role="radiogroup"
+          aria-label="Animal filters"
+        >
           {[{ id: "", name: "No animal", icon: "🚫" }, ...ANIMAL_FILTERS].map((a) => (
             <button
               key={a.id}
@@ -34,7 +38,11 @@ export function FilterBar({
           ))}
         </div>
       )}
-      <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 pb-3" role="radiogroup" aria-label="Filters">
+      <div
+        className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 pb-3"
+        role="radiogroup"
+        aria-label="Filters"
+      >
         {filtersForMode().map((f) => (
           <button
             key={f.id}

@@ -18,7 +18,10 @@ async function resolveFacebookLink(start: string): Promise<string> {
     if (!safe) return start;
     const res = await fetch(safe, {
       redirect: "manual",
-      headers: { "user-agent": "Mozilla/5.0 (compatible; CoolerupLinkResolver/1.0)", accept: "text/html" },
+      headers: {
+        "user-agent": "Mozilla/5.0 (compatible; CoolerupLinkResolver/1.0)",
+        accept: "text/html",
+      },
       signal: AbortSignal.timeout(8000),
     });
     const location = res.headers.get("location");
@@ -48,7 +51,10 @@ export const Route = createFileRoute("/api/facebook/resolve")({
         if (!url) return Response.json({ error: "Not a Facebook link" }, { status: 400 });
         if (!needsFacebookResolve(url)) return Response.json({ url });
         try {
-          return Response.json({ url: await resolveFacebookLink(url) }, { headers: { "cache-control": "no-store" } });
+          return Response.json(
+            { url: await resolveFacebookLink(url) },
+            { headers: { "cache-control": "no-store" } },
+          );
         } catch {
           return Response.json({ url });
         }

@@ -27,12 +27,16 @@ export async function fetchStories(username: string): Promise<Story[]> {
 }
 
 export async function postStory(file: File, username: string) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) throw new Error("Sign in to post a story");
   const type = file.type.startsWith("video/") ? "video" : "image";
   const ext = file.name.split(".").pop() || (type === "video" ? "mp4" : "jpg");
   const path = `${user.id}/stories/${crypto.randomUUID()}.${ext}`;
-  const { error: upErr } = await supabase.storage.from("videos").upload(path, file, { contentType: file.type });
+  const { error: upErr } = await supabase.storage
+    .from("videos")
+    .upload(path, file, { contentType: file.type });
   if (upErr) throw upErr;
   const { error } = await db.from("stories").insert({
     user_id: user.id,
@@ -50,7 +54,9 @@ export async function deleteStory(id: string) {
 
 /** Story ids the signed-in user has already hearted. */
 export async function fetchLikedStoryIds(): Promise<Set<string>> {
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) return new Set<string>();
   const { data } = await db.from("story_likes").select("story_id").eq("user_id", user.id);
   return new Set(((data ?? []) as { story_id: string }[]).map((r) => r.story_id));
@@ -61,7 +67,9 @@ export async function fetchLikedStoryIds(): Promise<Set<string>> {
  * optimistic UI honest if the write fails.
  */
 export async function setStoryLiked(story: Story, liked: boolean): Promise<boolean> {
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) throw new Error("Sign in to like stories");
 
   if (liked) {
@@ -76,7 +84,11 @@ export async function setStoryLiked(story: Story, liked: boolean): Promise<boole
         .eq("handle", story.username)
         .maybeSingle();
       if (owner && owner.id !== user.id) {
-        const { data: me } = await supabase.from("profiles").select("handle").eq("id", user.id).maybeSingle();
+        const { data: me } = await supabase
+          .from("profiles")
+          .select("handle")
+          .eq("id", user.id)
+          .maybeSingle();
         await notifyUser({
           targetUserId: owner.id,
           actorUserId: user.id,
@@ -87,7 +99,11 @@ export async function setStoryLiked(story: Story, liked: boolean): Promise<boole
       }
     }
   } else {
-    const { error } = await db.from("story_likes").delete().eq("story_id", story.id).eq("user_id", user.id);
+    const { error } = await db
+      .from("story_likes")
+      .delete()
+      .eq("story_id", story.id)
+      .eq("user_id", user.id);
     if (error) throw error;
   }
   return liked;

@@ -9,12 +9,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { formatCount } from "@/lib/loop";
-import {
-  getChristmasSounds,
-  getTrendingSounds,
-  soundAudioUrl,
-  type Sound,
-} from "@/lib/sounds";
+import { getChristmasSounds, getTrendingSounds, soundAudioUrl, type Sound } from "@/lib/sounds";
 import { useChristmasMode } from "@/lib/christmas";
 
 type Mode = "choose" | "browse";

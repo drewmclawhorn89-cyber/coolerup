@@ -197,8 +197,8 @@ function SoundRow({ sound, onOpen }: { sound: Sound; onOpen: (sound: Sound) => v
       <button type="button" onClick={() => onOpen(sound)} className="min-w-0 flex-1 text-left">
         <span className="block truncate text-[14px] font-bold text-white">{sound.title}</span>
         <span className="block truncate text-[12px] text-white/45">
-          <Music2 className="mr-1 inline h-3 w-3" aria-hidden />
-          @{sound.creator_username} · {formatCount(sound.uses_count ?? 0)} videos
+          <Music2 className="mr-1 inline h-3 w-3" aria-hidden />@{sound.creator_username} ·{" "}
+          {formatCount(sound.uses_count ?? 0)} videos
         </span>
       </button>
     </div>

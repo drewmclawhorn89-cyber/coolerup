@@ -35,7 +35,10 @@ export const Route = createFileRoute("/api/twitch/auth/callback")({
 
         if (errorParam || !code || !consumeOAuthState(state)) {
           const message = scriptJson(
-            String(errorDesc || errorParam || "Twitch sign-in was canceled or expired.").slice(0, 300),
+            String(errorDesc || errorParam || "Twitch sign-in was canceled or expired.").slice(
+              0,
+              300,
+            ),
           );
           return htmlResponse(
             `<!doctype html>

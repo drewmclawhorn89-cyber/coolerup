@@ -42,13 +42,19 @@ describe("resolveMediaUrl", () => {
   });
 
   it("signs a storage: reference", async () => {
-    createSignedUrl.mockResolvedValue({ data: { signedUrl: "https://signed/clip.mp4" }, error: null });
+    createSignedUrl.mockResolvedValue({
+      data: { signedUrl: "https://signed/clip.mp4" },
+      error: null,
+    });
     await expect(resolveMediaUrl("storage:user/clip.mp4")).resolves.toBe("https://signed/clip.mp4");
     expect(createSignedUrl).toHaveBeenCalledWith("user/clip.mp4", expect.any(Number));
   });
 
   it("signs legacy public URLs instead of returning a 404 link", async () => {
-    createSignedUrl.mockResolvedValue({ data: { signedUrl: "https://signed/old.mp4" }, error: null });
+    createSignedUrl.mockResolvedValue({
+      data: { signedUrl: "https://signed/old.mp4" },
+      error: null,
+    });
     const legacy = "https://x.supabase.co/storage/v1/object/public/videos/user/old.mp4";
     await expect(resolveMediaUrl(legacy)).resolves.toBe("https://signed/old.mp4");
   });

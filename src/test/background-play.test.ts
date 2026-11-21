@@ -59,7 +59,9 @@ describe("background play", () => {
 
   it("treats YouTube songs as background-playable now that they use the shared player", () => {
     expect(canBackgroundPlay(track({ source: "youtube", url: "" }))).toBe(true);
-    expect(canBackgroundPlay(track({ source: "youtube", url: "", youtubeUrl: "https://youtu.be/abc" }))).toBe(true);
+    expect(
+      canBackgroundPlay(track({ source: "youtube", url: "", youtubeUrl: "https://youtu.be/abc" })),
+    ).toBe(true);
   });
 
   it("publishes Media Session metadata and action handlers", () => {
@@ -99,7 +101,7 @@ describe("background play", () => {
     expect(rootLayout).toContain("<MiniPlayer />");
     expect(mini).toContain('aria-label="Next song"');
     expect(mini).toContain('aria-label="Close player"');
-    expect(mini).toContain("player.playing ? \"Pause\" : \"Play\"");
+    expect(mini).toContain('player.playing ? "Pause" : "Play"');
   });
 
   it("opens the full player when the bar is tapped", () => {

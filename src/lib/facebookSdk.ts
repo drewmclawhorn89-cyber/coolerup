@@ -3,7 +3,10 @@
  * Facebook video player (<div class="fb-video">) straight from Facebook;
  * we never fetch, download or re-upload the video file.
  */
-type FbSdk = { XFBML: { parse: (el?: Element) => void }; init: (opts: Record<string, unknown>) => void };
+type FbSdk = {
+  XFBML: { parse: (el?: Element) => void };
+  init: (opts: Record<string, unknown>) => void;
+};
 declare global {
   interface Window {
     FB?: FbSdk;

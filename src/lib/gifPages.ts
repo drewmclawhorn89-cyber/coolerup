@@ -27,7 +27,10 @@ export async function listPublicGifPage(
 
   const { data: profiles } = await supabase.from("profiles").select("id, handle").in("id", ids);
   const handles = new Map(
-    ((profiles ?? []) as { id: string; handle: string }[]).map((profile) => [profile.id, profile.handle]),
+    ((profiles ?? []) as { id: string; handle: string }[]).map((profile) => [
+      profile.id,
+      profile.handle,
+    ]),
   );
   return rows.map((row) => ({
     ...row,

@@ -18,11 +18,7 @@ export type QualityId = "auto" | "1080p" | "720p" | "480p" | "360p" | "data";
 /** A concrete rendition we can actually play. */
 export type RenditionId = "1080p" | "720p" | "480p" | "360p";
 
-export type QualityUrlKey =
-  | "video_1080_url"
-  | "video_720_url"
-  | "video_480_url"
-  | "video_360_url";
+export type QualityUrlKey = "video_1080_url" | "video_720_url" | "video_480_url" | "video_360_url";
 
 export type QualityOption = {
   id: QualityId;

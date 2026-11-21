@@ -142,11 +142,7 @@ export async function setFullVideoSaved(
   // there, the save is already done.
   const { error } = on
     ? await db.from("saved_full_videos").insert({ user_id: user.id, video_id: videoId })
-    : await db
-        .from("saved_full_videos")
-        .delete()
-        .eq("user_id", user.id)
-        .eq("video_id", videoId);
+    : await db.from("saved_full_videos").delete().eq("user_id", user.id).eq("video_id", videoId);
 
   // 23505 = already saved; the desired end state is the same, so treat as fine.
   if (!error || error.code === "23505") {
@@ -159,9 +155,12 @@ export async function setFullVideoSaved(
     // but we say so once: nothing is stored yet.
     if (!warnedMissingTable) {
       warnedMissingTable = true;
-      toast.warning("Saved for now — run saved_full_videos_sql_editor.sql in Supabase to keep it.", {
-        duration: 10_000,
-      });
+      toast.warning(
+        "Saved for now — run saved_full_videos_sql_editor.sql in Supabase to keep it.",
+        {
+          duration: 10_000,
+        },
+      );
     }
     return { ok: true, persisted: false };
   }

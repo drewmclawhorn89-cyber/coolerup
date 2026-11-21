@@ -42,6 +42,8 @@ describe("LiveNowList", () => {
     const onWatch = vi.fn();
     render(<LiveNowList hosts={[host("u1", "ana")]} onWatch={onWatch} onGoLive={vi.fn()} />);
     screen.getByRole("button", { name: /Watch/i }).click();
-    expect(onWatch).toHaveBeenCalledWith(expect.objectContaining({ userId: "u1", username: "ana" }));
+    expect(onWatch).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: "u1", username: "ana" }),
+    );
   });
 });

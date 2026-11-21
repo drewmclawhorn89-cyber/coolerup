@@ -35,7 +35,10 @@ vi.mock("@/integrations/supabase/client", () => {
       },
       order: () => api,
       range: (from: number, to: number) =>
-        Promise.resolve({ data: VIDEOS.slice(from, to + 1).map((v) => ({ id: v.id })), error: null }),
+        Promise.resolve({
+          data: VIDEOS.slice(from, to + 1).map((v) => ({ id: v.id })),
+          error: null,
+        }),
       in: (_col: string, ids: string[]) => {
         if (failEmbeds.value && cols.includes("sounds")) {
           return Promise.resolve({

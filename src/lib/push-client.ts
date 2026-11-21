@@ -189,8 +189,7 @@ export async function pushDiagnostics(): Promise<PushDiagnostics> {
     subscribed = false;
   }
 
-  const permission =
-    typeof Notification === "undefined" ? "unsupported" : Notification.permission;
+  const permission = typeof Notification === "undefined" ? "unsupported" : Notification.permission;
 
   let hint = "";
   if (ios && !standalone) {

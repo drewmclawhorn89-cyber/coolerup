@@ -15,9 +15,20 @@ export type MarketItem = {
   description: string;
 };
 
-const CATEGORIES = ["All", "Vehicles", "Property", "Apparel", "Electronics", "Family", "Home", "Hobbies", "Free"];
+const CATEGORIES = [
+  "All",
+  "Vehicles",
+  "Property",
+  "Apparel",
+  "Electronics",
+  "Family",
+  "Home",
+  "Hobbies",
+  "Free",
+];
 
-const inputCls = "w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-black outline-none";
+const inputCls =
+  "w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-black outline-none";
 const EMPTY = { title: "", price: "", description: "", location: "", image: "", category: "Home" };
 type FormState = typeof EMPTY;
 const SELL_CATS = CATEGORIES.filter((c) => c !== "All" && c !== "Free");
@@ -25,23 +36,37 @@ const SELL_CATS = CATEGORIES.filter((c) => c !== "All" && c !== "Free");
 function Detail({ item, onBack }: { item: MarketItem; onBack: () => void }) {
   return (
     <div className="min-h-0 flex-1 overflow-y-auto pb-[calc(1rem+env(safe-area-inset-bottom))]">
-      <button onClick={onBack} aria-label="Back" className="absolute left-3 top-[max(3rem,env(safe-area-inset-top))] z-10 rounded-full bg-white/90 p-2 shadow">
+      <button
+        onClick={onBack}
+        aria-label="Back"
+        className="absolute left-3 top-[max(3rem,env(safe-area-inset-top))] z-10 rounded-full bg-white/90 p-2 shadow"
+      >
         <ArrowLeft className="h-5 w-5" />
       </button>
       <img src={item.image} alt={item.title} className="aspect-square w-full object-cover" />
       <div className="space-y-2 p-4">
         <p className="text-2xl font-bold">${item.price}</p>
         <h2 className="text-lg">{item.title}</h2>
-        <p className="flex items-center gap-1 text-sm text-gray-500"><MapPin className="h-4 w-4" />{item.location}</p>
+        <p className="flex items-center gap-1 text-sm text-gray-500">
+          <MapPin className="h-4 w-4" />
+          {item.location}
+        </p>
         <p className="pt-2 text-sm">{item.description}</p>
         <div className="mt-3 flex items-center gap-3 rounded-xl bg-gray-100 p-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-300 font-bold uppercase">{item.seller[0]}</div>
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-300 font-bold uppercase">
+            {item.seller[0]}
+          </div>
           <div>
             <p className="text-xs text-gray-500">Seller</p>
-            <a href={`/u/${item.seller}`} className="font-semibold">@{item.seller}</a>
+            <a href={`/u/${item.seller}`} className="font-semibold">
+              @{item.seller}
+            </a>
           </div>
         </div>
-        <a href={`/messages?user=${encodeURIComponent(item.seller)}`} className="mt-3 block rounded-lg bg-blue-600 py-3 text-center font-bold text-white">
+        <a
+          href={`/messages?user=${encodeURIComponent(item.seller)}`}
+          className="mt-3 block rounded-lg bg-blue-600 py-3 text-center font-bold text-white"
+        >
           Message seller
         </a>
       </div>
@@ -49,12 +74,19 @@ function Detail({ item, onBack }: { item: MarketItem; onBack: () => void }) {
   );
 }
 
-function SellForm({ onClose, onPost }: { onClose: () => void; onPost: (f: FormState, file: File | null) => Promise<boolean> }) {
+function SellForm({
+  onClose,
+  onPost,
+}: {
+  onClose: () => void;
+  onPost: (f: FormState, file: File | null) => Promise<boolean>;
+}) {
   const [form, setForm] = useState(EMPTY);
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
-  const set = (k: keyof typeof EMPTY) => (e: { target: { value: string } }) => setForm({ ...form, [k]: e.target.value });
+  const set = (k: keyof typeof EMPTY) => (e: { target: { value: string } }) =>
+    setForm({ ...form, [k]: e.target.value });
   const pickImage = (f?: File) => {
     if (!f) return;
     if (!f.type.startsWith("image/")) return void toast.error("Choose an image file.");
@@ -64,22 +96,70 @@ function SellForm({ onClose, onPost }: { onClose: () => void; onPost: (f: FormSt
     r.readAsDataURL(f);
   };
   return (
-    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/50" onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} className="max-h-[90dvh] w-full max-w-[430px] space-y-3 overflow-y-auto rounded-t-2xl bg-white p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] text-black">
+    <div
+      className="fixed inset-0 z-[60] flex items-end justify-center bg-black/50"
+      onClick={onClose}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="max-h-[90dvh] w-full max-w-[430px] space-y-3 overflow-y-auto rounded-t-2xl bg-white p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] text-black"
+      >
         <h3 className="text-lg font-bold">Create listing</h3>
-        <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => pickImage(e.target.files?.[0])} />
-        <button onClick={() => fileRef.current?.click()} className="flex aspect-video w-full items-center justify-center overflow-hidden rounded-lg border border-dashed border-gray-400 text-gray-500">
-          {form.image ? <img src={form.image} alt="Preview" className="h-full w-full object-cover" /> : <span className="flex items-center gap-2"><ImagePlus className="h-5 w-5" />Add photo</span>}
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*"
+          hidden
+          onChange={(e) => pickImage(e.target.files?.[0])}
+        />
+        <button
+          onClick={() => fileRef.current?.click()}
+          className="flex aspect-video w-full items-center justify-center overflow-hidden rounded-lg border border-dashed border-gray-400 text-gray-500"
+        >
+          {form.image ? (
+            <img src={form.image} alt="Preview" className="h-full w-full object-cover" />
+          ) : (
+            <span className="flex items-center gap-2">
+              <ImagePlus className="h-5 w-5" />
+              Add photo
+            </span>
+          )}
         </button>
-        <input className={inputCls} placeholder="Title" value={form.title} onChange={set("title")} />
-        <input className={inputCls} placeholder="Price" inputMode="decimal" value={form.price} onChange={set("price")} />
+        <input
+          className={inputCls}
+          placeholder="Title"
+          value={form.title}
+          onChange={set("title")}
+        />
+        <input
+          className={inputCls}
+          placeholder="Price"
+          inputMode="decimal"
+          value={form.price}
+          onChange={set("price")}
+        />
         <select className={inputCls} value={form.category} onChange={set("category")}>
-          {SELL_CATS.map((c) => <option key={c}>{c}</option>)}
+          {SELL_CATS.map((c) => (
+            <option key={c}>{c}</option>
+          ))}
         </select>
-        <input className={inputCls} placeholder="Location" value={form.location} onChange={set("location")} />
-        <textarea className={inputCls} rows={3} placeholder="Description" value={form.description} onChange={set("description")} />
+        <input
+          className={inputCls}
+          placeholder="Location"
+          value={form.location}
+          onChange={set("location")}
+        />
+        <textarea
+          className={inputCls}
+          rows={3}
+          placeholder="Description"
+          value={form.description}
+          onChange={set("description")}
+        />
         <div className="flex gap-2">
-          <button onClick={onClose} className="flex-1 rounded-lg bg-gray-100 py-3 font-bold">Cancel</button>
+          <button onClick={onClose} className="flex-1 rounded-lg bg-gray-100 py-3 font-bold">
+            Cancel
+          </button>
           <button
             disabled={busy}
             onClick={async () => {
@@ -120,7 +200,9 @@ export function Marketplace() {
     let live = true;
     void (supabase as any)
       .from("marketplace_items")
-      .select("id, title, price, image_url, location, category, description, seller_username, created_at")
+      .select(
+        "id, title, price, image_url, location, category, description, seller_username, created_at",
+      )
       .order("created_at", { ascending: false })
       .limit(100)
       .then(({ data, error }: { data: any[] | null; error: unknown }) => {
@@ -165,13 +247,23 @@ export function Marketplace() {
       let up = await supabase.storage.from(bucket).upload(path, file, { contentType: file.type });
       if (up.error) {
         bucket = "videos";
-        up = await supabase.storage.from(bucket).upload(`${auth.user.id}/marketplace/${path.slice(auth.user.id.length + 1)}`, file, { contentType: file.type });
+        up = await supabase.storage
+          .from(bucket)
+          .upload(`${auth.user.id}/marketplace/${path.slice(auth.user.id.length + 1)}`, file, {
+            contentType: file.type,
+          });
       }
       if (up.error) {
         toast.error(`Couldn't upload the photo: ${up.error.message}`);
         return false;
       }
-      imageUrl = supabase.storage.from(bucket).getPublicUrl(bucket === "videos" ? `${auth.user.id}/marketplace/${path.slice(auth.user.id.length + 1)}` : path).data.publicUrl;
+      imageUrl = supabase.storage
+        .from(bucket)
+        .getPublicUrl(
+          bucket === "videos"
+            ? `${auth.user.id}/marketplace/${path.slice(auth.user.id.length + 1)}`
+            : path,
+        ).data.publicUrl;
     }
     const { data, error } = await (supabase as any)
       .from("marketplace_items")
@@ -217,22 +309,38 @@ export function Marketplace() {
           <div className="shrink-0 px-3 pb-2 pt-[calc(3rem+env(safe-area-inset-top))]">
             <div className="flex items-center gap-2 rounded-full bg-gray-100 px-3">
               <Search className="h-4 w-4 text-gray-500" />
-              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search Marketplace" className="w-full bg-transparent py-2 text-sm outline-none" />
+              <input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Search Marketplace"
+                className="w-full bg-transparent py-2 text-sm outline-none"
+              />
             </div>
             <div className="no-scrollbar mt-2 flex gap-2 overflow-x-auto">
               {CATEGORIES.map((c) => (
-                <button key={c} onClick={() => setCat(c)} className={`shrink-0 whitespace-nowrap rounded-full px-3 py-1 text-[13px] font-medium ${cat === c ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-700"}`}>
+                <button
+                  key={c}
+                  onClick={() => setCat(c)}
+                  className={`shrink-0 whitespace-nowrap rounded-full px-3 py-1 text-[13px] font-medium ${cat === c ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-700"}`}
+                >
                   {c}
                 </button>
               ))}
             </div>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-32">
-            {shown.length === 0 && <p className="py-10 text-center text-sm text-gray-500">No listings found.</p>}
+            {shown.length === 0 && (
+              <p className="py-10 text-center text-sm text-gray-500">No listings found.</p>
+            )}
             <div className="grid grid-cols-2 gap-2">
               {shown.map((i) => (
                 <button key={i.id} onClick={() => setOpen(i)} className="min-w-0 text-left">
-                  <img src={i.image} alt={i.title} loading="lazy" className="aspect-square w-full rounded-lg object-cover" />
+                  <img
+                    src={i.image}
+                    alt={i.title}
+                    loading="lazy"
+                    className="aspect-square w-full rounded-lg object-cover"
+                  />
                   <p className="mt-1 font-bold">${i.price}</p>
                   <p className="truncate text-[13px]">{i.title}</p>
                   <p className="truncate text-[11px] text-gray-500">{i.location}</p>
@@ -240,7 +348,11 @@ export function Marketplace() {
               ))}
             </div>
           </div>
-          <button onClick={() => setSelling(true)} aria-label="Sell an item" className="fixed bottom-20 right-4 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-white text-black shadow-lg">
+          <button
+            onClick={() => setSelling(true)}
+            aria-label="Sell an item"
+            className="fixed bottom-20 right-4 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-white text-black shadow-lg"
+          >
             <Plus className="h-7 w-7" />
           </button>
         </>

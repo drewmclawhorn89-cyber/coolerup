@@ -60,7 +60,9 @@ export function FacebookPlayer({ url }: { url: string }) {
   }
   return (
     <div className="relative flex min-h-[200px] w-full justify-center overflow-hidden rounded-lg bg-black">
-      {state === "loading" && <Loader2 className="absolute top-1/2 size-6 -translate-y-1/2 animate-spin text-white/60" />}
+      {state === "loading" && (
+        <Loader2 className="absolute top-1/2 size-6 -translate-y-1/2 animate-spin text-white/60" />
+      )}
       <div ref={hostRef} className="w-full [&_.fb-video]:mx-auto" />
     </div>
   );

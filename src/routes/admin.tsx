@@ -42,6 +42,14 @@ import {
   type AdminReport,
   type ModerationLogRow,
 } from "@/lib/moderation";
+import {
+  adminBanList,
+  amIOwner,
+  ownerUnban,
+  VIOLATION_LABEL,
+  type BanListRow,
+  type ViolationKind,
+} from "@/lib/autoBans";
 import { appBuildId } from "@/lib/appBuild";
 import {
   DEFAULT_MAINTENANCE_MESSAGE,
@@ -63,7 +71,7 @@ export const Route = createFileRoute("/admin")({
   component: AdminPage,
 });
 
-type Tab = "reports" | "bans" | "log" | "coins" | "free" | "payouts" | "tiktok" | "update";
+type Tab = "reports" | "bans" | "banlist" | "log" | "coins" | "free" | "payouts" | "tiktok" | "update";
 
 const reasonLabel = (id: string) => REPORT_REASONS.find((r) => r.id === id)?.label ?? id;
 
@@ -90,6 +98,8 @@ function AdminPage() {
   const [reports, setReports] = useState<AdminReport[]>([]);
   const [bans, setBans] = useState<AdminBan[]>([]);
   const [log, setLog] = useState<ModerationLogRow[]>([]);
+  const [banList, setBanList] = useState<BanListRow[]>([]);
+  const [isOwner, setIsOwner] = useState(false);
   const [coinOrders, setCoinOrders] = useState<AdminVenmoOrder[]>([]);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
@@ -108,6 +118,14 @@ function AdminPage() {
       setReports(r);
       setBans(b);
       setLog(l);
+      try {
+        setBanList(await adminBanList());
+        setIsOwner(await amIOwner());
+      } catch {
+        // Ban list is additive; a missing migration must not blank the page.
+        setBanList([]);
+        setIsOwner(false);
+      }
       try {
         setCoinOrders(await adminCoinVenmoOrders());
       } catch {
@@ -252,6 +270,7 @@ function AdminPage() {
           [
             ["reports", `Reports (${pending.length})`],
             ["bans", `Bans (${activeBans.length + activeMutes.length})`],
+            ["banlist", "Ban List"],
             ["log", "Auto-ban log"],
             ["coins", `Coins (${pendingCoins})`],
             ["free", "Free coins"],
@@ -483,6 +502,85 @@ function AdminPage() {
               </div>
             </article>
           ))}
+        </section>
+      )}
+
+      {tab === "banlist" && (
+        <section className="space-y-3">
+          <p className="text-xs text-muted-foreground">
+            Every auto-ban and strike, with the warning level it reached.{" "}
+            {isOwner
+              ? "As the owner you can unban here."
+              : "Only @drewmclawhorn3 can unban."}
+          </p>
+          {banList.length === 0 && <Empty text="No auto bans yet." />}
+          {banList.map((row) => {
+            const strike = Math.min(Math.max(row.strike_count, 1), 3);
+            const kindLabel =
+              VIOLATION_LABEL[row.last_kind as ViolationKind] ?? row.last_kind ?? "Rule break";
+            return (
+              <article
+                key={row.id}
+                className={`rounded-xl border p-3 ${
+                  row.active ? "border-destructive/40 bg-destructive/5" : "border-border bg-card opacity-70"
+                }`}
+              >
+                <div className="flex flex-wrap items-center gap-2 text-sm font-semibold">
+                  <Link to="/u/$username" params={{ username: row.username }} className="hover:text-primary">
+                    @{row.username}
+                  </Link>
+                  <span className="rounded-full bg-[#FE2C55]/15 px-2 py-0.5 text-[11px] font-bold text-[#FE2C55]">
+                    Warning {strike}/3
+                  </span>
+                  {row.is_permanent && (
+                    <span className="rounded-full bg-destructive px-2 py-0.5 text-[11px] font-bold text-white">
+                      permanent
+                    </span>
+                  )}
+                  {row.auto && (
+                    <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                      auto
+                    </span>
+                  )}
+                </div>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {kindLabel}
+                  {row.last_content_type && row.last_content_type !== "none"
+                    ? ` \u00b7 ${row.last_content_type}`
+                    : ""}
+                  {row.reason ? ` \u2014 ${row.reason}` : ""}
+                </p>
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  {when(row.created_at)}
+                  {row.identity_count > 0
+                    ? ` \u00b7 ${row.identity_count} device/email/phone ban${row.identity_count === 1 ? "" : "s"}`
+                    : ""}
+                  {row.banned_by ? ` \u00b7 by ${row.banned_by}` : ""}
+                </p>
+                {isOwner && row.active && (
+                  <div className="mt-3">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      disabled={busy === `ob-${row.id}`}
+                      onClick={() =>
+                        void run(
+                          `ob-${row.id}`,
+                          async () => {
+                            const res = await ownerUnban(row.username);
+                            return res.ok ? { ok: true } : res;
+                          },
+                          `@${row.username} unbanned`,
+                        )
+                      }
+                    >
+                      <Undo2 className="h-3.5 w-3.5" /> Unban
+                    </Button>
+                  </div>
+                )}
+              </article>
+            );
+          })}
         </section>
       )}
 

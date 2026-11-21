@@ -1,21 +1,30 @@
-# Restore GIF search with a rotated Giphy key as a real secret
+# Auto Bans: sexual / bullying / spam with 3-strike ladder
 
-## Findings
-- Server proxy `src/lib/giphy.functions.ts` already reads `process.env["GIPHY_API_KEY"]` — correct pattern, matches every other secret in the repo.
-- Root cause of the repeated rotations: `.env` was **tracked by git** and `.gitignore` had no `.env` rule.
-- Old key `99etiVJS...` was committed in `04a6a46` and only blanked in `de72a8e`. Still in history, which is why Giphy banned it.
-- `.env.example` still advertised `VITE_GIPHY_API_KEY`, the insecure variant that gets inlined into the client bundle.
-- `nodejs_compat` is enabled in the generated `wrangler.json`, so `process.env` is populated from Worker bindings — the secret will be visible at runtime once set.
+## Database layer (done)
+- [x] `supabase/migrations/20261217000000_auto_bans.sql` — strikes, devices, identity bans, `auto_moderate` ladder, `admin_ban_list`, `owner_unban`
+- [ ] One-paste copy at `supabase/sql-editor-auto-bans.sql` for the SQL Editor
 
-## Tasks
-- [x] Stop secrets from being committable: add `.env` rules to `.gitignore`
-- [x] Untrack `.env` (local file kept, dropped from the index)
-- [x] Remove the `VITE_GIPHY_API_KEY` trap from `.env.example`
-- [x] Add regression tests guarding the secret boundary (5 new)
-- [x] Document the secret setup so the next rotation is a one-liner
-- [x] Verify: tsc clean, 698 tests pass, vite build succeeds
-- [x] Commit on a new branch, push, open PR
+## Client layer (done)
+- [x] `src/lib/autoBans.ts` — classifier, device id, ladder client, admin client
+- [x] `src/components/WarningModal.tsx` — 1/3, 2/3, 3/3 popup in black/white/#FE2C55
+- [x] `src/components/BanGate.tsx` — permanent-ban + device-ban full screens
+- [x] `src/components/ReportButton.tsx` — report on video / comment / profile
 
-## Remaining (user action, cannot be done from the repo)
-- [x] Set the rotated key as a host secret: `npx wrangler secret put GIPHY_API_KEY`
-- [x] Redeploy so the Worker picks up the binding
+## Wiring (todo)
+- [ ] Shared `WarningProvider` context so any surface can raise the popup
+- [ ] Hook `screenContent` into video upload (`src/lib/loop.ts`)
+- [ ] Hook `screenContent` into comments (`src/components/Comments.tsx`)
+- [ ] Hook `screenContent` into profile bio/avatar (`src/components/EditProfileDialog.tsx`)
+- [ ] Enforce 24h mute: block post/comment while muted, show mute notice
+- [ ] Mount `ReportButton` on video cards, comments, profiles
+- [ ] Admin Ban List panel in `src/routes/admin.tsx` + owner-only Unban
+- [ ] Update `src/lib/moderation.ts` policy comment + `sexual` reason id
+
+## Verify
+- [ ] Tests for `classifyText` (threat > sexual, leetspeak, spam links, clean)
+- [ ] `npx tsc --noEmit`, `npx vitest run`, `npx vite build`
+- [ ] Commit, push, open PR
+
+## Flag to user
+- [ ] This reverses the "auto-bans are DISABLED" policy written in their own code
+- [ ] Profile-pic explicit detection needs an image classifier (no provider in repo)

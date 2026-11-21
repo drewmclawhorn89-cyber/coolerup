@@ -8,6 +8,7 @@ import { describeUploadError, withUploadRetry } from "@/lib/uploadErrors";
 import { fetchTracks, type Track } from "@/components/MusicPlayer";
 import { SoundPickerDialog } from "@/components/SoundPickerDialog";
 import type { Sound } from "@/lib/sounds";
+import { useWarnings } from "@/components/WarningProvider";
 
 export function UploadDialog({
   onClose,
@@ -23,6 +24,7 @@ export function UploadDialog({
   /** Pre-selected sound ("Use this sound" from a sound page). */
   sound?: Sound | null;
 }) {
+  const { muted, mutedUntil } = useWarnings();
   const [files, setFiles] = useState<File[]>([]);
   const file = files[0] ?? null;
   const [preview, setPreview] = useState("");
@@ -127,6 +129,14 @@ export function UploadDialog({
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!file || !username.trim()) return;
+    if (muted) {
+      toast.error(
+        mutedUntil
+          ? `You're muted until ${new Date(mutedUntil).toLocaleString()}.`
+          : "You're muted and can't post right now.",
+      );
+      return;
+    }
     if (readBool("wifi-upload") && isCellularConnection()) {
       toast.error("Upload over Wi-Fi only is on. Connect to Wi-Fi to post.");
       return;

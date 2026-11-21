@@ -9,6 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { Camera, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { errorText } from "@/lib/uploadErrors";
+import { screenContent } from "@/lib/autoBans";
 
 export const LINK_FIELDS = [
   { key: "tiktok", label: "TikTok", placeholder: "https://tiktok.com/@you" },
@@ -133,6 +134,16 @@ export function EditProfileDialog({
         .eq("id", auth.user.id);
       if (error) throw error;
       refreshProfile();
+      // Bio goes through the ladder. Profile pictures need an image
+      // classifier the repo does not have yet, so only text is screened here.
+      if (auth.user) {
+        void screenContent({
+          userId: auth.user.id,
+          username: auth.handle ?? "",
+          text: bio.trim(),
+          contentType: "none",
+        });
+      }
       toast.success("Profile updated");
       onOpenChange(false);
     } catch (e) {

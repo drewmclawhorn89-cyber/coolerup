@@ -5,6 +5,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { notifyUser, profileIdForHandle } from "@/lib/notify";
 import { GifPicker } from "@/components/GifPicker";
+import { screenContent } from "@/lib/autoBans";
+import { useWarnings } from "@/components/WarningProvider";
+import { ReportButton } from "@/components/ReportButton";
 
 type Comment = {
   id: string;
@@ -39,6 +42,7 @@ export function Comments({
   const [showGifs, setShowGifs] = useState(false);
   const [replyTo, setReplyTo] = useState<Comment | null>(null);
   const { handle, signIn, user } = useAuth();
+  const { muted, mutedUntil } = useWarnings();
 
   const load = useCallback(async () => {
     setLoadError(null);
@@ -101,6 +105,16 @@ export function Comments({
     e.preventDefault();
     const body = text.trim();
     if (!body && !gif) return;
+    // Strike 2 mutes commenting for 24 hours. Block before the insert so a
+    // muted user cannot keep posting and stacking strikes.
+    if (muted) {
+      toast.error(
+        mutedUntil
+          ? `You're muted until ${new Date(mutedUntil).toLocaleString()}.`
+          : "You're muted and can't comment right now.",
+      );
+      return;
+    }
     setBusy(true);
     const { data, error } = await supabase
       .from("comments")
@@ -122,6 +136,23 @@ export function Comments({
     }
     setItems((c) => [{ ...data, like_count: 0, liked_by_me: false }, ...(c ?? [])]);
     setText("");
+
+    // Auto-detect on the text we just stored. On a violation the database
+    // removes the row, so drop it from the local thread too and let the
+    // WarningProvider show 1/3, 2/3 or 3/3.
+    if (user?.id) {
+      void screenContent({
+        userId: user.id,
+        username: handle ?? "guest",
+        text: body,
+        contentType: "comment",
+        contentId: (data as { id?: string } | null)?.id ?? null,
+      }).then((result) => {
+        if (result?.deleted) {
+          setItems((c) => (c ?? []).filter((x) => x.id !== (data as { id?: string }).id));
+        }
+      });
+    }
     setGif(null);
     setGifCredit(null);
     setShowGifs(false);
@@ -262,10 +293,10 @@ export function Comments({
             )}
             {topLevel.map((c) => (
               <div key={c.id} className="space-y-3">
-                <CommentRow c={c} onReply={setReplyTo} onLike={likeComment} />
+                <CommentRow c={c} videoId={videoId} onReply={setReplyTo} onLike={likeComment} />
                 {repliesTo(c.id).map((r) => (
                   <div key={r.id} className="ml-11">
-                    <CommentRow c={r} onReply={setReplyTo} onLike={likeComment} />
+                    <CommentRow c={r} videoId={videoId} onReply={setReplyTo} onLike={likeComment} />
                   </div>
                 ))}
               </div>
@@ -345,10 +376,12 @@ export function Comments({
 
 function CommentRow({
   c,
+  videoId,
   onReply,
   onLike,
 }: {
   c: Comment;
+  videoId: string;
   onReply: (c: Comment) => void;
   onLike: (c: Comment) => void;
 }) {
@@ -393,6 +426,14 @@ function CommentRow({
           >
             <CornerDownRight className="h-3 w-3" /> Reply
           </button>
+          <ReportButton
+            username={c.username}
+            videoId={videoId}
+            commentId={c.id}
+            target="comment"
+            className="flex items-center gap-1 text-xs font-semibold text-muted-foreground hover:text-[#FE2C55]"
+            label="Report"
+          />
         </div>
       </div>
     </div>

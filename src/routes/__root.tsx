@@ -27,6 +27,7 @@ import { OfflineAutoDownloadWatcher } from "../components/OfflineAutoDownloadWat
 import { FollowerRewardWatcher } from "../components/FollowerRewardModal";
 import { EarningsWatcher } from "../components/WalletBalance";
 import { BanGate } from "../components/BanGate";
+import { WarningProvider } from "../components/WarningProvider";
 import { UpdateGate } from "../components/UpdateGate";
 import { applyPrefs } from "../lib/prefs";
 import { AuthProvider, useAuth } from "../hooks/useAuth";
@@ -319,6 +320,7 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
+        <WarningProvider>
         <CallProvider>
           <OnboardingGate />
           {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
@@ -338,6 +340,7 @@ function RootComponent() {
           <FollowerRewardWatcher />
           <EarningsWatcher />
         </CallProvider>
+        </WarningProvider>
         <PhoneAuthDialog />
         <OnboardingRequiredDialog />
         <Toaster theme="dark" position="top-center" />

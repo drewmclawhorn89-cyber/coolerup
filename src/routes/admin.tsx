@@ -20,6 +20,7 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { FreeCoinClaimsPanel } from "@/components/FreeCoinClaimsPanel";
+import { TikTokSyncPanel } from "@/components/TikTokSyncPanel";
 import {
   adminCoinVenmoOrders,
   adminReviewCoinVenmoOrder,
@@ -62,7 +63,7 @@ export const Route = createFileRoute("/admin")({
   component: AdminPage,
 });
 
-type Tab = "reports" | "bans" | "log" | "coins" | "free" | "payouts" | "update";
+type Tab = "reports" | "bans" | "log" | "coins" | "free" | "payouts" | "tiktok" | "update";
 
 const reasonLabel = (id: string) => REPORT_REASONS.find((r) => r.id === id)?.label ?? id;
 
@@ -255,6 +256,7 @@ function AdminPage() {
             ["coins", `Coins (${pendingCoins})`],
             ["free", "Free coins"],
             ["payouts", "Payouts"],
+            ["tiktok", "TikTok"],
           ] as const
         ).map(([id, label]) => (
           <button
@@ -553,6 +555,17 @@ function AdminPage() {
             </Link>
           </p>
           <PayoutsPanel />
+        </section>
+      )}
+
+      {tab === "tiktok" && (
+        <section className="space-y-3">
+          <p className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
+            Coolerup pulls TikTok videos into the library on a schedule. We store the share link and
+            cover and play the clip through TikTok&rsquo;s own embed — no files are rehosted.
+            Changes here apply to the next run.
+          </p>
+          <TikTokSyncPanel />
         </section>
       )}
 

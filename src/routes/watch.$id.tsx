@@ -249,19 +249,22 @@ function WatchPage() {
   const recordWatchedVideo = useCallback(() => {
     if (!auth.user?.id || !video) return;
     const isYt = Boolean(video.is_youtube && video.youtube_id);
+    const isTt = Boolean(video.is_tiktok && video.tiktok_id);
     const ytThumb = isYt
       ? `https://i.ytimg.com/vi/${encodeURIComponent(video.youtube_id!)}/hqdefault.jpg`
       : "";
     void recordWatchHistory(auth.user.id, {
       videoId: video.id,
-      source: isYt ? "youtube" : "videos",
+      source: isYt ? "youtube" : isTt ? "tiktok" : "videos",
       title: video.title,
       creator: video.username,
       thumbnailUrl: poster || video.thumbnail_url || ytThumb,
       videoUrl: video.video_url,
       sourceUrl: isYt
         ? `https://www.youtube.com/watch?v=${encodeURIComponent(video.youtube_id!)}`
-        : "",
+        : isTt
+          ? video.video_url
+          : "",
       watchRouteId: video.id,
       youtubeId: isYt ? (video.youtube_id ?? "") : "",
     });
@@ -585,6 +588,43 @@ function WatchPage() {
                 )}
               </div>
             </div>
+          ) : video.is_tiktok && video.tiktok_id ? (
+            <div className="mx-3 mt-2 sm:mx-0">
+              {/* TikTok provenance, same rule as YouTube: we embed the original
+                  and never rehost the file. */}
+              <div className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg bg-black px-3 py-2 text-white">
+                <span className="flex items-center gap-1.5 text-[13px] font-bold">
+                  <Play className="size-4 fill-current" /> TikTok
+                </span>
+                <span className="text-[12px] opacity-90">
+                  Playing from @{video.tiktok_author || video.username}
+                </span>
+              </div>
+
+              <div className="flex justify-center">
+                <div className="aspect-[9/16] w-full max-w-[420px] overflow-hidden bg-black sm:rounded-lg">
+                  <iframe
+                    className="h-full w-full"
+                    title={video.title}
+                    src={`https://www.tiktok.com/embed/v2/${encodeURIComponent(video.tiktok_id)}`}
+                    allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
+                    referrerPolicy="strict-origin-when-cross-origin"
+                    allowFullScreen
+                  />
+                </div>
+              </div>
+
+              <a
+                href={video.video_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-white px-4 py-2 text-sm font-semibold text-black transition hover:opacity-90"
+              >
+                <Play className="size-4 fill-current" />
+                Watch on TikTok
+                <ExternalLink className="size-3.5" />
+              </a>
+            </div>
           ) : video.is_youtube && video.youtube_id ? (
             <div className="mx-3 mt-2 sm:mx-0">
               {/* Red provenance badge above the player, the way a YouTube embed
@@ -744,7 +784,7 @@ function WatchPage() {
               <button
                 type="button"
                 onClick={() => void offline.toggle()}
-                disabled={offline.progress !== null || video.is_youtube}
+                disabled={offline.progress !== null || video.is_youtube || video.is_tiktok}
                 aria-pressed={offline.isSaved}
                 aria-label={
                   offline.isSaved

@@ -79,8 +79,18 @@ function createChannelStub() {
   return channel;
 }
 
+/**
+ * Shown for every auth/DB call when the client fell back to this mock.
+ *
+ * This used to say "not configured in this preview environment", which sent
+ * people hunting for a preview-only bug when the real cause was a production
+ * build that never received its Supabase env vars. Name the missing variables
+ * so the message is actionable on its own.
+ */
 const NOT_CONFIGURED_ERROR = {
-  message: "Supabase is not configured in this preview environment.",
+  message:
+    "This deployment isn't connected to Supabase yet, so sign-in and content are unavailable. " +
+    "Set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY, then rebuild.",
   status: 503,
 };
 

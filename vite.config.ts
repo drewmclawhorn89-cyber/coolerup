@@ -5,6 +5,37 @@
 //     React/TanStack dedupe, error logger plugins, and sandbox detection (port/host/strictPort).
 // You can pass additional config via defineConfig({ vite: { ... }, etc... }) if needed.
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
+import { loadEnv } from "vite";
+
+/**
+ * A production build with no Supabase credentials silently ships the offline
+ * mock client: every sign-in fails with a generic error and the feed renders
+ * empty. That is how coolerup.lovable.app ended up with a dead login while the
+ * Vercel deploy worked fine. Warn loudly at build time so the cause is obvious
+ * from the build log instead of from a bug report.
+ */
+function warnOnMissingSupabaseEnv() {
+  return {
+    name: "coolerup:supabase-env-guard",
+    apply: "build" as const,
+    configResolved(config: { mode: string; root: string }) {
+      // Values can come from the shell or from a .env file, so read both.
+      const fileEnv = loadEnv(config.mode, config.root, "");
+      const value = (name: string) => process.env[name] || fileEnv[name];
+      const missing = ["VITE_SUPABASE_URL", "VITE_SUPABASE_PUBLISHABLE_KEY"].filter(
+        (name) => !value(name),
+      );
+      if (missing.length === 0) return;
+      console.warn(
+        `\n[build] WARNING: ${missing.join(" and ")} ${
+          missing.length === 1 ? "is" : "are"
+        } not set.\n` +
+          "[build] This bundle will fall back to the offline mock client: sign-in\n" +
+          "[build] and all content will be disabled in the deployed app.\n",
+      );
+    },
+  };
+}
 
 /**
  * Every build gets a fresh id, stamped into both the client and server bundles.
@@ -27,6 +58,7 @@ export default defineConfig({
     server: { entry: "server" },
   },
   vite: {
+    plugins: [warnOnMissingSupabaseEnv()],
     define: {
       __APP_BUILD__: JSON.stringify(BUILD_ID),
     },

@@ -75,7 +75,8 @@ export function explainAuthError(message: string, fallback: string, code?: strin
   if (
     c === "firebase/not-configured" ||
     (m.includes("firebase") && m.includes("not configured")) ||
-    m.includes("not configured in this preview environment")
+    m.includes("not configured in this preview environment") ||
+    m.includes("isn't connected to supabase")
   ) {
     return "Phone verification needs your Firebase project keys (VITE_FIREBASE_API_KEY, VITE_FIREBASE_AUTH_DOMAIN, VITE_FIREBASE_PROJECT_ID) in your environment. You can use Google or Email right now.";
   }

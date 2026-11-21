@@ -66,21 +66,39 @@ export async function loadTikTokSettings(): Promise<TikTokSyncSettings> {
 }
 
 /**
- * The account that owns ingested rows. `videos.user_id` is nullable, so this
- * is a nicety rather than a requirement: it lets the feed link the poster back
- * to a Coolerup profile. `username` always shows the TikTok creator's handle,
- * which is what the card labels itself with.
+ * The Coolerup account that ingested rows are attributed to.
+ *
+ * Order of preference:
+ *   1. `tiktok_sync_settings.owner_user_id` — the pinned account.
+ *   2. The oldest `admin`/`owner` in `user_roles`.
+ *
+ * The handle is resolved from `profiles` so the feed can label the card with a
+ * real Coolerup account instead of the TikTok creator. The TikTok creator is
+ * still recorded in `tiktok_author`, so attribution is not lost.
  */
-async function resolveOwner(settings: TikTokSyncSettings): Promise<string | null> {
-  if (settings.owner_user_id) return settings.owner_user_id;
-  const { data } = await db
-    .from("user_roles")
-    .select("user_id, role, created_at")
-    .in("role", ["admin", "owner"])
-    .order("created_at", { ascending: true })
-    .limit(1)
+type TikTokOwner = { userId: string | null; handle: string | null };
+
+async function resolveOwner(settings: TikTokSyncSettings): Promise<TikTokOwner> {
+  let userId = settings.owner_user_id;
+  if (!userId) {
+    const { data } = await db
+      .from("user_roles")
+      .select("user_id, role, created_at")
+      .in("role", ["admin", "owner"])
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    userId = (data as { user_id?: string } | null)?.user_id ?? null;
+  }
+  if (!userId) return { userId: null, handle: null };
+
+  const { data: profile } = await db
+    .from("profiles")
+    .select("handle")
+    .eq("id", userId)
     .maybeSingle();
-  return (data as { user_id?: string } | null)?.user_id ?? null;
+  const handle = (profile as { handle?: string | null } | null)?.handle?.trim() || null;
+  return { userId, handle };
 }
 
 async function finishRun(runId: string, summary: Omit<TikTokSyncSummary, "runId">): Promise<void> {
@@ -184,10 +202,13 @@ export async function runTikTokSync(options: RunTikTokSyncOptions): Promise<TikT
   }
 
   try {
-    // `videos.user_id` is nullable, so a missing owner is no longer fatal: the
-    // clip still lands in the feed and the card still shows the TikTok handle.
-    // We only lose the "poster" link back to a Coolerup profile.
-    const ownerId = await resolveOwner(settings);
+    // `videos.user_id` is nullable, so a missing owner is not fatal: the clip
+    // still lands in the feed. When an owner exists we attribute the post to
+    // that Coolerup account (handle from `profiles`) and keep the TikTok
+    // creator in `tiktok_author` for attribution.
+    const owner = await resolveOwner(settings);
+    const ownerId = owner.userId;
+    const posterUsername = owner.handle;
 
     const { data: sourceRows, error: sourceError } = await db
       .from("tiktok_sources")
@@ -264,7 +285,7 @@ export async function runTikTokSync(options: RunTikTokSyncOptions): Promise<TikT
         } else {
           const { error: cardError } = await db.from("videos").insert({
             user_id: ownerId,
-            username: handle,
+            username: posterUsername ?? handle,
             caption: `@${handle} on TikTok`,
             video_url: `https://www.tiktok.com/@${handle}`,
             hidden: !settings.auto_publish,
@@ -307,7 +328,7 @@ export async function runTikTokSync(options: RunTikTokSyncOptions): Promise<TikT
         // the card plays it through TikTok's embed, so nothing is rehosted.
         const { error: insertError } = await db.from("videos").insert({
           user_id: ownerId,
-          username: item.author,
+          username: posterUsername ?? item.author,
           caption: shortCaption(item.title, 300),
           video_url: item.url,
           // `hidden` is the feed's moderation flag: auto-publish off means the

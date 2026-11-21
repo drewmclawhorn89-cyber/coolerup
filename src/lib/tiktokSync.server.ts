@@ -244,6 +244,51 @@ export async function runTikTokSync(options: RunTikTokSyncOptions): Promise<TikT
 
       const result = await listSourceVideos(ref, settings.max_per_source);
 
+      // Creator sources cannot be enumerated without a Display API token:
+      // TikTok serves a login wall to server-side requests and its item_list
+      // endpoint is signature-gated. Rather than record an error and show the
+      // admin an empty feed, we store one "creator card" whose playback is
+      // TikTok's own creator embed widget. That keeps the source useful.
+      if (ref.kind === "creator" && result.items.length === 0) {
+        const handle = ref.handle;
+        const { data: existingCard } = await db
+          .from("videos")
+          .select("id")
+          .eq("is_tiktok", true)
+          .is("tiktok_id", null)
+          .eq("tiktok_author", handle)
+          .maybeSingle();
+
+        if (existingCard) {
+          skipped += 1;
+        } else {
+          const { error: cardError } = await db.from("videos").insert({
+            user_id: ownerId,
+            username: handle,
+            caption: `@${handle} on TikTok`,
+            video_url: `https://www.tiktok.com/@${handle}`,
+            hidden: !settings.auto_publish,
+            is_tiktok: true,
+            tiktok_id: null,
+            tiktok_author: handle,
+          });
+          if (cardError && !/duplicate key|unique/i.test(cardError.message)) {
+            problems.push(`${raw}: ${cardError.message}`);
+          } else if (!cardError) {
+            added += 1;
+          }
+        }
+
+        await db
+          .from("tiktok_sources")
+          .update({
+            last_synced_at: new Date().toISOString(),
+            last_error: "creator embed card (set TIKTOK_ACCESS_TOKEN to import individual posts)",
+          })
+          .eq("id", source.id);
+        continue;
+      }
+
       for (const item of result.items) {
         // Dedupe on the TikTok id. The unique partial index is the real guard;
         // this check just avoids a pointless insert + error round-trip.

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Check, Download, Gauge, Link2, Lock, Share2, Trash2, X } from "lucide-react";
+import { Check, Download, Flag, Gauge, Link2, Lock, Share2, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
@@ -15,6 +15,7 @@ export function ShareMenu({
   onDeleted,
   qualityLabel,
   onOpenQuality,
+  onReport,
 }: {
   video: Video;
   onClose: () => void;
@@ -22,6 +23,8 @@ export function ShareMenu({
   onDeleted?: () => void;
   qualityLabel?: string;
   onOpenQuality?: () => void;
+  /** Opens the report flow. Report lives here now instead of on the action rail. */
+  onReport?: (() => void) | undefined;
 }) {
   const [savedSize, setSavedSize] = useState<number | null>(null);
   const [progress, setProgress] = useState<number | null>(null);
@@ -239,6 +242,22 @@ export function ShareMenu({
                 <Trash2 size={22} />
               </div>
               <span className="text-xs text-red-400">Delete</span>
+            </button>
+          )}
+
+          {/* REPORT — moved off the video rail and into the share sheet */}
+          {onReport && (
+            <button
+              className="flex flex-col items-center gap-2"
+              onClick={() => {
+                onClose();
+                onReport();
+              }}
+            >
+              <div className="w-14 h-14 rounded-full bg-zinc-800 flex items-center justify-center">
+                <Flag size={22} />
+              </div>
+              <span className="text-xs text-zinc-300">Report</span>
             </button>
           )}
         </div>

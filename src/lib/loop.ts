@@ -217,9 +217,15 @@ export async function fetchVideos(page = 0, pageSize = 20) {
   // `videos` (videos.sound_id and sounds.original_video_id), so a bare
   // `sounds(...)` embed is ambiguous and PostgREST rejects the whole query with
   // PGRST201 — which surfaced to users as "Couldn't load videos".
+  // `is_tiktok` / `tiktok_id` / `tiktok_author` must be selected or the card
+  // cannot tell an ingested clip from a normal upload: it would try to play the
+  // TikTok share URL as a media file and silently fail.
   const withSound =
-    "id, username, caption, video_url, likes_count, comments_count, shares_count, reposts_count, created_at, sound_id, sounds!videos_sound_id_fkey(id, original_video_id, audio_url, title, creator_username, uses_count)";
+    "id, username, caption, video_url, likes_count, comments_count, shares_count, reposts_count, created_at, sound_id, is_tiktok, tiktok_id, tiktok_author, sounds!videos_sound_id_fkey(id, original_video_id, audio_url, title, creator_username, uses_count)";
   const withoutSound =
+    "id, username, caption, video_url, likes_count, comments_count, shares_count, reposts_count, created_at, sound_id, is_tiktok, tiktok_id, tiktok_author";
+  // Used only when the TikTok columns are absent from the database.
+  const LEGACY_COLUMNS =
     "id, username, caption, video_url, likes_count, comments_count, shares_count, reposts_count, created_at, sound_id";
 
   let { data, error } = await supabase.from("videos").select(withSound).in("id", ids);
@@ -230,6 +236,15 @@ export async function fetchVideos(page = 0, pageSize = 20) {
     const retry = await supabase.from("videos").select(withoutSound).in("id", ids);
     data = retry.data as typeof data;
     error = retry.error;
+  }
+
+  // Last resort: the TikTok migration has not been applied yet, so the
+  // provenance columns do not exist. Fall back to the pre-TikTok column list
+  // rather than breaking the whole feed for every user.
+  if (error && /is_tiktok|tiktok_id|tiktok_author/i.test(error.message ?? "")) {
+    const legacy = await supabase.from("videos").select(LEGACY_COLUMNS).in("id", ids);
+    data = legacy.data as typeof data;
+    error = legacy.error;
   }
 
   if (error) throw error;

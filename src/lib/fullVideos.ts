@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { resolveSupabaseUrl } from "@/integrations/supabase/project";
 import { requestOfflineSync } from "./offlineEvents";
 import { untypedDb } from "@/lib/untypedDb";
 
@@ -938,11 +939,9 @@ async function resumableUpload(
   contentType: string,
   onProgress: ProgressHandler,
 ): Promise<void> {
-  const supabaseUrl = (
-    import.meta.env["VITE_SUPABASE_URL"] ||
-    process.env["SUPABASE_URL"] ||
-    ""
-  ).replace(/\/+$/, "");
+  const supabaseUrl = resolveSupabaseUrl(
+    import.meta.env["VITE_SUPABASE_URL"] || process.env["SUPABASE_URL"] || "",
+  );
 
   if (!supabaseUrl) throw new Error("Storage is not configured.");
 

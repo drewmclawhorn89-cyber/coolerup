@@ -29,6 +29,7 @@ import { BanGate } from "../components/BanGate";
 import { UpdateGate } from "../components/UpdateGate";
 import { applyPrefs } from "../lib/prefs";
 import { AuthProvider, useAuth } from "../hooks/useAuth";
+import { resolveSupabaseUrl } from "../integrations/supabase/project";
 import { SnowEffect } from "../components/SnowEffect";
 import { MiniPlayer } from "../components/MiniPlayer";
 import { USE_SOUND_EVENT, type PlayerTrack } from "../lib/songPlayer";
@@ -163,8 +164,11 @@ const COOLERUP_JSON_LD = JSON.stringify({
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   head: () => {
-    const supabaseUrl = import.meta.env["VITE_SUPABASE_URL"] as string | undefined;
-    const supabaseOrigin = supabaseUrl ? new URL(supabaseUrl).origin : undefined;
+    // Preconnect even when the deploy only set the publishable key: the URL is
+    // derived from the public project ref, so the hint still helps.
+    const supabaseOrigin = new URL(
+      resolveSupabaseUrl(import.meta.env["VITE_SUPABASE_URL"] as string | undefined),
+    ).origin;
     return {
       meta: [
         { charSet: "utf-8" },

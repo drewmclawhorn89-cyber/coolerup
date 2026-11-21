@@ -8,11 +8,14 @@ import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 import { loadEnv } from "vite";
 
 /**
- * A production build with no Supabase credentials silently ships the offline
- * mock client: every sign-in fails with a generic error and the feed renders
- * empty. That is how coolerup.lovable.app ended up with a dead login while the
- * Vercel deploy worked fine. Warn loudly at build time so the cause is obvious
- * from the build log instead of from a bug report.
+ * A production build with no Supabase publishable key silently ships the
+ * offline mock client: every sign-in fails with a generic error and the feed
+ * renders empty. Warn loudly at build time so the cause is obvious from the
+ * build log instead of from a bug report.
+ *
+ * The URL is no longer required: `src/integrations/supabase/project.ts` derives
+ * the public project URL when only the key is present (that exact mismatch is
+ * what broke coolerup.lovable.app).
  */
 function warnOnMissingSupabaseEnv() {
   return {
@@ -22,14 +25,9 @@ function warnOnMissingSupabaseEnv() {
       // Values can come from the shell or from a .env file, so read both.
       const fileEnv = loadEnv(config.mode, config.root, "");
       const value = (name: string) => process.env[name] || fileEnv[name];
-      const missing = ["VITE_SUPABASE_URL", "VITE_SUPABASE_PUBLISHABLE_KEY"].filter(
-        (name) => !value(name),
-      );
-      if (missing.length === 0) return;
+      if (value("VITE_SUPABASE_PUBLISHABLE_KEY")) return;
       console.warn(
-        `\n[build] WARNING: ${missing.join(" and ")} ${
-          missing.length === 1 ? "is" : "are"
-        } not set.\n` +
+        "\n[build] WARNING: VITE_SUPABASE_PUBLISHABLE_KEY is not set.\n" +
           "[build] This bundle will fall back to the offline mock client: sign-in\n" +
           "[build] and all content will be disabled in the deployed app.\n",
       );

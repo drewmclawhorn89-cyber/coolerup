@@ -46,12 +46,18 @@ export type FullVideo = {
    * its own — the owner can retry or delete it. Older rows predate the column,
    * so it is optional.
    */
-  status?: "processing" | "ready" | "failed";
+  status?: "processing" | "ready" | "failed" | "draft";
   /** Why the upload failed. Only meaningful when `status` is `failed`. */
   upload_error?: string | null;
   /** Size the finished file should be, used to detect a completed upload. */
   expected_bytes?: number | null;
   created_at: string;
+  /** True for rows pulled in by the 24/7 TikTok sync. */
+  is_tiktok?: boolean;
+  /** Numeric TikTok post id; playback goes through TikTok's embed player. */
+  tiktok_id?: string | null;
+  /** Creator handle the clip belongs to, without the leading "@". */
+  tiktok_author?: string | null;
 };
 
 export type FullVideoComment = {
@@ -1146,7 +1152,7 @@ export type CreateFullVideoInput = {
   videoUrl: string;
   thumbnailUrl: string | null;
   /** Defaults to `ready`; pass `processing` when the bytes are still moving. */
-  status?: "processing" | "ready" | "failed";
+  status?: "processing" | "ready" | "failed" | "draft";
   /** Size of the file being uploaded, so a finished upload can be detected. */
   expectedBytes?: number | null;
 };

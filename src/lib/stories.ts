@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { notifyUser } from "@/lib/notify";
 import { resolveVideoUrl } from "@/lib/loop";
+import { untypedDb } from "@/lib/untypedDb";
 
 export type Story = {
   id: string;
@@ -13,7 +14,7 @@ export type Story = {
 };
 
 const STORY_PREFIX = "storage:";
-const db = supabase as any;
+const db = untypedDb;
 
 export async function fetchStories(username: string): Promise<Story[]> {
   const { data, error } = await db

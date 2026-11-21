@@ -97,7 +97,7 @@ export type ChargeResult =
  */
 export const chargePlanWithGooglePay = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { planId: string; paymentToken: string }) => {
+  .validator((d: { planId: string; paymentToken: string }) => {
     if (!d?.planId || typeof d.planId !== "string") throw new Error("Unknown plan");
     if (!d?.paymentToken || typeof d.paymentToken !== "string") {
       throw new Error("Missing payment token");
@@ -179,7 +179,7 @@ export type SaveCardResult =
  */
 export const saveCardForTrial = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { planId: string; paymentToken: string }) => {
+  .validator((d: { planId: string; paymentToken: string }) => {
     if (!d?.planId || typeof d.planId !== "string") throw new Error("Unknown plan");
     if (!d?.paymentToken || typeof d.paymentToken !== "string") {
       throw new Error("Missing payment token");

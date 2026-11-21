@@ -1,4 +1,10 @@
-export function ThemePicker({ theme, changeTheme }: any) {
+export function ThemePicker({
+  theme,
+  changeTheme,
+}: {
+  theme: string;
+  changeTheme: (id: string) => void;
+}) {
   const themes = [
     { id: "light", label: "Light", color: "#ffffff", text: "#000000" },
     { id: "dark", label: "Dark", color: "#000000", text: "#ffffff" },

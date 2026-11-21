@@ -12,6 +12,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { untypedDb } from "@/lib/untypedDb";
 
 /* -------------------------------------------------------------------------- */
 /*  Gifts                                                                     */
@@ -506,7 +507,7 @@ export function formatCountdown(ms: number): string {
 
 /** Reads today's claim for the signed-in user (drives the countdown). */
 export async function myFreeCoinClaim(): Promise<FreeCoinClaimState> {
-  const { data, error } = await (supabase.rpc as any)("my_free_coin_claim");
+  const { data, error } = await untypedDb.rpc("my_free_coin_claim");
   if (error) return { claimed: false };
   const row = (data ?? {}) as {
     claimed?: boolean;
@@ -528,7 +529,7 @@ export async function myFreeCoinClaim(): Promise<FreeCoinClaimState> {
  * wallet credit in one transaction, so this can be called safely twice.
  */
 export async function claimFreeCoins(): Promise<ClaimFreeCoinsResult> {
-  const { data, error } = await (supabase.rpc as any)("claim_free_coins");
+  const { data, error } = await untypedDb.rpc("claim_free_coins");
 
   if (error) {
     if (/not_signed_in|sign in/i.test(error.message)) {
@@ -569,7 +570,7 @@ export async function claimFreeCoins(): Promise<ClaimFreeCoinsResult> {
 
 /** Admin view: every claim, newest first. Throws when the caller isn't admin. */
 export async function adminFreeCoinClaims(limit = 200): Promise<FreeCoinClaim[]> {
-  const { data, error } = await (supabase.rpc as any)("admin_free_coin_claims", { _limit: limit });
+  const { data, error } = await untypedDb.rpc("admin_free_coin_claims", { _limit: limit });
   if (error) throw new Error(error.message);
   return Array.isArray(data) ? (data as unknown as FreeCoinClaim[]) : [];
 }

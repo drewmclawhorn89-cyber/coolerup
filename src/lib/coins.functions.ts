@@ -133,7 +133,7 @@ export type CoinCheckoutResult =
 
 export const createCoinCheckout = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { packId: string }) => {
+  .validator((d: { packId: string }) => {
     if (!d?.packId || typeof d.packId !== "string") throw new Error("Choose a coin pack");
     return d;
   })
@@ -214,7 +214,7 @@ export type CoinConfirmResult =
 
 export const confirmCoinPurchase = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { sessionId: string }) => {
+  .validator((d: { sessionId: string }) => {
     if (!d?.sessionId || typeof d.sessionId !== "string" || !d.sessionId.startsWith("cs_")) {
       throw new Error("Missing checkout session");
     }
@@ -358,7 +358,7 @@ function asArray<T>(value: unknown): T[] {
  */
 export const createCoinVenmoOrder = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { packId: string }) => {
+  .validator((d: { packId: string }) => {
     if (!d?.packId || typeof d.packId !== "string") throw new Error("Choose a coin pack");
     return d;
   })
@@ -424,7 +424,7 @@ export type VenmoSubmitResult = { ok: true; status: string } | { ok: false; mess
 /** The buyer says "I sent it" — moves the order into the admin review queue. */
 export const submitCoinVenmoPayment = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { orderId: string; payerHandle: string; venmoNote?: string }) => {
+  .validator((d: { orderId: string; payerHandle: string; venmoNote?: string }) => {
     if (!d?.orderId || typeof d.orderId !== "string") throw new Error("Missing order");
     if (!d?.payerHandle || typeof d.payerHandle !== "string") {
       throw new Error("Enter the Venmo username you paid from");
@@ -473,7 +473,7 @@ export type VenmoReviewResult =
 
 export const adminReviewCoinVenmoOrder = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { orderId: string; action: "approve" | "reject"; note?: string }) => {
+  .validator((d: { orderId: string; action: "approve" | "reject"; note?: string }) => {
     if (!d?.orderId || typeof d.orderId !== "string") throw new Error("Missing order");
     if (d.action !== "approve" && d.action !== "reject") throw new Error("Unknown action");
     return d;
@@ -514,7 +514,7 @@ export type CashoutResult =
 
 export const requestCashout = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { diamonds: number }) => {
+  .validator((d: { diamonds: number }) => {
     if (!Number.isFinite(d?.diamonds) || d.diamonds <= 0) throw new Error("Choose an amount");
     return { diamonds: Math.floor(d.diamonds) };
   })
@@ -579,17 +579,15 @@ export const requestCashout = createServerFn({ method: "POST" })
  */
 export const adminCreditCoins = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
-    (input: { userId: string; coins?: number; diamonds?: number; reason?: string }) => {
-      if (!input?.userId || typeof input.userId !== "string") throw new Error("Pick a user.");
-      const coins = Math.trunc(Number(input.coins ?? 0));
-      const diamonds = Math.trunc(Number(input.diamonds ?? 0));
-      if (!Number.isFinite(coins) || !Number.isFinite(diamonds)) throw new Error("Invalid amount.");
-      if (coins === 0 && diamonds === 0) throw new Error("Enter an amount to credit.");
-      if (coins < 0 || diamonds < 0) throw new Error("Amounts must be positive.");
-      return { userId: input.userId, coins, diamonds, reason: (input.reason ?? "").slice(0, 500) };
-    },
-  )
+  .validator((input: { userId: string; coins?: number; diamonds?: number; reason?: string }) => {
+    if (!input?.userId || typeof input.userId !== "string") throw new Error("Pick a user.");
+    const coins = Math.trunc(Number(input.coins ?? 0));
+    const diamonds = Math.trunc(Number(input.diamonds ?? 0));
+    if (!Number.isFinite(coins) || !Number.isFinite(diamonds)) throw new Error("Invalid amount.");
+    if (coins === 0 && diamonds === 0) throw new Error("Enter an amount to credit.");
+    if (coins < 0 || diamonds < 0) throw new Error("Amounts must be positive.");
+    return { userId: input.userId, coins, diamonds, reason: (input.reason ?? "").slice(0, 500) };
+  })
   .handler(async ({ data, context }) => {
     const { data: profile } = await context.supabase
       .from("profiles")

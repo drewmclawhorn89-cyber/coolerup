@@ -196,7 +196,7 @@ export type GiftCardPurchaseResult =
  */
 export const purchaseGiftCard = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
+  .validator(
     (d: { cardId: string; amount: number; recipientEmail: string; paymentToken: string }) => {
       if (!d?.cardId || typeof d.cardId !== "string") throw new Error("Choose a gift card");
       if (typeof d?.amount !== "number") throw new Error("Choose an amount");
@@ -361,7 +361,7 @@ export const giftCardStatus = createServerFn({ method: "GET" })
  */
 export const reserveGiftCardOrder = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { cardId: string; amount: number; recipientEmail: string }) => {
+  .validator((d: { cardId: string; amount: number; recipientEmail: string }) => {
     if (!d?.cardId || typeof d.cardId !== "string") throw new Error("Choose a gift card");
     if (typeof d?.amount !== "number") throw new Error("Choose an amount");
     if (!d?.recipientEmail || !isEmail(d.recipientEmail))

@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { requestOfflineSync } from "@/lib/offlineEvents";
+import { untypedDb } from "@/lib/untypedDb";
 
 /**
  * Saved ("Vault") state for full-length videos, shared by every surface.
@@ -18,7 +19,7 @@ import { requestOfflineSync } from "@/lib/offlineEvents";
  * public.videos, the vertical feed's table.
  */
 
-const db = supabase as any;
+const db = untypedDb;
 
 type Snapshot = {
   ids: ReadonlySet<string>;

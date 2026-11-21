@@ -1,4 +1,4 @@
-import { parseCaption } from "@/lib/loop";
+import { parseCaption, type Video } from "@/lib/loop";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Download, Eye, Lock, Trash2, ArrowLeft, Play, X } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -22,7 +22,7 @@ export const Route = createFileRoute("/offline")({
   component: OfflinePage,
 });
 
-type FeedItem = { id: string; video: any; size: number };
+type FeedItem = { id: string; video: Video; size: number };
 
 function OfflinePage() {
   const auth = useAuth();
@@ -247,14 +247,11 @@ function OfflinePage() {
                   className="flex flex-wrap items-center justify-between gap-3 rounded-md border bg-background px-3 py-2"
                 >
                   <div className="flex min-w-0 items-center gap-3">
-                    <div className="h-12 w-16 overflow-hidden rounded bg-zinc-800">
-                      {item.video?.poster_url ? (
-                        <img
-                          src={item.video.poster_url}
-                          alt=""
-                          className="h-full w-full object-cover"
-                        />
-                      ) : null}
+                    <div className="flex h-12 w-16 items-center justify-center overflow-hidden rounded bg-zinc-800 text-white/60">
+                      {/* The videos table has no poster column, so this used to
+                          test `item.video.poster_url` and always render nothing.
+                          Show a play badge instead of an empty black box. */}
+                      <Play className="h-4 w-4" aria-hidden />
                     </div>
                     <div className="min-w-0">
                       <div className="truncate text-sm font-medium">

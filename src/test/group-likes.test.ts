@@ -10,7 +10,9 @@ const state = vi.hoisted(() => ({
 vi.mock("@/integrations/supabase/client", () => {
   const builder = (table: string) => {
     const ctx: { op?: string; filters: Record<string, string> } = { filters: {} };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- test double
     const api: any = {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- test double
       select: (_cols?: string, opts?: any) => {
         ctx.op = "select";
         state.calls.push(`${table}:select`);
@@ -19,7 +21,9 @@ vi.mock("@/integrations/supabase/client", () => {
             eq: (col: string, val: string) => {
               if (state.failOn === "select")
                 return Promise.resolve({ count: null, error: new Error("boom") });
-              const count = state.likeRows.filter((r) => (r as any)[col] === val).length;
+              const count = state.likeRows.filter(
+                (r) => (r as Record<string, unknown>)[col] === val,
+              ).length;
               return Promise.resolve({ count, error: null });
             },
           };
@@ -49,7 +53,11 @@ vi.mock("@/integrations/supabase/client", () => {
             if (state.failOn === "delete")
               return Promise.resolve({ error: new Error("delete denied") });
             state.likeRows = state.likeRows.filter(
-              (r) => !((r as any)[col] === val && (r as any)[col2] === val2),
+              (r) =>
+                !(
+                  (r as Record<string, unknown>)[col] === val &&
+                  (r as Record<string, unknown>)[col2] === val2
+                ),
             );
             return Promise.resolve({ error: null });
           },

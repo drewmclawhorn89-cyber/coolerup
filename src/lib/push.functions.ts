@@ -129,7 +129,7 @@ async function sendPushToUser(
 
 export const savePushSubscription = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: SubscriptionInput) => {
+  .validator((d: SubscriptionInput) => {
     if (!d?.endpoint?.startsWith("https://") || !d.p256dh || !d.auth) {
       throw new Error("Invalid subscription");
     }
@@ -159,7 +159,7 @@ export const savePushSubscription = createServerFn({ method: "POST" })
 /** Forget this device. Used when the user turns notifications off. */
 export const removePushSubscription = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { endpoint: string }) => {
+  .validator((d: { endpoint: string }) => {
     if (!d?.endpoint) throw new Error("Invalid subscription");
     return d;
   })
@@ -241,7 +241,7 @@ async function canNotify(
 
 export const sendNotificationPush = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
+  .validator(
     (d: {
       targetUserId: string;
       kind: string;
@@ -309,7 +309,7 @@ const PUSH_TITLES: Record<string, string> = {
 // Wakes the callee's devices. The caller's handle comes from the database, not the client.
 export const sendCallPush = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { peerId: string }) => {
+  .validator((d: { peerId: string }) => {
     if (!d?.peerId || typeof d.peerId !== "string" || !/^[0-9a-f-]{36}$/i.test(d.peerId)) {
       throw new Error("Invalid peer");
     }

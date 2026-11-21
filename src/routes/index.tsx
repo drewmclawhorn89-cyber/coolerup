@@ -334,6 +334,9 @@ type NotificationRow = {
   video_id: string | null;
 };
 
+/** How long a feed request may stay pending before we show the retry state. */
+const FEED_LOAD_TIMEOUT_MS = 20_000;
+
 const NAV: { id: Tab; label: string; icon: typeof Home }[] = [
   { id: "foryou", label: "Home", icon: Home },
   { id: "explore", label: "Explore", icon: Users },
@@ -540,7 +543,7 @@ function Index() {
         .select("id, handle, display_name, avatar_url")
         .or(`handle.ilike.%${q}%,display_name.ilike.%${q}%`)
         .limit(8);
-      if (active) setUserResults(((data ?? []) as any[]).filter((u) => u.handle));
+      if (active) setUserResults((data ?? []).filter((u) => u.handle));
     }, 250);
     return () => {
       active = false;
@@ -560,13 +563,26 @@ function Index() {
     if (loadingRef.current) return;
     loadingRef.current = true;
     setLoadingMore(true);
+
+    // A request that never settles (dead network, stalled proxy, sleeping tab)
+    // used to leave the feed stuck on "Loading your feed..." forever, with no
+    // way out but a hard reload. Fail into the retry state instead; a late
+    // success still wins because it clears `error` when it finally lands.
+    let settled = false;
+    const watchdog = setTimeout(() => {
+      if (settled) return;
+      loadingRef.current = false;
+      setLoadingMore(false);
+      setError(true);
+    }, FEED_LOAD_TIMEOUT_MS);
+
     fetchVideos(pageNum, feedPageSize())
-      .then((v: any) => {
+      .then((v: Video[]) => {
         if (!v || v.length === 0) {
           setHasMore(false);
           if (!append) setVideos([]);
         } else {
-          if (append) setVideos((prev: any) => [...(prev || []), ...v]);
+          if (append) setVideos((prev) => [...(prev ?? []), ...v]);
           else {
             setVideos(v);
             writeFeedCache(v);
@@ -577,6 +593,8 @@ function Index() {
       })
       .catch(() => setError(true))
       .finally(() => {
+        settled = true;
+        clearTimeout(watchdog);
         loadingRef.current = false;
         setLoadingMore(false);
       });
@@ -737,7 +755,9 @@ function Index() {
       mounted = false;
       try {
         supabase.removeChannel(channel);
-      } catch {}
+      } catch {
+        /* teardown is best-effort; a dead socket must not break unmount */
+      }
     };
   }, [auth.user?.id]);
 

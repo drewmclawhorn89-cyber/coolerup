@@ -12,10 +12,11 @@ import {
 } from "@/lib/offline";
 import { isOfflineModeOn } from "@/lib/offlineMode";
 import { planUnlocksOffline } from "@/lib/subscriptions";
+import { untypedDb } from "@/lib/untypedDb";
 
 export { OFFLINE_SYNC_EVENT, requestOfflineSync } from "@/lib/offlineEvents";
 
-const db = supabase as any;
+const db = untypedDb;
 
 export type OfflineSyncResult = {
   downloaded: number;

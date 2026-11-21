@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { requestOfflineSync } from "./offlineEvents";
+import { untypedDb } from "@/lib/untypedDb";
 
 /**
  * Long-form ("YouTube style") videos.
@@ -12,7 +13,7 @@ import { requestOfflineSync } from "./offlineEvents";
  * The generated Supabase types don't know about these tables yet, so queries
  * go through a loosely typed handle — same approach as lib/groups.ts.
  */
-const db = supabase as any;
+const db = untypedDb;
 
 /** Hard cap for a full-length upload: 60 minutes, like YouTube's default. */
 export const MAX_FULL_VIDEO_SECONDS = 60 * 60;

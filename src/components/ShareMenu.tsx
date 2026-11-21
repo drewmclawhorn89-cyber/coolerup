@@ -103,8 +103,8 @@ export function ShareMenu({
           toast.success("Saved", { id: t });
           onShared();
           return;
-        } catch (e: any) {
-          if (e?.name === "AbortError") {
+        } catch (e) {
+          if (e instanceof Error && e.name === "AbortError") {
             toast.dismiss(t);
             return;
           }
@@ -154,7 +154,9 @@ export function ShareMenu({
                 try {
                   await navigator.share({ title: "CoolerUp", url });
                   onShared();
-                } catch {}
+                } catch {
+                  /* user dismissed the share sheet - not an error */
+                }
               } else {
                 await navigator.clipboard.writeText(url);
                 toast.success("Link copied");

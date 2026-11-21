@@ -15,6 +15,7 @@ import {
   type GroupMember,
   type GroupPrivacy,
 } from "@/lib/groups";
+import { errorText } from "@/lib/uploadErrors";
 
 type GroupsTab = "your" | "discover" | "create";
 
@@ -133,8 +134,8 @@ function CreateGroupForm({
       const url = await uploadGroupImage(file, auth.user.id, kind);
       if (kind === "cover") setCover(url);
       else setAvatar(url);
-    } catch (err: any) {
-      toast.error(err?.message ?? "Couldn't upload that image.");
+    } catch (err) {
+      toast.error(errorText(err) || "Couldn't upload that image.");
     }
   };
 
@@ -155,8 +156,8 @@ function CreateGroupForm({
       );
       toast.success("Group created");
       onCreated(group);
-    } catch (err: any) {
-      toast.error(err?.message ?? "Couldn't create the group.");
+    } catch (err) {
+      toast.error(errorText(err) || "Couldn't create the group.");
     } finally {
       setBusy(false);
     }
@@ -258,8 +259,8 @@ export function GroupsPanel({ className = "" }: { className?: string }) {
       setGroups(list);
       if (auth.user) setMemberships(await fetchMyMemberships(auth.user.id));
       else setMemberships({});
-    } catch (err: any) {
-      toast.error(err?.message ?? "Couldn't load groups.");
+    } catch (err) {
+      toast.error(errorText(err) || "Couldn't load groups.");
       setGroups([]);
     }
   }, [auth.user?.id]);
@@ -320,8 +321,8 @@ export function GroupsPanel({ className = "" }: { className?: string }) {
       toast.success(
         role === "pending" ? "Request sent — an admin will review it." : `Joined ${group.name}`,
       );
-    } catch (err: any) {
-      toast.error(err?.message ?? "Couldn't join that group.");
+    } catch (err) {
+      toast.error(errorText(err) || "Couldn't join that group.");
     } finally {
       setBusyId(null);
     }

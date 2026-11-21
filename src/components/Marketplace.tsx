@@ -3,6 +3,7 @@ import { ArrowLeft, ImagePlus, MapPin, Plus, Search } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { untypedDb } from "@/lib/untypedDb";
 
 export type MarketItem = {
   id: string;
@@ -13,6 +14,19 @@ export type MarketItem = {
   seller: string;
   category: string;
   description: string;
+};
+
+/** Shape of a `marketplace_items` row (table not in the generated types yet). */
+type MarketItemRow = {
+  id: string;
+  title: string;
+  price: number | string | null;
+  image_url: string | null;
+  location: string | null;
+  category: string | null;
+  description: string | null;
+  seller_username: string | null;
+  created_at: string | null;
 };
 
 const CATEGORIES = [
@@ -198,27 +212,27 @@ export function Marketplace() {
 
   useEffect(() => {
     let live = true;
-    void (supabase as any)
+    void untypedDb
       .from("marketplace_items")
       .select(
         "id, title, price, image_url, location, category, description, seller_username, created_at",
       )
       .order("created_at", { ascending: false })
       .limit(100)
-      .then(({ data, error }: { data: any[] | null; error: unknown }) => {
+      .then(({ data, error }) => {
         if (!live) return;
         if (error) {
           console.error("Failed to load marketplace items", error);
           return;
         }
 
-        const real: MarketItem[] = (data ?? []).map((r) => ({
+        const real: MarketItem[] = ((data ?? []) as MarketItemRow[]).map((r) => ({
           id: r.id,
           title: r.title,
           price: Number(r.price),
           image: r.image_url || `https://picsum.photos/seed/${r.id}/400/400`,
           location: r.location || "Nearby",
-          seller: r.seller_username,
+          seller: r.seller_username ?? "Someone",
           category: r.category || "Home",
           description: r.description || "No description.",
         }));
@@ -265,7 +279,7 @@ export function Marketplace() {
             : path,
         ).data.publicUrl;
     }
-    const { data, error } = await (supabase as any)
+    const { data, error } = await untypedDb
       .from("marketplace_items")
       .insert({
         user_id: auth.user.id,

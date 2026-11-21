@@ -117,7 +117,9 @@ function Settings() {
       } else {
         localStorage.removeItem("settings:phone");
       }
-    } catch {}
+    } catch {
+      /* private mode / quota - the toast below still confirms the intent */
+    }
     toast.success(normalized ? "Phone number saved" : "Phone number cleared");
   };
   const saveLinks = () => {
@@ -125,7 +127,9 @@ function Settings() {
       localStorage.setItem("settings:tiktok", tiktokLink);
       localStorage.setItem("settings:instagram", instagramLink);
       localStorage.setItem("settings:youtube", youtubeLink);
-    } catch {}
+    } catch {
+      /* private mode / quota - the toast below still confirms the intent */
+    }
     toast.success("Links saved to profile");
   };
   // Username edit
@@ -215,7 +219,9 @@ function Settings() {
       setTiktokLink(localStorage.getItem("settings:tiktok") || "");
       setInstagramLink(localStorage.getItem("settings:instagram") || "");
       setYoutubeLink(localStorage.getItem("settings:youtube") || "");
-    } catch {}
+    } catch {
+      /* private mode / disabled storage - fall back to the defaults above */
+    }
   }, [auth.ready, auth.handle, auth.user?.phone]);
 
   /** Refresh the storage meter whenever downloads change. */
@@ -323,7 +329,7 @@ function Settings() {
       .eq("blocker_id", auth.user.id)
       .then(({ data, error }) => {
         if (error) return;
-        setBlocked((data ?? []).map((r: any) => r.blocked_username));
+        setBlocked((data ?? []).map((r) => r.blocked_username).filter((u): u is string => !!u));
       });
   }, [auth.user?.id]);
 
@@ -344,7 +350,7 @@ function Settings() {
     try {
       const { error } = await supabase.from("profiles").update({ handle }).eq("id", auth.user.id);
       if (error) {
-        if ((error as any).code === "23505") {
+        if ((error as { code?: string }).code === "23505") {
           toast.error(`@${handle} is already taken`);
         } else {
           toast.error(error.message || "Couldn't update handle");
@@ -410,7 +416,9 @@ function Settings() {
     setNotificationsEnabled(v);
     try {
       localStorage.setItem("settings:notifications", v ? "true" : "false");
-    } catch {}
+    } catch {
+      /* private mode / quota - the in-memory toggle still applies */
+    }
 
     if (v) {
       if (pushPermission() === "unsupported") {

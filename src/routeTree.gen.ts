@@ -48,6 +48,7 @@ import { Route as WatchIndexRouteImport } from './routes/watch.index'
 import { Route as WatchIdRouteImport } from './routes/watch.$id'
 import { Route as ApiBrowserProxyRouteImport } from './routes/api/browser/proxy'
 import { Route as ApiFacebookResolveRouteImport } from './routes/api/facebook/resolve'
+import { Route as ApiTiktokHeartbeatRouteImport } from './routes/api/tiktok/heartbeat'
 import { Route as ApiTiktokSyncRouteImport } from './routes/api/tiktok/sync'
 import { Route as ApiTwitchFollowRouteImport } from './routes/api/twitch/follow'
 import { Route as ApiTwitchMeRouteImport } from './routes/api/twitch/me'
@@ -250,6 +251,11 @@ const ApiFacebookResolveRoute = ApiFacebookResolveRouteImport.update({
   path: '/api/facebook/resolve',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiTiktokHeartbeatRoute = ApiTiktokHeartbeatRouteImport.update({
+  id: '/api/tiktok/heartbeat',
+  path: '/api/tiktok/heartbeat',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiTiktokSyncRoute = ApiTiktokSyncRouteImport.update({
   id: '/api/tiktok/sync',
   path: '/api/tiktok/sync',
@@ -321,6 +327,7 @@ export interface FileRoutesByFullPath {
   '/watch/': typeof WatchIndexRoute
   '/api/browser/proxy': typeof ApiBrowserProxyRoute
   '/api/facebook/resolve': typeof ApiFacebookResolveRoute
+  '/api/tiktok/heartbeat': typeof ApiTiktokHeartbeatRoute
   '/api/tiktok/sync': typeof ApiTiktokSyncRoute
   '/api/twitch/follow': typeof ApiTwitchFollowRoute
   '/api/twitch/me': typeof ApiTwitchMeRoute
@@ -366,6 +373,7 @@ export interface FileRoutesByTo {
   '/watch': typeof WatchIndexRoute
   '/api/browser/proxy': typeof ApiBrowserProxyRoute
   '/api/facebook/resolve': typeof ApiFacebookResolveRoute
+  '/api/tiktok/heartbeat': typeof ApiTiktokHeartbeatRoute
   '/api/tiktok/sync': typeof ApiTiktokSyncRoute
   '/api/twitch/follow': typeof ApiTwitchFollowRoute
   '/api/twitch/me': typeof ApiTwitchMeRoute
@@ -414,6 +422,7 @@ export interface FileRoutesById {
   '/watch/': typeof WatchIndexRoute
   '/api/browser/proxy': typeof ApiBrowserProxyRoute
   '/api/facebook/resolve': typeof ApiFacebookResolveRoute
+  '/api/tiktok/heartbeat': typeof ApiTiktokHeartbeatRoute
   '/api/tiktok/sync': typeof ApiTiktokSyncRoute
   '/api/twitch/follow': typeof ApiTwitchFollowRoute
   '/api/twitch/me': typeof ApiTwitchMeRoute
@@ -463,6 +472,7 @@ export interface FileRouteTypes {
     | '/watch/'
     | '/api/browser/proxy'
     | '/api/facebook/resolve'
+    | '/api/tiktok/heartbeat'
     | '/api/tiktok/sync'
     | '/api/twitch/follow'
     | '/api/twitch/me'
@@ -508,6 +518,7 @@ export interface FileRouteTypes {
     | '/watch'
     | '/api/browser/proxy'
     | '/api/facebook/resolve'
+    | '/api/tiktok/heartbeat'
     | '/api/tiktok/sync'
     | '/api/twitch/follow'
     | '/api/twitch/me'
@@ -555,6 +566,7 @@ export interface FileRouteTypes {
     | '/watch/'
     | '/api/browser/proxy'
     | '/api/facebook/resolve'
+    | '/api/tiktok/heartbeat'
     | '/api/tiktok/sync'
     | '/api/twitch/follow'
     | '/api/twitch/me'
@@ -597,6 +609,7 @@ export interface RootRouteChildren {
   WatchIndexRoute: typeof WatchIndexRoute
   ApiBrowserProxyRoute: typeof ApiBrowserProxyRoute
   ApiFacebookResolveRoute: typeof ApiFacebookResolveRoute
+  ApiTiktokHeartbeatRoute: typeof ApiTiktokHeartbeatRoute
   ApiTiktokSyncRoute: typeof ApiTiktokSyncRoute
   ApiTwitchFollowRoute: typeof ApiTwitchFollowRoute
   ApiTwitchMeRoute: typeof ApiTwitchMeRoute
@@ -880,6 +893,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiFacebookResolveRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/tiktok/heartbeat': {
+      id: '/api/tiktok/heartbeat'
+      path: '/api/tiktok/heartbeat'
+      fullPath: '/api/tiktok/heartbeat'
+      preLoaderRoute: typeof ApiTiktokHeartbeatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/tiktok/sync': {
       id: '/api/tiktok/sync'
       path: '/api/tiktok/sync'
@@ -997,6 +1017,7 @@ const rootRouteChildren: RootRouteChildren = {
   WatchIndexRoute: WatchIndexRoute,
   ApiBrowserProxyRoute: ApiBrowserProxyRoute,
   ApiFacebookResolveRoute: ApiFacebookResolveRoute,
+  ApiTiktokHeartbeatRoute: ApiTiktokHeartbeatRoute,
   ApiTiktokSyncRoute: ApiTiktokSyncRoute,
   ApiTwitchFollowRoute: ApiTwitchFollowRoute,
   ApiTwitchMeRoute: ApiTwitchMeRoute,

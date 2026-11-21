@@ -31,6 +31,25 @@ auto-discovery is what makes the pull truly continuous, and that needs a token
    the rest with `is_tiktok = true`.
 4. A row is written to `tiktok_sync_runs`, which the admin panel renders.
 
+### If there is no cron secret (the common case)
+
+`/api/tiktok/sync` answers `500 Server configuration error` whenever
+`LOVABLE_CRON_SECRET` is unset, so a deployment without it silently never pulls
+anything. Two fallbacks exist so the job still runs:
+
+- **`GET /api/tiktok/heartbeat`** — unauthenticated on purpose. It asks the
+  database "is a run due?" and lets `tiktok_claim_run()` decide. A stranger
+  cannot make it run more often than `interval_minutes`, because the throttle
+  lives in Postgres, not in the request. It is also throttled per server
+  instance to one attempt a minute.
+- **The app pings it on load.** `src/lib/tiktokHeartbeat.ts` fires the request
+  once per browser per 10 minutes, fire-and-forget, from the root component.
+  Any traffic at all therefore keeps ingestion alive without a scheduler.
+
+Neither fallback is a substitute for a real scheduler on a quiet site — with no
+visitors nothing pings. Set the secret and point a cron at `/api/tiktok/sync`
+if the app has low traffic.
+
 ## Setup
 
 ### 1. Run the migration

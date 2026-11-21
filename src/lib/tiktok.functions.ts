@@ -11,7 +11,14 @@
  */
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { parseTikTokInput, type TikTokRef } from "./tiktok";
+import {
+  parseTikTokInput,
+  splitTikTokLinks,
+  type TikTokImportOutcome,
+  type TikTokRef,
+} from "./tiktok";
+
+export type { TikTokImportOutcome };
 
 type Ctx = { supabase: unknown; userId: string };
 
@@ -247,6 +254,29 @@ export const updateTikTokSettings = createServerFn({ method: "POST" })
       .eq("id", 1);
     if (error) throw new Error(error.message);
     return { ok: true };
+  });
+
+/**
+ * Import a batch of individual TikTok video links as real feed rows.
+ *
+ * Accepts a blob of text (one link per line, or comma/space separated) and
+ * resolves each link through oEmbed, so every row it writes has a genuine
+ * `tiktok_id` and plays through TikTok's own embed player.
+ */
+export const importTikTokLinks = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: { links: string }) => {
+    if (typeof input?.links !== "string" || !input.links.trim())
+      throw new Error("Paste at least one TikTok video link.");
+    const links = splitTikTokLinks(input.links);
+    if (links.length === 0) throw new Error("Paste at least one TikTok video link.");
+    if (links.length > 50) throw new Error("Import at most 50 links at a time.");
+    return { links };
+  })
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context as Ctx);
+    const { importTikTokVideos } = await import("./tiktokSync.server");
+    return importTikTokVideos(data.links);
   });
 
 /** Run the job now, ignoring the "too soon" guard. */

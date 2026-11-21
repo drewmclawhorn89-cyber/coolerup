@@ -17,7 +17,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { parseTikTokInput, shortCaption } from "./tiktok";
+import { parseTikTokInput, shortCaption, type TikTokImportOutcome } from "./tiktok";
 import { listSourceVideos, tiktokDiscoveryStatus } from "./tiktok.server";
 
 const db = supabaseAdmin as unknown as SupabaseClient;
@@ -210,6 +210,11 @@ export async function runTikTokSync(options: RunTikTokSyncOptions): Promise<TikT
     const ownerId = owner.userId;
     const posterUsername = owner.handle;
 
+    // Rows written by the retired "creator embed card" fallback are not videos:
+    // they carry no `tiktok_id` and cannot play. Clear them out so the feed is
+    // only ever real posts.
+    await db.from("videos").delete().eq("is_tiktok", true).is("tiktok_id", null);
+
     const { data: sourceRows, error: sourceError } = await db
       .from("tiktok_sources")
       .select("id, kind, value, label")
@@ -267,46 +272,16 @@ export async function runTikTokSync(options: RunTikTokSyncOptions): Promise<TikT
 
       // Creator sources cannot be enumerated without a Display API token:
       // TikTok serves a login wall to server-side requests and its item_list
-      // endpoint is signature-gated. Rather than record an error and show the
-      // admin an empty feed, we store one "creator card" whose playback is
-      // TikTok's own creator embed widget. That keeps the source useful.
+      // endpoint is signature-gated. We record the reason and add nothing.
+      // The feed only ever contains real, playable posts — never a placeholder
+      // widget row standing in for a whole profile.
       if (ref.kind === "creator" && result.items.length === 0) {
-        const handle = ref.handle;
-        const { data: existingCard } = await db
-          .from("videos")
-          .select("id")
-          .eq("is_tiktok", true)
-          .is("tiktok_id", null)
-          .eq("tiktok_author", handle)
-          .maybeSingle();
-
-        if (existingCard) {
-          skipped += 1;
-        } else {
-          const { error: cardError } = await db.from("videos").insert({
-            user_id: ownerId,
-            username: posterUsername ?? handle,
-            caption: `@${handle} on TikTok`,
-            video_url: `https://www.tiktok.com/@${handle}`,
-            hidden: !settings.auto_publish,
-            is_tiktok: true,
-            tiktok_id: null,
-            tiktok_author: handle,
-          });
-          if (cardError && !/duplicate key|unique/i.test(cardError.message)) {
-            problems.push(`${raw}: ${cardError.message}`);
-          } else if (!cardError) {
-            added += 1;
-          }
-        }
-
+        const reason = describeReason(result.reason ?? "creator_discovery_unavailable");
         await db
           .from("tiktok_sources")
-          .update({
-            last_synced_at: new Date().toISOString(),
-            last_error: "creator embed card (set TIKTOK_ACCESS_TOKEN to import individual posts)",
-          })
+          .update({ last_synced_at: new Date().toISOString(), last_error: reason })
           .eq("id", source.id);
+        problems.push(`${raw}: ${reason}`);
         continue;
       }
 
@@ -395,9 +370,153 @@ export async function runTikTokSync(options: RunTikTokSyncOptions): Promise<TikT
   }
 }
 
+export type TikTokImportSummary = {
+  runId: string | null;
+  added: number;
+  duplicate: number;
+  failed: number;
+  results: TikTokImportOutcome[];
+  message: string;
+};
+
+/**
+ * Import a batch of individual TikTok video links as real feed rows.
+ *
+ * This is the only token-free path to genuine TikTok videos: oEmbed describes
+ * one known post at a time, so a link in means a real `tiktok_id` out, played
+ * through TikTok's own embed player. Nothing is downloaded or rehosted.
+ *
+ * Every link is resolved independently — one dead post cannot abort the batch.
+ */
+export async function importTikTokVideos(links: string[]): Promise<TikTokImportSummary> {
+  const settings = await loadTikTokSettings();
+  const owner = await resolveOwner(settings);
+  const results: TikTokImportOutcome[] = [];
+  let added = 0;
+  let duplicate = 0;
+  let failed = 0;
+
+  const { data: runRow } = await db
+    .from("tiktok_sync_runs")
+    .insert({ trigger: "manual" })
+    .select("id")
+    .maybeSingle();
+  const runId = (runRow as { id: string } | null)?.id ?? null;
+
+  const seen = new Set<string>();
+
+  for (const raw of links) {
+    const input = raw.trim();
+    if (!input) continue;
+
+    const ref = parseTikTokInput(input);
+    if (!ref || (ref.kind !== "video" && ref.kind !== "short")) {
+      results.push({
+        input,
+        status: "invalid",
+        message: "not a single-video link (paste a /video/<id> URL)",
+        tiktokId: null,
+      });
+      failed += 1;
+      continue;
+    }
+
+    const result = await listSourceVideos(ref, 1);
+    const item = result.items[0];
+    if (!item) {
+      results.push({
+        input,
+        status: "unavailable",
+        message: describeReason(result.reason ?? "oembed_unavailable"),
+        tiktokId: null,
+      });
+      failed += 1;
+      continue;
+    }
+
+    if (seen.has(item.id)) {
+      results.push({
+        input,
+        status: "duplicate",
+        message: "repeated in this batch",
+        tiktokId: item.id,
+      });
+      duplicate += 1;
+      continue;
+    }
+    seen.add(item.id);
+
+    const { data: existing } = await db
+      .from("videos")
+      .select("id")
+      .eq("tiktok_id", item.id)
+      .maybeSingle();
+    if (existing) {
+      results.push({
+        input,
+        status: "duplicate",
+        message: "already in the feed",
+        tiktokId: item.id,
+      });
+      duplicate += 1;
+      continue;
+    }
+
+    const { error: insertError } = await db.from("videos").insert({
+      user_id: owner.userId,
+      username: owner.handle ?? item.author,
+      caption: shortCaption(item.title, 300),
+      video_url: item.url,
+      hidden: !settings.auto_publish,
+      is_tiktok: true,
+      tiktok_id: item.id,
+      tiktok_author: item.author,
+    });
+
+    if (insertError) {
+      if (/duplicate key|unique/i.test(insertError.message)) {
+        results.push({
+          input,
+          status: "duplicate",
+          message: "already in the feed",
+          tiktokId: item.id,
+        });
+        duplicate += 1;
+      } else {
+        results.push({
+          input,
+          status: "error",
+          message: insertError.message,
+          tiktokId: item.id,
+        });
+        failed += 1;
+      }
+      continue;
+    }
+
+    results.push({ input, status: "added", message: item.title || item.id, tiktokId: item.id });
+    added += 1;
+  }
+
+  const message = `Imported ${added}, ${duplicate} already present, ${failed} failed.`;
+  if (runId) {
+    await finishRun(runId, {
+      status: failed === 0 ? "ok" : added > 0 ? "partial" : "error",
+      sourcesChecked: links.length,
+      videosAdded: added,
+      videosSkipped: duplicate + failed,
+      message,
+    });
+  }
+
+  return { runId, added, duplicate, failed, results, message };
+}
+
 /** Turn a machine reason code into something an admin can act on. */
 export function describeReason(reason: string): string {
   if (reason === "no_token") return "creator discovery needs TIKTOK_ACCESS_TOKEN";
+  if (reason === "creator_discovery_unavailable")
+    return "creator handles need TIKTOK_ACCESS_TOKEN — paste individual video links instead";
   if (reason === "hashtag_sources_need_research_api")
     return "hashtag sources need TikTok Research API access";
   if (reason === "profile_no_video_ids") return "TikTok served a login wall instead of the profile";

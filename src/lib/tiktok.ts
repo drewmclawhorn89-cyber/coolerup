@@ -311,3 +311,24 @@ export function shortCaption(title: string, max = 140): string {
   const clean = (title ?? "").replace(/\s+/g, " ").trim();
   return clean.length <= max ? clean : `${clean.slice(0, max - 1).trimEnd()}…`;
 }
+
+/** One line of the bulk importer's report, shared by server and UI. */
+export type TikTokImportOutcome = {
+  input: string;
+  status: "added" | "duplicate" | "invalid" | "unavailable" | "error";
+  message: string;
+  tiktokId: string | null;
+};
+
+/**
+ * Split a pasted blob into individual links.
+ *
+ * Admins paste from a spreadsheet, a notes app, or straight off the share
+ * sheet, so newlines, tabs, commas and spaces are all treated as separators.
+ */
+export function splitTikTokLinks(text: string): string[] {
+  return (text ?? "")
+    .split(/[\s,]+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+}

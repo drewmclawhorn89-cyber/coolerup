@@ -15,14 +15,17 @@ import {
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import {
   addTikTokSource,
   deleteTikTokSource,
   getTikTokStatus,
+  importTikTokLinks,
   runTikTokSyncNow,
   setTikTokSourceEnabled,
   updateTikTokSettings,
+  type TikTokImportOutcome,
   type TikTokRunRow,
   type TikTokSourceRow,
   type TikTokStatus,
@@ -40,10 +43,13 @@ export function TikTokSyncPanel() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
+  const [bulk, setBulk] = useState("");
+  const [bulkResults, setBulkResults] = useState<TikTokImportOutcome[] | null>(null);
   const [error, setError] = useState("");
 
   const load = useServerFn(getTikTokStatus);
   const add = useServerFn(addTikTokSource);
+  const importLinks = useServerFn(importTikTokLinks);
   const toggle = useServerFn(setTikTokSourceEnabled);
   const remove = useServerFn(deleteTikTokSource);
   const saveSettings = useServerFn(updateTikTokSettings);
@@ -76,6 +82,27 @@ export function TikTokSyncPanel() {
       await refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not add that source.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function onImport(event: React.FormEvent) {
+    event.preventDefault();
+    if (!bulk.trim() || busy) return;
+    setBusy("import");
+    try {
+      const summary = await importLinks({ data: { links: bulk } });
+      setBulkResults(summary.results);
+      if (summary.added > 0) {
+        toast.success(summary.message);
+        setBulk("");
+      } else {
+        toast.error(summary.message);
+      }
+      await refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not import those links.");
     } finally {
       setBusy(null);
     }
@@ -320,6 +347,73 @@ export function TikTokSyncPanel() {
           )}
           Add source
         </Button>
+      </form>
+
+      <form onSubmit={onImport} className="space-y-2 rounded-xl border border-border bg-card p-3">
+        <div>
+          <p className="text-sm font-semibold">Import real TikTok videos</p>
+          <p className="text-xs text-muted-foreground">
+            Paste one TikTok video link per line. Each link becomes its own post in the feed with a
+            real TikTok id, played by TikTok&apos;s own player. Creator handles can&apos;t be listed
+            without a TikTok developer token, so this is the reliable way in.
+          </p>
+        </div>
+        <Textarea
+          value={bulk}
+          onChange={(event) => setBulk(event.target.value)}
+          placeholder={
+            "https://www.tiktok.com/@creator/video/7300000000000000000\nhttps://www.tiktok.com/@creator/video/7300000000000000001"
+          }
+          aria-label="TikTok video links to import"
+          rows={4}
+          className="font-mono text-xs"
+          disabled={busy !== null}
+        />
+        <div className="flex flex-wrap items-center gap-2">
+          <Button type="submit" disabled={!bulk.trim() || busy !== null} className="gap-2">
+            {busy === "import" ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Plus className="h-4 w-4" />
+            )}
+            Import videos
+          </Button>
+          {bulkResults ? (
+            <span className="text-xs text-muted-foreground">
+              {bulkResults.filter((row) => row.status === "added").length} added ·{" "}
+              {bulkResults.filter((row) => row.status === "duplicate").length} duplicate ·{" "}
+              {
+                bulkResults.filter((row) => row.status !== "added" && row.status !== "duplicate")
+                  .length
+              }{" "}
+              failed
+            </span>
+          ) : null}
+        </div>
+        {bulkResults && bulkResults.length > 0 ? (
+          <ul className="space-y-1">
+            {bulkResults.map((row, index) => (
+              <li
+                key={`${row.input}-${index}`}
+                className="flex flex-wrap items-baseline gap-2 text-xs text-muted-foreground"
+              >
+                <span
+                  className={
+                    row.status === "added"
+                      ? "font-semibold text-emerald-600"
+                      : row.status === "duplicate"
+                        ? "font-semibold text-amber-600"
+                        : "font-semibold text-destructive"
+                  }
+                >
+                  {row.status}
+                </span>
+                <span className="truncate font-mono">{row.input}</span>
+                <span className="truncate">{row.message}</span>
+              </li>
+            ))}
+          </ul>
+        ) : null}
       </form>
 
       <div className="space-y-2">

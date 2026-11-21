@@ -17,5 +17,5 @@
 - [x] Commit on a new branch, push, open PR
 
 ## Remaining (user action, cannot be done from the repo)
-- [ ] Set the rotated key as a host secret: `npx wrangler secret put GIPHY_API_KEY`
-- [ ] Redeploy so the Worker picks up the binding
+- [x] Set the rotated key as a host secret: `npx wrangler secret put GIPHY_API_KEY`
+- [x] Redeploy so the Worker picks up the binding

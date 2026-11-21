@@ -490,10 +490,6 @@ function VideoCardImpl({
   // share link and playback goes through TikTok's own embed player, so there is
   // no file to sign or stream and no <video> element to drive.
   const isTikTok = Boolean(video.is_tiktok && video.tiktok_id);
-  // A creator card is a TikTok source we could not enumerate (no Display API
-  // token), so instead of inventing rows we embed TikTok's own creator widget,
-  // which renders that profile's recent posts inside the card.
-  const tiktokCreator = video.is_tiktok && !video.tiktok_id ? (video.tiktok_author ?? null) : null;
   const { text: captionText, song, full } = parseCaption(video.caption);
   const songRef = useRef<HTMLAudioElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
@@ -590,7 +586,7 @@ function VideoCardImpl({
       alive = false;
       if (blobUrl) URL.revokeObjectURL(blobUrl);
     };
-  }, [video.id, qualitySource.url, shouldLoad, retry, isTikTok, tiktokCreator]);
+  }, [video.id, qualitySource.url, shouldLoad, retry, isTikTok]);
 
   // If the user tapped "play" on a card that wasn't auto-loading, start it once
   // the source is ready.
@@ -933,7 +929,7 @@ function VideoCardImpl({
                 </span>
               </div>
             )}
-            {src && !isImage && !isTikTok && !tiktokCreator && (
+            {src && !isImage && !isTikTok && (
               <video
                 ref={ref}
                 src={src}

@@ -5,6 +5,7 @@ import {
   normalizeOEmbed,
   parseTikTokInput,
   shortCaption,
+  splitTikTokLinks,
   tiktokEmbedUrl,
   tiktokIdFromEmbed,
   tiktokOEmbedUrl,
@@ -187,5 +188,23 @@ describe("shortCaption", () => {
   it("collapses whitespace and truncates with an ellipsis", () => {
     expect(shortCaption("  a   b  ")).toBe("a b");
     expect(shortCaption("abcdef", 4)).toBe("abc…");
+  });
+});
+
+describe("splitTikTokLinks", () => {
+  it("splits on newlines, commas and spaces", () => {
+    expect(
+      splitTikTokLinks(
+        "https://www.tiktok.com/@a/video/1111111111111111111\nhttps://www.tiktok.com/@b/video/2222222222222222222, 3333333333333333333",
+      ),
+    ).toEqual([
+      "https://www.tiktok.com/@a/video/1111111111111111111",
+      "https://www.tiktok.com/@b/video/2222222222222222222",
+      "3333333333333333333",
+    ]);
+  });
+
+  it("ignores blank input", () => {
+    expect(splitTikTokLinks("   \n\n  ")).toEqual([]);
   });
 });

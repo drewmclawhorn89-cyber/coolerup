@@ -31,9 +31,7 @@ import { DEFAULT_MAINTENANCE_MESSAGE, watchAppStatus, type AppStatus } from "@/l
 const RELOAD_SECONDS = 5;
 
 type Shutdown =
-  | { kind: "maintenance"; status: AppStatus }
-  | { kind: "stale"; serverBuild: string }
-  | null;
+  { kind: "maintenance"; status: AppStatus } | { kind: "stale"; serverBuild: string } | null;
 
 export function UpdateGate({ children }: { children: React.ReactNode }) {
   const [shutdown, setShutdown] = useState<Shutdown>(null);

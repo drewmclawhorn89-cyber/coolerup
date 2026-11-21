@@ -53,6 +53,7 @@ import {
   type FullVideoComment,
   type Reaction,
 } from "@/lib/fullVideos";
+import { untypedDb } from "@/lib/untypedDb";
 
 export const Route = createFileRoute("/watch/$id")({
   head: () => ({
@@ -296,7 +297,7 @@ function WatchPage() {
     if (!auth.user || !video) return;
     let alive = true;
     void (async () => {
-      const db = supabase as any;
+      const db = untypedDb;
       const { data } = await db
         .from("follows")
         .select("id")
@@ -382,7 +383,7 @@ function WatchPage() {
       return;
     }
     if (!video) return;
-    const db = supabase as any;
+    const db = untypedDb;
     const handle = auth.handle ?? auth.name ?? "you";
 
     if (subscribed) {

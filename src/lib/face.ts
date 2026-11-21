@@ -1,7 +1,16 @@
 import { useEffect, useRef, type RefObject } from "react";
 import type { FaceBox } from "@/lib/animals";
 
-type Detector = { detectForVideo: (v: HTMLVideoElement, t: number) => { detections: { boundingBox?: { originX: number; originY: number; width: number; height: number } }[] } };
+type Detector = {
+  detectForVideo: (
+    v: HTMLVideoElement,
+    t: number,
+  ) => {
+    detections: {
+      boundingBox?: { originX: number; originY: number; width: number; height: number };
+    }[];
+  };
+};
 
 let detectorPromise: Promise<Detector | null> | null = null;
 
@@ -9,12 +18,21 @@ function loadDetector() {
   detectorPromise ??= (async () => {
     try {
       const { FaceDetector, FilesetResolver } = await import("@mediapipe/tasks-vision");
-      const fileset = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm");
-      const modelAssetPath = "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite";
+      const fileset = await FilesetResolver.forVisionTasks(
+        "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm",
+      );
+      const modelAssetPath =
+        "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite";
       try {
-        return (await FaceDetector.createFromOptions(fileset, { baseOptions: { modelAssetPath, delegate: "GPU" }, runningMode: "VIDEO" })) as unknown as Detector;
+        return (await FaceDetector.createFromOptions(fileset, {
+          baseOptions: { modelAssetPath, delegate: "GPU" },
+          runningMode: "VIDEO",
+        })) as unknown as Detector;
       } catch {
-        return (await FaceDetector.createFromOptions(fileset, { baseOptions: { modelAssetPath }, runningMode: "VIDEO" })) as unknown as Detector;
+        return (await FaceDetector.createFromOptions(fileset, {
+          baseOptions: { modelAssetPath },
+          runningMode: "VIDEO",
+        })) as unknown as Detector;
       }
     } catch {
       detectorPromise = null;
@@ -43,7 +61,10 @@ export function useFaceTracker(videoRef: RefObject<HTMLVideoElement | null>, act
         if (v && v.readyState >= 2 && v.videoWidth && v.currentTime !== lastTs) {
           lastTs = v.currentTime;
           try {
-            const boxes = det.detectForVideo(v, performance.now()).detections.map((d) => d.boundingBox).filter(Boolean);
+            const boxes = det
+              .detectForVideo(v, performance.now())
+              .detections.map((d) => d.boundingBox)
+              .filter(Boolean);
             const b = boxes.sort((a, c) => c!.width - a!.width)[0];
             if (b) {
               const cx = b.originX + b.width / 2;
@@ -51,7 +72,12 @@ export function useFaceTracker(videoRef: RefObject<HTMLVideoElement | null>, act
               const prev = faceRef.current;
               const k = prev ? 0.5 : 1; // light smoothing
               faceRef.current = prev
-                ? { cx: prev.cx + (cx - prev.cx) * k, cy: prev.cy + (cy - prev.cy) * k, w: prev.w + (b.width - prev.w) * k, at: performance.now() }
+                ? {
+                    cx: prev.cx + (cx - prev.cx) * k,
+                    cy: prev.cy + (cy - prev.cy) * k,
+                    w: prev.w + (b.width - prev.w) * k,
+                    at: performance.now(),
+                  }
                 : { cx, cy, w: b.width, at: performance.now() };
             }
           } catch {

@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Camera, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { errorText } from "@/lib/uploadErrors";
 
 export const LINK_FIELDS = [
   { key: "tiktok", label: "TikTok", placeholder: "https://tiktok.com/@you" },
@@ -65,7 +66,7 @@ export function EditProfileDialog({
     setLinks({ ...(auth.profile?.links ?? {}) });
     setShowLiked(auth.profile?.show_liked !== false);
     setPhoto(null);
-    let revoked: string | null = null;
+    const revoked: string | null = null;
     resolveAvatarUrl(auth.profile?.avatar_url).then((u) => setPreview(u));
     return () => {
       if (revoked) URL.revokeObjectURL(revoked);
@@ -134,8 +135,8 @@ export function EditProfileDialog({
       refreshProfile();
       toast.success("Profile updated");
       onOpenChange(false);
-    } catch (e: any) {
-      toast.error(e?.message || "Couldn't save your profile");
+    } catch (e) {
+      toast.error(errorText(e) || "Couldn't save your profile");
     } finally {
       setSaving(false);
     }

@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { resolveMediaUrl } from "@/lib/media";
+import { untypedDb } from "@/lib/untypedDb";
 
 /**
  * Groups (Facebook-style group pages).
@@ -8,8 +9,8 @@ import { resolveMediaUrl } from "@/lib/media";
  * The generated Supabase types don't know about these tables yet, so every
  * query goes through a loosely typed handle instead of `supabase.from(...)`.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const db = supabase as any;
+
+const db = untypedDb;
 
 export type GroupPrivacy = "public" | "private";
 export type GroupRole = "admin" | "moderator" | "member" | "pending" | "banned";

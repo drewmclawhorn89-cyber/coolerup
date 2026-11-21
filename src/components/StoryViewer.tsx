@@ -143,9 +143,15 @@ export function StoryViewer({
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black"
-      style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}
+      style={{
+        paddingTop: "env(safe-area-inset-top)",
+        paddingBottom: "env(safe-area-inset-bottom)",
+      }}
     >
-      <div className="absolute inset-x-2 z-10 flex gap-1" style={{ top: "calc(env(safe-area-inset-top) + 8px)" }}>
+      <div
+        className="absolute inset-x-2 z-10 flex gap-1"
+        style={{ top: "calc(env(safe-area-inset-top) + 8px)" }}
+      >
         {stories.map((s, i) => (
           <div key={s.id} className="h-1 flex-1 overflow-hidden rounded bg-white/30">
             <div className={`h-full bg-white ${i < index ? "w-full" : "w-0"}`} />
@@ -192,7 +198,10 @@ export function StoryViewer({
         ))}
 
       {burst && (
-        <div aria-hidden className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center"
+        >
           <Heart className="heart-pop h-28 w-28 fill-primary text-primary drop-shadow-[0_0_24px_rgba(255,45,85,0.8)]" />
         </div>
       )}
@@ -215,7 +224,9 @@ export function StoryViewer({
           aria-pressed={liked}
           className="flex h-12 w-12 items-center justify-center rounded-full bg-black/40 backdrop-blur-sm transition active:scale-90"
         >
-          <Heart className={`h-7 w-7 transition ${liked ? "fill-primary text-primary" : "text-white"}`} />
+          <Heart
+            className={`h-7 w-7 transition ${liked ? "fill-primary text-primary" : "text-white"}`}
+          />
         </button>
         <span className={`text-[12px] font-bold ${liked ? "text-primary" : "text-white"}`}>
           {formatCount(count)}

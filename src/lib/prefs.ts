@@ -54,13 +54,97 @@ type ThemePalette = {
 };
 
 const THEMES: Record<string, ThemePalette> = {
-  light: { bg: "#ffffff", fg: "#111111", card: "#ffffff", muted: "#f1f1f3", mutedFg: "#6b7280", border: "#e4e4e7", primary: "#111111", primaryFg: "#ffffff", accent: "#f1f1f3", accentFg: "#111111", ring: "#a1a1aa" },
-  dark: { bg: "#000000", fg: "#fafafa", card: "#151515", muted: "#262626", mutedFg: "#a1a1aa", border: "#2e2e2e", primary: "#fafafa", primaryFg: "#111111", accent: "#262626", accentFg: "#fafafa", ring: "#71717a" },
-  blue: { bg: "#2563EB", fg: "#ffffff", card: "#1d4fc4", muted: "#1e40af", mutedFg: "#dbeafe", border: "#3b82f6", primary: "#ffffff", primaryFg: "#1d4fc4", accent: "#1e40af", accentFg: "#ffffff", ring: "#93c5fd" },
-  purple: { bg: "#9333ea", fg: "#ffffff", card: "#7e22ce", muted: "#6b21a8", mutedFg: "#f3e8ff", border: "#a855f7", primary: "#ffffff", primaryFg: "#7e22ce", accent: "#6b21a8", accentFg: "#ffffff", ring: "#d8b4fe" },
-  pink: { bg: "#ec4899", fg: "#ffffff", card: "#db2777", muted: "#be185d", mutedFg: "#fce7f3", border: "#f472b6", primary: "#ffffff", primaryFg: "#be185d", accent: "#9d174d", accentFg: "#ffffff", ring: "#f9a8d4" },
-  green: { bg: "#16a34a", fg: "#ffffff", card: "#15803d", muted: "#166534", mutedFg: "#dcfce7", border: "#22c55e", primary: "#ffffff", primaryFg: "#166534", accent: "#14532d", accentFg: "#ffffff", ring: "#86efac" },
-  red: { bg: "#dc2626", fg: "#ffffff", card: "#b91c1c", muted: "#991b1b", mutedFg: "#fee2e2", border: "#ef4444", primary: "#ffffff", primaryFg: "#991b1b", accent: "#7f1d1d", accentFg: "#ffffff", ring: "#fca5a5" },
+  light: {
+    bg: "#ffffff",
+    fg: "#111111",
+    card: "#ffffff",
+    muted: "#f1f1f3",
+    mutedFg: "#6b7280",
+    border: "#e4e4e7",
+    primary: "#111111",
+    primaryFg: "#ffffff",
+    accent: "#f1f1f3",
+    accentFg: "#111111",
+    ring: "#a1a1aa",
+  },
+  dark: {
+    bg: "#000000",
+    fg: "#fafafa",
+    card: "#151515",
+    muted: "#262626",
+    mutedFg: "#a1a1aa",
+    border: "#2e2e2e",
+    primary: "#fafafa",
+    primaryFg: "#111111",
+    accent: "#262626",
+    accentFg: "#fafafa",
+    ring: "#71717a",
+  },
+  blue: {
+    bg: "#2563EB",
+    fg: "#ffffff",
+    card: "#1d4fc4",
+    muted: "#1e40af",
+    mutedFg: "#dbeafe",
+    border: "#3b82f6",
+    primary: "#ffffff",
+    primaryFg: "#1d4fc4",
+    accent: "#1e40af",
+    accentFg: "#ffffff",
+    ring: "#93c5fd",
+  },
+  purple: {
+    bg: "#9333ea",
+    fg: "#ffffff",
+    card: "#7e22ce",
+    muted: "#6b21a8",
+    mutedFg: "#f3e8ff",
+    border: "#a855f7",
+    primary: "#ffffff",
+    primaryFg: "#7e22ce",
+    accent: "#6b21a8",
+    accentFg: "#ffffff",
+    ring: "#d8b4fe",
+  },
+  pink: {
+    bg: "#ec4899",
+    fg: "#ffffff",
+    card: "#db2777",
+    muted: "#be185d",
+    mutedFg: "#fce7f3",
+    border: "#f472b6",
+    primary: "#ffffff",
+    primaryFg: "#be185d",
+    accent: "#9d174d",
+    accentFg: "#ffffff",
+    ring: "#f9a8d4",
+  },
+  green: {
+    bg: "#16a34a",
+    fg: "#ffffff",
+    card: "#15803d",
+    muted: "#166534",
+    mutedFg: "#dcfce7",
+    border: "#22c55e",
+    primary: "#ffffff",
+    primaryFg: "#166534",
+    accent: "#14532d",
+    accentFg: "#ffffff",
+    ring: "#86efac",
+  },
+  red: {
+    bg: "#dc2626",
+    fg: "#ffffff",
+    card: "#b91c1c",
+    muted: "#991b1b",
+    mutedFg: "#fee2e2",
+    border: "#ef4444",
+    primary: "#ffffff",
+    primaryFg: "#991b1b",
+    accent: "#7f1d1d",
+    accentFg: "#ffffff",
+    ring: "#fca5a5",
+  },
 };
 
 const THEME_VARS = [
@@ -116,7 +200,13 @@ export function applyTheme(theme: string) {
   if (document.body) document.body.style.backgroundColor = t.bg;
 }
 
-const LANG_CODES: Record<string, string> = { English: "en", Español: "es", Français: "fr", Deutsch: "de", Português: "pt" };
+const LANG_CODES: Record<string, string> = {
+  English: "en",
+  Español: "es",
+  Français: "fr",
+  Deutsch: "de",
+  Português: "pt",
+};
 
 export function applyPrefs() {
   if (typeof document === "undefined") return;

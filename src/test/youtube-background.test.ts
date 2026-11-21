@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { canBackgroundPlay, isYouTubeTrack as isYouTubeBackgroundTrack } from "@/lib/backgroundPlay";
+import {
+  canBackgroundPlay,
+  isYouTubeTrack as isYouTubeBackgroundTrack,
+} from "@/lib/backgroundPlay";
 import { isYouTubeTrack, trackYouTubeId, type PlayerTrack } from "@/lib/songPlayer";
 
 const root = join(__dirname, "..", "..");

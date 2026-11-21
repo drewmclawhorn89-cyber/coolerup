@@ -81,7 +81,7 @@ async function fetchYouTubeDuration(id: string): Promise<number | null> {
  */
 export const addYouTubeSong = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { url: string }) => {
+  .validator((input: { url: string }) => {
     if (typeof input?.url !== "string" || input.url.length > 2048) {
       throw new Error("Paste a valid YouTube link.");
     }

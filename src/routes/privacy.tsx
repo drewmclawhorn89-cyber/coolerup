@@ -92,7 +92,9 @@ function PrivacyPage() {
               your conversations.
             </p>
             <p>
-              <strong className="text-foreground">Notification settings and device push token.</strong>{" "}
+              <strong className="text-foreground">
+                Notification settings and device push token.
+              </strong>{" "}
               If you turn on notifications, your browser or phone gives us a push subscription
               address so we can deliver alerts to that device. You can turn this off at any time.
             </p>
@@ -200,8 +202,8 @@ function PrivacyPage() {
                 comment, or message you have posted.
               </li>
               <li>
-                <strong className="text-foreground">Turn off notifications</strong> — switch off push
-                in Settings, or block notifications in your browser or phone settings.
+                <strong className="text-foreground">Turn off notifications</strong> — switch off
+                push in Settings, or block notifications in your browser or phone settings.
               </li>
               <li>
                 <strong className="text-foreground">Delete your account</strong> — Settings →
@@ -210,8 +212,8 @@ function PrivacyPage() {
               </li>
             </ul>
             <p>
-              Depending on where you live, you may also have the right to access, correct, export, or
-              restrict the processing of your data. Email us and we will help.
+              Depending on where you live, you may also have the right to access, correct, export,
+              or restrict the processing of your data. Email us and we will help.
             </p>
           </Section>
 

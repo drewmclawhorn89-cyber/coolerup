@@ -33,7 +33,12 @@ export function AnimalOverlay({
         if (f && v.videoWidth) {
           const s = Math.max(cw / v.videoWidth, ch / v.videoHeight);
           const x = f.cx * s + (cw - v.videoWidth * s) / 2;
-          drawAnimal(ctx, animal, { cx: mirror ? cw - x : x, cy: f.cy * s + (ch - v.videoHeight * s) / 2, w: f.w * s, at: f.at });
+          drawAnimal(ctx, animal, {
+            cx: mirror ? cw - x : x,
+            cy: f.cy * s + (ch - v.videoHeight * s) / 2,
+            w: f.w * s,
+            at: f.at,
+          });
         }
       }
       raf = requestAnimationFrame(loop);
@@ -42,5 +47,11 @@ export function AnimalOverlay({
     return () => cancelAnimationFrame(raf);
   }, [animal, videoRef, faceRef, mirror]);
   if (!animal) return null;
-  return <canvas ref={canvasRef} className="pointer-events-none absolute inset-0 h-full w-full" aria-hidden />;
+  return (
+    <canvas
+      ref={canvasRef}
+      className="pointer-events-none absolute inset-0 h-full w-full"
+      aria-hidden
+    />
+  );
 }

@@ -48,7 +48,9 @@ export function SoundBar({ soundId, title, creatorUsername, className = "" }: So
           line-height: 1.2;
         }
       `}</style>
-      <div className={`repost-sound-bar pointer-events-auto flex max-w-[85%] items-center gap-2 ${className}`}>
+      <div
+        className={`repost-sound-bar pointer-events-auto flex max-w-[85%] items-center gap-2 ${className}`}
+      >
         <Link
           to="/sound/$soundId"
           params={{ soundId }}

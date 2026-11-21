@@ -13,13 +13,7 @@ import { offlinePlan } from "@/lib/subscriptions";
  * Shown whenever a free account tries to turn on Offline Mode or download a
  * video. Nothing is downloaded until the plan is paid and active.
  */
-export function OfflinePaywallDialog({
-  open,
-  onClose,
-}: {
-  open: boolean;
-  onClose: () => void;
-}) {
+export function OfflinePaywallDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const plan = offlinePlan();
 
   const subscribe = () => {
@@ -38,9 +32,9 @@ export function OfflinePaywallDialog({
             Offline Mode is for Paid Subscribers
           </DialogTitle>
           <DialogDescription className="text-center text-sm text-white/70">
-            Offline Mode is included with every paid plan — Plus, Pro and VIP. Subscribe to
-            download videos and watch them without a connection. Nothing is downloaded until your
-            plan is active.
+            Offline Mode is included with every paid plan — Plus, Pro and VIP. Subscribe to download
+            videos and watch them without a connection. Nothing is downloaded until your plan is
+            active.
           </DialogDescription>
         </DialogHeader>
         <DialogFooter className="mt-2 flex-col gap-2 sm:flex-col">

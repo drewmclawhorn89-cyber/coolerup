@@ -34,8 +34,8 @@ describe("shouldCompress", () => {
   });
 
   it("uses the documented thresholds", () => {
-    expect(shouldCompress(fileOfSize(COMPRESS_MIN_BYTES + 1), COMPRESS_MIN_DURATION_SECONDS + 1)).toBe(
-      true,
-    );
+    expect(
+      shouldCompress(fileOfSize(COMPRESS_MIN_BYTES + 1), COMPRESS_MIN_DURATION_SECONDS + 1),
+    ).toBe(true);
   });
 });

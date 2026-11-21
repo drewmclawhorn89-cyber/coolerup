@@ -83,7 +83,12 @@ function LivePage() {
           </button>
         </header>
 
-        <LiveNowList hosts={hosts} onWatch={watch} onGoLive={startLive} className="-mx-5 mt-2 px-5" />
+        <LiveNowList
+          hosts={hosts}
+          onWatch={watch}
+          onGoLive={startLive}
+          className="-mx-5 mt-2 px-5"
+        />
 
         <section className="mt-10 text-center">
           <h1 className="text-2xl font-black leading-tight">

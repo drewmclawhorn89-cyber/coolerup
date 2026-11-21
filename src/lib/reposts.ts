@@ -102,10 +102,7 @@ export async function fetchRepostAttribution(
   const userIds = Array.from(new Set(rows.map((r) => r.user_id)));
   if (userIds.length === 0) return new Map<string, string>();
 
-  const { data: profiles } = await supabase
-    .from("profiles")
-    .select("id, handle")
-    .in("id", userIds);
+  const { data: profiles } = await supabase.from("profiles").select("id, handle").in("id", userIds);
   const handleById = new Map(
     ((profiles ?? []) as { id: string; handle: string | null }[]).map((p) => [
       p.id,

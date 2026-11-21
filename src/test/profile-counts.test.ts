@@ -19,6 +19,7 @@ const { state } = vi.hoisted(() => ({
 
 vi.mock("@/integrations/supabase/client", () => {
   function builder(table: string) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- test double
     const api: any = {
       select(_cols: string, opts?: { count?: string; head?: boolean }) {
         if (opts?.head) {

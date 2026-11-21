@@ -232,7 +232,7 @@ async function searchWikipedia(query: string): Promise<SearchResult[]> {
 /* -------------------------------------------------------------------------- */
 
 export const searchCoolerupBrowser = createServerFn({ method: "GET" })
-  .inputValidator((input: { q?: string } | undefined) => {
+  .validator((input: { q?: string } | undefined) => {
     const raw = typeof input?.q === "string" ? input.q : "";
     return { q: raw.trim().slice(0, MAX_QUERY) };
   })
@@ -430,7 +430,7 @@ function summaryLinks(html: string, baseUrl: string): { label: string; url: stri
  * page can never run code in the Coolerup origin.
  */
 export const fetchBrowserPage = createServerFn({ method: "GET" })
-  .inputValidator((input: { url?: string } | undefined) => {
+  .validator((input: { url?: string } | undefined) => {
     const raw = typeof input?.url === "string" ? input.url : "";
     return { url: raw.trim().slice(0, 2048) };
   })

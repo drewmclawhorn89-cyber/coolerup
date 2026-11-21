@@ -97,16 +97,9 @@ export function LiveGiftPanel({
     if (category === "popular") {
       // Cheapest, most-gifted items first — the same handful TikTok surfaces.
       return catalogue.filter((gift) =>
-        [
-          "rose",
-          "heart",
-          "tiktok",
-          "hat",
-          "christmas",
-          "lion",
-          "universe",
-          "santa",
-        ].includes(gift.id),
+        ["rose", "heart", "tiktok", "hat", "christmas", "lion", "universe", "santa"].includes(
+          gift.id,
+        ),
       );
     }
     return catalogue;

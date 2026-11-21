@@ -16,7 +16,15 @@ const REASONS = [
   ["other", "Other"],
 ] as const;
 
-export function ReportDialog({ username, videoId, onClose }: { username: string; videoId?: string; onClose: () => void }) {
+export function ReportDialog({
+  username,
+  videoId,
+  onClose,
+}: {
+  username: string;
+  videoId?: string;
+  onClose: () => void;
+}) {
   const auth = useAuth();
   const [reason, setReason] = useState<(typeof REASONS)[number][0] | null>(null);
   const [details, setDetails] = useState("");
@@ -41,14 +49,24 @@ export function ReportDialog({ username, videoId, onClose }: { username: string;
   };
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-overlay p-0 sm:items-center sm:p-4" onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} className="w-full max-w-sm rounded-t-3xl border bg-card p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] sm:rounded-3xl">
+    <div
+      className="fixed inset-0 z-[60] flex items-end justify-center bg-overlay p-0 sm:items-center sm:p-4"
+      onClick={onClose}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-sm rounded-t-3xl border bg-card p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] sm:rounded-3xl"
+      >
         <div className="mb-4 flex items-center justify-between">
           <h2 className="font-display text-lg">Report @{username}</h2>
-          <button onClick={onClose} aria-label="Close"><X className="h-5 w-5" /></button>
+          <button onClick={onClose} aria-label="Close">
+            <X className="h-5 w-5" />
+          </button>
         </div>
         {!auth.user ? (
-          <Button onClick={auth.signIn} className="w-full rounded-full">Sign in to report</Button>
+          <Button onClick={auth.signIn} className="w-full rounded-full">
+            Sign in to report
+          </Button>
         ) : (
           <>
             <div className="grid grid-cols-2 gap-2">
@@ -69,7 +87,13 @@ export function ReportDialog({ username, videoId, onClose }: { username: string;
               placeholder="Anything else? (optional)"
               className="mt-3 h-20 w-full resize-none rounded-2xl bg-secondary p-3 text-sm outline-none"
             />
-            <Button disabled={!reason || busy} onClick={submit} className="mt-3 w-full rounded-full">Send report</Button>
+            <Button
+              disabled={!reason || busy}
+              onClick={submit}
+              className="mt-3 w-full rounded-full"
+            >
+              Send report
+            </Button>
           </>
         )}
       </div>

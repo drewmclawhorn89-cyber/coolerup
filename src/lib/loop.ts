@@ -367,7 +367,9 @@ export async function uploadVideo(
     throw new Error("That file is empty. Pick another one.");
   }
   const ext = file.name.split(".").pop() || "mp4";
-  const { data: { user: uploader } } = await supabase.auth.getUser();
+  const {
+    data: { user: uploader },
+  } = await supabase.auth.getUser();
   if (!uploader) throw new Error("Sign in to upload");
   const path = `${uploader.id}/${crypto.randomUUID()}.${ext}`;
   const { error: upErr } = await supabase.storage
@@ -406,7 +408,9 @@ export async function uploadRecording(
 ): Promise<string | null> {
   const contentType = blob.type || "video/webm";
   const ext = contentType.includes("mp4") ? "mp4" : "webm";
-  const { data: { user: recorder } } = await supabase.auth.getUser();
+  const {
+    data: { user: recorder },
+  } = await supabase.auth.getUser();
   if (!recorder) throw new Error("Sign in to upload");
   const path = `${recorder.id}/recorded-${Date.now()}.${ext}`;
   const { error: upErr } = await supabase.storage

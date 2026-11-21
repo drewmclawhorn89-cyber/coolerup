@@ -48,6 +48,7 @@ import {
   type GroupPost,
   type GroupPostComment,
 } from "@/lib/groups";
+import { errorText } from "@/lib/uploadErrors";
 
 export const Route = createFileRoute("/groups/$groupId")({
   head: () => ({ meta: [{ title: "Group — Coolerup" }] }),
@@ -101,8 +102,8 @@ function GroupPage() {
       setPosts(p);
       // Which of these the viewer has already liked, so hearts survive a reload.
       setLikedPosts((await fetchGroupPostLikes(p.map((post) => post.id))).mine);
-    } catch (err: any) {
-      toast.error(err?.message ?? "Couldn't load this group.");
+    } catch (err) {
+      toast.error(errorText(err) || "Couldn't load this group.");
     } finally {
       setLoading(false);
     }
@@ -136,8 +137,8 @@ function GroupPage() {
       toast.success(
         role === "pending" ? "Request sent — an admin will review it." : `Joined ${group.name}`,
       );
-    } catch (err: any) {
-      toast.error(err?.message ?? "Couldn't join.");
+    } catch (err) {
+      toast.error(errorText(err) || "Couldn't join.");
     } finally {
       setBusy(false);
     }
@@ -152,8 +153,8 @@ function GroupPage() {
       if (isActiveMember(myRole))
         setGroup({ ...group, members_count: Math.max(0, (group.members_count ?? 1) - 1) });
       toast.success("Left group");
-    } catch (err: any) {
-      toast.error(err?.message ?? "Couldn't leave.");
+    } catch (err) {
+      toast.error(errorText(err) || "Couldn't leave.");
     } finally {
       setBusy(false);
     }
@@ -355,8 +356,8 @@ function PostsTab({
     if (!file || !auth.user) return;
     try {
       setMedia(await uploadGroupMedia(file, auth.user.id));
-    } catch (err: any) {
-      toast.error(err?.message ?? "Couldn't upload that file.");
+    } catch (err) {
+      toast.error(errorText(err) || "Couldn't upload that file.");
     }
   };
 
@@ -379,8 +380,8 @@ function PostsTab({
       setCaption("");
       setMedia(null);
       toast.success("Posted to group");
-    } catch (err: any) {
-      toast.error(err?.message ?? "Couldn't post.");
+    } catch (err) {
+      toast.error(errorText(err) || "Couldn't post.");
     } finally {
       setPosting(false);
     }
@@ -410,7 +411,7 @@ function PostsTab({
     try {
       const likes = await likeGroupPost(post, on);
       setPosts((list) => list.map((p) => (p.id === post.id ? { ...p, likes } : p)));
-    } catch (err: any) {
+    } catch (err) {
       // Put the heart back where it was — the like did not actually save.
       setLiked((s) => {
         const n = new Set(s);
@@ -419,7 +420,7 @@ function PostsTab({
         return n;
       });
       setPosts((list) => list.map((p) => (p.id === post.id ? { ...p, likes: previousLikes } : p)));
-      toast.error(err?.message ?? "Couldn't save that like.");
+      toast.error(errorText(err) || "Couldn't save that like.");
     }
   };
 
@@ -427,8 +428,8 @@ function PostsTab({
     try {
       await deleteGroupPost(post.id);
       setPosts((list) => list.filter((p) => p.id !== post.id));
-    } catch (err: any) {
-      toast.error(err?.message ?? "Couldn't delete that post.");
+    } catch (err) {
+      toast.error(errorText(err) || "Couldn't delete that post.");
     }
   };
 
@@ -819,8 +820,8 @@ function MembersTab({
       );
       setGroup({ ...group, members_count: (group.members_count ?? 0) + 1 });
       toast.success(`Approved @${m.username}`);
-    } catch (err: any) {
-      toast.error(err?.message ?? "Couldn't approve.");
+    } catch (err) {
+      toast.error(errorText(err) || "Couldn't approve.");
     }
   };
 
@@ -831,8 +832,8 @@ function MembersTab({
         list.map((x) => (x.user_id === m.user_id ? { ...x, role: "moderator" } : x)),
       );
       toast.success(`@${m.username} is now a moderator`);
-    } catch (err: any) {
-      toast.error(err?.message ?? "Couldn't update that member.");
+    } catch (err) {
+      toast.error(errorText(err) || "Couldn't update that member.");
     }
   };
 
@@ -849,8 +850,8 @@ function MembersTab({
           setGroup({ ...group, members_count: Math.max(0, (group.members_count ?? 1) - 1) });
       }
       toast.success(ban ? `Banned @${m.username}` : `Removed @${m.username}`);
-    } catch (err: any) {
-      toast.error(err?.message ?? "Couldn't remove that member.");
+    } catch (err) {
+      toast.error(errorText(err) || "Couldn't remove that member.");
     }
   };
 

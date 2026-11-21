@@ -81,9 +81,7 @@ export function SubscriptionsPanel({
         </div>
       )}
 
-      {sub?.isLifetime && (
-        <LifetimeBanner plan={sub.planId} grantedBy={sub.grantedBy ?? null} />
-      )}
+      {sub?.isLifetime && <LifetimeBanner plan={sub.planId} grantedBy={sub.grantedBy ?? null} />}
 
       {codeSummary && sub?.status === "active" && (
         <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm">

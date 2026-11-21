@@ -232,12 +232,7 @@ function readToken(raw: string): TokenDetails {
   }
 }
 
-export type GooglePayReason =
-  | "ready"
-  | "no-api"
-  | "script-blocked"
-  | "no-wallet"
-  | "unsupported";
+export type GooglePayReason = "ready" | "no-api" | "script-blocked" | "no-wallet" | "unsupported";
 
 export type GooglePayDiagnosis = { ready: boolean; reason: GooglePayReason };
 

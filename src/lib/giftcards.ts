@@ -227,7 +227,9 @@ function freeGiftCardKey(handle: string): string {
   return `coolerup-free-gift-cards:${handle.toLowerCase()}`;
 }
 
-export function getFreeGiftCardClaims(handle?: string | null): Array<{ date: string; cardId: string; amount: number; claimedAt: string }> {
+export function getFreeGiftCardClaims(
+  handle?: string | null,
+): Array<{ date: string; cardId: string; amount: number; claimedAt: string }> {
   if (!handle || typeof window === "undefined") return [];
   try {
     const raw = window.localStorage.getItem(freeGiftCardKey(handle));
@@ -245,7 +247,10 @@ export function freeGiftCardClaimsRemaining(handle?: string | null): number {
   return Math.max(0, FREE_GIFT_CARD_LIMIT_PER_DAY - claims.length);
 }
 
-export function claimFreeGiftCard(handle: string | null, cardId: string): { card: GiftCardBrand; amount: number; remaining: number } {
+export function claimFreeGiftCard(
+  handle: string | null,
+  cardId: string,
+): { card: GiftCardBrand; amount: number; remaining: number } {
   if (!handle || typeof window === "undefined") {
     throw new Error("Sign in to claim a free gift card");
   }
@@ -266,7 +271,10 @@ export function claimFreeGiftCard(handle: string | null, cardId: string): { card
     throw new Error("You've reached the 5 free gift card limit for today.");
   }
 
-  const nextClaims = [...claims, { date: today, cardId, amount: offer.amount, claimedAt: new Date().toISOString() }];
+  const nextClaims = [
+    ...claims,
+    { date: today, cardId, amount: offer.amount, claimedAt: new Date().toISOString() },
+  ];
   window.localStorage.setItem(freeGiftCardKey(handle), JSON.stringify(nextClaims));
 
   return {

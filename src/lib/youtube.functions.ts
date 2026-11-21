@@ -40,7 +40,7 @@ async function fetchYouTubeDuration(id: string): Promise<number | null> {
 
 export const addYouTubeVideo = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { url: string }) => {
+  .validator((input: { url: string }) => {
     if (typeof input?.url !== "string" || input.url.length > 2048)
       throw new Error("Paste a valid YouTube link.");
     const id = extractYouTubeId(input.url);
@@ -119,7 +119,7 @@ export const addYouTubeVideo = createServerFn({ method: "POST" })
  */
 export const refreshYouTubeDurations = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { ids: string[] }) => {
+  .validator((input: { ids: string[] }) => {
     if (!Array.isArray(input?.ids)) throw new Error("Nothing to look up.");
     const ids = input.ids
       .filter((id): id is string => typeof id === "string" && /^[A-Za-z0-9_-]{1,64}$/.test(id))
@@ -172,7 +172,7 @@ export const refreshYouTubeDurations = createServerFn({ method: "POST" })
  */
 export const saveYouTubeDurations = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { durations: Record<string, number> }) => {
+  .validator((input: { durations: Record<string, number> }) => {
     const entries = Object.entries(input?.durations ?? {}).filter(
       ([id, seconds]) =>
         typeof id === "string" &&

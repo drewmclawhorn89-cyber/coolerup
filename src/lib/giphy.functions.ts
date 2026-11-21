@@ -37,7 +37,7 @@ const MAX_LIMIT = 50;
 
 export const searchGiphy = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { q?: string; limit?: number } | undefined) => {
+  .validator((d: { q?: string; limit?: number } | undefined) => {
     const q = typeof d?.q === "string" ? d.q.trim().slice(0, MAX_QUERY) : "";
     const raw = Number(d?.limit ?? 24);
     const limit = Number.isFinite(raw) ? Math.min(Math.max(Math.trunc(raw), 1), MAX_LIMIT) : 24;

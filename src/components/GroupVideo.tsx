@@ -65,7 +65,9 @@ export function GroupVideo({
 
   if (failed) {
     return (
-      <div className={`flex h-48 items-center justify-center bg-black text-[12px] text-gray-400 ${className}`}>
+      <div
+        className={`flex h-48 items-center justify-center bg-black text-[12px] text-gray-400 ${className}`}
+      >
         This video couldn't be loaded.
       </div>
     );

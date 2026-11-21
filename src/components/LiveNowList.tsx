@@ -46,7 +46,10 @@ type Props = {
  */
 export function LiveNowList({ hosts, onWatch, onGoLive, className = "" }: Props) {
   return (
-    <div className={`mx-auto w-full max-w-md px-5 pb-28 pt-6 ${className}`} data-testid="live-directory">
+    <div
+      className={`mx-auto w-full max-w-md px-5 pb-28 pt-6 ${className}`}
+      data-testid="live-directory"
+    >
       <div className="mb-3 flex items-center justify-between">
         <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.16em] text-white/40">
           <span className="relative flex h-2 w-2">

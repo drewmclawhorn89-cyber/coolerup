@@ -222,12 +222,18 @@ export const RULES = [
 ] as const;
 
 /* -------------------------------------------------------------------------- */
-/*  TikTok-style auto moderation                                              */
+/*  Auto moderation                                                           */
 /*                                                                            */
-/*  Auto-bans are DISABLED. Reports are recorded and shown in /admin, but     */
-/*  nothing bans or mutes a user automatically — you decide.                   */
-/*  The only automatic action left is hiding a single video whose caption      */
-/*  trips the banned-word filter.                                             */
+/*  POLICY CHANGED: the 3-strike ladder is now automatic. `auto_moderate()`   */
+/*  in supabase/migrations/20261217000000_auto_bans.sql owns the escalation:  */
+/*                                                                            */
+/*    strike 1 -> warning popup + the post/comment is removed                 */
+/*    strike 2 -> warning popup + removal + 24 hour mute                      */
+/*    strike 3 -> warning popup + permanent ban (account, device, email,      */
+/*                phone), enforced app-wide by BanGate                        */
+/*                                                                            */
+/*  Client-side detection lives in src/lib/autoBans.ts. This file still       */
+/*  holds the word lists, the report queue and the manual admin tools.        */
 /* -------------------------------------------------------------------------- */
 
 /** Report categories, in TikTok's order. */
@@ -235,6 +241,7 @@ export const REPORT_REASONS = [
   { id: "violence", label: "Violence", hint: "Threats, gore, or encouraging harm" },
   { id: "hate", label: "Hate speech", hint: "Attacks based on who someone is" },
   { id: "nudity", label: "Nudity", hint: "Sexual content or exposure" },
+  { id: "sexual", label: "Sexual content", hint: "Explicit sexual content" },
   { id: "spam", label: "Spam", hint: "Fake giveaways, repeated posts, shady links" },
   { id: "harassment", label: "Harassment", hint: "Bullying or targeting someone" },
   { id: "minor", label: "Minor safety", hint: "Anyone under 18 in danger" },

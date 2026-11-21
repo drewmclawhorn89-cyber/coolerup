@@ -44,6 +44,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { ReportButton } from "@/components/ReportButton";
 import { REPORT_REASONS, checkIfBanned, reportContent, type ReportReason } from "@/lib/moderation";
 import { resolveAvatarUrl } from "./EditProfileDialog";
 import { notifyUser, profileIdForHandle } from "@/lib/notify";
@@ -1242,6 +1243,16 @@ function VideoCardImpl({
           <RailButton label="Share" onClick={() => setShowShare(true)}>
             <Share2 className="h-7 w-7 text-white drop-shadow-lg" />
           </RailButton>
+
+          {/* REPORT — same queue as every other report button */}
+          <ReportButton
+            username={video.username}
+            videoId={video.id}
+            target="video"
+            className="flex flex-col items-center gap-1 rounded-full p-0 text-white drop-shadow-lg transition-transform active:scale-90"
+            label=""
+            iconClassName="h-7 w-7 drop-shadow-lg"
+          />
 
           {/* SOUND — spinning record, sits with the other actions like TikTok */}
           {soundId ? (

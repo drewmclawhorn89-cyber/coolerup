@@ -47,6 +47,7 @@ import { followUser, isFollowing as checkIsFollowing, unfollowUser } from "@/lib
 import type { Profile as ProfileRow } from "@/hooks/useAuth";
 import { OnlineDot, OnlineStatusSubtitle } from "@/components/OnlineStatusBadge";
 import { normalizePresenceHandle, useOnlineStatus, useOnlineStatuses } from "@/lib/onlineStatus";
+import { ReportButton } from "@/components/ReportButton";
 
 export const Route = createFileRoute("/u/$username")({
   component: Profile,
@@ -610,6 +611,7 @@ function Profile() {
             )}
           </div>
           {!isOwn && auth.ready && (
+            <div className="flex items-center gap-2">
             <Button
               type="button"
               onClick={() => void toggleProfileFollow()}
@@ -630,6 +632,13 @@ function Profile() {
                 </>
               )}
             </Button>
+            <ReportButton
+              username={username}
+              target="profile"
+              className="rounded-full border border-border p-2 text-muted-foreground transition-colors hover:text-[#FE2C55]"
+              iconClassName="h-4 w-4"
+            />
+            </div>
           )}
           {profile?.bio && <p className="max-w-md text-sm text-muted-foreground">{profile.bio}</p>}
           {profile?.links && Object.keys(profile.links).length > 0 && (

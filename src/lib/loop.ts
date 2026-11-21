@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { createQualityVersions, qualityColumns } from "./videoQuality";
 import { requestOfflineSync } from "./offlineEvents";
+import { screenContent } from "./autoBans";
 
 export type Video = {
   id: string;
@@ -421,6 +422,7 @@ export async function uploadVideo(
   if (error) throw error;
   const id = (data as { id?: string } | null)?.id ?? null;
   if (id && isVideo) await ensureOriginalSound(id);
+  if (id) await screenCaption(uploader.id, username, caption, id);
   return id;
 }
 
@@ -458,7 +460,23 @@ export async function uploadRecording(
   if (error) throw error;
   const id = (data as { id?: string } | null)?.id ?? null;
   if (id) await ensureOriginalSound(id);
+  if (id) await screenCaption(recorder.id, username, caption, id);
   return id;
+}
+
+/**
+ * Run the caption through the 3-strike ladder.
+ *
+ * On a hit the database hides the video and records the strike; the strike
+ * bus raises the warning popup. A moderation outage must never fail the
+ * upload that already succeeded, so this swallows its own errors.
+ */
+async function screenCaption(userId: string, username: string, caption: string, videoId: string) {
+  try {
+    await screenContent({ userId, username, text: caption, contentType: "video", contentId: videoId });
+  } catch (e) {
+    console.error("caption moderation failed", e);
+  }
 }
 
 /** Ask the database to create this video's own "Original sound" row. */

@@ -37,6 +37,7 @@ import {
   youtubeEmbedUrl,
   youtubeSongId,
 } from "@/lib/youtubeSongs";
+import { useWarnings } from "@/components/WarningProvider";
 
 const MAX_SECONDS = 60;
 const MIME_CANDIDATES = [
@@ -74,6 +75,7 @@ export function RecordDialog({
   /** Pre-selected sound ("Use this sound" from a sound page). */
   sound?: Sound | null;
 }) {
+  const { muted, mutedUntil } = useWarnings();
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -366,6 +368,14 @@ export function RecordDialog({
     if (!recordedBlob) return;
     if (!username) {
       toast.error("Finish setting up your profile before posting");
+      return;
+    }
+    if (muted) {
+      toast.error(
+        mutedUntil
+          ? `You're muted until ${new Date(mutedUntil).toLocaleString()}.`
+          : "You're muted and can't post right now.",
+      );
       return;
     }
     setPosting(true);

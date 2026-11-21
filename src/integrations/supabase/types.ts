@@ -2519,6 +2519,45 @@ export type Database = {
         Args: { p_live_id: string; p_user_id: string };
         Returns: number;
       };
+      admin_ban_list: {
+        Args: never;
+        Returns: {
+          id: string;
+          username: string;
+          user_id: string | null;
+          kind: string;
+          reason: string | null;
+          strike_count: number;
+          last_kind: string | null;
+          last_content_type: string | null;
+          is_permanent: boolean;
+          auto: boolean;
+          banned_by: string | null;
+          expires_at: string | null;
+          created_at: string;
+          active: boolean;
+          identity_count: number;
+        }[];
+      };
+      auto_moderate: {
+        Args: {
+          p_user_id: string;
+          p_username: string;
+          p_kind: string;
+          p_reason: string;
+          p_content_type?: string | null;
+          p_content_id?: string | null;
+        };
+        Returns: Json;
+      };
+      check_identity_ban: {
+        Args: { p_kind: string; p_value: string };
+        Returns: Json;
+      };
+      is_owner: { Args: never; Returns: boolean };
+      my_strike_status: { Args: never; Returns: Json };
+      owner_unban: { Args: { p_username: string }; Returns: Json };
+      register_device: { Args: { p_device_id: string }; Returns: Json };
       admin_ban: {
         Args: {
           _hours?: number;

@@ -381,6 +381,7 @@ export async function uploadVideo(
   const { data, error } = await supabase
     .from("videos")
     .insert({
+      user_id: uploader.id,
       username,
       caption:
         withSong(caption, file.type.startsWith("image/") ? song : null) +
@@ -416,6 +417,7 @@ export async function uploadRecording(
   const { data, error } = await supabase
     .from("videos")
     .insert({
+      user_id: recorder.id,
       username,
       caption: `${caption}${soundBaked ? "[[baked]]" : ""}`,
       video_url: STORAGE_PREFIX + path,

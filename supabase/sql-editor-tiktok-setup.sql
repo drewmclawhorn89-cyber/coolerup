@@ -5,7 +5,7 @@
 -- It is idempotent: running it twice is harmless.
 --
 -- It does three things:
---   1. Verifies the prerequisites it depends on (full_videos, profiles, has_role)
+--   1. Verifies the prerequisites it depends on (videos, profiles, has_role)
 --   2. Creates every TikTok table / index / policy / function
 --   3. Prints a report so you can see exactly what state you are in
 --
@@ -17,15 +17,14 @@
 -- ---------------------------------------------------------------------------
 -- STEP 1 — Prerequisites
 -- ---------------------------------------------------------------------------
--- `full_videos` must already exist (migration 20261119000000_full_videos.sql).
--- If this block raises, stop: the base schema is missing and nothing below
--- will work.
+-- `videos` (the short-form feed) must already exist. If this block raises,
+-- stop: the base schema is missing and nothing below will work.
 
 do $$
 begin
-  if to_regclass('public.full_videos') is null then
+  if to_regclass('public.videos') is null then
     raise exception
-      'public.full_videos is missing. Run 20261119000000_full_videos.sql first.';
+      'public.videos is missing. That is the short-form feed table and it must exist before this runs.';
   end if;
 end
 $$;
@@ -34,7 +33,7 @@ $$;
 -- are absent — the policies below are wrapped so a missing has_role() cannot
 -- abort the setup.
 select
-  to_regclass('public.full_videos')  as full_videos,
+  to_regclass('public.videos')       as videos_feed,
   to_regclass('public.profiles')     as profiles,
   to_regclass('public.user_roles')   as user_roles,
   exists (
@@ -45,20 +44,41 @@ select
 
 
 -- ---------------------------------------------------------------------------
--- STEP 2 — full_videos: TikTok provenance + dedupe
+-- STEP 2 — videos (the short-form feed): TikTok provenance + dedupe
 -- ---------------------------------------------------------------------------
+-- Ingested clips land in the swipe feed, so the provenance columns live on
+-- `videos`. `videos.user_id` is nullable, so a missing owner account is not
+-- fatal — the clip still shows up with the TikTok handle as its username.
 
-alter table public.full_videos
+alter table public.videos
   add column if not exists is_tiktok boolean not null default false,
   add column if not exists tiktok_id text,
   add column if not exists tiktok_author text;
 
-create unique index if not exists full_videos_tiktok_id_key
-  on public.full_videos (tiktok_id)
+create unique index if not exists videos_tiktok_id_key
+  on public.videos (tiktok_id)
   where tiktok_id is not null;
 
-create index if not exists full_videos_is_tiktok_idx
-  on public.full_videos (is_tiktok, created_at desc);
+create index if not exists videos_is_tiktok_idx
+  on public.videos (is_tiktok, created_at desc);
+
+-- Older installs wrote ingested rows into the long-form library. Clear the
+-- provenance markers there so the same clip is not counted twice; the rows
+-- themselves are left alone in case anything links to them.
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'full_videos'
+      and column_name = 'is_tiktok'
+  ) then
+    update public.full_videos
+       set is_tiktok = false, tiktok_id = null, tiktok_author = null
+     where is_tiktok = true;
+  end if;
+end
+$$;
 
 
 -- ---------------------------------------------------------------------------
@@ -250,11 +270,11 @@ select 'tables', 'tiktok_sync_runs',
        case when to_regclass('public.tiktok_sync_runs') is not null
             then 'ok' else 'MISSING' end
 union all
-select 'column', 'full_videos.is_tiktok',
+select 'column', 'videos.is_tiktok',
        case when exists (
               select 1 from information_schema.columns
               where table_schema = 'public'
-                and table_name = 'full_videos'
+                and table_name = 'videos'
                 and column_name = 'is_tiktok')
             then 'ok' else 'MISSING' end
 union all
@@ -272,8 +292,8 @@ union all
 select 'sources added', 'enabled sources',
        (select count(*)::text from public.tiktok_sources where enabled)
 union all
-select 'tiktok videos', 'rows in full_videos',
-       (select count(*)::text from public.full_videos where is_tiktok)
+select 'tiktok videos', 'rows in videos (feed)',
+       (select count(*)::text from public.videos where is_tiktok)
 union all
 select 'sync runs', 'rows in tiktok_sync_runs',
        (select count(*)::text from public.tiktok_sync_runs);

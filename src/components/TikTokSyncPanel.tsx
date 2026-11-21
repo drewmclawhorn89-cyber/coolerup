@@ -175,7 +175,7 @@ export function TikTokSyncPanel() {
               Every {status.settings.interval_minutes} min · up to {status.settings.max_per_source}{" "}
               per source · {status.counts.published} published
               {status.counts.drafts > 0 ? ` · ${status.counts.drafts} awaiting review` : ""} ·{" "}
-              {status.counts.total} TikTok videos in the library
+              {status.counts.total} TikTok videos in the feed
             </p>
             {status.discovery.mode === "public_pages" && (
               <p className="mt-2 max-w-xl rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">

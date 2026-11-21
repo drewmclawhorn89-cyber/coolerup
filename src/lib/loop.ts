@@ -37,6 +37,12 @@ export type Video = {
    * The feed renders it big at the bottom-left over the video.
    */
   poster_username?: string | null;
+  /** True for rows pulled in by the 24/7 TikTok sync. */
+  is_tiktok?: boolean;
+  /** Numeric TikTok post id; playback goes through TikTok's embed player. */
+  tiktok_id?: string | null;
+  /** Creator handle the clip belongs to, without the leading "@". */
+  tiktok_author?: string | null;
 };
 
 /** Minimal sound shape embedded in feed rows. */

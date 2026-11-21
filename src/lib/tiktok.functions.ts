@@ -81,17 +81,17 @@ export const getTikTokStatus = createServerFn({ method: "GET" })
         .order("created_at", { ascending: false })
         .limit(200),
       db.from("tiktok_sync_runs").select("*").order("started_at", { ascending: false }).limit(20),
-      db.from("full_videos").select("id", { count: "exact", head: true }).eq("is_tiktok", true),
+      db.from("videos").select("id", { count: "exact", head: true }).eq("is_tiktok", true),
       db
-        .from("full_videos")
+        .from("videos")
         .select("id", { count: "exact", head: true })
         .eq("is_tiktok", true)
-        .eq("status", "ready"),
+        .eq("hidden", false),
       db
-        .from("full_videos")
+        .from("videos")
         .select("id", { count: "exact", head: true })
         .eq("is_tiktok", true)
-        .eq("status", "draft"),
+        .eq("hidden", true),
     ]);
 
     return {
@@ -250,8 +250,8 @@ export const publishTikTokVideo = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as unknown as import("@supabase/supabase-js").SupabaseClient;
     const { error } = await db
-      .from("full_videos")
-      .update({ status: "ready" })
+      .from("videos")
+      .update({ hidden: false })
       .eq("id", data.id)
       .eq("is_tiktok", true);
     if (error) throw new Error(error.message);

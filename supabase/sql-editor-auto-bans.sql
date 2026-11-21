@@ -399,11 +399,18 @@ begin
 
   if permanent then
     -- Mirror into banned_users so the existing BanGate / admin screens see it.
+    -- Guarded so a pre-existing manual ban row does not raise a unique
+    -- violation and abort the whole ladder. Without this, banning someone an
+    -- admin had already banned would fail and record nothing.
     insert into public.banned_users (
       username, user_id, reason, kind, is_permanent, auto, banned_by, expires_at
     )
-    values (
+    select
       coalesce(p_username, 'unknown'), p_user_id, p_reason, 'ban', true, true, 'auto-moderation', null
+    where not exists (
+      select 1 from public.banned_users b
+      where b.user_id = p_user_id
+         or lower(btrim(b.username)) = lower(btrim(coalesce(p_username, '')))
     );
 
     -- Burn every identity we can attribute to this account.

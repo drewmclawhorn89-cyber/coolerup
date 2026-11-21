@@ -256,6 +256,52 @@ export function TikTokSyncPanel() {
         </div>
       </article>
 
+      {/* What actually landed. Without this an admin has to scroll the swipe
+          feed to find out whether a sync did anything. */}
+      <article className="rounded-xl border border-border bg-card p-4">
+        <p className="text-sm font-semibold">Videos pulled from TikTok</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          These live in the swipe feed at <code>/</code>. Newest first.
+        </p>
+        {status.videos.length === 0 ? (
+          <p className="mt-3 rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
+            Nothing pulled yet. Add a source and press Sync now.
+          </p>
+        ) : (
+          <ul className="mt-3 divide-y divide-border">
+            {status.videos.map((video) => (
+              <li key={video.id} className="flex items-start justify-between gap-3 py-2">
+                <div className="min-w-0">
+                  <p className="truncate text-sm">
+                    <span className="font-semibold">
+                      @{video.tiktok_author || video.username || "unknown"}
+                    </span>
+                    {video.caption ? (
+                      <span className="text-muted-foreground"> · {video.caption}</span>
+                    ) : null}
+                  </p>
+                  <p className="mt-0.5 text-[11px] text-muted-foreground">
+                    {video.tiktok_id ? `video ${video.tiktok_id}` : "creator embed card"} ·{" "}
+                    {new Date(video.created_at).toLocaleString()}
+                    {video.hidden ? " · hidden" : ""}
+                  </p>
+                </div>
+                {video.video_url ? (
+                  <a
+                    href={video.video_url}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className="shrink-0 text-xs underline"
+                  >
+                    Open on TikTok
+                  </a>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        )}
+      </article>
+
       <form onSubmit={onAdd} className="flex flex-wrap gap-2">
         <Input
           value={draft}

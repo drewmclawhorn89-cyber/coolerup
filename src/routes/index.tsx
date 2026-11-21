@@ -19,7 +19,6 @@ import {
   Search,
   ShoppingBag,
   Store,
-  Tv,
   User,
   Users,
   Wifi,
@@ -64,12 +63,6 @@ const RecordDialog = lazy(() =>
 );
 const PhotoDialog = lazy(() =>
   import("@/components/PhotoDialog").then((m) => ({ default: m.PhotoDialog })),
-);
-const FacebookPanel = lazy(() =>
-  import("@/components/FacebookPanel").then((m) => ({ default: m.FacebookPanel })),
-);
-const TwitchPanel = lazy(() =>
-  import("@/components/TwitchPanel").then((m) => ({ default: m.TwitchPanel })),
 );
 import {
   fetchMyLikes,
@@ -131,8 +124,6 @@ type FeedTab =
   | "home"
   | "following"
   | "foryou"
-  | "twitch"
-  | "facebook"
   | "explore"
   | "marketplace"
   | "groups"
@@ -903,7 +894,7 @@ function Index() {
     }
   }, [codesSeason, feedTab]);
 
-  // One shared top tab bar (Home | Following | For You | Videos | Music | Twitch | Browser | Marketplace | Groups | LIVE | Codes | Explore | Shop).
+  // One shared top tab bar (Home | Following | For You | Videos | Music | Browser | Marketplace | Groups | LIVE | Codes | Explore | Shop).
   // It renders on every screen and at every breakpoint, scrolls smoothly with touch/wheel,
   // and steps left/right with the always-visible arrows so no tab is ever unreachable.
   const topTabItems: TopTabItem[] = [
@@ -935,20 +926,6 @@ function Index() {
       icon: <Music className="size-3.5" />,
       onClick: () => void navigate({ to: "/music" }),
       active: false,
-    },
-    {
-      key: "twitch",
-      label: "Twitch",
-      icon: <Tv className="size-3.5" />,
-      onClick: () => pickFeedTab("twitch"),
-      active: topTab === "twitch",
-    },
-    {
-      key: "facebook",
-      label: "Facebook",
-      icon: <Tv className="size-3.5" />,
-      onClick: () => pickFeedTab("facebook"),
-      active: topTab === "facebook",
     },
     {
       key: "browser",
@@ -1240,21 +1217,7 @@ function Index() {
           </div>
         )}
 
-        {activeTab === "foryou" && feedTab === "facebook" ? (
-          <div className="relative flex min-h-0 flex-1 flex-col bg-black">
-            <TopTabs className={topTabsClass} ctx={topTabsCtx} />
-            <Suspense fallback={null}>
-              <FacebookPanel />
-            </Suspense>
-          </div>
-        ) : activeTab === "foryou" && feedTab === "twitch" ? (
-          <div className="relative flex min-h-0 flex-1 flex-col bg-black">
-            <TopTabs className={topTabsClass} ctx={topTabsCtx} />
-            <Suspense fallback={null}>
-              <TwitchPanel />
-            </Suspense>
-          </div>
-        ) : onLiveTab ? (
+        {onLiveTab ? (
           <div className="relative flex min-h-0 flex-1 flex-col bg-black">
             <TopTabs className={topTabsClass} ctx={topTabsCtx} />
             <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto pt-2">

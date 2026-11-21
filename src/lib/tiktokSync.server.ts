@@ -66,9 +66,10 @@ export async function loadTikTokSettings(): Promise<TikTokSyncSettings> {
 }
 
 /**
- * The account that owns ingested rows. `full_videos.user_id` is a foreign key
- * into auth.users, so the job needs a real account even though the videos
- * belong to their TikTok creators (which is what `username` shows).
+ * The account that owns ingested rows. `videos.user_id` is nullable, so this
+ * is a nicety rather than a requirement: it lets the feed link the poster back
+ * to a Coolerup profile. `username` always shows the TikTok creator's handle,
+ * which is what the card labels itself with.
  */
 async function resolveOwner(settings: TikTokSyncSettings): Promise<string | null> {
   if (settings.owner_user_id) return settings.owner_user_id;

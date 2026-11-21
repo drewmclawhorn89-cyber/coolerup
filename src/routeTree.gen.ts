@@ -48,6 +48,8 @@ import { Route as WatchIndexRouteImport } from './routes/watch.index'
 import { Route as WatchIdRouteImport } from './routes/watch.$id'
 import { Route as ApiBrowserProxyRouteImport } from './routes/api/browser/proxy'
 import { Route as ApiFacebookResolveRouteImport } from './routes/api/facebook/resolve'
+import { Route as ApiPexelsHeartbeatRouteImport } from './routes/api/pexels/heartbeat'
+import { Route as ApiPexelsSyncRouteImport } from './routes/api/pexels/sync'
 import { Route as ApiTiktokHeartbeatRouteImport } from './routes/api/tiktok/heartbeat'
 import { Route as ApiTiktokSyncRouteImport } from './routes/api/tiktok/sync'
 import { Route as ApiTwitchFollowRouteImport } from './routes/api/twitch/follow'
@@ -251,6 +253,16 @@ const ApiFacebookResolveRoute = ApiFacebookResolveRouteImport.update({
   path: '/api/facebook/resolve',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPexelsHeartbeatRoute = ApiPexelsHeartbeatRouteImport.update({
+  id: '/api/pexels/heartbeat',
+  path: '/api/pexels/heartbeat',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPexelsSyncRoute = ApiPexelsSyncRouteImport.update({
+  id: '/api/pexels/sync',
+  path: '/api/pexels/sync',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiTiktokHeartbeatRoute = ApiTiktokHeartbeatRouteImport.update({
   id: '/api/tiktok/heartbeat',
   path: '/api/tiktok/heartbeat',
@@ -327,6 +339,8 @@ export interface FileRoutesByFullPath {
   '/watch/': typeof WatchIndexRoute
   '/api/browser/proxy': typeof ApiBrowserProxyRoute
   '/api/facebook/resolve': typeof ApiFacebookResolveRoute
+  '/api/pexels/heartbeat': typeof ApiPexelsHeartbeatRoute
+  '/api/pexels/sync': typeof ApiPexelsSyncRoute
   '/api/tiktok/heartbeat': typeof ApiTiktokHeartbeatRoute
   '/api/tiktok/sync': typeof ApiTiktokSyncRoute
   '/api/twitch/follow': typeof ApiTwitchFollowRoute
@@ -373,6 +387,8 @@ export interface FileRoutesByTo {
   '/watch': typeof WatchIndexRoute
   '/api/browser/proxy': typeof ApiBrowserProxyRoute
   '/api/facebook/resolve': typeof ApiFacebookResolveRoute
+  '/api/pexels/heartbeat': typeof ApiPexelsHeartbeatRoute
+  '/api/pexels/sync': typeof ApiPexelsSyncRoute
   '/api/tiktok/heartbeat': typeof ApiTiktokHeartbeatRoute
   '/api/tiktok/sync': typeof ApiTiktokSyncRoute
   '/api/twitch/follow': typeof ApiTwitchFollowRoute
@@ -422,6 +438,8 @@ export interface FileRoutesById {
   '/watch/': typeof WatchIndexRoute
   '/api/browser/proxy': typeof ApiBrowserProxyRoute
   '/api/facebook/resolve': typeof ApiFacebookResolveRoute
+  '/api/pexels/heartbeat': typeof ApiPexelsHeartbeatRoute
+  '/api/pexels/sync': typeof ApiPexelsSyncRoute
   '/api/tiktok/heartbeat': typeof ApiTiktokHeartbeatRoute
   '/api/tiktok/sync': typeof ApiTiktokSyncRoute
   '/api/twitch/follow': typeof ApiTwitchFollowRoute
@@ -472,6 +490,8 @@ export interface FileRouteTypes {
     | '/watch/'
     | '/api/browser/proxy'
     | '/api/facebook/resolve'
+    | '/api/pexels/heartbeat'
+    | '/api/pexels/sync'
     | '/api/tiktok/heartbeat'
     | '/api/tiktok/sync'
     | '/api/twitch/follow'
@@ -518,6 +538,8 @@ export interface FileRouteTypes {
     | '/watch'
     | '/api/browser/proxy'
     | '/api/facebook/resolve'
+    | '/api/pexels/heartbeat'
+    | '/api/pexels/sync'
     | '/api/tiktok/heartbeat'
     | '/api/tiktok/sync'
     | '/api/twitch/follow'
@@ -566,6 +588,8 @@ export interface FileRouteTypes {
     | '/watch/'
     | '/api/browser/proxy'
     | '/api/facebook/resolve'
+    | '/api/pexels/heartbeat'
+    | '/api/pexels/sync'
     | '/api/tiktok/heartbeat'
     | '/api/tiktok/sync'
     | '/api/twitch/follow'
@@ -609,6 +633,8 @@ export interface RootRouteChildren {
   WatchIndexRoute: typeof WatchIndexRoute
   ApiBrowserProxyRoute: typeof ApiBrowserProxyRoute
   ApiFacebookResolveRoute: typeof ApiFacebookResolveRoute
+  ApiPexelsHeartbeatRoute: typeof ApiPexelsHeartbeatRoute
+  ApiPexelsSyncRoute: typeof ApiPexelsSyncRoute
   ApiTiktokHeartbeatRoute: typeof ApiTiktokHeartbeatRoute
   ApiTiktokSyncRoute: typeof ApiTiktokSyncRoute
   ApiTwitchFollowRoute: typeof ApiTwitchFollowRoute
@@ -893,6 +919,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiFacebookResolveRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/pexels/heartbeat': {
+      id: '/api/pexels/heartbeat'
+      path: '/api/pexels/heartbeat'
+      fullPath: '/api/pexels/heartbeat'
+      preLoaderRoute: typeof ApiPexelsHeartbeatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/pexels/sync': {
+      id: '/api/pexels/sync'
+      path: '/api/pexels/sync'
+      fullPath: '/api/pexels/sync'
+      preLoaderRoute: typeof ApiPexelsSyncRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/tiktok/heartbeat': {
       id: '/api/tiktok/heartbeat'
       path: '/api/tiktok/heartbeat'
@@ -1017,6 +1057,8 @@ const rootRouteChildren: RootRouteChildren = {
   WatchIndexRoute: WatchIndexRoute,
   ApiBrowserProxyRoute: ApiBrowserProxyRoute,
   ApiFacebookResolveRoute: ApiFacebookResolveRoute,
+  ApiPexelsHeartbeatRoute: ApiPexelsHeartbeatRoute,
+  ApiPexelsSyncRoute: ApiPexelsSyncRoute,
   ApiTiktokHeartbeatRoute: ApiTiktokHeartbeatRoute,
   ApiTiktokSyncRoute: ApiTiktokSyncRoute,
   ApiTwitchFollowRoute: ApiTwitchFollowRoute,

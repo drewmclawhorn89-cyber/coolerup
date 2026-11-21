@@ -219,6 +219,25 @@ export type Subscription = {
 };
 
 const key = (handle: string) => `subscription:${handle}`;
+
+/**
+ * Remembers the plan a user cancelled on this device.
+ *
+ * A plan that lives in `public.subscriptions` cannot be deleted by the client
+ * (the table has no write policy), so without this marker the server row would
+ * resurrect the plan the moment the local record was cleared. It stores the
+ * plan id that was cancelled; buying again clears it.
+ */
+const cancelKey = (handle: string) => `subscription-canceled:${handle}`;
+
+function cancelledPlan(handle: string): string | null {
+  try {
+    return localStorage.getItem(cancelKey(handle));
+  } catch {
+    return null;
+  }
+}
+
 /** Fired whenever the stored subscription changes, so the UI can re-render. */
 export const SUBSCRIPTION_EVENT = "subscription-change";
 const EVT = SUBSCRIPTION_EVENT;
@@ -300,7 +319,13 @@ export function getSubscription(handle?: string | null): Subscription | null {
 
   const lifetime = cachedLifetime(handle);
   if (isLifetimeRevoked(lifetime)) return null;
-  if (isLifetimeActive(lifetime) && lifetime) {
+
+  const raw = localStorage.getItem(key(handle));
+  const local = raw ? migrate(raw) : null;
+
+  // A real lifetime grant outranks everything, including a local record: it
+  // never expires and cannot be bought again.
+  if (lifetime && isLifetimeActive(lifetime)) {
     return {
       planId: lifetime.plan,
       status: "active",
@@ -309,16 +334,41 @@ export function getSubscription(handle?: string | null): Subscription | null {
       paymentMethod: null,
       source: "payment",
       code: null,
-      // Never expires. Deliberately null, and never read while isLifetime.
       currentPeriodEnd: null,
       isLifetime: true,
       grantedBy: lifetime.grantedBy,
     };
   }
 
-  const raw = localStorage.getItem(key(handle));
-  if (!raw) return null;
-  return migrate(raw);
+  // The device's own record wins while it is live. That record is the user's
+  // most recent action - a purchase, a plan switch or a code redemption - and
+  // letting the server row outrank it made "Cancel" and "Change plan" silently
+  // do nothing, which read as the whole subscription screen being broken.
+  if (local && local.status !== "expired") return local;
+
+  // No live local plan. A row in `public.subscriptions` can still supply one
+  // (an owner comp, a card charged outside the app), which is what unlocks the
+  // perks of a real Plus/Pro/VIP subscriber whose plan lives server-side. A
+  // plan the user cancelled here stays cancelled until they buy again.
+  if (lifetime && lifetime.status === "active" && planById(lifetime.plan)) {
+    if (cancelledPlan(handle) === lifetime.plan) return local;
+    return {
+      planId: lifetime.plan,
+      status: "active",
+      startedAt: lifetime.grantedAt ?? new Date().toISOString(),
+      paidAt: lifetime.grantedAt ?? null,
+      paymentMethod: null,
+      source: "payment",
+      code: null,
+      // A server-side monthly plan has no client-known renewal date, so it
+      // stays active until the row changes.
+      currentPeriodEnd: null,
+      isLifetime: false,
+      grantedBy: lifetime.grantedBy,
+    };
+  }
+
+  return local;
 }
 
 /** True when there is a usable card on file. */
@@ -327,8 +377,13 @@ export function hasPaymentMethod(handle?: string | null): boolean {
 }
 
 function write(handle: string, sub: Subscription | null) {
-  if (sub) localStorage.setItem(key(handle), JSON.stringify(sub));
-  else localStorage.removeItem(key(handle));
+  if (sub) {
+    localStorage.setItem(key(handle), JSON.stringify(sub));
+    // A new plan supersedes any cancellation the user made earlier.
+    localStorage.removeItem(cancelKey(handle));
+  } else {
+    localStorage.removeItem(key(handle));
+  }
   window.dispatchEvent(new Event(EVT));
 }
 
@@ -412,6 +467,17 @@ export function applyCodeSubscription(
 }
 
 export function cancelSubscription(handle: string) {
+  // Remember which plan was cancelled so a server row cannot bring it back on
+  // the next refresh. The client cannot delete the row itself - the table has
+  // no write policy - so this marker is what makes Cancel stick.
+  const existing = getSubscription(handle);
+  if (existing?.planId) {
+    try {
+      localStorage.setItem(cancelKey(handle), existing.planId);
+    } catch {
+      // Ignore storage quota errors in private browsing.
+    }
+  }
   write(handle, null);
 }
 
@@ -516,6 +582,34 @@ export function planUnlocksOffline(handle?: string | null): boolean {
   const sub = getSubscription(handle);
   if (!isActive(sub)) return false;
   return planIncludesOffline(sub?.planId);
+}
+
+/**
+ * Reactive `planUnlocksOffline`.
+ *
+ * Reads the plan on the first render, then re-reads whenever the local record
+ * changes, the server-side grant changes, or the window regains focus. It also
+ * asks the server once on mount, so a plan applied in the database unlocks the
+ * offline surfaces without a reload.
+ */
+export function useOfflineUnlocked(handle?: string | null): boolean {
+  const [unlocked, setUnlocked] = useState(() => planUnlocksOffline(handle));
+
+  useEffect(() => {
+    const sync = () => setUnlocked(planUnlocksOffline(handle));
+    sync();
+    window.addEventListener(EVT, sync);
+    window.addEventListener(LIFETIME_EVENT, sync);
+    window.addEventListener("focus", sync);
+    void refreshLifetime(handle).then(sync);
+    return () => {
+      window.removeEventListener(EVT, sync);
+      window.removeEventListener(LIFETIME_EVENT, sync);
+      window.removeEventListener("focus", sync);
+    };
+  }, [handle]);
+
+  return unlocked;
 }
 
 /** Why offline mode is locked, so the UI can say something useful. */

@@ -14,3 +14,5 @@
 - Beta access (/beta) is gated by the admin row in user_roles via has_role, never a username or client-side password; beta flags live in beta_features (admin-only RLS).
 
 - YouTube additions use authenticated server functions and full_videos source fields; play embeds separately from uploaded media so YouTube links are never treated as downloadable files.
+
+- Secrets live in the hosting environment, never in the repo. `.env` is gitignored and untracked; `.env.example` holds blank placeholders only. Anything named `VITE_*` is inlined into the browser bundle and is therefore public, so a secret must never carry that prefix. Rotate a leaked key rather than trying to scrub it — the value stays readable in git history.

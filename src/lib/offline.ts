@@ -1,3 +1,4 @@
+import { requireOfflineEntitlement } from "@/lib/offlineEntitlement";
 import { resolveVideoUrl, type Video } from "./loop";
 import { resolveFullVideoUrl, type FullVideo } from "./fullVideos";
 
@@ -62,6 +63,8 @@ export async function listSaved() {
 }
 
 export async function saveOffline(video: Video, onProgress?: (pct: number) => void) {
+  await requireOfflineEntitlement("video");
+  if (!(await canSaveAnother(video.id))) throw new OfflineLimitError();
   const url = await resolveVideoUrl(video.video_url);
   const resp = await fetch(url);
   if (!resp.ok || !resp.body) throw new Error("Download failed");
@@ -86,6 +89,8 @@ export async function saveOffline(video: Video, onProgress?: (pct: number) => vo
 
 /** Download and persist a long-form video in its own IndexedDB store. */
 export async function saveFullVideoOffline(video: FullVideo, onProgress?: (pct: number) => void) {
+  await requireOfflineEntitlement("video");
+  if (!(await canSaveAnother(video.id))) throw new OfflineLimitError();
   const url = await resolveFullVideoUrl(video.video_url);
   if (!url) throw new Error("Video is unavailable for download");
   const resp = await fetch(url);
@@ -138,6 +143,35 @@ export function formatBytes(n: number) {
 
 /** Hard budget for downloaded videos: 500 MB, matching the offline page. */
 export const MAX_OFFLINE_BYTES = 500 * 1024 * 1024;
+
+/**
+ * Hard cap on the number of videos kept offline. The cap is shared by the
+ * shorts and full-video stores so "50 videos" means 50 in total, not 50 of
+ * each. Downloads stop at the cap; existing downloads are never evicted
+ * silently \u2014 the user has to remove something first.
+ */
+export const MAX_OFFLINE_VIDEOS = 50;
+
+/** Thrown when a download would push the offline library past the 50 cap. */
+export class OfflineLimitError extends Error {
+  constructor() {
+    super(`Offline storage is full. You can keep up to ${MAX_OFFLINE_VIDEOS} videos offline.`);
+    this.name = "OfflineLimitError";
+  }
+}
+
+/**
+ * True when another video can be downloaded. `id` is exempt so re-saving a
+ * video that is already offline never trips the cap.
+ */
+async function canSaveAnother(id: string): Promise<boolean> {
+  const [full, shorts] = await Promise.all([
+    tx<SavedFullVideo[]>(FULL_STORE, "readonly", (s) => s.getAll()),
+    tx<Saved[]>(STORE, "readonly", (s) => s.getAll()),
+  ]);
+  if (full.some((row) => row.id === id) || shorts.some((row) => row.id === id)) return true;
+  return full.length + shorts.length < MAX_OFFLINE_VIDEOS;
+}
 
 export type OfflineUsage = { used: number; max: number; count: number };
 

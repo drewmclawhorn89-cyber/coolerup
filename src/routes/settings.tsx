@@ -12,7 +12,7 @@ import {
   ShieldCheck,
   UserRound,
 } from "lucide-react";
-import { Suspense, lazy, useEffect, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { EditProfileDialog } from "@/components/EditProfileDialog";
 import { refreshProfile, useAuth } from "@/hooks/useAuth";
@@ -21,16 +21,27 @@ import { toast } from "sonner";
 import { writePref } from "@/lib/prefs";
 import { getFirebaseConfigSummary } from "@/lib/firebase";
 import { normalizePhone } from "@/lib/phone";
+import { useShowOnlineSetting } from "@/lib/onlineStatus";
 import { MoreSettings } from "@/components/MoreSettings";
 import {
   backgroundPlayPlan,
   hasBackgroundPlayAccess,
-  hasOfflineAccess,
   offlinePlan,
-  planUnlocksOffline,
+  useOfflineUnlocked,
   useSubscription,
 } from "@/lib/subscriptions";
-import { hasUsedTrial, useTrial } from "@/lib/trial";
+import { OfflinePaywallDialog } from "@/components/OfflinePaywallDialog";
+import {
+  MAX_OFFLINE_BYTES,
+  MAX_OFFLINE_VIDEOS,
+  clearAllDownloads,
+  formatStorage,
+  getOfflineUsage,
+  onOfflineChange,
+  type OfflineUsage,
+} from "@/lib/offline";
+import { syncOfflineLibrary, type OfflineSyncProgress } from "@/lib/offlineAutoDownload";
+import { setOfflineModeOn, useOfflineMode } from "@/lib/offlineMode";
 import { ThemePicker } from "@/components/ThemePicker";
 import { QUALITY_OPTIONS, useVideoQuality } from "@/lib/videoQuality";
 import {
@@ -59,9 +70,10 @@ const SubscriptionsPanel = lazy(() =>
 export const Route = createFileRoute("/settings")({
   // `?subscriptions=1` opens the plans screen directly — used by upgrade CTAs
   // elsewhere in the app (e.g. the Music tab's locked Downloaded tab).
-  validateSearch: (search: Record<string, unknown>): { subscriptions?: boolean } => ({
-    subscriptions: search["subscriptions"] === true || search["subscriptions"] === "1",
-  }),
+  validateSearch: (search: Record<string, unknown>): { subscriptions?: boolean } =>
+    search["subscriptions"] === true || search["subscriptions"] === "1"
+      ? { subscriptions: true }
+      : {},
   head: () => ({
     meta: [
       { title: "Settings — Coolerup" },
@@ -82,16 +94,11 @@ function Settings() {
   const backgroundPlay = useBackgroundPlay();
   const backgroundUnlocked = hasBackgroundPlayAccess(auth.handle);
   const mediaSessionReady = isMediaSessionSupported();
-  // Offline mode ships with Pro and VIP; Plus and free accounts are locked.
+  // Offline Mode is paid-only: a live, active subscription on any paid tier.
   const subscription = useSubscription(auth.handle);
-  const offlineUnlocked = hasOfflineAccess(auth.handle);
+  const offlineUnlocked = useOfflineUnlocked(auth.handle);
   const offlinePrice = offlinePlan().price;
-  // Offline mode is Pro/VIP, but every plan gets one free hour first. The badge
-  // follows whichever hour is running; the offline CTA starts the Pro hour.
-  const trial = useTrial(auth.handle);
-  const proTrialUsed = hasUsedTrial(auth.handle, offlinePlan().id);
-  const planUnlocked = planUnlocksOffline(auth.handle);
-  const trialRunning = trial.active && !planUnlocked;
+  const offlineMode = useOfflineMode();
   const [editing, setEditing] = useState(false);
   // Subscriptions used to be its own top tab; it now opens from inside Settings.
   const { subscriptions: openSubscriptions } = Route.useSearch();
@@ -134,7 +141,11 @@ function Settings() {
   const [tiktokLink, setTiktokLink] = useState("");
   const [instagramLink, setInstagramLink] = useState("");
   const [youtubeLink, setYoutubeLink] = useState("");
-  const [offlineMode, setOfflineMode] = useState(false);
+  const [showOfflinePaywall, setShowOfflinePaywall] = useState(false);
+  const [offlineUsage, setOfflineUsage] = useState<OfflineUsage | null>(null);
+  const [clearingDownloads, setClearingDownloads] = useState(false);
+  const [syncingOffline, setSyncingOffline] = useState(false);
+  const [offlineSyncProgress, setOfflineSyncProgress] = useState<OfflineSyncProgress | null>(null);
   // Notifications (simple toggle stored in localStorage as prototype)
   const [notificationsEnabled, setNotificationsEnabled] = useState<boolean>(() => {
     try {
@@ -152,16 +163,43 @@ function Settings() {
   const [testingPush, setTestingPush] = useState(false);
   const [deviceHint, setDeviceHint] = useState<string | null>(null);
   const [lastTest, setLastTest] = useState<string | null>(null);
-  const [messagePrivacy, setMessagePrivacy] = useState(
-    localStorage.getItem("messagePrivacy") || "everyone",
-  );
-  const [messageFilter, setMessageFilter] = useState(
-    localStorage.getItem("messageFilter") || "all",
-  );
-  const [allowDM, setAllowDM] = useState(localStorage.getItem("allowDM") !== "false");
-  const [readReceipts, setReadReceipts] = useState(
-    localStorage.getItem("readReceipts") !== "false",
-  );
+  const [messagePrivacy, setMessagePrivacy] = useState(() => {
+    try {
+      return typeof localStorage !== "undefined"
+        ? localStorage.getItem("messagePrivacy") || "everyone"
+        : "everyone";
+    } catch {
+      return "everyone";
+    }
+  });
+  const [messageFilter, setMessageFilter] = useState(() => {
+    try {
+      return typeof localStorage !== "undefined"
+        ? localStorage.getItem("messageFilter") || "all"
+        : "all";
+    } catch {
+      return "all";
+    }
+  });
+  const [allowDM, setAllowDM] = useState(() => {
+    try {
+      return typeof localStorage !== "undefined"
+        ? localStorage.getItem("allowDM") !== "false"
+        : true;
+    } catch {
+      return true;
+    }
+  });
+  const [readReceipts, setReadReceipts] = useState(() => {
+    try {
+      return typeof localStorage !== "undefined"
+        ? localStorage.getItem("readReceipts") !== "false"
+        : true;
+    } catch {
+      return true;
+    }
+  });
+  const [showOnline, setShowOnline] = useShowOnlineSetting();
   // Theme
   const [theme, setTheme] = useState<string>(() => {
     try {
@@ -172,11 +210,6 @@ function Settings() {
   });
   useEffect(() => {
     try {
-      const savedOffline = localStorage.getItem("settings:offline") === "true";
-      // A lapsed plan (or a Plus-only plan) turns the setting off, but never
-      // deletes anything already downloaded.
-      const allowed = savedOffline && hasOfflineAccess(auth.handle);
-      setOfflineMode(allowed);
       setPrivateAccount(localStorage.getItem("settings:private") === "true");
       setPhone(localStorage.getItem("settings:phone") || auth.user?.phone || "");
       setTiktokLink(localStorage.getItem("settings:tiktok") || "");
@@ -185,32 +218,77 @@ function Settings() {
     } catch {}
   }, [auth.ready, auth.handle, auth.user?.phone]);
 
-  const toggleOffline = () => {
-    if (!offlineMode && !offlineUnlocked) {
-      if (proTrialUsed) {
-        const plan = offlinePlan();
-        toast.error(
-          `Your free trial has ended. Offline mode is part of ${plan.label} ($${plan.price.toFixed(2)}/mo)`,
+  /** Refresh the storage meter whenever downloads change. */
+  const refreshOfflineUsage = useCallback(async () => {
+    try {
+      setOfflineUsage(await getOfflineUsage());
+    } catch {
+      setOfflineUsage(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshOfflineUsage();
+    return onOfflineChange(() => void refreshOfflineUsage());
+  }, [refreshOfflineUsage]);
+
+  /** Download liked/saved videos now, with progress in the Offline card. */
+  const runOfflineSync = useCallback(async () => {
+    if (!offlineUnlocked || syncingOffline) return;
+    setSyncingOffline(true);
+    try {
+      const result = await syncOfflineLibrary(auth.handle, auth.user?.id, setOfflineSyncProgress);
+      await refreshOfflineUsage();
+      if (result.downloaded > 0) {
+        toast.success(
+          `Downloaded ${result.downloaded} video${result.downloaded === 1 ? "" : "s"} for offline`,
         );
-        setShowSubscriptions(true);
-        return;
       }
-      trial.start(offlinePlan().id);
-      toast.success("1-hour free trial started");
+      if (result.capped) {
+        toast.warning(`Offline library is full (${MAX_OFFLINE_VIDEOS} videos).`);
+      }
+    } catch {
+      toast.error("Couldn't update offline downloads.");
+    } finally {
+      setSyncingOffline(false);
+      setOfflineSyncProgress(null);
+    }
+  }, [auth.handle, auth.user?.id, offlineUnlocked, refreshOfflineUsage, syncingOffline]);
+
+  const toggleOffline = () => {
+    // Paid subscribers only. Free accounts get the subscribe popup and nothing
+    // is downloaded.
+    if (!offlineUnlocked) {
+      setShowOfflinePaywall(true);
+      return;
     }
     const newVal = !offlineMode;
-
-    setOfflineMode(newVal);
-    try {
-      localStorage.setItem("settings:offline", String(newVal));
-    } catch {}
+    setOfflineModeOn(newVal);
 
     if (newVal) {
       if ("serviceWorker" in navigator) {
         navigator.serviceWorker.register("/sw.js").catch(() => {});
       }
+      void runOfflineSync();
     }
-    toast.success(`Offline mode: ${newVal ? "ON - videos will cache" : "OFF"}`);
+    toast.success(
+      newVal ? "Offline mode: ON - liked and saved videos will download" : "Offline mode: OFF",
+    );
+  };
+
+  const clearDownloads = async () => {
+    if (clearingDownloads) return;
+    if (!window.confirm("Delete all downloaded videos? This frees offline storage.")) return;
+    setClearingDownloads(true);
+    try {
+      await clearAllDownloads();
+      await refreshOfflineUsage();
+      toast.success("Downloads cleared");
+    } catch {
+      toast.error("Couldn't clear downloads.");
+    } finally {
+      setClearingDownloads(false);
+    }
   };
   useEffect(() => {
     setNewHandle(auth.handle ?? "");
@@ -588,10 +666,37 @@ function Settings() {
         </div>
       </div>
 
-      {/* Privacy / Blocked users */}
+      {/* Privacy / Online status & Blocked users */}
       <div className="rounded-2xl border bg-card p-4">
         <h2 className="font-semibold">Privacy</h2>
-        <p className="mt-1 text-sm text-muted-foreground">Manage blocked users.</p>
+        <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-black px-4 py-3 text-white">
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-white">Show when I&apos;m online</p>
+            <p className="mt-0.5 text-xs text-white/60">
+              When off, others can&apos;t see when you&apos;re online or active, and you won&apos;t
+              see theirs.
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={showOnline}
+            aria-label="Show when I'm online"
+            onClick={() => {
+              const next = !showOnline;
+              setShowOnline(next);
+              toast.success(next ? "Online status ON" : "Online status OFF");
+            }}
+            className="flex h-7 w-12 shrink-0 items-center rounded-full p-1 transition"
+            style={{ backgroundColor: showOnline ? "#25D366" : "#333" }}
+          >
+            <span
+              className="h-5 w-5 rounded-full bg-white transition"
+              style={{ transform: showOnline ? "translateX(20px)" : "translateX(0)" }}
+            />
+          </button>
+        </div>
+        <p className="mt-4 text-sm text-muted-foreground">Manage blocked users.</p>
         <div className="mt-3 flex gap-2">
           <input
             value={blockTarget}
@@ -883,69 +988,122 @@ function Settings() {
         <div className="flex items-center gap-2">
           <h2 className="font-semibold">Offline Mode</h2>
           <span className="rounded-full border px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-            {planUnlocked
-              ? "Pro & VIP"
-              : trialRunning
-                ? `Trial · ${trial.label} left`
-                : proTrialUsed
-                  ? "Trial ended"
-                  : "1 hour free"}
+            {offlineUnlocked ? "Paid subscribers" : "Paid subscribers only"}
           </span>
         </div>
 
         <p className="mt-1 text-sm text-muted-foreground">
-          Save videos and watch them without a connection.
+          Automatically download videos you liked or saved and watch them without a connection.
         </p>
+
         {offlineUnlocked ? (
           <>
-            <div className="mt-3 flex items-center gap-3">
+            <div className="mt-3 flex items-center justify-between gap-3 border-t pt-3">
+              <div className="min-w-0">
+                <div className="font-medium">Offline Mode</div>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {offlineMode
+                    ? "ON — liked and saved videos download automatically."
+                    : "OFF — turn on to download liked and saved videos."}
+                </p>
+              </div>
               <button
+                type="button"
                 onClick={toggleOffline}
-                style={{ backgroundColor: offlineMode ? "#16a34a" : "black", color: "white" }}
-                className="rounded-md px-4 py-2 font-medium"
+                aria-pressed={offlineMode}
+                aria-label="Toggle Offline Mode"
+                className="h-7 w-12 shrink-0 rounded-full p-1 transition"
+                style={{ backgroundColor: offlineMode ? "#16a34a" : "#333" }}
               >
-                {offlineMode ? "ON" : "OFF"}
-              </button>
-              <button
-                onClick={() => (window.location.href = "/offline")}
-                style={{ backgroundColor: "black", color: "white" }}
-                className="rounded-md px-4 py-2 font-medium"
-              >
-                View Offline Videos →
+                <div
+                  className="h-5 w-5 rounded-full transition"
+                  style={{
+                    backgroundColor: "white",
+                    transform: offlineMode ? "translateX(20px)" : "translateX(0)",
+                  }}
+                />
               </button>
             </div>
-            <p className="mt-2 text-xs text-muted-foreground">
-              {offlineMode ? "Tap View to see your saved videos" : "Turn ON first, then view"}
-            </p>
+
+            {syncingOffline && (
+              <p className="mt-2 text-xs text-muted-foreground">
+                {offlineSyncProgress
+                  ? `Downloading ${offlineSyncProgress.current} of ${offlineSyncProgress.total}: ${offlineSyncProgress.title}`
+                  : "Checking your liked and saved videos…"}
+              </p>
+            )}
+
+            <div className="mt-3 rounded-xl border bg-secondary/50 px-3 py-2">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-[13px] font-semibold">
+                  Offline storage: {formatStorage(offlineUsage?.used ?? 0)} /{" "}
+                  {formatStorage(MAX_OFFLINE_BYTES)}
+                </p>
+                <span className="shrink-0 text-[11px] text-muted-foreground">
+                  {offlineUsage?.count ?? 0} of {MAX_OFFLINE_VIDEOS} videos
+                </span>
+              </div>
+              <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-background">
+                <div
+                  className="h-full rounded-full bg-emerald-600 transition-all"
+                  style={{
+                    width: `${Math.min(
+                      100,
+                      ((offlineUsage?.used ?? 0) / MAX_OFFLINE_BYTES) * 100,
+                    )}%`,
+                  }}
+                />
+              </div>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => void clearDownloads()}
+                  disabled={clearingDownloads || (offlineUsage?.count ?? 0) === 0}
+                  className="rounded-md border border-destructive/40 px-3 py-1.5 text-[13px] font-semibold text-destructive transition hover:bg-destructive/10 disabled:opacity-50"
+                >
+                  {clearingDownloads ? "Clearing…" : "Clear Downloads"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => (window.location.href = "/offline")}
+                  style={{ backgroundColor: "black", color: "white" }}
+                  className="rounded-md px-3 py-1.5 text-[13px] font-medium"
+                >
+                  View Offline Videos →
+                </button>
+              </div>
+            </div>
           </>
         ) : (
           <>
+            <div className="mt-3 flex items-start gap-3 rounded-xl border bg-secondary/50 p-3">
+              <Lock className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+              <div className="min-w-0">
+                <p className="text-sm font-semibold">Offline Mode is for Paid Subscribers</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Offline Mode is included with every paid plan — Plus, Pro and VIP. Nothing is
+                  downloaded on a free account.
+                </p>
+              </div>
+            </div>
             <div className="mt-3 flex flex-wrap items-center gap-3">
-              {!proTrialUsed && (
-                <button
-                  onClick={() => {
-                    trial.start(offlinePlan().id);
-                    toast.success("1-hour free trial started");
-                  }}
-                  style={{ backgroundColor: "#16a34a", color: "white" }}
-                  className="rounded-md px-4 py-2 font-medium"
-                >
-                  Start 1-hour free trial
-                </button>
-              )}
               <button
-                onClick={() => setShowSubscriptions(true)}
+                type="button"
+                onClick={() => setShowOfflinePaywall(true)}
                 style={{ backgroundColor: "black", color: "white" }}
                 className="rounded-md px-4 py-2 font-medium"
               >
-                Upgrade to {offlinePlan().label} · ${offlinePrice.toFixed(2)}/mo
+                Turn on Offline Mode
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowSubscriptions(true)}
+                style={{ backgroundColor: "#16a34a", color: "white" }}
+                className="rounded-md px-4 py-2 font-medium"
+              >
+                Subscribe · ${offlinePrice.toFixed(2)}/mo
               </button>
             </div>
-            <p className="mt-2 text-xs text-muted-foreground">
-              {proTrialUsed
-                ? `Your free trial has ended. Offline video downloads come with any paid plan — ${offlinePlan().label} and up.`
-                : `Try offline mode free for one hour. After that it comes with any paid plan — ${offlinePlan().label} and up.`}
-            </p>
           </>
         )}
       </div>
@@ -1066,6 +1224,10 @@ function Settings() {
       <MoreSettings />
 
       {auth.user && <EditProfileDialog open={editing} onOpenChange={setEditing} />}
+      <OfflinePaywallDialog
+        open={showOfflinePaywall}
+        onClose={() => setShowOfflinePaywall(false)}
+      />
     </div>
   );
 }

@@ -81,6 +81,10 @@ export function SubscriptionsPanel({
         </div>
       )}
 
+      {sub?.isLifetime && (
+        <LifetimeBanner plan={sub.planId} grantedBy={sub.grantedBy ?? null} />
+      )}
+
       {codeSummary && sub?.status === "active" && (
         <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm">
           <p className="font-semibold text-emerald-700 dark:text-emerald-400">{codeSummary}</p>
@@ -98,6 +102,9 @@ export function SubscriptionsPanel({
         const trialing = trial.active && trial.planId === p.id;
         const trialSpent = hasUsedTrial(handle, p.id);
         const highlighted = pending || active || trialing;
+        // A lifetime grant already covers every purchasable plan, so the card
+        // must not offer to sell it again.
+        const lifetime = Boolean(sub?.isLifetime);
 
         return (
           <div
@@ -142,7 +149,11 @@ export function SubscriptionsPanel({
               ))}
             </ul>
 
-            {pending ? (
+            {lifetime ? (
+              <p className="mt-3 rounded-lg border border-amber-400/40 bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-700 dark:text-amber-300">
+                Included in your lifetime plan
+              </p>
+            ) : pending ? (
               <div className="mt-3 space-y-2">
                 <p className="text-sm">
                   Payment pending &mdash; waiting for confirmation of your payment.

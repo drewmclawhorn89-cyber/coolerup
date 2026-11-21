@@ -9,6 +9,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { deleteMyAccount } from "@/lib/push.functions";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { announcePushPref, ensurePushSubscription } from "@/lib/push-client";
+import { useShowOnlineSetting } from "@/lib/onlineStatus";
 import {
   isChristmasTestOwner,
   setChristmasTestMode,
@@ -49,6 +50,25 @@ function Toggle({
         {desc && <div className="text-sm text-muted-foreground">{desc}</div>}
       </div>
       <Switch checked={on} onCheckedChange={(v) => void change(v)} aria-label={label} />
+    </div>
+  );
+}
+
+function OnlinePrivacyToggle() {
+  const [showOnline, setShowOnline] = useShowOnlineSetting();
+  return (
+    <div className="flex items-center justify-between gap-3 border-t py-3 first:border-t-0">
+      <div className="min-w-0">
+        <div className="font-medium">Show when I&apos;m online</div>
+        <div className="text-sm text-muted-foreground">
+          Let friends see when you&apos;re online. If off, you won&apos;t see theirs either.
+        </div>
+      </div>
+      <Switch
+        checked={showOnline}
+        onCheckedChange={setShowOnline}
+        aria-label="Show when I'm online"
+      />
     </div>
   );
 }
@@ -361,17 +381,13 @@ export function MoreSettings() {
         <Choice id="who-likes" label="Who can view your liked videos" options={WHO} def="Only me" />
         <Toggle id="allow-download" label="Allow downloads of your videos" def />
         <Toggle id="suggest-account" label="Suggest your account to others" def />
-        <Toggle
-          id="activity-status"
-          label="Activity status"
-          desc="Let friends see when you're online"
-          def
-        />
+        <OnlinePrivacyToggle />
         <Toggle id="profile-views" label="Profile view history" />
         <Toggle id="contacts-sync" label="Sync contacts to find friends" />
         <Toggle id="personalized-ads" label="Personalized ads" def />
       </Card>
       <Card title="Content preferences">
+        <Row label="Watch History" desc="View or clear videos you've watched" to="/watch-history" />
         <Toggle id="autoplay" label="Autoplay next video" def />
         <Toggle id="captions" label="Always show captions" />
         <Toggle

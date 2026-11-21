@@ -31,7 +31,7 @@ export async function postStory(file: File, username: string) {
   if (!user) throw new Error("Sign in to post a story");
   const type = file.type.startsWith("video/") ? "video" : "image";
   const ext = file.name.split(".").pop() || (type === "video" ? "mp4" : "jpg");
-  const path = `stories/${crypto.randomUUID()}.${ext}`;
+  const path = `${user.id}/stories/${crypto.randomUUID()}.${ext}`;
   const { error: upErr } = await supabase.storage.from("videos").upload(path, file, { contentType: file.type });
   if (upErr) throw upErr;
   const { error } = await db.from("stories").insert({

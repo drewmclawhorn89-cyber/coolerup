@@ -137,6 +137,15 @@ export const savePushSubscription = createServerFn({ method: "POST" })
   })
   .handler(async ({ data, context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    // Never let one account take over another account's registered device.
+    const { data: existing } = await supabaseAdmin
+      .from("push_subscriptions")
+      .select("user_id")
+      .eq("endpoint", data.endpoint)
+      .maybeSingle();
+    if (existing && existing.user_id !== context.userId) {
+      throw new Error("This device is registered to another account");
+    }
     const { error } = await pushTable(supabaseAdmin).upsert({
       endpoint: data.endpoint,
       user_id: context.userId,
@@ -198,11 +207,17 @@ async function canNotify(
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data: me } = await supabaseAdmin
     .from("profiles")
-    .select("handle, is_admin")
+    .select("handle")
     .eq("id", actorId)
     .maybeSingle();
   if (!me) return false;
-  if (me.is_admin === true) return true;
+  const { data: adminRole } = await supabaseAdmin
+    .from("user_roles")
+    .select("id")
+    .eq("user_id", actorId)
+    .eq("role", "admin")
+    .maybeSingle();
+  if (adminRole) return true;
 
   const { data: them } = await supabaseAdmin
     .from("profiles")
@@ -253,24 +268,51 @@ export const sendNotificationPush = createServerFn({ method: "POST" })
     const allowed = await canNotify(context.supabase as never, context.userId, data.targetUserId);
     if (!allowed) throw new Error("You can only notify people you follow.");
 
+    // The push text comes from the in-app notification this user just saved,
+    // never from the request, so callers can't send arbitrary messages.
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: row } = await supabaseAdmin
+      .from("notifications")
+      .select("type, text, video_id, created_at")
+      .eq("actor_user_id", context.userId)
+      .eq("target_user_id", data.targetUserId)
+      .gte("created_at", new Date(Date.now() - 2 * 60 * 1000).toISOString())
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (!row) return { sent: 0, configured: true };
+
+    const kind = String(row.type ?? "activity").slice(0, 40);
+    const safeUrl = data.url.startsWith("/") && !data.url.startsWith("//") ? data.url : "/";
     return sendPushToUser(
       data.targetUserId,
       {
-        kind: data.kind,
-        title: data.title,
-        body: data.body,
-        url: data.url,
-        tag: data.tag ?? data.kind,
+        kind,
+        title: PUSH_TITLES[kind] ?? "Coolerup",
+        body: String(row.text ?? "").slice(0, 240),
+        url: safeUrl,
+        tag: `${kind}:${row.video_id ?? context.userId}`,
       },
       { ttl: 60 * 60 * 24, urgency: "normal" },
     );
   });
 
+const PUSH_TITLES: Record<string, string> = {
+  like: "New like",
+  comment: "New comment",
+  follow: "New follower",
+  message: "New message",
+  mention: "You were mentioned",
+  repost: "New repost",
+};
+
 // Wakes the callee's devices. The caller's handle comes from the database, not the client.
 export const sendCallPush = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: { peerId: string }) => {
-    if (!d?.peerId || typeof d.peerId !== "string") throw new Error("Invalid peer");
+    if (!d?.peerId || typeof d.peerId !== "string" || !/^[0-9a-f-]{36}$/i.test(d.peerId)) {
+      throw new Error("Invalid peer");
+    }
     return d;
   })
   .handler(async ({ data, context }) => {
@@ -282,6 +324,18 @@ export const sendCallPush = createServerFn({ method: "POST" })
       .eq("id", context.userId)
       .maybeSingle();
     if (!me?.handle) return { sent: 0, configured: true };
+    if (data.peerId === context.userId) return { sent: 0, configured: true };
+
+    // Only ring people you already have a conversation with.
+    const { data: convo } = await supabaseAdmin
+      .from("direct_messages")
+      .select("id")
+      .or(
+        `and(from_id.eq.${context.userId},to_id.eq.${data.peerId}),and(from_id.eq.${data.peerId},to_id.eq.${context.userId})`,
+      )
+      .limit(1)
+      .maybeSingle();
+    if (!convo) throw new Error("You can only call people you've messaged.");
 
     return sendPushToUser(
       data.peerId,

@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { createQualityVersions, qualityColumns } from "./videoQuality";
+import { requestOfflineSync } from "./offlineEvents";
 
 export type Video = {
   id: string;
@@ -366,7 +367,9 @@ export async function uploadVideo(
     throw new Error("That file is empty. Pick another one.");
   }
   const ext = file.name.split(".").pop() || "mp4";
-  const path = `${crypto.randomUUID()}.${ext}`;
+  const { data: { user: uploader } } = await supabase.auth.getUser();
+  if (!uploader) throw new Error("Sign in to upload");
+  const path = `${uploader.id}/${crypto.randomUUID()}.${ext}`;
   const { error: upErr } = await supabase.storage
     .from("videos")
     .upload(path, file, { contentType: file.type });
@@ -403,7 +406,9 @@ export async function uploadRecording(
 ): Promise<string | null> {
   const contentType = blob.type || "video/webm";
   const ext = contentType.includes("mp4") ? "mp4" : "webm";
-  const path = `recorded-${Date.now()}.${ext}`;
+  const { data: { user: recorder } } = await supabase.auth.getUser();
+  if (!recorder) throw new Error("Sign in to upload");
+  const path = `${recorder.id}/recorded-${Date.now()}.${ext}`;
   const { error: upErr } = await supabase.storage
     .from("videos")
     .upload(path, blob, { contentType });
@@ -447,24 +452,29 @@ export async function setVideoSaved(videoId: string, on: boolean) {
   if (!user) return;
   if (on) await supabase.from("saved_videos").insert({ user_id: user.id, video_id: videoId });
   else await supabase.from("saved_videos").delete().eq("user_id", user.id).eq("video_id", videoId);
+  // Offline Mode mirrors likes/saves; let the watcher pick this one up.
+  requestOfflineSync();
 }
 
-export async function fetchSavedVideos(userId: string) {
-  // Paged, so a large vault isn't cut off at 1000 rows.
+export async function fetchSavedVideos(userId: string, limit?: number) {
+  // Paged, so a large vault isn't cut off at 1000 rows. `limit` lets Offline
+  // Mode stop after the handful of videos it can actually store.
   const PAGE = 500;
+  const cap = limit ?? Infinity;
   const out: Video[] = [];
-  for (let from = 0; ; from += PAGE) {
+  for (let from = 0; out.length < cap; from += PAGE) {
+    const size = Math.min(PAGE, cap - out.length);
     const { data } = await supabase
       .from("saved_videos")
       .select("created_at, videos(*)")
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
-      .range(from, from + PAGE - 1);
+      .range(from, from + size - 1);
     const batch = ((data ?? []) as unknown as { videos: Video | null }[])
       .map((r) => r.videos)
       .filter((v): v is Video => !!v);
     out.push(...batch);
-    if ((data ?? []).length < PAGE) break;
+    if ((data ?? []).length < size) break;
   }
   return out;
 }

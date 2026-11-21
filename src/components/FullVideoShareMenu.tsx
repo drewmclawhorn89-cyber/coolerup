@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { formatBytes } from "@/lib/offline";
 import { useFullVideoOffline } from "@/lib/useFullVideoOffline";
 import { resolveFullVideoUrl, type FullVideo } from "@/lib/fullVideos";
-import { offlinePlan } from "@/lib/subscriptions";
+import { OfflinePaywallDialog } from "@/components/OfflinePaywallDialog";
 
 /**
  * Share sheet for long-form videos (the /videos tab and the watch page).
@@ -20,7 +20,7 @@ export function FullVideoShareMenu({
   onClose: () => void;
   onShared?: () => void;
 }) {
-  const { savedSize, progress, isSaved, offlineUnlocked, trialActive, trialLabel, toggle } =
+  const { savedSize, progress, isSaved, offlineUnlocked, paywallOpen, closePaywall, toggle } =
     useFullVideoOffline(video);
 
   const url = typeof window !== "undefined" ? `${window.location.origin}/watch/${video.id}` : "";
@@ -102,10 +102,8 @@ export function FullVideoShareMenu({
       : isSaved
         ? `Saved · ${formatBytes(savedSize ?? 0)}`
         : offlineUnlocked
-          ? trialActive
-            ? `Trial · ${trialLabel}`
-            : "Offline mode"
-          : `${offlinePlan().label} only`;
+          ? "Offline mode"
+          : "Offline · Paid";
 
   return (
     <div
@@ -211,6 +209,8 @@ export function FullVideoShareMenu({
 
         <div className="pt-2 text-center text-xs text-zinc-500">{url}</div>
       </div>
+
+      <OfflinePaywallDialog open={paywallOpen} onClose={closePaywall} />
     </div>
   );
 }

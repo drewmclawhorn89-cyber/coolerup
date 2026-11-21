@@ -1,21 +1,21 @@
-# Music tab — full songs from the existing `sounds` table
+# Restore GIF search with a rotated Giphy key as a real secret
 
-## 1. Data layer
-- [x] `supabase/migrations/20261201000000_saved_sounds.sql` — `saved_sounds` join table (user_id, sound_id), RLS, no new songs table
-- [x] `supabase/sql-editor-saved-sounds.sql` — paste-into-SQL-Editor version + verification query
-- [x] `src/integrations/supabase/types.ts` — add `saved_sounds` types
-- [x] `src/lib/sounds.ts` — top/trending/saved queries, save/unsave, duration probe, cover helper
+## Findings
+- Server proxy `src/lib/giphy.functions.ts` already reads `process.env["GIPHY_API_KEY"]` — correct pattern, matches every other secret in the repo.
+- Root cause of the repeated rotations: `.env` was **tracked by git** and `.gitignore` had no `.env` rule.
+- Old key `99etiVJS...` was committed in `04a6a46` and only blanked in `de72a8e`. Still in history, which is why Giphy banned it.
+- `.env.example` still advertised `VITE_GIPHY_API_KEY`, the insecure variant that gets inlined into the client bundle.
+- `nodejs_compat` is enabled in the generated `wrangler.json`, so `process.env` is populated from Worker bindings — the secret will be visible at runtime once set.
 
-## 2. Player (persists across tabs)
-- [x] `src/lib/songPlayer.ts` — module-level singleton audio store (survives route changes)
-- [x] `src/components/MusicPlayer.tsx` — add `SongPlayerBar` dock (seek/play/next/prev/loop/volume) + keep old exports intact
-- [x] mount `<SongPlayerBar />` in `__root.tsx` so it never stops on tab change
+## Tasks
+- [x] Stop secrets from being committable: add `.env` rules to `.gitignore`
+- [x] Untrack `.env` (local file kept, dropped from the index)
+- [x] Remove the `VITE_GIPHY_API_KEY` trap from `.env.example`
+- [x] Add regression tests guarding the secret boundary (5 new)
+- [x] Document the secret setup so the next rotation is a one-liner
+- [x] Verify: tsc clean, 698 tests pass, vite build succeeds
+- [x] Commit on a new branch, push, open PR
 
-## 3. UI
-- [x] `src/components/SongCard.tsx` — `SoundCover`, `SongCard` (carousel), `SongRow` (list)
-- [x] `src/routes/music.tsx` — search bar, 4 inner tabs, rows 1–4, safety note, Use this sound
-- [x] `src/routes/index.tsx` — add `🎵 Music` top tab after Videos
-
-## 4. Verify
-- [x] `tsc --noEmit`, `vite build`, targeted vitest, eslint on changed files
-- [x] commit, push branch, open PR
+## Remaining (user action, cannot be done from the repo)
+- [ ] Set the rotated key as a host secret: `npx wrangler secret put GIPHY_API_KEY`
+- [ ] Redeploy so the Worker picks up the binding

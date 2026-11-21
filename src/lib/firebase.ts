@@ -9,6 +9,8 @@ import {
   type ConfirmationResult,
   type User as FirebaseUser,
 } from "firebase/auth";
+import { doc, getDocFromServer, getFirestore, type Firestore } from "firebase/firestore";
+import firebaseAppletConfig from "../../firebase-applet-config.json";
 
 export type FirebasePhoneConfig = {
   apiKey: string;
@@ -18,6 +20,7 @@ export type FirebasePhoneConfig = {
   storageBucket?: string;
   messagingSenderId?: string;
   measurementId?: string;
+  firestoreDatabaseId?: string;
 };
 
 export type FirebasePhoneError = {
@@ -25,15 +28,45 @@ export type FirebasePhoneError = {
   message: string;
 };
 
-// Public Firebase web config (safe to ship in client code).
+export enum OperationType {
+  CREATE = "create",
+  UPDATE = "update",
+  DELETE = "delete",
+  LIST = "list",
+  GET = "get",
+  WRITE = "write",
+}
+
+export interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string | null;
+    email?: string | null;
+    emailVerified?: boolean | null;
+    isAnonymous?: boolean | null;
+    tenantId?: string | null;
+    providerInfo?: {
+      providerId?: string | null;
+      email?: string | null;
+    }[];
+  };
+}
+
+// Public Firebase web config loaded from firebase-applet-config.json (overridable via VITE_*).
 const FIREBASE_DEFAULTS: Record<string, string> = {
-  VITE_FIREBASE_API_KEY: "AIzaSyCFhH-JLAmkx0mCtUO7Bj2PXCr_XaWuOOI",
-  VITE_FIREBASE_AUTH_DOMAIN: "coolerup-95946.firebaseapp.com",
-  VITE_FIREBASE_PROJECT_ID: "coolerup-95946",
-  VITE_FIREBASE_STORAGE_BUCKET: "coolerup-95946.firebasestorage.app",
-  VITE_FIREBASE_MESSAGING_SENDER_ID: "52316688457",
-  VITE_FIREBASE_APP_ID: "1:52316688457:web:ed9d905a4407914bd26f98",
-  VITE_FIREBASE_MEASUREMENT_ID: "G-2LR4EWJ3DM",
+  VITE_FIREBASE_API_KEY: firebaseAppletConfig.apiKey || "AIzaSyCFhH-JLAmkx0mCtUO7Bj2PXCr_XaWuOOI",
+  VITE_FIREBASE_AUTH_DOMAIN: firebaseAppletConfig.authDomain || "coolerup-95946.firebaseapp.com",
+  VITE_FIREBASE_PROJECT_ID: firebaseAppletConfig.projectId || "coolerup-95946",
+  VITE_FIREBASE_STORAGE_BUCKET:
+    firebaseAppletConfig.storageBucket || "coolerup-95946.firebasestorage.app",
+  VITE_FIREBASE_MESSAGING_SENDER_ID: firebaseAppletConfig.messagingSenderId || "52316688457",
+  VITE_FIREBASE_APP_ID: firebaseAppletConfig.appId || "1:52316688457:web:300831d4b76c1175d26f98",
+  VITE_FIREBASE_MEASUREMENT_ID: firebaseAppletConfig.measurementId || "G-2LR4EWJ3DM",
+  VITE_FIREBASE_FIRESTORE_DATABASE_ID:
+    firebaseAppletConfig.firestoreDatabaseId ||
+    "ai-studio-coolerup-cb23dc12-2877-4aed-b1e4-2c238632ccae",
 };
 
 function readEnv(key: string): string {
@@ -53,6 +86,7 @@ export function getFirebasePhoneConfig(): FirebasePhoneConfig | null {
   const storageBucket = readEnv("VITE_FIREBASE_STORAGE_BUCKET");
   const messagingSenderId = readEnv("VITE_FIREBASE_MESSAGING_SENDER_ID");
   const measurementId = readEnv("VITE_FIREBASE_MEASUREMENT_ID");
+  const firestoreDatabaseId = readEnv("VITE_FIREBASE_FIRESTORE_DATABASE_ID");
 
   return {
     apiKey,
@@ -62,7 +96,16 @@ export function getFirebasePhoneConfig(): FirebasePhoneConfig | null {
     ...(storageBucket ? { storageBucket } : {}),
     ...(messagingSenderId ? { messagingSenderId } : {}),
     ...(measurementId ? { measurementId } : {}),
+    ...(firestoreDatabaseId ? { firestoreDatabaseId } : {}),
   };
+}
+
+export function getFirestoreDatabaseId(): string {
+  return (
+    readEnv("VITE_FIREBASE_FIRESTORE_DATABASE_ID") ||
+    firebaseAppletConfig.firestoreDatabaseId ||
+    "(default)"
+  );
 }
 
 export function isFirebaseConfigured(): boolean {
@@ -87,17 +130,91 @@ export function getFirebaseConfigSummary(): {
 
 let cachedApp: FirebaseApp | null = null;
 let cachedAuth: Auth | null = null;
+let cachedDb: Firestore | null = null;
+let connectionTested = false;
 let activeVerifier: RecaptchaVerifier | null = null;
 
-export function getFirebaseAuth(): Auth | null {
+export function getFirebaseApp(): FirebaseApp | null {
   if (typeof window === "undefined") return null;
   const cfg = getFirebasePhoneConfig();
   if (!cfg) return null;
-  if (cachedAuth) return cachedAuth;
+  if (cachedApp) return cachedApp;
+  try {
+    cachedApp = getApps().length > 0 ? getApp() : initializeApp(cfg);
+    return cachedApp;
+  } catch {
+    return null;
+  }
+}
 
-  cachedApp = getApps().length > 0 ? getApp() : initializeApp(cfg);
-  cachedAuth = getAuth(cachedApp);
-  return cachedAuth;
+export function getFirebaseAuth(): Auth | null {
+  const app = getFirebaseApp();
+  if (!app) return null;
+  if (cachedAuth) return cachedAuth;
+  try {
+    cachedAuth = getAuth(app);
+    return cachedAuth;
+  } catch {
+    return null;
+  }
+}
+
+export function buildFirestoreErrorInfo(
+  error: unknown,
+  operationType: OperationType,
+  path: string | null,
+): FirestoreErrorInfo {
+  const currentUser = getFirebaseAuth()?.currentUser;
+  return {
+    error: error instanceof Error ? error.message : String(error),
+    operationType,
+    path,
+    authInfo: {
+      userId: currentUser?.uid ?? null,
+      email: currentUser?.email ?? null,
+      emailVerified: currentUser?.emailVerified ?? null,
+      isAnonymous: currentUser?.isAnonymous ?? null,
+      tenantId: currentUser?.tenantId ?? null,
+      providerInfo:
+        currentUser?.providerData?.map((provider) => ({
+          providerId: provider.providerId,
+          email: provider.email,
+        })) ?? [],
+    },
+  };
+}
+
+export function handleFirestoreError(
+  error: unknown,
+  operationType: OperationType,
+  path: string | null,
+): never {
+  const errInfo = buildFirestoreErrorInfo(error, operationType, path);
+  console.error("Firestore Error: ", JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
+
+export async function testFirestoreConnection(db: Firestore): Promise<void> {
+  if (connectionTested || import.meta.env.MODE === "test") return;
+  connectionTested = true;
+  try {
+    await getDocFromServer(doc(db, "test", "connection"));
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("the client is offline")) {
+      console.error("Please check your Firebase configuration.");
+    }
+  }
+}
+
+export function getFirebaseDb(): Firestore | null {
+  const app = getFirebaseApp();
+  if (!app) return null;
+  if (cachedDb) return cachedDb;
+  const databaseId = getFirestoreDatabaseId();
+  cachedDb =
+    databaseId && databaseId !== "(default)" ? getFirestore(app, databaseId) : getFirestore(app);
+  void testFirestoreConnection(cachedDb);
+  return cachedDb;
 }
 
 export function clearFirebaseRecaptcha(container?: HTMLElement | null): void {
@@ -176,7 +293,12 @@ export function onFirebasePhoneUserChange(cb: (user: FirebaseUser | null) => voi
     cb(null);
     return () => {};
   }
-  return onAuthStateChanged(auth, cb);
+  try {
+    return onAuthStateChanged(auth, cb, () => cb(null));
+  } catch {
+    cb(null);
+    return () => {};
+  }
 }
 
 export async function signOutFirebasePhone(): Promise<void> {

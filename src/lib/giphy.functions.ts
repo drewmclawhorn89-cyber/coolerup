@@ -44,7 +44,7 @@ export const searchGiphy = createServerFn({ method: "GET" })
     return { q, limit };
   })
   .handler(async ({ data }): Promise<GiphyResponse> => {
-    const key = (process.env["GIPHY_API_KEY"] ?? process.env["VITE_GIPHY_API_KEY"] ?? "").trim();
+    const key = (process.env["GIPHY_API_KEY"] ?? "").trim();
     if (!key) return { ok: false, reason: "missing-key" };
 
     const base = data.q ? "search" : "trending";

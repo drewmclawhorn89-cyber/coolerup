@@ -14,7 +14,13 @@ import { Check, Copy, Gift, Snowflake, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { RedeemCodeBox } from "@/components/RedeemCodeBox";
-import { codeSubscriptionSummary, myCodeSubscriptions, type CodeSubscription } from "@/lib/codes";
+import {
+  codePlanId,
+  codePlanLabel,
+  codeSubscriptionSummary,
+  myCodeSubscriptions,
+  type CodeSubscription,
+} from "@/lib/codes";
 import {
   CHRISTMAS_CODE_HIGHLIGHTS,
   christmasCodesSeasonLabel,
@@ -24,6 +30,7 @@ import {
 
 const PLAN_STYLES: Record<ChristmasCodeHighlight["plan"], string> = {
   basic: "from-sky-500/20 to-sky-500/5 border-sky-400/30 text-sky-200",
+  pro: "from-emerald-500/20 to-emerald-500/5 border-emerald-400/30 text-emerald-200",
   premium: "from-amber-500/20 to-amber-500/5 border-amber-400/30 text-amber-200",
 };
 
@@ -60,7 +67,7 @@ function CodeCard({ item }: { item: ChristmasCodeHighlight }) {
           <p className="mt-1 text-xs leading-relaxed text-white/70">{item.blurb}</p>
         </div>
         <span className="shrink-0 rounded-full border border-white/20 bg-black/30 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white/80">
-          {item.plan === "premium" ? "Premium" : "Basic"}
+          {codePlanLabel(item.plan)}
         </span>
       </div>
 
@@ -118,7 +125,7 @@ export function ChristmasCodesPanel({
   const active = subs?.[0] ?? null;
   const activeSummary = active
     ? codeSubscriptionSummary({
-        planId: active.plan === "premium" ? "vip" : "plus",
+        planId: codePlanId(active.plan),
         status: "active",
         startedAt: active.redeemed_at,
         paidAt: active.redeemed_at,

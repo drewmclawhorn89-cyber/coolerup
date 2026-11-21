@@ -1,0 +1,172 @@
+{
+  "entities": {
+    "UserPresence": {
+      "title": "UserPresence",
+      "description": "Real-time online presence and last active status for a Coolerup account (without any PII or location).",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Authenticated user ID that owns this presence document.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "handle": {
+          "type": "string",
+          "description": "Normalized lowercase Coolerup handle for the account.",
+          "minLength": 1,
+          "maxLength": 40,
+          "pattern": "^[a-z0-9._]+$"
+        },
+        "isOnline": {
+          "type": "boolean",
+          "description": "Whether the user is currently active inside Coolerup."
+        },
+        "lastActive": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of the user's most recent activity or disconnect."
+        },
+        "showOnline": {
+          "type": "boolean",
+          "description": "Privacy flag ('Show when I'm online'). When false, status is hidden from others."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the presence document was first created."
+        }
+      },
+      "required": ["uid", "handle", "isOnline", "lastActive", "showOnline", "createdAt"]
+    },
+    "WatchHistoryEntry": {
+      "title": "WatchHistoryEntry",
+      "description": "Video watched by an authenticated Coolerup user for more than 3 seconds, tied to their account.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Authenticated user ID that owns this watch history record.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "videoId": {
+          "type": "string",
+          "description": "Identifier of the watched video.",
+          "minLength": 1,
+          "maxLength": 180
+        },
+        "source": {
+          "type": "string",
+          "description": "Tab/platform source where the video was watched.",
+          "enum": ["foryou", "videos", "youtube", "tiktok", "instagram"]
+        },
+        "title": {
+          "type": "string",
+          "description": "Video title or caption.",
+          "maxLength": 300
+        },
+        "creator": {
+          "type": "string",
+          "description": "Creator handle or channel name.",
+          "maxLength": 100
+        },
+        "thumbnailUrl": {
+          "type": "string",
+          "description": "Thumbnail or video preview URL.",
+          "maxLength": 1000
+        },
+        "videoUrl": {
+          "type": "string",
+          "description": "Playable video source URL or storage reference.",
+          "maxLength": 1000
+        },
+        "sourceUrl": {
+          "type": "string",
+          "description": "Original external or embed URL when applicable.",
+          "maxLength": 1000
+        },
+        "watchRouteId": {
+          "type": "string",
+          "description": "Full-video watch route ID (/watch/:id) when available.",
+          "maxLength": 180
+        },
+        "youtubeId": {
+          "type": "string",
+          "description": "YouTube video ID when source is youtube.",
+          "maxLength": 64
+        },
+        "watchedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of the most recent watch."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when this entry was first created."
+        }
+      },
+      "required": [
+        "uid",
+        "videoId",
+        "source",
+        "title",
+        "creator",
+        "thumbnailUrl",
+        "videoUrl",
+        "sourceUrl",
+        "watchRouteId",
+        "youtubeId",
+        "watchedAt",
+        "createdAt"
+      ]
+    },
+    "WatchHistorySettings": {
+      "title": "WatchHistorySettings",
+      "description": "Per-account preference controlling whether new watched videos are saved.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Authenticated user ID that owns this setting.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "saveWatchHistory": {
+          "type": "boolean",
+          "description": "Whether Watch History recording is ON or OFF for the account."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the setting was last updated."
+        }
+      },
+      "required": ["uid", "saveWatchHistory", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/user_presence/{presenceId}": {
+      "schema": {
+        "$ref": "#/entities/UserPresence"
+      },
+      "description": "Stores live online/offline presence (isOnline, lastActive, showOnline) keyed by deterministic handle ID."
+    },
+    "/watch_history/{historyDocId}": {
+      "schema": {
+        "$ref": "#/entities/WatchHistoryEntry"
+      },
+      "description": "Account-scoped watch history items ordered newest first in the client."
+    },
+    "/watch_history_settings/{userId}": {
+      "schema": {
+        "$ref": "#/entities/WatchHistorySettings"
+      },
+      "description": "Account-scoped Save Watch History ON/OFF toggle."
+    }
+  }
+}

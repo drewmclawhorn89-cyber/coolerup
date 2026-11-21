@@ -20,6 +20,14 @@ dist-ssr
 .wrangler/
 .dev.vars
 
+# Secrets. `.env` is NOT tracked: a real key committed here is world-readable
+# forever, even after a later commit blanks it out. That is exactly how the
+# previous Giphy key ended up banned. Keep the template in `.env.example`
+# (values blank) and set real secrets in the hosting environment instead.
+.env
+.env.*
+!.env.example
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

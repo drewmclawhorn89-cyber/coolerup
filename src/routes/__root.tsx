@@ -20,7 +20,9 @@ import { PhoneAuthDialog } from "../components/PhoneAuthDialog";
 import { OnboardingRequiredDialog } from "../components/OnboardingBanner";
 import { Toaster } from "sonner";
 import { WellbeingWatcher } from "../components/MoreSettings";
+import { OnlineStatusWatcher } from "../lib/onlineStatus";
 import { PushRegistrar } from "../components/PushRegistrar";
+import { OfflineAutoDownloadWatcher } from "../components/OfflineAutoDownloadWatcher";
 import { FollowerRewardWatcher } from "../components/FollowerRewardModal";
 import { EarningsWatcher } from "../components/WalletBalance";
 import { BanGate } from "../components/BanGate";
@@ -317,6 +319,8 @@ function RootComponent() {
           </UpdateGate>
           <CallOverlay />
           <WellbeingWatcher />
+          <OnlineStatusWatcher />
+          <OfflineAutoDownloadWatcher />
           <PushRegistrar />
           {/* Creator fund: celebrates the $1 first-follower reward exactly once. */}
           <FollowerRewardWatcher />

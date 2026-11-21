@@ -6,6 +6,16 @@ import {
   getTwitchRedirectUri,
 } from "@/lib/twitch.server";
 
+/** JSON for embedding inside an inline script; escapes markup that could close the script tag. */
+function scriptJson(value: unknown): string {
+  return JSON.stringify(value)
+    .replace(/</g, "\\u003c")
+    .replace(/>/g, "\\u003e")
+    .replace(/&/g, "\\u0026")
+    .replace(/\u2028/g, "\\u2028")
+    .replace(/\u2029/g, "\\u2029");
+}
+
 function htmlResponse(html: string, status = 200, extraHeaders?: HeadersInit): Response {
   const headers = new Headers(extraHeaders);
   headers.set("content-type", "text/html; charset=utf-8");
@@ -24,8 +34,8 @@ export const Route = createFileRoute("/api/twitch/auth/callback")({
         const state = url.searchParams.get("state");
 
         if (errorParam || !code || !consumeOAuthState(state)) {
-          const message = JSON.stringify(
-            errorDesc || errorParam || "Twitch sign-in was canceled or expired.",
+          const message = scriptJson(
+            String(errorDesc || errorParam || "Twitch sign-in was canceled or expired.").slice(0, 300),
           );
           return htmlResponse(
             `<!doctype html>
@@ -67,7 +77,7 @@ export const Route = createFileRoute("/api/twitch/auth/callback")({
           );
         }
 
-        const safeUser = JSON.stringify(session.user);
+        const safeUser = scriptJson(session.user);
         return htmlResponse(
           `<!doctype html>
 <html>

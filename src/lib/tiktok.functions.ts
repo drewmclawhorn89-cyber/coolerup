@@ -49,6 +49,17 @@ export type TikTokRunRow = {
   message: string | null;
 };
 
+export type TikTokVideoRow = {
+  id: string;
+  username: string | null;
+  caption: string | null;
+  video_url: string | null;
+  tiktok_id: string | null;
+  tiktok_author: string | null;
+  hidden: boolean;
+  created_at: string;
+};
+
 export type TikTokStatus = {
   settings: {
     enabled: boolean;
@@ -60,6 +71,9 @@ export type TikTokStatus = {
   discovery: { displayApi: boolean; mode: "display_api" | "public_pages" };
   sources: TikTokSourceRow[];
   runs: TikTokRunRow[];
+  /** The most recent clips actually sitting in the feed, so an admin can
+   *  find them without scrolling the swipe feed. */
+  videos: TikTokVideoRow[];
   counts: { total: number; published: number; drafts: number };
 };
 
@@ -73,7 +87,7 @@ export const getTikTokStatus = createServerFn({ method: "GET" })
     const { loadTikTokSettings } = await import("./tiktokSync.server");
     const db = supabaseAdmin as unknown as import("@supabase/supabase-js").SupabaseClient;
 
-    const [settings, sources, runs, total, published, drafts] = await Promise.all([
+    const [settings, sources, runs, total, published, drafts, recentVideos] = await Promise.all([
       loadTikTokSettings(),
       db
         .from("tiktok_sources")
@@ -92,6 +106,12 @@ export const getTikTokStatus = createServerFn({ method: "GET" })
         .select("id", { count: "exact", head: true })
         .eq("is_tiktok", true)
         .eq("hidden", true),
+      db
+        .from("videos")
+        .select("id, username, caption, video_url, tiktok_id, tiktok_author, hidden, created_at")
+        .eq("is_tiktok", true)
+        .order("created_at", { ascending: false })
+        .limit(100),
     ]);
 
     return {
@@ -99,6 +119,7 @@ export const getTikTokStatus = createServerFn({ method: "GET" })
       discovery: tiktokDiscoveryStatus(),
       sources: (sources.data ?? []) as TikTokSourceRow[],
       runs: (runs.data ?? []) as TikTokRunRow[],
+      videos: (recentVideos.data ?? []) as TikTokVideoRow[],
       counts: {
         total: total.count ?? 0,
         published: published.count ?? 0,

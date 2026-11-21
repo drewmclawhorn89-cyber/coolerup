@@ -1,10 +1,15 @@
 # TikTok 24/7 sync
 
-Coolerup pulls TikTok videos into the `full_videos` library on a schedule. The
-job runs on the server, never in the browser, and it **never downloads or
-rehosts a TikTok file**. Each row stores the canonical share URL and the cover
-image, and playback happens in TikTok's own embed player — the same rule the
-YouTube additions follow.
+Coolerup pulls TikTok videos into the short-form feed — the `videos` table that
+drives the swipe feed on `/` — on a schedule. The job runs on the server, never
+in the browser, and it **never downloads or rehosts a TikTok file**. Each row
+stores the canonical share URL, and playback happens in TikTok's own embed
+player inside the feed card — the same rule the YouTube additions follow.
+
+Ingested rows are marked `is_tiktok = true` and carry `tiktok_id` and
+`tiktok_author`. `username` is set to the TikTok creator's handle so the card
+labels itself correctly; `user_id` is the Coolerup account that owns the row
+and is nullable, so a missing owner never blocks ingestion.
 
 ## What it can pull
 
@@ -27,8 +32,8 @@ auto-discovery is what makes the pull truly continuous, and that needs a token
    the configured interval (default 15 minutes). So it is safe to fire the
    endpoint every minute.
 3. The engine walks the enabled sources, resolves each into videos, skips ids
-   already in `full_videos` (unique partial index on `tiktok_id`), and inserts
-   the rest with `is_tiktok = true`.
+   already in `videos` (unique partial index on `tiktok_id`), and inserts the
+   rest with `is_tiktok = true`.
 4. A row is written to `tiktok_sync_runs`, which the admin panel renders.
 
 ### If there is no cron secret (the common case)
@@ -52,11 +57,15 @@ if the app has low traffic.
 
 ## Setup
 
-### 1. Run the migration
+### 1. Run the SQL
 
-```sh
-supabase db push          # or paste supabase/migrations/20261214000000_tiktok_sync.sql
-```
+Easiest path: paste `supabase/sql-editor-tiktok-setup.sql` into the Supabase SQL
+Editor and run it. It is idempotent, creates every table/index/policy/function,
+and ends with an `ok`/`MISSING` report so you can see what took.
+
+The equivalent migrations are `20261214000000_tiktok_sync.sql` (job tables) and
+`20261215000000_tiktok_feed.sql` (provenance columns on `videos`), for
+`supabase db push`.
 
 ### 2. Set the cron secret
 

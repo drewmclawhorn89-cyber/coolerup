@@ -82,16 +82,6 @@ async function resolveOwner(settings: TikTokSyncSettings): Promise<string | null
   return (data as { user_id?: string } | null)?.user_id ?? null;
 }
 
-/** Hashtags from a caption, without the '#', capped so the column stays small. */
-function tagsFromCaption(caption: string): string[] {
-  const tags = new Set<string>();
-  for (const match of caption.matchAll(/#([\p{L}\p{N}_]{1,50})/gu)) {
-    tags.add(match[1]!.toLowerCase());
-    if (tags.size >= 12) break;
-  }
-  return [...tags];
-}
-
 async function finishRun(runId: string, summary: Omit<TikTokSyncSummary, "runId">): Promise<void> {
   await db
     .from("tiktok_sync_runs")
@@ -193,18 +183,10 @@ export async function runTikTokSync(options: RunTikTokSyncOptions): Promise<TikT
   }
 
   try {
+    // `videos.user_id` is nullable, so a missing owner is no longer fatal: the
+    // clip still lands in the feed and the card still shows the TikTok handle.
+    // We only lose the "poster" link back to a Coolerup profile.
     const ownerId = await resolveOwner(settings);
-    if (!ownerId) {
-      const summary = {
-        status: "error" as const,
-        sourcesChecked: 0,
-        videosAdded: 0,
-        videosSkipped: 0,
-        message: "No owner account: set one in TikTok settings or make an admin first.",
-      };
-      await finishRun(runId, summary);
-      return { runId, ...summary };
-    }
 
     const { data: sourceRows, error: sourceError } = await db
       .from("tiktok_sources")
@@ -265,7 +247,7 @@ export async function runTikTokSync(options: RunTikTokSyncOptions): Promise<TikT
         // Dedupe on the TikTok id. The unique partial index is the real guard;
         // this check just avoids a pointless insert + error round-trip.
         const { data: existing } = await db
-          .from("full_videos")
+          .from("videos")
           .select("id")
           .eq("tiktok_id", item.id)
           .maybeSingle();
@@ -274,20 +256,20 @@ export async function runTikTokSync(options: RunTikTokSyncOptions): Promise<TikT
           continue;
         }
 
-        const { error: insertError } = await db.from("full_videos").insert({
+        // Ingested clips go into the short-form feed (`videos`), not the
+        // long-form library. `video_url` is the canonical TikTok share URL —
+        // the card plays it through TikTok's embed, so nothing is rehosted.
+        const { error: insertError } = await db.from("videos").insert({
           user_id: ownerId,
           username: item.author,
-          title: item.title.slice(0, 500),
-          description: shortCaption(item.title, 300),
+          caption: shortCaption(item.title, 300),
           video_url: item.url,
-          thumbnail_url: item.thumbnailUrl,
+          // `hidden` is the feed's moderation flag: auto-publish off means the
+          // clip lands out of the feed for an admin to review first.
+          hidden: !settings.auto_publish,
           is_tiktok: true,
           tiktok_id: item.id,
           tiktok_author: item.author,
-          duration: Math.min(Math.max(item.duration, 0), 3600),
-          status: settings.auto_publish ? "ready" : "draft",
-          category: "All",
-          tags: tagsFromCaption(item.title),
         });
 
         if (insertError) {

@@ -486,6 +486,10 @@ function VideoCardImpl({
 
   const isImage =
     isImageUrl(video.video_url) || /\.(jpe?g|png|webp|gif|avif)$/i.test(video.video_url);
+  // Ingested TikTok clips are not hosted by us: `video_url` is the canonical
+  // share link and playback goes through TikTok's own embed player, so there is
+  // no file to sign or stream and no <video> element to drive.
+  const isTikTok = Boolean(video.is_tiktok && video.tiktok_id);
   const { text: captionText, song, full } = parseCaption(video.caption);
   const songRef = useRef<HTMLAudioElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
@@ -552,6 +556,7 @@ function VideoCardImpl({
   }, [near]);
 
   useEffect(() => {
+    if (isTikTok) return;
     if (!shouldLoad) {
       setSrc("");
       setLoadState("idle");
@@ -581,7 +586,7 @@ function VideoCardImpl({
       alive = false;
       if (blobUrl) URL.revokeObjectURL(blobUrl);
     };
-  }, [video.id, qualitySource.url, shouldLoad, retry]);
+  }, [video.id, qualitySource.url, shouldLoad, retry, isTikTok]);
 
   // If the user tapped "play" on a card that wasn't auto-loading, start it once
   // the source is ready.
@@ -885,7 +890,23 @@ function VideoCardImpl({
             }}
             className="relative h-full w-full overflow-hidden bg-black md:aspect-[9/16] md:h-[calc(100dvh-11rem)] md:max-h-[760px] md:w-auto md:rounded-2xl md:bg-card"
           >
-            {src && isImage && (
+            {isTikTok && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black">
+                {shouldLoad ? (
+                  <iframe
+                    src={`https://www.tiktok.com/embed/v2/${encodeURIComponent(video.tiktok_id!)}`}
+                    title={captionText ? captionText.slice(0, 90) : `TikTok by @${video.username}`}
+                    allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
+                    allowFullScreen
+                    loading="lazy"
+                    className="h-full w-full border-0"
+                  />
+                ) : (
+                  <span className="text-xs font-semibold text-white/60">@{video.username}</span>
+                )}
+              </div>
+            )}
+            {src && isImage && !isTikTok && (
               <img
                 src={src}
                 loading="lazy"
@@ -908,7 +929,7 @@ function VideoCardImpl({
                 </span>
               </div>
             )}
-            {src && !isImage && (
+            {src && !isImage && !isTikTok && (
               <video
                 ref={ref}
                 src={src}

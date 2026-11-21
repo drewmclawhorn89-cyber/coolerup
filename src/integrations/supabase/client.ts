@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import type { Database } from "./types";
 import { brokeredPreviewStorage } from "./previewAuthStorage";
 import { createMockSupabaseClient } from "./mock";
+import { resolveSupabaseUrl } from "./project";
 
 function isNewSupabaseApiKey(value: string): boolean {
   return value.startsWith("sb_publishable_") || value.startsWith("sb_secret_");
@@ -59,9 +60,15 @@ function createSupabaseClient() {
   // Use import.meta.env for client-side (Vite build-time replacement)
   // Fall back to process.env for SSR (server-side rendering)
   const serverEnv = typeof process !== "undefined" ? process.env : undefined;
-  const SUPABASE_URL = import.meta.env["VITE_SUPABASE_URL"] || serverEnv?.["SUPABASE_URL"];
   const SUPABASE_PUBLISHABLE_KEY =
     import.meta.env["VITE_SUPABASE_PUBLISHABLE_KEY"] || serverEnv?.["SUPABASE_PUBLISHABLE_KEY"];
+
+  // A deploy can have the publishable key but no URL. Falling back to the mock
+  // in that case used to disable sign-in and the whole feed, so derive the
+  // public project URL instead. The mock is only used when the key is absent.
+  const SUPABASE_URL = SUPABASE_PUBLISHABLE_KEY
+    ? resolveSupabaseUrl(import.meta.env["VITE_SUPABASE_URL"] || serverEnv?.["SUPABASE_URL"])
+    : undefined;
 
   if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
     const missing = [

@@ -383,6 +383,10 @@ export async function uploadVideo(
   const { data, error } = await supabase
     .from("videos")
     .insert({
+      // Without user_id the row has no owner: the "owners read own videos"
+      // policy can never match it, so the uploader can't see their own video
+      // and nobody else can either.
+      user_id: uploader.id,
       username,
       caption:
         withSong(caption, file.type.startsWith("image/") ? song : null) +
@@ -420,6 +424,8 @@ export async function uploadRecording(
   const { data, error } = await supabase
     .from("videos")
     .insert({
+      // Same as uploadVideo: the row needs an owner or it is unreadable.
+      user_id: recorder.id,
       username,
       caption: `${caption}${soundBaked ? "[[baked]]" : ""}`,
       video_url: STORAGE_PREFIX + path,

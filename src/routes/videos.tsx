@@ -243,7 +243,7 @@ function VideosPage() {
    */
   useEffect(() => {
     const node = sentinelRef.current;
-    if (!node || !hasMore || offlineOnly) return;
+    if (!node || !hasMore || offlineOnly || typeof IntersectionObserver === "undefined") return;
     const io = new IntersectionObserver(
       (entries) => {
         if (entries.some((e) => e.isIntersecting)) void loadMore();

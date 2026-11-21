@@ -70,9 +70,10 @@ const SubscriptionsPanel = lazy(() =>
 export const Route = createFileRoute("/settings")({
   // `?subscriptions=1` opens the plans screen directly — used by upgrade CTAs
   // elsewhere in the app (e.g. the Music tab's locked Downloaded tab).
-  validateSearch: (search: Record<string, unknown>): { subscriptions?: boolean } => ({
-    subscriptions: search["subscriptions"] === true || search["subscriptions"] === "1",
-  }),
+  validateSearch: (search: Record<string, unknown>): { subscriptions?: boolean } =>
+    search["subscriptions"] === true || search["subscriptions"] === "1"
+      ? { subscriptions: true }
+      : {},
   head: () => ({
     meta: [
       { title: "Settings — Coolerup" },
@@ -162,16 +163,42 @@ function Settings() {
   const [testingPush, setTestingPush] = useState(false);
   const [deviceHint, setDeviceHint] = useState<string | null>(null);
   const [lastTest, setLastTest] = useState<string | null>(null);
-  const [messagePrivacy, setMessagePrivacy] = useState(
-    localStorage.getItem("messagePrivacy") || "everyone",
-  );
-  const [messageFilter, setMessageFilter] = useState(
-    localStorage.getItem("messageFilter") || "all",
-  );
-  const [allowDM, setAllowDM] = useState(localStorage.getItem("allowDM") !== "false");
-  const [readReceipts, setReadReceipts] = useState(
-    localStorage.getItem("readReceipts") !== "false",
-  );
+  const [messagePrivacy, setMessagePrivacy] = useState(() => {
+    try {
+      return typeof localStorage !== "undefined"
+        ? localStorage.getItem("messagePrivacy") || "everyone"
+        : "everyone";
+    } catch {
+      return "everyone";
+    }
+  });
+  const [messageFilter, setMessageFilter] = useState(() => {
+    try {
+      return typeof localStorage !== "undefined"
+        ? localStorage.getItem("messageFilter") || "all"
+        : "all";
+    } catch {
+      return "all";
+    }
+  });
+  const [allowDM, setAllowDM] = useState(() => {
+    try {
+      return typeof localStorage !== "undefined"
+        ? localStorage.getItem("allowDM") !== "false"
+        : true;
+    } catch {
+      return true;
+    }
+  });
+  const [readReceipts, setReadReceipts] = useState(() => {
+    try {
+      return typeof localStorage !== "undefined"
+        ? localStorage.getItem("readReceipts") !== "false"
+        : true;
+    } catch {
+      return true;
+    }
+  });
   const [showOnline, setShowOnline] = useShowOnlineSetting();
   // Theme
   const [theme, setTheme] = useState<string>(() => {

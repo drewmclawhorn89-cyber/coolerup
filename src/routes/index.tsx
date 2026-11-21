@@ -562,8 +562,10 @@ function Index() {
     setLoadingMore(true);
     fetchVideos(pageNum, feedPageSize())
       .then((v: any) => {
-        if (!v || v.length === 0) setHasMore(false);
-        else {
+        if (!v || v.length === 0) {
+          setHasMore(false);
+          if (!append) setVideos([]);
+        } else {
           if (append) setVideos((prev: any) => [...(prev || []), ...v]);
           else {
             setVideos(v);
@@ -588,6 +590,7 @@ function Index() {
   };
 
   useEffect(() => {
+    if (typeof IntersectionObserver === "undefined") return;
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry?.isIntersecting) loadMore();
@@ -683,7 +686,10 @@ function Index() {
   }, [load]);
 
   useEffect(() => {
-    if (!auth.user) return;
+    if (!auth.user) {
+      setNotifications([]);
+      return;
+    }
     let mounted = true;
 
     const loadNotifications = async () => {
@@ -1425,19 +1431,21 @@ function Index() {
                 {!error && videos === null && activeTab !== "saved" && (
                   <Empty text="Loading your feed..." />
                 )}
-                {(videos || activeTab === "saved") && shown.length === 0 && (
-                  <Empty
-                    text={
-                      activeTab === "saved"
-                        ? "No saved videos yet. Tap Share → Save for offline on any video."
-                        : activeTab === "foryou" && feedTab === "live"
-                          ? "No LIVE now"
-                          : activeTab === "following"
-                            ? "Follow creators to see their videos here."
-                            : "Nothing here yet."
-                    }
-                  />
-                )}
+                {(!error || offlineMode) &&
+                  (videos || activeTab === "saved") &&
+                  shown.length === 0 && (
+                    <Empty
+                      text={
+                        activeTab === "saved"
+                          ? "No saved videos yet. Tap Share → Save for offline on any video."
+                          : activeTab === "foryou" && feedTab === "live"
+                            ? "No LIVE now"
+                            : activeTab === "following"
+                              ? "Follow creators to see their videos here."
+                              : "Nothing here yet."
+                      }
+                    />
+                  )}
                 {shown.map((v) => (
                   <VideoCard
                     key={`${activeTab}-${v.id}`}

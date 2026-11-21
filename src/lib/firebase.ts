@@ -139,16 +139,24 @@ export function getFirebaseApp(): FirebaseApp | null {
   const cfg = getFirebasePhoneConfig();
   if (!cfg) return null;
   if (cachedApp) return cachedApp;
-  cachedApp = getApps().length > 0 ? getApp() : initializeApp(cfg);
-  return cachedApp;
+  try {
+    cachedApp = getApps().length > 0 ? getApp() : initializeApp(cfg);
+    return cachedApp;
+  } catch {
+    return null;
+  }
 }
 
 export function getFirebaseAuth(): Auth | null {
   const app = getFirebaseApp();
   if (!app) return null;
   if (cachedAuth) return cachedAuth;
-  cachedAuth = getAuth(app);
-  return cachedAuth;
+  try {
+    cachedAuth = getAuth(app);
+    return cachedAuth;
+  } catch {
+    return null;
+  }
 }
 
 export function buildFirestoreErrorInfo(
@@ -285,7 +293,12 @@ export function onFirebasePhoneUserChange(cb: (user: FirebaseUser | null) => voi
     cb(null);
     return () => {};
   }
-  return onAuthStateChanged(auth, cb);
+  try {
+    return onAuthStateChanged(auth, cb, () => cb(null));
+  } catch {
+    cb(null);
+    return () => {};
+  }
 }
 
 export async function signOutFirebasePhone(): Promise<void> {

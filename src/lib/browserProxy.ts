@@ -28,17 +28,42 @@ export const PROXY_PATH = "/api/browser/proxy";
 /** Only real web pages can be proxied. */
 /** Blocks loopback, private, link-local and metadata hosts so the proxy can't reach internal services. */
 export function isPrivateHost(hostname: string): boolean {
-  const h = hostname.toLowerCase().replace(/^\[|\]$/g, "").replace(/\.$/, "");
-  if (!h || h === "localhost" || h.endsWith(".localhost") || h.endsWith(".local") || h.endsWith(".internal")) return true;
+  const h = hostname
+    .toLowerCase()
+    .replace(/^\[|\]$/g, "")
+    .replace(/\.$/, "");
+  if (
+    !h ||
+    h === "localhost" ||
+    h.endsWith(".localhost") ||
+    h.endsWith(".local") ||
+    h.endsWith(".internal")
+  )
+    return true;
   if (h === "metadata.google.internal") return true;
   if (h.includes(":")) {
-    return h === "::" || h === "::1" || h.startsWith("fc") || h.startsWith("fd") || h.startsWith("fe80") || h.startsWith("::ffff:");
+    return (
+      h === "::" ||
+      h === "::1" ||
+      h.startsWith("fc") ||
+      h.startsWith("fd") ||
+      h.startsWith("fe80") ||
+      h.startsWith("::ffff:")
+    );
   }
   const m = h.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
   if (m) {
     const [a, b] = [Number(m[1]), Number(m[2])];
-    return a === 0 || a === 10 || a === 127 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) ||
-      (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127) || a >= 224;
+    return (
+      a === 0 ||
+      a === 10 ||
+      a === 127 ||
+      (a === 169 && b === 254) ||
+      (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && b === 168) ||
+      (a === 100 && b >= 64 && b <= 127) ||
+      a >= 224
+    );
   }
   if (/^\d+$/.test(h) || /^0x/i.test(h)) return true;
   return false;
@@ -121,8 +146,15 @@ export const PROXY_SHIM = `<script>(function(){
       if (u == null) return u;
       var a = abs(String(u));
       if (!/^https?:/i.test(a)) return u;
+      var parsed = new URL(a);
       // Already one of ours (an anchor we rewrote) \u2014 never wrap twice.
-      try { if (isProxyUrl(new URL(a))) return a; } catch(e){}
+      if (isProxyUrl(parsed)) return a;
+      // If a page script built an absolute URL using window.location.origin,
+      // point it back at the real upstream origin before proxying.
+      if (parsed.origin === location.origin) {
+        var baseOrigin = new URL(BASE).origin;
+        a = baseOrigin + parsed.pathname + parsed.search + parsed.hash;
+      }
       // Absolute on purpose: this document has a base tag pointing at the real
       // site, so a root-relative proxy path would resolve to the wrong host.
       return location.origin + PROXY + "?url=" + encodeURIComponent(a);
@@ -144,7 +176,7 @@ export const PROXY_SHIM = `<script>(function(){
   }
   function safe(fn){ try { fn(); } catch(e){} }
 
-  // --- Keep Coolerup's own storage out of reach of proxied sites -----------
+  // --- Keep Coolerup's own storage & cookies out of reach of proxied sites -
   safe(function(){
     var mem = {};
     var fake = {
@@ -157,6 +189,25 @@ export const PROXY_SHIM = `<script>(function(){
     };
     try { Object.defineProperty(window, "localStorage", { value: fake, configurable: true }); } catch(e){}
     try { Object.defineProperty(window, "sessionStorage", { value: fake, configurable: true }); } catch(e){}
+    var cookieJar = {};
+    try {
+      Object.defineProperty(document, "cookie", {
+        configurable: true,
+        get: function(){
+          return Object.keys(cookieJar).map(function(k){ return k + "=" + cookieJar[k]; }).join("; ");
+        },
+        set: function(raw){
+          var pair = String(raw || "").split(";")[0];
+          var eq = pair.indexOf("=");
+          if (eq <= 0) return;
+          var name = pair.slice(0, eq).trim();
+          var val = pair.slice(eq + 1).trim();
+          if (!name) return;
+          if (/max-age\\s*=\\s*0/i.test(raw)) delete cookieJar[name];
+          else cookieJar[name] = val;
+        }
+      });
+    } catch(e){}
   });
 
   // --- fetch ---------------------------------------------------------------
@@ -169,6 +220,15 @@ export const PROXY_SHIM = `<script>(function(){
         else if (input && input.url) input = new Request(prox(input.url), input);
       } catch(e){}
       return f.call(this, input, init);
+    };
+  });
+
+  // --- sendBeacon ----------------------------------------------------------
+  safe(function(){
+    if (!navigator || typeof navigator.sendBeacon !== "function") return;
+    var origBeacon = navigator.sendBeacon.bind(navigator);
+    navigator.sendBeacon = function(url, data){
+      try { return origBeacon(prox(url), data); } catch(e){ return true; }
     };
   });
 
@@ -187,6 +247,22 @@ export const PROXY_SHIM = `<script>(function(){
   // The page still sees /learn, back/forward still work, and the Coolerup
   // address bar is told the real target so it stays honest.
   safe(function(){
+    var origReplace = history.replaceState;
+    try {
+      var locParsed = new URL(location.href);
+      if (isProxyUrl(locParsed)) {
+        var realInit = locParsed.searchParams.get("url");
+        if (realInit) {
+          var initUrl = new URL(realInit);
+          BASE = initUrl.href;
+          if (origReplace) {
+            origReplace.call(history, history.state, "", location.origin + initUrl.pathname + initUrl.search + initUrl.hash);
+          }
+          tell(initUrl.href);
+        }
+      }
+    } catch(e){}
+
     ["pushState", "replaceState"].forEach(function(k){
       var orig = history[k];
       if (!orig) return;
@@ -195,6 +271,7 @@ export const PROXY_SHIM = `<script>(function(){
         try {
           if (url != null) {
             var t = new URL(real);
+            if (/^https?:/i.test(t.protocol)) BASE = t.href;
             arguments[2] = location.origin + t.pathname + t.search + t.hash;
           }
         } catch(e){}
@@ -233,16 +310,42 @@ export const PROXY_SHIM = `<script>(function(){
     };
   });
 
-  // --- Forms: send GET forms through the proxy too --------------------------
+  // --- Dynamic links: keep JS-rendered <a> navigations inside Coolerup -----
+  safe(function(){
+    document.addEventListener("click", function(ev){
+      if (ev.defaultPrevented) return;
+      var node = ev.target;
+      var anchor = node && node.closest ? node.closest("a[href]") : null;
+      if (!anchor) return;
+      var rawHref = anchor.getAttribute("href") || "";
+      if (!rawHref || /^(#|javascript:|mailto:|tel:|data:|blob:|about:|sms:|whatsapp:)/i.test(rawHref.trim())) return;
+      try {
+        var resolved = new URL(rawHref, BASE);
+        if (!/^https?:/i.test(resolved.protocol)) return;
+        if (isProxyUrl(resolved)) return;
+        ev.preventDefault();
+        anchor.removeAttribute("target");
+        location.href = prox(resolved.href);
+      } catch(e){}
+    }, false);
+  });
+
+  // --- Forms: send GET and POST forms through the proxy too ----------------
   safe(function(){
     document.addEventListener("submit", function(ev){
       var form = ev.target;
       if (!form || form.tagName !== "FORM") return;
       var method = (form.getAttribute("method") || "get").toLowerCase();
-      if (method !== "get") return;
+      var rawAction = form.getAttribute("action") || target(location.href);
+      if (method !== "get") {
+        try {
+          var nextAction = prox(rawAction);
+          if (nextAction) form.setAttribute("action", nextAction);
+        } catch(e){}
+        return;
+      }
       try {
-        var action = form.getAttribute("action") || location.href;
-        var t = prox(action);
+        var t = prox(rawAction);
         var params = new URLSearchParams(new FormData(form)).toString();
         ev.preventDefault();
         location.href = t + (t.indexOf("?") >= 0 ? "&" : "?") + params;
@@ -269,8 +372,9 @@ function stripTargetBlank(tag: string): string {
 export function rewriteHtml(html: string, baseUrl: string, origin?: string): string {
   let out = html;
 
-  // Drop any existing base tag so ours is the only one.
+  // Drop any existing base tag or meta CSP so ours is the only policy.
   out = out.replace(/<base\b[^>]*>/gi, "");
+  out = out.replace(/<meta\b[^>]*http-equiv\s*=\s*["']?content-security-policy["']?[^>]*>/gi, "");
 
   const inject = `<base href="${escapeAttr(baseUrl)}">${PROXY_SHIM}`;
   if (/<head\b[^>]*>/i.test(out)) {

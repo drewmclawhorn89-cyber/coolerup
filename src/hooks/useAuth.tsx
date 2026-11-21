@@ -116,10 +116,16 @@ function useAuthState(): AuthValue {
       setSupabaseUser(session?.user ?? null);
       setSbReady(true);
     });
-    supabase.auth.getSession().then(({ data }) => {
-      setSupabaseUser(data.session?.user ?? null);
-      setSbReady(true);
-    });
+    supabase.auth
+      .getSession()
+      .then(({ data }) => {
+        setSupabaseUser(data.session?.user ?? null);
+        setSbReady(true);
+      })
+      .catch(() => {
+        setSupabaseUser(null);
+        setSbReady(true);
+      });
     const unsubFirebase = onFirebasePhoneUserChange((fbUser) => {
       setFirebaseUser(fbUser);
       setFbReady(true);
@@ -166,77 +172,84 @@ function useAuthState(): AuthValue {
     let alive = true;
     setProfileLoaded(false);
     (async () => {
-      if (isFirebaseSession) {
-        const existing = readLocalFirebaseProfile(user.id);
-        const fallbackHandle = derivedHandle ?? `user${user.id.slice(0, 4)}`;
-        const row: Profile = existing ?? {
-          id: user.id,
-          handle: fallbackHandle,
-          username: fallbackHandle,
-          display_name: null,
-          bio: null,
-          avatar_url: null,
-          onboarding_complete: true,
+      try {
+        if (isFirebaseSession) {
+          const existing = readLocalFirebaseProfile(user.id);
+          const fallbackHandle = derivedHandle ?? `user${user.id.slice(0, 4)}`;
+          const row: Profile = existing ?? {
+            id: user.id,
+            handle: fallbackHandle,
+            username: fallbackHandle,
+            display_name: null,
+            bio: null,
+            avatar_url: null,
+            onboarding_complete: true,
+          };
+          if (!existing) {
+            writeLocalFirebaseProfile(row);
+          }
+          if (!alive) return;
+          setProfile(row);
+          setResolvedAvatar(row.avatar_url ?? null);
+          setIsAdmin(false);
+          return;
+        }
+
+        // `my_profile()` is a SECURITY DEFINER function that returns the caller's
+        // own row, including the private columns (birthday, venmo_handle) that are
+        // no longer granted to clients on the table itself.
+        const readMine = async (): Promise<Profile | null> => {
+          const { data } = await supabase.rpc("my_profile");
+          const rows = (data ?? []) as unknown as Profile[];
+          return Array.isArray(rows) ? (rows[0] ?? null) : ((rows as unknown as Profile) ?? null);
         };
-        if (!existing) {
-          writeLocalFirebaseProfile(row);
+
+        let row = await readMine();
+        if (!row && derivedHandle) {
+          let res = await supabase
+            .from("profiles")
+            .insert({ id: user.id, handle: derivedHandle })
+            .select("id")
+            .single();
+          if (res.error?.code === "23505" && !googleName) {
+            res = await supabase
+              .from("profiles")
+              .insert({ id: user.id, handle: `${derivedHandle}_${user.id.slice(0, 4)}` })
+              .select("id")
+              .single();
+          }
+          if (res.error?.code === "23505") {
+            toast.error(`@${derivedHandle} is taken — pick a username in Settings`);
+          }
+          row = res.error ? null : await readMine();
+        }
+        const { data: role } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", user.id)
+          .eq("role", "admin")
+          .maybeSingle();
+        let avatarUrl: string | null = null;
+        if (row?.avatar_url?.startsWith("avatars:")) {
+          const { data: signed } = await supabase.storage
+            .from("avatars")
+            .createSignedUrl(row.avatar_url.slice("avatars:".length), 60 * 60 * 6);
+          avatarUrl = signed?.signedUrl ?? null;
+        } else {
+          avatarUrl = row?.avatar_url ?? null;
         }
         if (!alive) return;
         setProfile(row);
-        setResolvedAvatar(row.avatar_url ?? null);
+        setResolvedAvatar(avatarUrl);
+        setIsAdmin(!!role);
+      } catch {
+        if (!alive) return;
+        setProfile(null);
+        setResolvedAvatar(null);
         setIsAdmin(false);
-        setProfileLoaded(true);
-        return;
+      } finally {
+        if (alive) setProfileLoaded(true);
       }
-
-      // `my_profile()` is a SECURITY DEFINER function that returns the caller's
-      // own row, including the private columns (birthday, venmo_handle) that are
-      // no longer granted to clients on the table itself.
-      const readMine = async (): Promise<Profile | null> => {
-        const { data } = await supabase.rpc("my_profile");
-        const rows = (data ?? []) as unknown as Profile[];
-        return Array.isArray(rows) ? (rows[0] ?? null) : ((rows as unknown as Profile) ?? null);
-      };
-
-      let row = await readMine();
-      if (!row && derivedHandle) {
-        let res = await supabase
-          .from("profiles")
-          .insert({ id: user.id, handle: derivedHandle })
-          .select("id")
-          .single();
-        if (res.error?.code === "23505" && !googleName) {
-          res = await supabase
-            .from("profiles")
-            .insert({ id: user.id, handle: `${derivedHandle}_${user.id.slice(0, 4)}` })
-            .select("id")
-            .single();
-        }
-        if (res.error?.code === "23505") {
-          toast.error(`@${derivedHandle} is taken — pick a username in Settings`);
-        }
-        row = res.error ? null : await readMine();
-      }
-      const { data: role } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", user.id)
-        .eq("role", "admin")
-        .maybeSingle();
-      let avatarUrl: string | null = null;
-      if (row?.avatar_url?.startsWith("avatars:")) {
-        const { data: signed } = await supabase.storage
-          .from("avatars")
-          .createSignedUrl(row.avatar_url.slice("avatars:".length), 60 * 60 * 6);
-        avatarUrl = signed?.signedUrl ?? null;
-      } else {
-        avatarUrl = row?.avatar_url ?? null;
-      }
-      if (!alive) return;
-      setProfile(row);
-      setResolvedAvatar(avatarUrl);
-      setIsAdmin(!!role);
-      setProfileLoaded(true);
     })();
     return () => {
       alive = false;

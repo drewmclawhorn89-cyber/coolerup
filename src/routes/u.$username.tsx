@@ -59,6 +59,10 @@ function Thumb({ url, caption }: { url: string; caption: string }) {
   useEffect(() => {
     const el = boxRef.current;
     if (!el) return;
+    if (typeof IntersectionObserver === "undefined") {
+      setNear(true);
+      return;
+    }
     const obs = new IntersectionObserver(
       ([e]) => {
         if (e?.isIntersecting) {
@@ -293,18 +297,34 @@ function Profile() {
 
   useEffect(() => {
     if (!username) return;
-    supabase
-      .from("profiles")
-      .select(
-        "id, handle, username, display_name, bio, avatar_url, links, created_at, onboarding_complete, show_liked, is_admin",
-      )
-      .eq("handle", username)
-      .maybeSingle()
-      .then(({ data }) => {
+    let alive = true;
+    void (async () => {
+      try {
+        const { data } = await supabase
+          .from("profiles")
+          .select(
+            "id, handle, username, display_name, bio, avatar_url, links, created_at, onboarding_complete, show_liked, is_admin",
+          )
+          .eq("handle", username)
+          .maybeSingle();
+        if (!alive) return;
         const row = (data as ProfileRow | null) ?? null;
         setProfile(row);
-        resolveAvatarUrl(row?.avatar_url).then(setAvatar);
-      });
+        try {
+          const url = await resolveAvatarUrl(row?.avatar_url);
+          if (alive) setAvatar(url);
+        } catch {
+          if (alive) setAvatar(null);
+        }
+      } catch {
+        if (!alive) return;
+        setProfile(null);
+        setAvatar(null);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
   }, [username, auth.profile?.avatar_url, auth.profile?.display_name, auth.profile?.bio]);
 
   // Exact totals for every profile number. `count: "exact"` ignores the 1000
@@ -507,7 +527,7 @@ function Profile() {
 
   useEffect(() => {
     const el = sentinel.current;
-    if (!el || !hasMore[tab] || loadingMore) return;
+    if (!el || !hasMore[tab] || loadingMore || typeof IntersectionObserver === "undefined") return;
     const obs = new IntersectionObserver(
       ([e]) => {
         if (e?.isIntersecting) void loadMore();

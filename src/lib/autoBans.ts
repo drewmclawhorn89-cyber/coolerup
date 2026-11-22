@@ -968,6 +968,46 @@ export async function adminBotLogs(limit = 200): Promise<BotLogRow[]> {
   }
 }
 
+/**
+ * The Safety Bot's own removal path (migration 0029).
+ *
+ * `bot_takedown` resolves the handle to a real account, refuses to act on the
+ * owner, admins or the bot itself, and writes the audit row with the bot as
+ * the actor. Only the bot, an admin, or the owner may call it.
+ */
+const failed = (error: string): StrikeResult => ({
+  ok: false,
+  strike: 0,
+  action: "none",
+  permanent: false,
+  muted_until: null,
+  deleted: false,
+  message: "",
+  error,
+});
+
+export async function safetyBotTakedown(input: {
+  username: string;
+  kind: ViolationKind;
+  reason: string;
+  contentType?: "video" | "comment" | "profile_pic" | "profile" | "message" | "none";
+  contentId?: string | null;
+}): Promise<StrikeResult> {
+  try {
+    const { data, error } = await supabase.rpc("bot_takedown" as never, {
+      p_username: input.username,
+      p_kind: input.kind,
+      p_reason: input.reason,
+      p_content_type: input.contentType ?? "none",
+      ...(input.contentId ? { p_content_id: input.contentId } : {}),
+    } as never);
+    if (error) return failed(error.message || "moderation_unavailable");
+    return (data ?? failed("empty_response")) as StrikeResult;
+  } catch (e) {
+    return failed(e instanceof Error ? e.message : "moderation_unavailable");
+  }
+}
+
 export async function amIOwner(): Promise<boolean> {
   try {
     const { data, error } = await supabase.rpc("is_owner");

@@ -16,4 +16,4 @@
 ## Verify
 - [x] Tests for helpers + wiring (19 passing)
 - [x] Typecheck/build/test
-- [ ] Push branch + open PR
+- [x] Push branch + open PR (https://github.com/drewmclawhorn89-cyber/coolerup/pull/331)

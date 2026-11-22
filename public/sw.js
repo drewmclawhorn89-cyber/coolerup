@@ -1,5 +1,5 @@
 /* Coolerup service worker: offline app shell + incoming-call push alerts. */
-const CACHE = "coolerup-shell-v4";
+const CACHE = "coolerup-shell-v5";
 const SHELL = [
   "/",
   "/manifest.json",
@@ -35,6 +35,26 @@ self.addEventListener("message", (event) => {
 const isStaticAsset = (url) =>
   /\.(?:js|mjs|css|woff2?|ttf|otf|eot|png|jpe?g|webp|gif|svg|ico|avif|mp3)$/i.test(url.pathname);
 
+/**
+ * Code (JS/CSS) must never be served from cache while the network is up.
+ *
+ * Cache-first on `.js` is how you end up running a new component against an old
+ * shared module: the browser loads the fresh `EditVideoDialog` chunk, but the
+ * cached `loop` chunk next to it is from the previous deploy, and the import
+ * resolves to `undefined`. That surfaces as `(0, import_loop.updateX) is not a
+ * function` — a bug that exists only in the user's cache.
+ *
+ * Media and fonts are content-addressed and safe to serve from cache first.
+ */
+const isCode = (url) => /\.(?:js|mjs|css)$/i.test(url.pathname);
+
+/** Cache a copy of a successful response without blocking the caller. */
+const remember = (req, res) => {
+  if (!res || !res.ok) return;
+  const copy = res.clone();
+  caches.open(CACHE).then((cache) => cache.put(req, copy)).catch(() => undefined);
+};
+
 self.addEventListener("fetch", (event) => {
   const req = event.request;
   if (req.method !== "GET") return;
@@ -50,9 +70,13 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(
       fetch(req)
         .then((res) => {
+          // Keep the shell for offline boots, but only the newest copy.
           if (res.ok) {
             const copy = res.clone();
-            caches.open(CACHE).then((cache) => cache.put("/", copy)).catch(() => undefined);
+            caches
+              .open(CACHE)
+              .then((cache) => cache.put("/", copy))
+              .catch(() => undefined);
           }
           return res;
         })
@@ -70,16 +94,36 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Static assets: cache-first with a background refresh (stale-while-revalidate).
+  // Code: network-first so a deploy is picked up on the very next load. The
+  // cache is only a fallback for when the connection is gone.
+  if (isCode(url)) {
+    event.respondWith(
+      fetch(req)
+        .then((res) => {
+          remember(req, res);
+          return res;
+        })
+        .catch(async () => {
+          const hit = await caches.match(req);
+          return (
+            hit ||
+            new Response("// offline: this part of Coolerup hasn't been cached yet", {
+              status: 503,
+              headers: { "Content-Type": "text/javascript; charset=utf-8" },
+            })
+          );
+        }),
+    );
+    return;
+  }
+
+  // Media and fonts: cache-first with a background refresh.
   if (isStaticAsset(url)) {
     event.respondWith(
       caches.match(req).then((hit) => {
         const network = fetch(req)
           .then((res) => {
-            if (res.ok) {
-              const copy = res.clone();
-              caches.open(CACHE).then((cache) => cache.put(req, copy)).catch(() => undefined);
-            }
+            remember(req, res);
             return res;
           })
           .catch(() => hit);

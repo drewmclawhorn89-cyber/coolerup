@@ -34,40 +34,6 @@ export type YouTubePlayerProps = {
 };
 
 /**
- * Ask the device to stay upright while the player is fullscreen.
- *
- * `screen.orientation.lock` only exists on mobile Chrome/Android; iOS Safari
- * and desktop either reject it or lack it entirely, so every call is guarded
- * and failure is silent — the 9:16 frame in the markup still gives a portrait
- * player on a wide screen.
- */
-type LockableOrientation = {
-  lock?: (orientation: "portrait" | "portrait-primary") => Promise<void>;
-  unlock?: () => void;
-};
-
-function orientationApi(): LockableOrientation | null {
-  if (typeof screen === "undefined") return null;
-  return (screen.orientation as unknown as LockableOrientation | undefined) ?? null;
-}
-
-async function lockPortrait(): Promise<void> {
-  try {
-    await orientationApi()?.lock?.("portrait");
-  } catch {
-    /* unsupported or blocked — the CSS frame covers it */
-  }
-}
-
-function unlockOrientation(): void {
-  try {
-    orientationApi()?.unlock?.();
-  } catch {
-    /* nothing to release */
-  }
-}
-
-/**
  * A YouTube-style player: click-to-play, a scrub bar with buffered range, a
  * volume slider, a quality menu and a fullscreen toggle.
  *
@@ -84,8 +50,8 @@ export function YouTubePlayer({
 }: YouTubePlayerProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
-  /** The 9:16 frame the video sits in while fullscreen. Measured so a rotated
-   *  video can be sized to fill it exactly. */
+  /** The stage the video sits in while fullscreen. Measured so a rotated video
+   *  can be sized to fill it exactly. */
   const frameRef = useRef<HTMLDivElement>(null);
 
   const [playing, setPlaying] = useState(false);
@@ -95,6 +61,10 @@ export function YouTubePlayer({
   const [volume, setVolume] = useState(1);
   const [muted, setMuted] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
+  /** Fallback for browsers that refuse element fullscreen (iOS Safari): a
+   *  fixed, black, edge-to-edge overlay that behaves like the real thing. */
+  const [pseudoFullscreen, setPseudoFullscreen] = useState(false);
+  const isFullscreen = fullscreen || pseudoFullscreen;
   const [showControls, setShowControls] = useState(true);
   const [quality, setQuality] = useState<Quality>("auto");
   const [qualityOpen, setQualityOpen] = useState(false);
@@ -146,45 +116,54 @@ export function YouTubePlayer({
     setMuted(el.muted);
   };
 
-  const toggleFullscreen = async () => {
+  const toggleFullscreen = useCallback(async () => {
+    // Leaving the fallback overlay is a pure state change.
+    if (pseudoFullscreen) {
+      setPseudoFullscreen(false);
+      setRotation(0);
+      return;
+    }
     const el = wrapRef.current;
     if (!el) return;
     try {
       if (!document.fullscreenElement) {
         await el.requestFullscreen();
-        // Portrait, like a phone-shaped player. Mobile browsers honour the
-        // lock; desktop has no orientation, so the CSS frame does the work.
-        await lockPortrait();
       } else {
         await document.exitFullscreen();
-        unlockOrientation();
       }
     } catch {
-      /* iOS Safari refuses fullscreen on non-video elements; ignore. */
-      const video = videoRef.current as
-        (HTMLVideoElement & { webkitEnterFullscreen?: () => void }) | null;
-      try {
-        video?.webkitEnterFullscreen?.();
-      } catch {
-        /* nothing else we can do */
-      }
+      // iOS Safari refuses fullscreen on non-video elements. Rather than hand
+      // control to the native player, show the same black edge-to-edge stage
+      // with our own controls so every device looks identical.
+      setPseudoFullscreen(true);
     }
-  };
+  }, [pseudoFullscreen]);
 
   useEffect(() => {
     const onFsChange = () => {
       const active = Boolean(document.fullscreenElement);
       setFullscreen(active);
-      if (active) void lockPortrait();
-      else {
-        // Rotation only makes sense inside the fullscreen frame.
-        setRotation(0);
-        unlockOrientation();
-      }
+      // Rotation only makes sense inside the fullscreen frame.
+      if (!active) setRotation(0);
     };
     document.addEventListener("fullscreenchange", onFsChange);
     return () => document.removeEventListener("fullscreenchange", onFsChange);
   }, []);
+
+  /* ---------------- fullscreen stage: no page scroll behind it ---------------- */
+
+  useEffect(() => {
+    if (!isFullscreen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [isFullscreen]);
+
+  // Read inside timers/callbacks without re-creating them on every toggle.
+  const isFullscreenRef = useRef(isFullscreen);
+  isFullscreenRef.current = isFullscreen;
 
   /** Step the video a quarter turn each tap. */
   const rotateVideo = useCallback(() => {
@@ -193,10 +172,10 @@ export function YouTubePlayer({
 
   /* ---------------- fullscreen frame measurement ---------------- */
 
-  // A rotated video is drawn wider than the portrait frame, so we need the
-  // frame's exact pixel size to swap width/height and fill it edge to edge.
+  // A rotated video is drawn wider than the stage, so we need its exact pixel
+  // size to swap width/height and fill it edge to edge.
   useEffect(() => {
-    if (!fullscreen) return;
+    if (!isFullscreen) return;
     const el = frameRef.current;
     if (!el) return;
     const update = () => setFrameSize({ w: el.clientWidth, h: el.clientHeight });
@@ -204,7 +183,7 @@ export function YouTubePlayer({
     const ro = new ResizeObserver(update);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [fullscreen]);
+  }, [isFullscreen]);
 
   /* ---------------- controls visibility ---------------- */
 
@@ -212,9 +191,14 @@ export function YouTubePlayer({
     setShowControls(true);
     if (hideTimer.current) window.clearTimeout(hideTimer.current);
     hideTimer.current = window.setTimeout(() => {
-      // Never hide the bar while paused or while the quality menu is open.
-      if (videoRef.current && !videoRef.current.paused && !qualityOpen) setShowControls(false);
-    }, 2600);
+      // Never hide the bar while the quality menu is open.
+      if (qualityOpen) return;
+      // In fullscreen nothing but the video may stay on screen, so the chrome
+      // always goes away after 3s — paused or not. Outside fullscreen a paused
+      // video keeps its controls visible.
+      if (isFullscreenRef.current) setShowControls(false);
+      else if (videoRef.current && !videoRef.current.paused) setShowControls(false);
+    }, 3000);
   }, [qualityOpen]);
 
   useEffect(() => {
@@ -222,6 +206,13 @@ export function YouTubePlayer({
       if (hideTimer.current) window.clearTimeout(hideTimer.current);
     };
   }, []);
+
+  // Entering fullscreen starts the 3s countdown right away, so a touch device
+  // (where no mousemove fires) still ends up with nothing but the video.
+  useEffect(() => {
+    if (!isFullscreen) return;
+    revealControls();
+  }, [isFullscreen, revealControls]);
 
   /* ---------------- keyboard ---------------- */
 
@@ -236,6 +227,11 @@ export function YouTubePlayer({
       if (e.key === " " || e.key === "k") {
         e.preventDefault();
         togglePlay();
+      } else if (e.key === "Escape" && pseudoFullscreen) {
+        // The browser handles Escape for real fullscreen; the fallback stage
+        // has to close itself.
+        setPseudoFullscreen(false);
+        setRotation(0);
       } else if (e.key === "ArrowRight") {
         seekTo(el.currentTime + 5);
       } else if (e.key === "ArrowLeft") {
@@ -251,7 +247,7 @@ export function YouTubePlayer({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [revealControls, togglePlay, rotateVideo]);
+  }, [revealControls, togglePlay, rotateVideo, toggleFullscreen, pseudoFullscreen]);
 
   /* ---------------- quality switching keeps position ---------------- */
 
@@ -277,15 +273,23 @@ export function YouTubePlayer({
   const progress = duration > 0 ? (current / duration) * 100 : 0;
   const bufferedPct = duration > 0 ? (buffered / duration) * 100 : 0;
 
+  /**
+   * Whether the play button and control bar are on screen. In fullscreen the
+   * chrome only appears on tap / mouse move and then disappears again, so the
+   * screen holds nothing but the video. Outside fullscreen a paused video
+   * keeps its controls.
+   */
+  const chromeVisible = showControls || (!isFullscreen && !playing);
+
   const quarterTurn = rotation === 90 || rotation === 270;
 
   /**
    * Rotation only applies in fullscreen. A quarter turn swaps the video's
-   * width and height to the frame's, so the rotated picture fills the portrait
-   * frame instead of leaving black bars. A half turn just flips in place.
+   * width and height to the stage's, so the rotated picture still fills the
+   * screen instead of leaving black bars. A half turn just flips in place.
    */
   const videoStyle: CSSProperties = {};
-  if (fullscreen && rotation !== 0) {
+  if (isFullscreen && rotation !== 0) {
     if (quarterTurn) {
       if (frameSize.w > 0 && frameSize.h > 0) {
         Object.assign(videoStyle, {
@@ -309,23 +313,22 @@ export function YouTubePlayer({
   return (
     <div
       ref={wrapRef}
-      className={`group relative w-full overflow-hidden bg-black ${
-        // Drop the caller's styling (rounded corners, margins) in fullscreen so
-        // the black backdrop reaches the screen edges.
-        fullscreen ? "flex h-screen w-screen items-center justify-center" : className
+      className={`group overflow-hidden bg-black ${
+        // True fullscreen: a pure-black stage covering the whole viewport, on
+        // top of every piece of app chrome (tabs, rails, Up Next). The caller's
+        // styling (rounded corners, margins) is dropped so nothing shows but
+        // the video.
+        isFullscreen
+          ? "fixed inset-0 z-[100] flex h-[100dvh] w-screen items-center justify-center"
+          : `relative w-full ${className}`
       }`}
       onMouseMove={revealControls}
       onTouchStart={revealControls}
     >
-      {/* In fullscreen this becomes a phone-shaped 9:16 frame centred on black,
-          so the player reads as portrait instead of stretching to the monitor. */}
+      {/* The stage is exactly the viewport: no letterboxing, no frame. */}
       <div
         ref={frameRef}
-        className={
-          fullscreen
-            ? "relative flex aspect-[9/16] h-full max-h-screen w-auto max-w-full items-center justify-center bg-black"
-            : "relative w-full"
-        }
+        className={isFullscreen ? "relative h-full w-full bg-black" : "relative w-full"}
       >
         <video
           ref={videoRef}
@@ -335,9 +338,12 @@ export function YouTubePlayer({
           preload="metadata"
           style={videoStyle}
           className={
-            fullscreen ? "h-full w-full bg-black object-contain" : "aspect-video w-full bg-black"
+            isFullscreen ? "h-full w-full bg-black object-cover" : "aspect-video w-full bg-black"
           }
-          onClick={togglePlay}
+          onClick={() => {
+            revealControls();
+            togglePlay();
+          }}
           onPlay={() => {
             setPlaying(true);
             revealControls();
@@ -349,7 +355,7 @@ export function YouTubePlayer({
           }}
           onPause={() => {
             setPlaying(false);
-            setShowControls(true);
+            revealControls();
             watchTrackerRef.current?.pause();
           }}
           onTimeUpdate={(e) => {
@@ -367,13 +373,13 @@ export function YouTubePlayer({
           }}
           onEnded={() => {
             setPlaying(false);
-            setShowControls(true);
+            revealControls();
             watchTrackerRef.current?.pause();
           }}
         />
 
         {/* Big center play button before the first play. */}
-        {!playing && (
+        {!playing && chromeVisible && (
           <button
             type="button"
             onClick={togglePlay}
@@ -389,7 +395,7 @@ export function YouTubePlayer({
         {/* Control bar */}
         <div
           className={`absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/60 to-transparent px-3 pb-2 pt-8 transition-opacity duration-200 ${
-            showControls || !playing ? "opacity-100" : "pointer-events-none opacity-0"
+            chromeVisible ? "opacity-100" : "pointer-events-none opacity-0"
           }`}
         >
           {/* Seek bar */}
@@ -399,7 +405,9 @@ export function YouTubePlayer({
               style={{ width: `${bufferedPct}%` }}
             />
             <div
-              className="absolute inset-y-0 left-0 rounded-full bg-red-600"
+              className={`absolute inset-y-0 left-0 rounded-full ${
+                isFullscreen ? "bg-white" : "bg-red-600"
+              }`}
               style={{ width: `${progress}%` }}
             />
             <input
@@ -410,7 +418,11 @@ export function YouTubePlayer({
               value={current}
               onChange={(e) => seekTo(Number(e.target.value))}
               aria-label="Seek"
-              className="absolute inset-0 h-1 w-full cursor-pointer appearance-none bg-transparent [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-red-600"
+              className={`absolute inset-0 h-1 w-full cursor-pointer appearance-none bg-transparent [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full ${
+                isFullscreen
+                  ? "[&::-webkit-slider-thumb]:bg-white"
+                  : "[&::-webkit-slider-thumb]:bg-red-600"
+              }`}
             />
           </div>
 
@@ -483,7 +495,9 @@ export function YouTubePlayer({
                         type="button"
                         onClick={() => pickQuality(q)}
                         className={`block w-full px-3 py-1.5 text-left hover:bg-white/15 ${
-                          quality === q ? "font-bold text-red-500" : "text-white"
+                          quality === q
+                            ? `font-bold ${isFullscreen ? "text-white" : "text-red-500"}`
+                            : "text-white"
                         }`}
                       >
                         {q === "auto" ? "Auto" : q}
@@ -493,7 +507,7 @@ export function YouTubePlayer({
                 )}
               </div>
 
-              {fullscreen && (
+              {isFullscreen && (
                 <button
                   type="button"
                   onClick={rotateVideo}
@@ -508,10 +522,10 @@ export function YouTubePlayer({
               <button
                 type="button"
                 onClick={() => void toggleFullscreen()}
-                aria-label={fullscreen ? "Exit fullscreen" : "Fullscreen"}
+                aria-label={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
                 className="p-1"
               >
-                {fullscreen ? <Minimize className="h-5 w-5" /> : <Maximize className="h-5 w-5" />}
+                {isFullscreen ? <Minimize className="h-5 w-5" /> : <Maximize className="h-5 w-5" />}
               </button>
             </div>
           </div>

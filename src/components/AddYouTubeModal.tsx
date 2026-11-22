@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { addYouTubeVideo } from "@/lib/youtube.functions";
 import { extractYouTubeId } from "@/lib/youtube";
+import { PaidVideoFields, paidSelectionInvalid } from "@/components/PaidVideoFields";
 import type { FullVideo } from "@/lib/fullVideos";
 
 export function AddYouTubeModal({
@@ -21,6 +22,8 @@ export function AddYouTubeModal({
   const [url, setUrl] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [isPaid, setIsPaid] = useState(false);
+  const [priceCents, setPriceCents] = useState<number | null>(null);
   const add = useServerFn(addYouTubeVideo);
   return (
     <Dialog
@@ -42,12 +45,20 @@ export function AddYouTubeModal({
               setError("Paste a valid YouTube video link.");
               return;
             }
+            if (paidSelectionInvalid(isPaid, priceCents)) {
+              setError("Pick a price between $0.50 and $1,000 for your paid video.");
+              return;
+            }
             setBusy(true);
             setError("");
             try {
-              const video = await add({ data: { url } });
+              const video = await add({
+                data: { url, isPaid, priceCents: isPaid ? priceCents : null },
+              });
               onAdded(video);
               setUrl("");
+              setIsPaid(false);
+              setPriceCents(null);
               onClose();
               toast.success("YouTube video added.");
             } catch (err) {
@@ -68,6 +79,13 @@ export function AddYouTubeModal({
             disabled={busy}
             autoFocus
           />
+          <PaidVideoFields
+            enabled={isPaid}
+            onEnabledChange={setIsPaid}
+            priceCents={priceCents}
+            onPriceCentsChange={setPriceCents}
+          />
+
           {error && (
             <p role="alert" className="text-sm text-destructive">
               {error}

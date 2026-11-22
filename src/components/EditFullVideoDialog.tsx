@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { PaidVideoFields, paidSelectionInvalid } from "@/components/PaidVideoFields";
 import {
   FULL_VIDEO_CATEGORIES,
   deleteFullVideo,
@@ -39,6 +40,9 @@ export function EditFullVideoDialog({ video, userId, open, onClose, onSaved, onD
   const [category, setCategory] = useState(video.category || "Music");
   const [tagInput, setTagInput] = useState("");
   const [tags, setTags] = useState<string[]>(video.tags ?? []);
+  // Paid switch, seeded from the row so an existing paid video opens as ON.
+  const [isPaid, setIsPaid] = useState(Boolean(video.is_paid));
+  const [priceCents, setPriceCents] = useState<number | null>(video.price_cents ?? null);
 
   const [thumbBlob, setThumbBlob] = useState<Blob | null>(null);
   const [thumbPreview, setThumbPreview] = useState("");
@@ -55,6 +59,8 @@ export function EditFullVideoDialog({ video, userId, open, onClose, onSaved, onD
     setCategory(video.category || "Music");
     setTags(video.tags ?? []);
     setTagInput("");
+    setIsPaid(Boolean(video.is_paid));
+    setPriceCents(video.price_cents ?? null);
     setThumbBlob(null);
     setThumbPreview("");
     setConfirmDelete(false);
@@ -101,6 +107,10 @@ export function EditFullVideoDialog({ video, userId, open, onClose, onSaved, onD
       setError("Give your video a title of at least 3 characters.");
       return;
     }
+    if (paidSelectionInvalid(isPaid, priceCents)) {
+      setError("Pick a price between $0.50 and $1,000 for your paid video.");
+      return;
+    }
     setSaving(true);
     try {
       const thumbnailUrl = thumbBlob
@@ -112,6 +122,8 @@ export function EditFullVideoDialog({ video, userId, open, onClose, onSaved, onD
         category,
         tags,
         ...(thumbnailUrl !== undefined ? { thumbnailUrl } : {}),
+        isPaid,
+        priceCents: isPaid ? priceCents : null,
       });
       onSaved(next);
       toast.success("Video updated");
@@ -299,6 +311,14 @@ export function EditFullVideoDialog({ video, userId, open, onClose, onSaved, onD
               </div>
             )}
           </div>
+
+          <PaidVideoFields
+            key={video.id}
+            enabled={isPaid}
+            onEnabledChange={setIsPaid}
+            priceCents={priceCents}
+            onPriceCentsChange={setPriceCents}
+          />
 
           {error && (
             <p

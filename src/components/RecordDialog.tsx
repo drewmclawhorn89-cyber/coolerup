@@ -75,7 +75,7 @@ export function RecordDialog({
   /** Pre-selected sound ("Use this sound" from a sound page). */
   sound?: Sound | null;
 }) {
-  const { muted, mutedUntil } = useWarnings();
+  const { muted, mutedUntil, strikeCount, notify } = useWarnings();
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -371,11 +371,20 @@ export function RecordDialog({
       return;
     }
     if (muted) {
-      toast.error(
-        mutedUntil
+      // Re-raise the warning popup rather than a passing toast: a muted user
+      // trying to post again is still a rule break, and the modal is the thing
+      // they actually read.
+      notify({
+        ok: true,
+        strike: Math.max(strikeCount, 2),
+        action: "mute",
+        permanent: false,
+        muted_until: mutedUntil,
+        deleted: false,
+        message: mutedUntil
           ? `You're muted until ${new Date(mutedUntil).toLocaleString()}.`
           : "You're muted and can't post right now.",
-      );
+      });
       return;
     }
     setPosting(true);

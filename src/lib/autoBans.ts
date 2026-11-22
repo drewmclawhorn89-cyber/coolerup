@@ -70,47 +70,172 @@ export type BanListRow = {
 /** Explicit sexual content. Kept deliberately narrow — anatomy in a medical
  *  or educational caption should not nuke an account. */
 const SEXUAL = [
-  "porn", "porno", "pornhub", "xvideos", "xhamster", "onlyfans", "only fans",
-  "nude", "nudes", "naked", "nakedness", "sex", "sexting", "sextape", "blowjob",
-  "handjob", "rimjob", "cumshot", "cum", "jizz", "creampie", "dildo", "vibrator",
-  "anal", "orgy", "threesome", "hentai", "nsfw", "xxx", "milf", "daddy dom",
-  "strip tease", "striptease", "camgirl", "cam boy", "escort", "hookup",
-  "send nudes", "nude pics", "nude selfie", "fuck me", "suck my", "jerking off",
-  "masturbat", "erotic", "fetish", "bdsm", "lingerie haul",
+  "porn",
+  "porno",
+  "pornhub",
+  "xvideos",
+  "xhamster",
+  "onlyfans",
+  "only fans",
+  "nude",
+  "nudes",
+  "naked",
+  "nakedness",
+  "sex",
+  "sexting",
+  "sextape",
+  "blowjob",
+  "handjob",
+  "rimjob",
+  "cumshot",
+  "cum",
+  "jizz",
+  "creampie",
+  "dildo",
+  "vibrator",
+  "anal",
+  "orgy",
+  "threesome",
+  "hentai",
+  "nsfw",
+  "xxx",
+  "milf",
+  "daddy dom",
+  "strip tease",
+  "striptease",
+  "camgirl",
+  "cam boy",
+  "escort",
+  "hookup",
+  "send nudes",
+  "nude pics",
+  "nude selfie",
+  "fuck me",
+  "suck my",
+  "jerking off",
+  "masturbat",
+  "erotic",
+  "fetish",
+  "bdsm",
+  "lingerie haul",
 ];
 
 /** Bullying, hate and dehumanising language. */
 const BULLYING = [
-  "retard", "retarded", "spastic", "mongoloid", "tranny", "faggot", "fag",
-  "dyke", "nigger", "nigga", "coon", "chink", "gook", "spic", "wetback",
-  "kike", "paki", "raghead", "towelhead", "sandnigger", "beaner", "cripple",
-  "fatass", "fat ass", "lardass", "ugly bitch", "worthless", "kill yourself",
-  "kys", "go die", "nobody loves you", "no one loves you", "you should die",
-  "subhuman", "vermin", "freak", "loser", "waste of space", "waste of air",
-  "unwanted", "kill urself", "end yourself", "drink bleach",
+  "retard",
+  "retarded",
+  "spastic",
+  "mongoloid",
+  "tranny",
+  "faggot",
+  "fag",
+  "dyke",
+  "nigger",
+  "nigga",
+  "coon",
+  "chink",
+  "gook",
+  "spic",
+  "wetback",
+  "kike",
+  "paki",
+  "raghead",
+  "towelhead",
+  "sandnigger",
+  "beaner",
+  "cripple",
+  "fatass",
+  "fat ass",
+  "lardass",
+  "ugly bitch",
+  "worthless",
+  "kill yourself",
+  "kys",
+  "go die",
+  "nobody loves you",
+  "no one loves you",
+  "you should die",
+  "subhuman",
+  "vermin",
+  "freak",
+  "loser",
+  "waste of space",
+  "waste of air",
+  "unwanted",
+  "kill urself",
+  "end yourself",
+  "drink bleach",
 ];
 
 /** Direct threats of violence. */
 const THREATS = [
-  "i will kill", "i'll kill", "im gonna kill", "i'm gonna kill",
-  "i will hurt", "i'll hurt", "i will find you", "i know where you live",
-  "watch your back", "you're dead", "youre dead", "ur dead", "you are dead",
-  "i will shoot", "i'll shoot", "i will stab", "i'll stab", "bomb your",
-  "i will rape", "i'll rape", "rape you", "beat you up", "jump you",
-  "hunt you down", "come for you", "put you in the ground",
-  "slit your throat", "break your neck", "smash your face",
+  "i will kill",
+  "i'll kill",
+  "im gonna kill",
+  "i'm gonna kill",
+  "i will hurt",
+  "i'll hurt",
+  "i will find you",
+  "i know where you live",
+  "watch your back",
+  "you're dead",
+  "youre dead",
+  "ur dead",
+  "you are dead",
+  "i will shoot",
+  "i'll shoot",
+  "i will stab",
+  "i'll stab",
+  "bomb your",
+  "i will rape",
+  "i'll rape",
+  "rape you",
+  "beat you up",
+  "jump you",
+  "hunt you down",
+  "come for you",
+  "put you in the ground",
+  "slit your throat",
+  "break your neck",
+  "smash your face",
 ];
 
 /** Spam / scam patterns. */
 const SPAM_PHRASES = [
-  "follow for follow", "f4f", "l4l", "follow back", "follow4follow",
-  "free followers", "free likes", "free coins", "free diamonds",
-  "cash app", "cashapp", "venmo me", "paypal me", "send money",
-  "dm me to earn", "dm for promo", "check my bio", "link in bio for money",
-  "click the link", "click here to win", "you have won", "you've won",
-  "claim your prize", "crypto giveaway", "bitcoin giveaway", "double your",
-  "make $", "make money fast", "work from home", "investment opportunity",
-  "guaranteed profit", "telegram me", "whatsapp me", "text me at",
+  "follow for follow",
+  "f4f",
+  "l4l",
+  "follow back",
+  "follow4follow",
+  "free followers",
+  "free likes",
+  "free coins",
+  "free diamonds",
+  "cash app",
+  "cashapp",
+  "venmo me",
+  "paypal me",
+  "send money",
+  "dm me to earn",
+  "dm for promo",
+  "check my bio",
+  "link in bio for money",
+  "click the link",
+  "click here to win",
+  "you have won",
+  "you've won",
+  "claim your prize",
+  "crypto giveaway",
+  "bitcoin giveaway",
+  "double your",
+  "make $",
+  "make money fast",
+  "work from home",
+  "investment opportunity",
+  "guaranteed profit",
+  "telegram me",
+  "whatsapp me",
+  "text me at",
 ];
 
 const SPAM_URL_RE = /(https?:\/\/|www\.)\S+/gi;
@@ -169,7 +294,11 @@ export function classifyText(raw: string | null | undefined): Classification | n
 
   const bullying = hits(n, BULLYING);
   if (bullying.length) {
-    return { kind: "bullying", reason: `Bullying or hate speech: ${bullying[0]}`, matches: bullying };
+    return {
+      kind: "bullying",
+      reason: `Bullying or hate speech: ${bullying[0]}`,
+      matches: bullying,
+    };
   }
 
   const spamPhrases = hits(n, SPAM_PHRASES);
@@ -357,6 +486,34 @@ export async function screenContent(opts: {
   return result;
 }
 
+/**
+ * Screen text *before* it is written.
+ *
+ * Use this on surfaces the database ladder cannot delete from (group posts,
+ * group comments, long-form comments, group names). The strike is recorded with
+ * `contentType: "none"` and the caller refuses the insert, so nothing has to be
+ * cleaned up afterwards and no new content types are needed in SQL.
+ *
+ * Returns the strike result when the text is blocked, or null when it is clean.
+ */
+export async function screenBeforeWrite(opts: {
+  userId: string;
+  username: string;
+  text: string | null | undefined;
+}): Promise<StrikeResult | null> {
+  const classification = classifyText(opts.text);
+  if (!classification) return null;
+  const result = await moderate({
+    userId: opts.userId,
+    username: opts.username,
+    classification,
+    contentType: "none",
+    contentId: null,
+  });
+  if (result.strike > 0) emitStrike(result);
+  return result;
+}
+
 export async function myStrikeStatus(): Promise<StrikeStatus> {
   const empty: StrikeStatus = {
     strike_count: 0,
@@ -405,7 +562,9 @@ export async function amIOwner(): Promise<boolean> {
   }
 }
 
-export async function ownerUnban(username: string): Promise<{ ok: boolean; error?: string | undefined }> {
+export async function ownerUnban(
+  username: string,
+): Promise<{ ok: boolean; error?: string | undefined }> {
   try {
     const { data, error } = await supabase.rpc("owner_unban", { p_username: username });
     if (error) return { ok: false, error: error.message };

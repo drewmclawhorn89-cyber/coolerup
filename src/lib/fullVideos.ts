@@ -2,6 +2,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { resolveSupabaseUrl } from "@/integrations/supabase/project";
 import { requestOfflineSync } from "./offlineEvents";
 import { untypedDb } from "@/lib/untypedDb";
+import { screenBeforeWrite } from "@/lib/autoBans";
 
 /**
  * Long-form ("YouTube style") videos.
@@ -431,6 +432,13 @@ export async function addComment(
   gifUrl?: string | null,
   gifCredit?: string | null,
 ): Promise<FullVideoComment> {
+  // Long-form comments live in their own table, which the ladder cannot delete
+  // from, so screen first and refuse the insert on a hit.
+  const blocked = await screenBeforeWrite({ userId, username, text: body });
+  if (blocked && blocked.strike > 0) {
+    throw new Error("That comment breaks Coolerup rules.");
+  }
+
   const { data, error } = await db
     .from("full_video_comments")
     .insert({

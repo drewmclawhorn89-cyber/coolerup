@@ -4,7 +4,10 @@ import {
   Bell,
   ChevronLeft,
   ChevronRight,
+  Compass,
   Download,
+  Gift,
+  Globe,
   Heart,
   Home,
   LogOut,
@@ -12,8 +15,10 @@ import {
   Music,
   Play,
   Plus,
+  Radio,
   Search,
   ShoppingBag,
+  Store,
   Twitch,
   User,
   Users,
@@ -896,9 +901,9 @@ function Index() {
     }
   }, [codesSeason, feedTab]);
 
-  // One shared top tab bar, in order: Home | Following | For You | Videos |
-  // Music | Twitch. The strip scrolls horizontally (touch, wheel or the
-  // arrows) so every tap stays reachable on narrow phones.
+  // One shared top tab bar (Home | Following | For You | Videos | Music | Twitch | Browser | Marketplace | Groups | LIVE | Codes | Explore | Shop).
+  // It renders on every screen and at every breakpoint, scrolls smoothly with touch/wheel,
+  // and steps left/right with the always-visible arrows so no tab is ever unreachable.
   const topTabItems: TopTabItem[] = [
     { key: "home", label: "Home", onClick: () => pickFeedTab("home"), active: topTab === "home" },
     {
@@ -936,6 +941,59 @@ function Index() {
       icon: <Twitch className="size-3.5" />,
       onClick: () => pickFeedTab("twitch"),
       active: topTab === "twitch",
+    },
+    {
+      key: "browser",
+      label: "Browser",
+      icon: <Globe className="size-3.5" />,
+      onClick: () => void navigate({ to: "/browser" }),
+      active: false,
+    },
+    {
+      key: "marketplace",
+      label: "Marketplace",
+      icon: <Store className="size-3.5" />,
+      onClick: () => pickFeedTab("marketplace"),
+      active: topTab === "marketplace",
+    },
+    {
+      key: "groups",
+      label: "Groups",
+      icon: <Users className="size-3.5" />,
+      onClick: () => pickFeedTab("groups"),
+      active: topTab === "groups",
+    },
+    {
+      key: "live",
+      label: "LIVE",
+      icon: <Radio className="size-3.5" />,
+      onClick: () => pickFeedTab("live"),
+      active: topTab === "live",
+    },
+    ...(codesSeason
+      ? [
+          {
+            key: "codes",
+            label: "Codes",
+            icon: <Gift className="size-3.5" />,
+            onClick: () => pickFeedTab("codes"),
+            active: topTab === "codes",
+          },
+        ]
+      : []),
+    {
+      key: "explore",
+      label: "Explore",
+      icon: <Compass className="size-3.5" />,
+      onClick: () => pickFeedTab("explore"),
+      active: topTab === "explore",
+    },
+    {
+      key: "shop",
+      label: "Shop",
+      icon: <ShoppingBag className="size-3.5" />,
+      onClick: () => setTab("shop"),
+      active: topTab === "shop",
     },
   ];
 

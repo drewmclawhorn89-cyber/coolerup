@@ -21,9 +21,17 @@ declare
 begin
   -- Use the project's real auth instance id when one exists, otherwise the
   -- zero uuid. A wrong instance_id is a classic cause of a rejected insert.
-  select coalesce((select id from auth.instances order by id limit 1),
-                  '00000000-0000-0000-0000-000000000000'::uuid)
-    into v_instance;
+  v_instance := '00000000-0000-0000-0000-000000000000'::uuid;
+  if to_regclass('auth.instances') is not null then
+    begin
+      select i.id into v_instance from auth.instances i order by i.id limit 1;
+    exception when others then
+      v_instance := '00000000-0000-0000-0000-000000000000'::uuid;
+    end;
+  end if;
+  if v_instance is null then
+    v_instance := '00000000-0000-0000-0000-000000000000'::uuid;
+  end if;
 
   -- ---------------------------------------------------------------- 0. env
   insert into _diag values ('00 current_user', true, current_user);
@@ -150,7 +158,8 @@ begin
   insert into _diag
   select '30a auth.instances rows',
          true,
-         (select count(*)::text from auth.instances);
+         case when to_regclass('auth.instances') is null then 'table missing'
+              else (select count(*)::text from auth.instances) end;
 
   insert into _diag
   select '30b triggers on auth.users',

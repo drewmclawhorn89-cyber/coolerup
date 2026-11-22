@@ -229,3 +229,40 @@ describe("all-in-one SQL paste file", () => {
     expect(sql).toContain("SAFETY BOT: all good");
   });
 });
+
+/**
+ * The check-up has to survive the exact situation it exists for: a database
+ * where the bot is only half installed. A direct call to a missing function
+ * or table would abort the whole script and print nothing, which is how the
+ * last two rounds of "it didn't work" went undiagnosed.
+ */
+describe("safety bot check-up SQL", () => {
+  const sql = readFileSync(
+    resolve(process.cwd(), "supabase/sql-editor-safety-bot-check.sql"),
+    "utf8",
+  );
+
+  it("does not call safety_bot_uid() directly", () => {
+    expect(sql).toContain("if to_regprocedure('public.safety_bot_uid()') is null");
+    expect(sql).toContain("execute 'select public.safety_bot_uid()'");
+  });
+
+  it("checks tables exist before counting them", () => {
+    expect(sql).toContain("to_regclass('public.' || t)");
+  });
+
+  it("proves the trigger fires with a live insert, then cleans up", () => {
+    expect(sql).toContain("zz_safety_probe");
+    expect(sql).toContain("LIVE TEST bad video");
+    expect(sql).toContain("delete from public.videos where id = probe");
+  });
+
+  it("checks a clean caption is not a false positive", () => {
+    expect(sql).toContain("LIVE TEST clean video");
+  });
+
+  it("ends with a single verdict line", () => {
+    expect(sql).toContain("ALL CHECKS PASSED");
+    expect(sql).toContain("PROBLEM FOUND");
+  });
+});

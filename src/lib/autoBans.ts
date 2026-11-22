@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { inspectMedia } from "./nsfw";
 
 /**
  * Auto Bans — the 3-strike ladder.
@@ -804,3 +805,104 @@ export const VIOLATION_LABEL: Record<ViolationKind, string> = {
   spam: "Spam",
   other: "Other",
 };
+
+/**
+ * Re-scan videos that are already published.
+ *
+ * The upload check only protects *new* posts, so anything explicit that was
+ * already in the feed before the classifier existed just sits there. This walks
+ * the most recent videos, pulls each file back down, runs the same on-device
+ * classifier over it, and asks `auto_moderate` to remove the row and ban the
+ * owner when it is explicit.
+ *
+ * Admin-only by construction: `auto_moderate` refuses to moderate another user
+ * unless the caller has the admin role.
+ */
+export type ScanHit = {
+  videoId: string;
+  username: string;
+  score: number;
+  removed: boolean;
+  banned: boolean;
+  error?: string;
+};
+
+export type ScanReport = {
+  scanned: number;
+  skipped: number;
+  hits: ScanHit[];
+  failed: number;
+};
+
+export async function scanPublishedVideos(
+  opts: {
+    limit?: number;
+    onProgress?: ((done: number, total: number) => void) | undefined;
+  } = {},
+): Promise<ScanReport> {
+  const limit = opts.limit ?? 30;
+  const report: ScanReport = { scanned: 0, skipped: 0, hits: [], failed: 0 };
+
+  const { data, error } = await supabase
+    .from("videos")
+    .select("id, username, user_id, video_url")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+
+  const rows = (data ?? []) as {
+    id: string;
+    username: string | null;
+    user_id: string | null;
+    video_url: string | null;
+  }[];
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i]!;
+    opts.onProgress?.(i, rows.length);
+    if (!row.video_url || !row.user_id) {
+      report.skipped++;
+      continue;
+    }
+    let blob: Blob;
+    try {
+      const res = await fetch(row.video_url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      blob = await res.blob();
+    } catch (e) {
+      console.error("[scan] could not download video", row.id, e);
+      report.failed++;
+      continue;
+    }
+    const verdict = await inspectMedia(blob);
+    report.scanned++;
+    if (!verdict) {
+      report.skipped++;
+      continue;
+    }
+    if (!verdict.explicit) continue;
+
+    const result = await moderate({
+      userId: row.user_id,
+      username: row.username ?? "unknown",
+      classification: {
+        kind: "sexual",
+        reason: `Explicit sexual content detected in published video (${Math.round(verdict.score * 100)}% confidence)`,
+        matches: [],
+      },
+      contentType: "video",
+      contentId: row.id,
+    });
+    report.hits.push({
+      videoId: row.id,
+      username: row.username ?? "unknown",
+      score: verdict.score,
+      removed: result.deleted,
+      banned: result.permanent,
+      ...(result.error ? { error: result.error } : {}),
+    });
+  }
+
+  opts.onProgress?.(rows.length, rows.length);
+  return report;
+}

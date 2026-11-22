@@ -42,7 +42,9 @@ const SEXY_PORN_SUPPORT = 0.2;
 /** Frames sampled out of a video. More frames = slower but harder to dodge. */
 const VIDEO_FRAMES = 6;
 /** Hard cap on a single inspection. A slow phone must never hang an upload. */
-const INSPECT_TIMEOUT_MS = 15_000;
+const INSPECT_TIMEOUT_MS = 20_000;
+/** Cold-start budget for TensorFlow + the model weights. */
+const MODEL_LOAD_TIMEOUT_MS = 45_000;
 /** Longest edge of the canvas handed to the model. */
 const MAX_EDGE = 320;
 
@@ -195,12 +197,20 @@ async function frameFromImage(file: Blob): Promise<HTMLCanvasElement[]> {
   }
 }
 
-/** Can this browser actually decode the file? jsdom and old WebViews say no. */
-function canDecode(type: string): boolean {
-  if (typeof document === "undefined") return false;
-  if (!type.startsWith("video/")) return true;
-  const probe = document.createElement("video");
-  return typeof probe.canPlayType === "function" && probe.canPlayType(type) !== "";
+/**
+ * Can this environment decode media at all?
+ *
+ * This used to ask `video.canPlayType(type)`, which was a real hole: Chrome
+ * returns "" for `video/quicktime`, so every iPhone `.mov` upload skipped the
+ * check entirely. Instead probe for the APIs a real decoder exposes. jsdom has
+ * neither, which is what keeps the unit tests from hanging on a 10s timeout.
+ */
+function hasVideoDecoder(): boolean {
+  return typeof window !== "undefined" && "requestVideoFrameCallback" in HTMLVideoElement.prototype;
+}
+
+function hasImageDecoder(): boolean {
+  return typeof window !== "undefined" && typeof createImageBitmap === "function";
 }
 
 /**
@@ -210,24 +220,34 @@ function canDecode(type: string): boolean {
  * file) so callers can tell "clean" apart from "unknown".
  */
 export async function inspectMedia(file: Blob): Promise<NsfwVerdict | null> {
-  const work = inspectInner(file);
-  const timeout = new Promise<null>((resolve) =>
-    setTimeout(() => resolve(null), INSPECT_TIMEOUT_MS),
-  );
-  return Promise.race([work, timeout]);
+  // Loading TensorFlow + 3.3 MB of weights is slow on a phone the first time,
+  // and it used to share the 15s budget with the actual inspection. On a cold
+  // start that meant the model finished loading *after* the race had already
+  // resolved null, so the very first explicit upload sailed through. Give the
+  // load its own generous budget and only timebox the frame work.
+  const classifier = await withTimeout(getClassifier(), MODEL_LOAD_TIMEOUT_MS);
+  if (!classifier) return null;
+  return withTimeout(inspectFrames(file, classifier), INSPECT_TIMEOUT_MS);
 }
 
-async function inspectInner(file: Blob): Promise<NsfwVerdict | null> {
+function withTimeout<T>(work: Promise<T>, ms: number): Promise<T | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<null>((resolve) => {
+    timer = setTimeout(() => resolve(null), ms);
+  });
+  return Promise.race([work, timeout]).finally(() => clearTimeout(timer));
+}
+
+async function inspectFrames(file: Blob, classifier: Classifier): Promise<NsfwVerdict | null> {
   if (typeof window === "undefined") return null;
   if (!file || file.size === 0) return null;
 
   const isVideo = file.type.startsWith("video/");
   const isImage = file.type.startsWith("image/");
   if (!isVideo && !isImage) return null;
-  if (!canDecode(file.type)) return null;
-
-  const classifier = await getClassifier();
-  if (!classifier) return null;
+  // Probe for a real decoder rather than trusting the MIME type.
+  if (isVideo && !hasVideoDecoder()) return null;
+  if (isImage && !hasImageDecoder()) return null;
 
   const frames = isVideo ? await framesFromVideo(file) : await frameFromImage(file);
   if (frames.length === 0) return null;

@@ -38,6 +38,7 @@ import {
   type ProfileCounts,
 } from "@/lib/profile";
 import { ProfileStats } from "@/components/ProfileStats";
+import { TikTokProfileCard } from "@/components/TikTokProfileCard";
 import { VideoCard } from "@/components/VideoCard";
 import { StoryViewer } from "@/components/StoryViewer";
 import { fetchStories, postStory, type Story } from "@/lib/stories";
@@ -864,6 +865,7 @@ function Profile() {
             onOpenFollowers={() => setFollowersOpen(true)}
             onOpenFollowing={() => setFollowingOpen(true)}
           />
+          {isOwn && <TikTokProfileCard username={username} />}
         </div>
 
         <div className="mt-4 flex justify-around border-b border-border">

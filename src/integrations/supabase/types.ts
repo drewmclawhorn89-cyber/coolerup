@@ -2332,6 +2332,129 @@ export type Database = {
           },
         ]
       }
+      tiktok_accounts: {
+        Row: {
+          user_id: string
+          open_id: string
+          union_id: string | null
+          username: string
+          display_name: string | null
+          avatar_url: string | null
+          follower_count: number
+          following_count: number
+          likes_count: number
+          video_count: number
+          scope: string | null
+          access_token: string
+          refresh_token: string
+          access_expires_at: string
+          refresh_expires_at: string | null
+          last_synced_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          user_id: string
+          open_id: string
+          union_id?: string | null
+          username: string
+          display_name?: string | null
+          avatar_url?: string | null
+          follower_count?: number
+          following_count?: number
+          likes_count?: number
+          video_count?: number
+          scope?: string | null
+          access_token: string
+          refresh_token: string
+          access_expires_at: string
+          refresh_expires_at?: string | null
+          last_synced_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          user_id?: string
+          open_id?: string
+          union_id?: string | null
+          username?: string
+          display_name?: string | null
+          avatar_url?: string | null
+          follower_count?: number
+          following_count?: number
+          likes_count?: number
+          video_count?: number
+          scope?: string | null
+          access_token?: string
+          refresh_token?: string
+          access_expires_at?: string
+          refresh_expires_at?: string | null
+          last_synced_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      tiktok_imports: {
+        Row: {
+          user_id: string
+          tiktok_id: string
+          video_id: string | null
+          imported_at: string
+        }
+        Insert: {
+          user_id: string
+          tiktok_id: string
+          video_id?: string | null
+          imported_at?: string
+        }
+        Update: {
+          user_id?: string
+          tiktok_id?: string
+          video_id?: string | null
+          imported_at?: string
+        }
+        Relationships: []
+      }
+      tiktok_publishes: {
+        Row: {
+          id: string
+          user_id: string
+          video_id: string | null
+          tiktok_publish_id: string | null
+          status: string
+          mode: string
+          caption: string | null
+          error: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          video_id?: string | null
+          tiktok_publish_id?: string | null
+          status?: string
+          mode?: string
+          caption?: string | null
+          error?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          video_id?: string | null
+          tiktok_publish_id?: string | null
+          status?: string
+          mode?: string
+          caption?: string | null
+          error?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       tiktok_sources: {
         Row: {
           added_by: string | null
@@ -3282,6 +3405,22 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
+      }
+      my_tiktok_account: {
+        Args: never
+        Returns: {
+          open_id: string
+          username: string
+          display_name: string | null
+          avatar_url: string | null
+          follower_count: number
+          following_count: number
+          likes_count: number
+          video_count: number
+          scope: string | null
+          connected_at: string
+          last_synced_at: string | null
+        }[]
       }
       my_purchased_videos: {
         Args: { p_limit?: number }

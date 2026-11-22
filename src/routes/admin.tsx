@@ -8,6 +8,7 @@ import {
   Crown,
   Flag,
   Gift,
+  Loader2,
   Power,
   RefreshCw,
   ShieldCheck,
@@ -44,6 +45,7 @@ import {
 } from "@/lib/moderation";
 import {
   adminBanList,
+  scanPublishedVideos,
   amIOwner,
   ownerUnban,
   VIOLATION_LABEL,
@@ -71,7 +73,8 @@ export const Route = createFileRoute("/admin")({
   component: AdminPage,
 });
 
-type Tab = "reports" | "bans" | "banlist" | "log" | "coins" | "free" | "payouts" | "tiktok" | "update";
+type Tab =
+  "reports" | "bans" | "banlist" | "log" | "coins" | "free" | "payouts" | "tiktok" | "update";
 
 const reasonLabel = (id: string) => REPORT_REASONS.find((r) => r.id === id)?.label ?? id;
 
@@ -141,6 +144,31 @@ function AdminPage() {
       setLoading(false);
     }
   }, []);
+
+  const [scanning, setScanning] = useState(false);
+  const [scanProgress, setScanProgress] = useState("0/0");
+  const [scanSummary, setScanSummary] = useState("");
+
+  const runScan = useCallback(async () => {
+    setScanning(true);
+    setScanSummary("");
+    try {
+      const report = await scanPublishedVideos({
+        limit: 30,
+        onProgress: (done, total) => setScanProgress(`${done}/${total}`),
+      });
+      setScanSummary(
+        `Scanned ${report.scanned} video${report.scanned === 1 ? "" : "s"} · ` +
+          `${report.hits.length} explicit · ${report.hits.filter((h) => h.banned).length} banned · ` +
+          `${report.skipped} skipped · ${report.failed} failed`,
+      );
+      if (report.hits.length > 0) await refresh();
+    } catch (e) {
+      setScanSummary(e instanceof Error ? e.message : "Scan failed");
+    } finally {
+      setScanning(false);
+    }
+  }, [refresh]);
 
   useEffect(() => {
     let active = true;
@@ -509,10 +537,33 @@ function AdminPage() {
         <section className="space-y-3">
           <p className="text-xs text-muted-foreground">
             Every auto-ban and strike, with the warning level it reached.{" "}
-            {isOwner
-              ? "As the owner you can unban here."
-              : "Only @drewmclawhorn3 can unban."}
+            {isOwner ? "As the owner you can unban here." : "Only @drewmclawhorn3 can unban."}
           </p>
+          <div className="rounded-xl border bg-card p-3">
+            <p className="text-sm font-medium">Scan the feed for explicit videos</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Checks the last 30 published videos on this device and removes + bans anything
+              explicit. Uploads are already checked automatically; this cleans up anything posted
+              before the classifier existed.
+            </p>
+            <Button
+              size="sm"
+              variant="secondary"
+              className="mt-2"
+              disabled={scanning}
+              onClick={runScan}
+            >
+              {scanning ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Scanning {scanProgress}
+                </>
+              ) : (
+                "Scan last 30 videos"
+              )}
+            </Button>
+            {scanSummary && <p className="mt-2 text-xs text-muted-foreground">{scanSummary}</p>}
+          </div>
           {banList.length === 0 && <Empty text="No auto bans yet." />}
           {banList.map((row) => {
             const strike = Math.min(Math.max(row.strike_count, 1), 3);
@@ -522,11 +573,17 @@ function AdminPage() {
               <article
                 key={row.id}
                 className={`rounded-xl border p-3 ${
-                  row.active ? "border-destructive/40 bg-destructive/5" : "border-border bg-card opacity-70"
+                  row.active
+                    ? "border-destructive/40 bg-destructive/5"
+                    : "border-border bg-card opacity-70"
                 }`}
               >
                 <div className="flex flex-wrap items-center gap-2 text-sm font-semibold">
-                  <Link to="/u/$username" params={{ username: row.username }} className="hover:text-primary">
+                  <Link
+                    to="/u/$username"
+                    params={{ username: row.username }}
+                    className="hover:text-primary"
+                  >
                     @{row.username}
                   </Link>
                   <span className="rounded-full bg-[#FE2C55]/15 px-2 py-0.5 text-[11px] font-bold text-[#FE2C55]">

@@ -178,6 +178,12 @@ begin
     return jsonb_build_object('ok', false, 'error', 'not_a_paid_video');
   end if;
 
+  -- `videos.user_id` is nullable (legacy rows), and a sale has to have someone
+  -- to pay. Refuse rather than fail on the user_coins primary key.
+  if v_creator is null then
+    return jsonb_build_object('ok', false, 'error', 'video_not_found');
+  end if;
+
   if v_creator = v_buyer then
     return jsonb_build_object('ok', false, 'error', 'cannot_buy_own_video');
   end if;

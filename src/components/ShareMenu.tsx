@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Check, Download, Flag, Gauge, Link2, Lock, Share2, Trash2, X } from "lucide-react";
+import { Check, Download, Flag, Gauge, Link2, Lock, Pencil, Share2, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
@@ -7,6 +7,7 @@ import { deleteVideo, resolveVideoUrl, type Video } from "@/lib/loop";
 import { formatBytes, getSaved, removeOffline, saveOffline } from "@/lib/offline";
 import { useOfflineUnlocked } from "@/lib/subscriptions";
 import { OfflinePaywallDialog } from "@/components/OfflinePaywallDialog";
+import { EditVideoDialog } from "@/components/EditVideoDialog";
 
 export function ShareMenu({
   video,
@@ -16,6 +17,7 @@ export function ShareMenu({
   qualityLabel,
   onOpenQuality,
   onReport,
+  onEdited,
 }: {
   video: Video;
   onClose: () => void;
@@ -25,11 +27,14 @@ export function ShareMenu({
   onOpenQuality?: () => void;
   /** Opens the report flow. Report lives here now instead of on the action rail. */
   onReport?: (() => void) | undefined;
+  /** Patch the card in place after the owner edits the clip or its caption. */
+  onEdited?: ((next: { caption: string; video_url?: string }) => void) | undefined;
 }) {
   const [savedSize, setSavedSize] = useState<number | null>(null);
   const [progress, setProgress] = useState<number | null>(null);
   const auth = useAuth();
   const [paywallOpen, setPaywallOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
   // Offline mode is a paid feature — no trial, no downloads without a plan.
   const offlineUnlocked = useOfflineUnlocked(auth.handle);
   const isOwner = !!auth.user && !!auth.handle && auth.handle === video.username;
@@ -172,6 +177,16 @@ export function ShareMenu({
             <span className="text-xs text-zinc-300">Share</span>
           </button>
 
+          {/* EDIT — owner-only. Opens the trim/caption editor for this Short. */}
+          {isOwner && (
+            <button className="flex flex-col items-center gap-2" onClick={() => setEditing(true)}>
+              <div className="w-14 h-14 rounded-full bg-zinc-800 flex items-center justify-center">
+                <Pencil size={22} />
+              </div>
+              <span className="text-xs text-zinc-300">Edit</span>
+            </button>
+          )}
+
           <button
             className="flex flex-col items-center gap-2"
             onClick={async () => {
@@ -272,6 +287,21 @@ export function ShareMenu({
       </div>
 
       <OfflinePaywallDialog open={paywallOpen} onClose={() => setPaywallOpen(false)} />
+
+      {/* Stop clicks inside the editor from reaching the sheet's backdrop
+          handler, which would unmount the editor mid-edit. */}
+      <div onClick={(e) => e.stopPropagation()}>
+        <EditVideoDialog
+          video={video}
+          open={editing}
+          onClose={() => setEditing(false)}
+          onSaved={(next) => {
+            onEdited?.(next);
+            setEditing(false);
+            onClose();
+          }}
+        />
+      </div>
     </div>
   );
 }

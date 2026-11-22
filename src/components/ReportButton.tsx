@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { Flag, X } from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { reportContent, type ReportReason } from "@/lib/moderation";
 import { Button } from "@/components/ui/button";
 
 const REASONS = [
@@ -69,23 +69,28 @@ export function ReportButton({
           ? "[profile] "
           : "";
 
-    const { error } = await supabase.from("reports").insert({
-      reporter_id: auth.user.id,
-      reporter_username: auth.handle,
-      reported_username: username,
-      reported_video_id: videoId ?? null,
-      video_id: videoId ?? null,
-      reason,
-      details: `${marker}${details.trim()}`.slice(0, 1000) || null,
-    });
+    // Go through the report_content RPC (not a raw insert) so the Safety Bot
+    // can evaluate the 5-reports-plus-agreement auto-hide rule.
+    const res = await reportContent(
+      videoId ?? null,
+      username,
+      reason as ReportReason,
+      `${marker}${details.trim()}`.slice(0, 1000) || undefined,
+    );
 
     setBusy(false);
-    if (error) {
-      console.error("report failed", error);
-      toast.error("Couldn't send report");
+    if (!res.ok) {
+      console.error("report failed", res.error);
+      toast.error(res.error ?? "Couldn't send report");
       return;
     }
-    toast.success("Report sent. We review within 24 hours.");
+    if (res.hidden) {
+      toast.success("Report sent. This video is hidden pending owner review.");
+    } else if (res.duplicate) {
+      toast.success("You already reported this — thanks.");
+    } else {
+      toast.success("Report sent. We review within 24 hours.");
+    }
     setOpen(false);
     setReason(null);
     setDetails("");

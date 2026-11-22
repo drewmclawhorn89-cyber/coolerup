@@ -14,7 +14,7 @@ vi.mock("@/integrations/supabase/client", () => ({
   },
 }));
 
-import { classifyText } from "@/lib/autoBans";
+import { classifyText, classifyProfile, detectFakeAccount } from "@/lib/autoBans";
 
 describe("classifyText", () => {
   it("returns null for clean text", () => {
@@ -98,5 +98,48 @@ describe("classifyText", () => {
     const hit = classifyText("this is porn");
     expect(hit?.matches.length).toBeGreaterThan(0);
     expect(hit?.reason).toContain("porn");
+  });
+
+  it("flags passwords and personal info", () => {
+    expect(classifyText("my password is hunter2")?.kind).toBe("pii");
+    expect(classifyText("here is my login: bob123")?.kind).toBe("pii");
+    expect(classifyText("my ssn is 123-45-6789")?.kind).toBe("pii");
+    expect(classifyText("call me on 555-123-4567")?.kind).toBe("pii");
+    expect(classifyText("my home address is 42 Maple Street")?.kind).toBe("pii");
+  });
+
+  it("does not flag ordinary numbers or reposts", () => {
+    // Reposting someone else's video is explicitly allowed and must never be
+    // treated as a violation.
+    expect(classifyText("reposting this from @someone, all credit to them")).toBeNull();
+    expect(classifyText("repost if you agree")).toBeNull();
+    expect(classifyText("my video got 1000 views today")).toBeNull();
+  });
+});
+
+describe("detectFakeAccount / classifyProfile", () => {
+  it("flags handles that impersonate Coolerup staff", () => {
+    expect(detectFakeAccount({ username: "coolerup_support" })?.kind).toBe("fake");
+    expect(detectFakeAccount({ displayName: "Coolerup Admin" })?.kind).toBe("fake");
+  });
+
+  it("flags verification bait in a bio", () => {
+    expect(
+      detectFakeAccount({ username: "helpful", bio: "dm me to get verified" })?.kind,
+    ).toBe("fake");
+  });
+
+  it("does not flag ordinary profiles", () => {
+    expect(
+      detectFakeAccount({ username: "beachguy", displayName: "Beach Guy", bio: "surf and sun" }),
+    ).toBeNull();
+  });
+
+  it("prefers the text violation over fake-account when both apply", () => {
+    const hit = classifyProfile({
+      username: "coolerup_support",
+      bio: "my password is hunter2",
+    });
+    expect(hit?.kind).toBe("pii");
   });
 });

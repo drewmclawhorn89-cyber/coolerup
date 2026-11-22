@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { X } from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { reportContent, type ReportReason } from "@/lib/moderation";
 import { Button } from "@/components/ui/button";
 
 const REASONS = [
@@ -34,17 +34,20 @@ export function ReportDialog({
     if (!auth.user || !auth.handle) return auth.signIn();
     if (!reason) return;
     setBusy(true);
-    const { error } = await supabase.from("reports").insert({
-      reporter_id: auth.user.id,
-      reporter_username: auth.handle,
-      reported_username: username,
-      reported_video_id: videoId ?? null,
-      reason,
-      details: details.trim().slice(0, 1000) || null,
-    });
+    // RPC path so the Safety Bot can auto-hide on 5+ reports + agreement.
+    const res = await reportContent(
+      videoId ?? null,
+      username,
+      reason as ReportReason,
+      details.trim().slice(0, 1000) || undefined,
+    );
     setBusy(false);
-    if (error) return toast.error("Couldn't send report");
-    toast.success("Report sent, we review in 24h");
+    if (!res.ok) return toast.error(res.error ?? "Couldn't send report");
+    toast.success(
+      res.hidden
+        ? "Report sent — video hidden pending owner review"
+        : "Report sent, we review in 24h",
+    );
     onClose();
   };
 

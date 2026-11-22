@@ -10,6 +10,7 @@ import { notifyUser } from "@/lib/notify";
 import { GifPicker } from "@/components/GifPicker";
 import { OnlineDot, OnlineStatusSubtitle } from "@/components/OnlineStatusBadge";
 import { normalizePresenceHandle, useOnlineStatuses } from "@/lib/onlineStatus";
+import { screenBeforeWrite } from "@/lib/autoBans";
 
 export const Route = createFileRoute("/messages")({
   head: () => ({
@@ -81,6 +82,15 @@ function Messages() {
       toast.error(`@${to} hasn't joined Loop yet`);
       return;
     }
+    // The Safety Bot watches DMs too. A message that breaks the rules is never
+    // written: the strike is recorded and the warning popup is raised instead.
+    const blocked = await screenBeforeWrite({
+      userId: auth.user.id,
+      username: me,
+      text: body,
+    });
+    if (blocked) return;
+
     const { error } = await supabase.from("direct_messages").insert({
       from_id: auth.user.id,
       to_id: target.id,

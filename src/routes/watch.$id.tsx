@@ -22,6 +22,7 @@ import { OfflinePaywallDialog } from "@/components/OfflinePaywallDialog";
 import { YouTubePlayer } from "@/components/YouTubePlayer";
 import { EditFullVideoDialog } from "@/components/EditFullVideoDialog";
 import { FullVideoShareMenu } from "@/components/FullVideoShareMenu";
+import { ReportButton } from "@/components/ReportButton";
 import { FullVideoCard } from "@/components/FullVideoCard";
 import { PaidVideoGate } from "@/components/PaidVideoGate";
 import { useVideoOwnership } from "@/lib/paidVideos";
@@ -792,6 +793,14 @@ function WatchPage() {
               >
                 <Share2 className="h-4 w-4" /> Share
               </button>
+              <ReportButton
+                username={video.username}
+                videoId={video.id}
+                target="video"
+                label="Report"
+                className="flex items-center gap-1.5 rounded-full bg-secondary px-3 py-2 text-sm font-semibold text-secondary-foreground transition-colors hover:text-[#FE2C55]"
+                iconClassName="h-4 w-4"
+              />
               <button
                 type="button"
                 onClick={toggleSave}

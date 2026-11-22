@@ -67,6 +67,33 @@ describe("classifyText", () => {
     expect(classifyText("my new video https://youtube.com/watch?v=abc")).toBeNull();
   });
 
+  it("does not fire on innocent words that contain a bad one", () => {
+    // These all matched before matching became word-exact.
+    expect(classifyText("cooking analysis video")).toBeNull();
+    expect(classifyText("spicy noodles recipe")).toBeNull();
+    expect(classifyText("my trip to pakistan")).toBeNull();
+    expect(classifyText("cocktail recipe")).toBeNull();
+    expect(classifyText("analog camera shots")).toBeNull();
+    expect(classifyText("documentary about space")).toBeNull();
+  });
+
+  it("catches the common insults and explicit words people actually use", () => {
+    expect(classifyText("you are a stupid bitch")?.kind).toBe("bullying");
+    expect(classifyText("idiot")?.kind).toBe("bullying");
+    expect(classifyText("shut up")?.kind).toBe("bullying");
+    expect(classifyText("nobody likes you")?.kind).toBe("bullying");
+    expect(classifyText("explicit content")?.kind).toBe("sexual");
+    expect(classifyText("boobs")?.kind).toBe("sexual");
+    expect(classifyText("horny")?.kind).toBe("sexual");
+    expect(classifyText("buy followers cheap")?.kind).toBe("spam");
+    expect(classifyText("dm me")?.kind).toBe("spam");
+    expect(classifyText("link in bio")?.kind).toBe("spam");
+  });
+
+  it("still prefix-matches the entries that ask for it", () => {
+    expect(classifyText("stop masturbating")?.kind).toBe("sexual");
+  });
+
   it("returns matches for the admin log", () => {
     const hit = classifyText("this is porn");
     expect(hit?.matches.length).toBeGreaterThan(0);

@@ -57,7 +57,14 @@ do $$
 declare
   bot_uid uuid := public.safety_bot_uid();
   bot_email text := 'safety-bot@coolerup.app';
+  bot_instance uuid;
 begin
+  -- Supabase stores a row in auth.instances; auth.users.instance_id is a FK to
+  -- it. Hardcoding the zero uuid fails on projects where that row is missing,
+  -- so look up the real one and only fall back to the zero uuid.
+  select coalesce((select i.id from auth.instances i order by i.id limit 1),
+                  '00000000-0000-0000-0000-000000000000'::uuid)
+    into bot_instance;
   -- auth.users: the real account. The password is random and never stored, so
   -- there is no way to sign in as the bot.
   if not exists (select 1 from auth.users u where u.id = bot_uid) then
@@ -70,7 +77,7 @@ begin
         email_change_token_new, email_change
       )
       values (
-        '00000000-0000-0000-0000-000000000000',
+        bot_instance,
         bot_uid,
         'authenticated',
         'authenticated',
@@ -84,7 +91,10 @@ begin
         '', '', '', ''
       );
     exception when others then
-      raise notice 'safety bot auth user insert skipped: %', sqlerrm;
+      -- Do NOT swallow this. A silent failure here is why the bot never
+      -- appeared: the script finished "successfully" with no account.
+      raise exception
+        'SAFETY BOT SETUP FAILED at auth.users insert [%]: %', sqlstate, sqlerrm;
     end;
   end if;
 
@@ -104,7 +114,8 @@ begin
         now(), now(), now()
       );
     exception when others then
-      raise notice 'safety bot identity insert skipped: %', sqlerrm;
+      -- Non-fatal: the profile is what the app reads. But say it loudly.
+      raise warning 'safety bot auth.identities insert skipped [%]: %', sqlstate, sqlerrm;
     end;
   end if;
 
@@ -415,6 +426,28 @@ notify pgrst, 'reload schema';
 
 
 -- Sanity checks -------------------------------------------------------------
+-- These raise instead of returning empty rows, so "it did not work" can never
+-- look like success again.
+do $$
+declare
+  bot_uid uuid := public.safety_bot_uid();
+begin
+  if not exists (select 1 from auth.users u where u.id = bot_uid) then
+    raise exception 'CHECK FAILED: no auth.users row for the safety bot';
+  end if;
+  if not exists (select 1 from public.profiles p where p.id = bot_uid) then
+    raise exception 'CHECK FAILED: no public.profiles row for the safety bot';
+  end if;
+  if not exists (
+    select 1 from public.user_roles r
+    where r.user_id = bot_uid and r.role = 'moderator'::public.app_role
+  ) then
+    raise exception 'CHECK FAILED: safety bot has no moderator role';
+  end if;
+  raise notice 'SAFETY BOT OK: account, profile and moderator role all exist';
+end
+$$;
+
 select public.safety_bot_uid() as bot_uid;
 select id, handle, display_name, avatar_url
   from public.profiles where id = public.safety_bot_uid();

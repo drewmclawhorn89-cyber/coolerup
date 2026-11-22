@@ -33,6 +33,7 @@ vi.mock("@/integrations/supabase/client", () => {
         selects.push(c);
         return api;
       },
+      eq: () => api,
       order: () => api,
       range: (from: number, to: number) =>
         Promise.resolve({

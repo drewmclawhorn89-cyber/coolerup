@@ -47,6 +47,8 @@ import {
   adminBanList,
   adminBotLogs,
   scanPublishedVideos,
+  safetyBotSweep,
+  purgeHiddenVideos,
   amIOwner,
   ownerUnban,
   VIOLATION_LABEL,
@@ -164,9 +166,60 @@ function AdminPage() {
     }
   }, []);
 
+  const [sweeping, setSweeping] = useState(false);
+  const [sweepSummary, setSweepSummary] = useState("");
   const [scanning, setScanning] = useState(false);
   const [scanProgress, setScanProgress] = useState("0/0");
   const [scanSummary, setScanSummary] = useState("");
+
+  /**
+   * Clean what is already published.
+   *
+   * The database triggers cover new writes only, so this asks Postgres to walk
+   * every existing video, comment and profile with the same rules. It is the
+   * button that makes "take it down right now" true for content that predates
+   * the triggers.
+   */
+  const runSweep = useCallback(async () => {
+    setSweeping(true);
+    setSweepSummary("");
+    try {
+      const res = await safetyBotSweep();
+      if (!res.ok) {
+        setSweepSummary(res.error || "Sweep failed");
+        return;
+      }
+      setSweepSummary(
+        `Hid ${res.videos_hidden} video${res.videos_hidden === 1 ? "" : "s"} · ` +
+          `removed ${res.comments_removed} comment${res.comments_removed === 1 ? "" : "s"} · ` +
+          `cleared ${res.profiles_cleared} profile${res.profiles_cleared === 1 ? "" : "s"}`,
+      );
+      await refresh();
+    } catch (e) {
+      setSweepSummary(e instanceof Error ? e.message : "Sweep failed");
+    } finally {
+      setSweeping(false);
+    }
+  }, [refresh]);
+
+  /** Delete the hidden videos for good, so they stop costing storage. */
+  const runPurge = useCallback(async () => {
+    setSweeping(true);
+    setSweepSummary("");
+    try {
+      const res = await purgeHiddenVideos();
+      if (!res.ok) {
+        setSweepSummary(res.error || "Purge failed");
+        return;
+      }
+      setSweepSummary(`Deleted ${res.deleted} hidden video${res.deleted === 1 ? "" : "s"}`);
+      await refresh();
+    } catch (e) {
+      setSweepSummary(e instanceof Error ? e.message : "Purge failed");
+    } finally {
+      setSweeping(false);
+    }
+  }, [refresh]);
 
   const runScan = useCallback(async () => {
     setScanning(true);
@@ -670,6 +723,21 @@ function AdminPage() {
             <p className="mt-1 text-xs text-muted-foreground">
               Everything the Safety Bot removed, muted or banned, with the content it acted on and
               why. Unban is owner-only (@drewmclawhorn3).
+            </p>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <Button size="sm" onClick={runSweep} disabled={sweeping}>
+                {sweeping ? "Cleaning…" : "Clean the app now"}
+              </Button>
+              <Button size="sm" variant="outline" onClick={runPurge} disabled={sweeping}>
+                Delete hidden videos
+              </Button>
+            </div>
+            {sweepSummary && (
+              <p className="mt-2 text-xs font-medium text-emerald-400">{sweepSummary}</p>
+            )}
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              New posts, comments, messages and bios are screened the instant they are saved. The
+              buttons above clean anything that was posted before that was switched on.
             </p>
           </div>
           {botLogs.length === 0 && <Empty text="The Safety Bot has not taken any action yet." />}

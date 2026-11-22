@@ -150,6 +150,7 @@ export async function searchVideos(raw: string, limit = 48): Promise<Video[]> {
   const { data, error } = await supabase
     .from("videos")
     .select(VIDEO_COLUMNS)
+    .eq("hidden", false)
     .or(`caption.ilike.%${term}%,username.ilike.%${term}%`)
     .order("likes_count", { ascending: false })
     .order("created_at", { ascending: false })

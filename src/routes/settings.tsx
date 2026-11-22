@@ -20,6 +20,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { readBool, writePref } from "@/lib/prefs";
 import { SHOW_MATURE_PREF, setShowMatureVideos } from "@/lib/matureVideos";
+import { AgeVerificationDialog } from "@/components/AgeVerificationDialog";
+import { useAgeVerification } from "@/lib/ageVerification";
 import { getFirebaseConfigSummary } from "@/lib/firebase";
 import { normalizePhone } from "@/lib/phone";
 import { useShowOnlineSetting } from "@/lib/onlineStatus";
@@ -90,6 +92,8 @@ export const Route = createFileRoute("/settings")({
 
 function Settings() {
   const auth = useAuth();
+  // Live ID-check status for the 18+ verification row.
+  const { status: ageStatus, loading: ageLoading } = useAgeVerification(Boolean(auth.user));
   // Playback quality is a device preference (localStorage `video_quality`).
   const { quality: videoQuality, setQuality: setVideoQuality } = useVideoQuality();
   // Background play is a VIP perk; the toggle only moves for entitled plans.
@@ -208,6 +212,8 @@ function Settings() {
   const [showOnline, setShowOnline] = useShowOnlineSetting();
   // 18+ feed visibility. ON by default; OFF hides every mature video.
   const [showMature, setShowMature] = useState(() => readBool(SHOW_MATURE_PREF, true));
+  // Real-ID check for 18+ videos: a birthday alone is not proof.
+  const [ageDialogOpen, setAgeDialogOpen] = useState(false);
   // Theme
   const [theme, setTheme] = useState<string>(() => {
     try {
@@ -735,6 +741,66 @@ function Settings() {
             />
           </button>
         </div>
+        {/* Real-ID verification for 18+ videos. A typed birthday is self-reported,
+            so adult content stays locked until a moderator approves an ID. */}
+        <div className="mt-3 rounded-xl border border-white/10 bg-black px-4 py-3 text-white">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-white">Verify your ID for 18+ videos</p>
+              <p className="mt-0.5 text-xs text-white/60">
+                {ageLoading
+                  ? "Checking your verification status…"
+                  : ageStatus === "approved"
+                    ? "Verified. You can watch 18+ videos."
+                    : ageStatus === "pending"
+                      ? "Your ID is being reviewed. 18+ videos unlock once it's approved."
+                      : ageStatus === "rejected"
+                        ? "Your last ID check was rejected. Submit a new photo to try again."
+                        : "Upload a government ID and a selfie to unlock 18+ videos."}
+              </p>
+            </div>
+            <span
+              className="shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold"
+              style={{
+                backgroundColor:
+                  ageStatus === "approved"
+                    ? "#22c55e"
+                    : ageStatus === "pending"
+                      ? "#FFC107"
+                      : ageStatus === "rejected"
+                        ? "#FE2C55"
+                        : "#333",
+                color: ageStatus === "pending" ? "#000" : "#fff",
+              }}
+            >
+              {ageLoading
+                ? "…"
+                : ageStatus === "approved"
+                  ? "Verified"
+                  : ageStatus === "pending"
+                    ? "In review"
+                    : ageStatus === "rejected"
+                      ? "Rejected"
+                      : "Not verified"}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setAgeDialogOpen(true)}
+            className="mt-3 w-full rounded-full px-4 py-2 text-sm font-bold"
+            style={{
+              backgroundColor: ageStatus === "approved" ? "#fff" : "#FE2C55",
+              color: ageStatus === "approved" ? "#000" : "#fff",
+            }}
+          >
+            {ageStatus === "approved"
+              ? "View verification"
+              : ageStatus === "pending"
+                ? "View review status"
+                : "Verify my ID"}
+          </button>
+        </div>
+        <AgeVerificationDialog open={ageDialogOpen} onOpenChange={setAgeDialogOpen} />
         <p className="mt-4 text-sm text-muted-foreground">Manage blocked users.</p>
         <div className="mt-3 flex gap-2">
           <input

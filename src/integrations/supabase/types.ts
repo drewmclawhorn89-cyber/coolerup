@@ -2332,6 +2332,62 @@ export type Database = {
           },
         ]
       }
+      age_verifications: {
+        Row: {
+          user_id: string
+          status: string
+          document_type: string | null
+          document_path: string | null
+          selfie_path: string | null
+          country: string | null
+          id_date_of_birth: string | null
+          submitted_at: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          rejection_reason: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          user_id: string
+          status?: string
+          document_type?: string | null
+          document_path?: string | null
+          selfie_path?: string | null
+          country?: string | null
+          id_date_of_birth?: string | null
+          submitted_at?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          rejection_reason?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          user_id?: string
+          status?: string
+          document_type?: string | null
+          document_path?: string | null
+          selfie_path?: string | null
+          country?: string | null
+          id_date_of_birth?: string | null
+          submitted_at?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          rejection_reason?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "age_verifications_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tiktok_accounts: {
         Row: {
           user_id: string
@@ -3405,6 +3461,49 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
+      }
+      my_age_verification: {
+        Args: never
+        Returns: {
+          status: string
+          document_type: string | null
+          country: string | null
+          submitted_at: string
+          reviewed_at: string | null
+          rejection_reason: string | null
+        }[]
+      }
+      submit_age_verification: {
+        Args: {
+          _document_type: string
+          _document_path: string
+          _selfie_path: string
+          _country?: string | null
+          _id_date_of_birth?: string | null
+        }
+        Returns: string
+      }
+      admin_age_verifications: {
+        Args: { _status?: string }
+        Returns: {
+          user_id: string
+          username: string | null
+          display_name: string | null
+          status: string
+          document_type: string | null
+          document_path: string | null
+          selfie_path: string | null
+          country: string | null
+          id_date_of_birth: string | null
+          profile_birthday: string | null
+          submitted_at: string | null
+          reviewed_at: string | null
+          rejection_reason: string | null
+        }[]
+      }
+      admin_review_age_verification: {
+        Args: { _user_id: string; _approve: boolean; _reason?: string | null }
+        Returns: Json
       }
       my_tiktok_account: {
         Args: never

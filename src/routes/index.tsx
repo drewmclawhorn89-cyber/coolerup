@@ -5,7 +5,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Download,
-  Ellipsis,
   Heart,
   Home,
   LogOut,
@@ -52,12 +51,9 @@ const GroupsPanel = lazy(() =>
 const ChristmasCodesPanel = lazy(() =>
   import("@/components/ChristmasCodesPanel").then((m) => ({ default: m.ChristmasCodesPanel })),
 );
-// Twitch and More live inside the app shell so the top tab bar never disappears.
+// Twitch lives inside the app shell so the top tab bar never disappears.
 const TwitchPanel = lazy(() =>
   import("@/components/TwitchPanel").then((m) => ({ default: m.TwitchPanel })),
-);
-const MorePanel = lazy(() =>
-  import("@/components/MorePanel").then((m) => ({ default: m.MorePanel })),
 );
 const LiveStreamDialog = lazy(() =>
   import("@/components/LiveStreamDialog").then((m) => ({ default: m.LiveStreamDialog })),
@@ -133,8 +129,7 @@ type FeedTab =
   | "groups"
   | "live"
   | "codes"
-  | "twitch"
-  | "more";
+  | "twitch";
 type NotificationFilter = "all" | "unread";
 
 // One entry in the home-menu "top tabs" strip.
@@ -424,8 +419,7 @@ function Index() {
       wantedFeed === "marketplace" ||
       wantedFeed === "groups" ||
       wantedFeed === "live" ||
-      wantedFeed === "twitch" ||
-      wantedFeed === "more"
+      wantedFeed === "twitch"
     ) {
       setFeedTab(wantedFeed);
     }
@@ -903,7 +897,7 @@ function Index() {
   }, [codesSeason, feedTab]);
 
   // One shared top tab bar, in order: Home | Following | For You | Videos |
-  // Music | Twitch | More. The strip scrolls horizontally (touch, wheel or the
+  // Music | Twitch. The strip scrolls horizontally (touch, wheel or the
   // arrows) so every tap stays reachable on narrow phones.
   const topTabItems: TopTabItem[] = [
     { key: "home", label: "Home", onClick: () => pickFeedTab("home"), active: topTab === "home" },
@@ -942,14 +936,6 @@ function Index() {
       icon: <Twitch className="size-3.5" />,
       onClick: () => pickFeedTab("twitch"),
       active: topTab === "twitch",
-    },
-    {
-      // More holds every social app, each in its own official embed player.
-      key: "more",
-      label: "More",
-      icon: <Ellipsis className="size-3.5" />,
-      onClick: () => pickFeedTab("more"),
-      active: topTab === "more",
     },
   ];
 
@@ -1213,23 +1199,6 @@ function Index() {
             <TopTabs className={topTabsClass} ctx={topTabsCtx} />
             <Suspense fallback={null}>
               <TwitchPanel />
-            </Suspense>
-          </div>
-        ) : activeTab === "foryou" && feedTab === "more" ? (
-          <div className="relative flex min-h-0 flex-1 flex-col bg-black">
-            <TopTabs className={topTabsClass} ctx={topTabsCtx} />
-            <Suspense fallback={null}>
-              <MorePanel
-                codesSeason={codesSeason}
-                onOpenBrowser={() => void navigate({ to: "/browser" })}
-                onSelectMarketplace={() => pickFeedTab("marketplace")}
-                onSelectGroups={() => pickFeedTab("groups")}
-                onSelectLive={() => pickFeedTab("live")}
-                onSelectCodes={() => pickFeedTab("codes")}
-                onSelectExplore={() => pickFeedTab("explore")}
-                onSelectShop={() => setTab("shop")}
-                onOpenSettings={() => void navigate({ to: "/settings" })}
-              />
             </Suspense>
           </div>
         ) : feedTab === "codes" ? (

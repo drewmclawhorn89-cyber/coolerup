@@ -118,7 +118,7 @@ export function UpdateGate({ children }: { children: React.ReactNode }) {
       body={shutdown.status.message || DEFAULT_MAINTENANCE_MESSAGE}
       footer={
         <p className="text-xs text-muted-foreground">
-          This page unlocks on its own as soon as the update is done.
+        
         </p>
       }
     />

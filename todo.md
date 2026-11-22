@@ -20,4 +20,4 @@
 - [x] Update `src/test/mature-videos.test.ts` for new signature/reasons
 - [x] New tests for ageVerification + VideoCard gating
 - [x] `npx tsc --noEmit`, `npm run build`, `npx vitest run` (938/938)
-- [ ] Branch, commit, push, PR, merge
+- [x] Branch, commit, push, PR #334, merged (05db337)

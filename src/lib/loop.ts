@@ -1,7 +1,8 @@
 import { supabase } from "@/integrations/supabase/client";
 import { createQualityVersions, qualityColumns } from "./videoQuality";
 import { requestOfflineSync } from "./offlineEvents";
-import { screenContent } from "./autoBans";
+import { reportExplicitMedia, screenContent } from "./autoBans";
+import { inspectMedia } from "./nsfw";
 
 export type Video = {
   id: string;
@@ -393,6 +394,15 @@ export async function uploadVideo(
     data: { user: uploader },
   } = await supabase.auth.getUser();
   if (!uploader) throw new Error("Sign in to upload");
+  // Look at the actual pixels before a single byte is uploaded. A naked video
+  // with a clean caption ("beach day") is invisible to text screening, so this
+  // is the only thing that catches it.
+  await guardExplicitMedia(
+    file,
+    uploader.id,
+    username,
+    file.type.startsWith("image/") ? "photo" : "video",
+  );
   const path = `${uploader.id}/${crypto.randomUUID()}.${ext}`;
   const { error: upErr } = await supabase.storage
     .from("videos")
@@ -439,6 +449,9 @@ export async function uploadRecording(
     data: { user: recorder },
   } = await supabase.auth.getUser();
   if (!recorder) throw new Error("Sign in to upload");
+  // Same visual check as uploadVideo: a camera recording is the easiest way to
+  // post something explicit with no caption at all.
+  await guardExplicitMedia(blob, recorder.id, username, "video");
   const path = `${recorder.id}/recorded-${Date.now()}.${ext}`;
   const { error: upErr } = await supabase.storage
     .from("videos")
@@ -465,6 +478,26 @@ export async function uploadRecording(
 }
 
 /**
+ * Refuse an upload whose frames look explicit.
+ *
+ * Runs before the storage upload so nothing is ever written. On a hit the
+ * account is permanently banned (sexual content skips the ladder) and the
+ * warning popup is raised through the strike bus. If the classifier itself is
+ * unavailable this is a no-op — a broken model must not stop people posting.
+ */
+async function guardExplicitMedia(
+  file: Blob,
+  userId: string,
+  username: string,
+  source: "video" | "photo",
+) {
+  const verdict = await inspectMedia(file);
+  if (!verdict?.explicit) return;
+  await reportExplicitMedia({ userId, username, source, score: verdict.score });
+  throw new Error("This post was removed: explicit sexual content is not allowed on Coolerup.");
+}
+
+/**
  * Run the caption through the 3-strike ladder.
  *
  * On a hit the database hides the video and records the strike; the strike
@@ -473,7 +506,13 @@ export async function uploadRecording(
  */
 async function screenCaption(userId: string, username: string, caption: string, videoId: string) {
   try {
-    await screenContent({ userId, username, text: caption, contentType: "video", contentId: videoId });
+    await screenContent({
+      userId,
+      username,
+      text: caption,
+      contentType: "video",
+      contentId: videoId,
+    });
   } catch (e) {
     console.error("caption moderation failed", e);
   }

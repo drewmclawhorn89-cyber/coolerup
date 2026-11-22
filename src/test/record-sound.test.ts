@@ -11,6 +11,10 @@ const { inserts, uploads } = vi.hoisted(() => ({
   uploads: [] as { path: string; contentType?: string | undefined }[],
 }));
 
+// jsdom cannot decode video, so the visual NSFW check is stubbed out here. The
+// classifier itself is covered by src/test/nsfw.test.ts.
+vi.mock("@/lib/nsfw", () => ({ inspectMedia: async () => null }));
+
 vi.mock("@/integrations/supabase/client", () => {
   return {
     supabase: {

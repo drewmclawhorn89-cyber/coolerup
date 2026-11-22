@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
  * bucket it falls in. `moderate()` then hands the decision to the
  * `auto_moderate()` database function, which owns the actual ladder:
  *
+ *   sexual   -> PERMANENT BAN immediately, on the first offence
  *   strike 1 -> warning + content removed
  *   strike 2 -> warning + content removed + 24h mute
  *   strike 3 -> warning + PERMANENT BAN (+ email / phone / device burned)
@@ -666,6 +667,56 @@ export async function screenBeforeWrite(opts: {
   });
   if (result.strike > 0) emitStrike(result);
   return result;
+}
+
+/**
+ * Record an explicit-media hit found by the on-device image classifier.
+ *
+ * This is the one path that skips the 3-strike ladder: `auto_moderate` treats
+ * `kind = 'sexual'` as an instant permanent ban, so a single naked upload ends
+ * the account. The content was never written (the caller blocks the upload), so
+ * there is no row for the database to delete — `contentType: "none"`.
+ *
+ * The popup is raised even when the RPC is missing, because the upload is
+ * blocked locally either way and the poster needs to see why.
+ */
+export async function reportExplicitMedia(opts: {
+  userId: string;
+  username: string;
+  source: "video" | "photo";
+  score: number;
+}): Promise<StrikeResult> {
+  const classification: Classification = {
+    kind: "sexual",
+    reason: `Explicit sexual content detected in ${opts.source} (${Math.round(opts.score * 100)}% confidence)`,
+    matches: [],
+  };
+  const result = await moderate({
+    userId: opts.userId,
+    username: opts.username,
+    classification,
+    contentType: "none",
+    contentId: null,
+  });
+  if (result.strike > 0) {
+    emitStrike(result);
+    return result;
+  }
+  // Moderation RPCs are not installed. The media is still refused; show the
+  // ban popup so the poster is not left guessing why the upload vanished.
+  const local: StrikeResult = {
+    ok: true,
+    strike: 3,
+    action: "ban",
+    permanent: true,
+    muted_until: null,
+    deleted: false,
+    message:
+      "Explicit sexual content is not allowed on Coolerup. Your account is permanently banned.",
+    error: result.error,
+  };
+  emitStrike(local);
+  return local;
 }
 
 /**

@@ -26,6 +26,7 @@ import { ReportButton } from "@/components/ReportButton";
 import { FullVideoCard } from "@/components/FullVideoCard";
 import { PaidVideoGate } from "@/components/PaidVideoGate";
 import { useVideoOwnership } from "@/lib/paidVideos";
+import { MATURE_LABEL, useMatureGate } from "@/lib/matureVideos";
 import { GifPicker } from "@/components/GifPicker";
 import { useYouTubeDurations, withYouTubeDurations } from "@/lib/useYouTubeDurations";
 import { useAuth } from "@/hooks/useAuth";
@@ -330,6 +331,14 @@ function WatchPage() {
   /** The uploader always sees their own video; buyers see it once they've paid. */
   const showPaidLock = isPaid && !isOwner && !paidOwned;
 
+  /* ---------------- 18+ mature videos ---------------- */
+
+  // The creator's 18+ flag plus the viewer's account birthday. Under-18
+  // accounts are blocked outright; adults unlock with one tap. No camera.
+  const matureGate = useMatureGate(video);
+  const [matureUnlocked, setMatureUnlocked] = useState(false);
+  const matureLocked = matureGate.mature && (!matureUnlocked || !matureGate.allowed);
+
   /**
    * True when the row exists but the bytes are still in flight AND this browser
    * isn't the one holding the file — i.e. a stranger who has nothing to play.
@@ -538,7 +547,46 @@ function WatchPage() {
       <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_360px] lg:gap-6">
         <div className="min-w-0">
           <div className="relative">
-            {waitingForUpload ? (
+            {matureLocked ? (
+              <div className="relative mx-3 mt-2 aspect-video overflow-hidden rounded-xl bg-black text-center sm:mx-0">
+                {poster && (
+                  <img
+                    src={poster}
+                    alt=""
+                    aria-hidden
+                    className="absolute inset-0 h-full w-full scale-110 object-cover blur-2xl"
+                  />
+                )}
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/60 px-6">
+                  <span className="flex h-14 w-14 items-center justify-center rounded-full bg-black/70 text-2xl">
+                    🔒
+                  </span>
+                  <p className="text-base font-bold" style={{ color: "#fff" }}>
+                    {MATURE_LABEL}
+                  </p>
+                  {matureGate.allowed ? (
+                    <>
+                      <p className="max-w-sm text-xs" style={{ color: "rgba(255,255,255,0.75)" }}>
+                        This video is for adults. Your account birthday confirms you&apos;re 18+.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setMatureUnlocked(true)}
+                        className="rounded-full px-5 py-2 text-sm font-bold"
+                        style={{ backgroundColor: "#fff", color: "#000" }}
+                      >
+                        Watch 18+ video
+                      </button>
+                    </>
+                  ) : (
+                    <p className="max-w-sm text-sm font-semibold" style={{ color: "#FE2C55" }}>
+                      {matureGate.blockedMessage ??
+                        "Add your date of birth in Settings to verify you're 18+"}
+                    </p>
+                  )}
+                </div>
+              </div>
+            ) : waitingForUpload ? (
               // The object isn't in storage yet, so there is nothing to play.
               // Show an honest placeholder instead of a dead player; the poll
               // above swaps this out the moment the upload finishes.

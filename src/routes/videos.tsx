@@ -9,6 +9,7 @@ import { EditFullVideoDialog } from "@/components/EditFullVideoDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { useOfflineUnlocked } from "@/lib/subscriptions";
 import { FULL_VIDEO_CATEGORIES, listFullVideos, type FullVideo } from "@/lib/fullVideos";
+import { showMatureVideos } from "@/lib/matureVideos";
 import type { Video } from "@/lib/loop";
 import {
   MAX_OFFLINE_VIDEOS,
@@ -118,7 +119,7 @@ function VideosPage() {
         viewerId: auth.user?.id ?? null,
       });
       if (token !== requestRef.current) return;
-      setVideos(page);
+      setVideos(showMatureVideos() ? page : page.filter((v) => !v.is_mature));
       // A short page means there is nothing after it.
       setHasMore(page.length === PAGE_SIZE);
     } catch (err) {
@@ -227,7 +228,8 @@ function VideosPage() {
       setVideos((prev) => {
         // Dedupe: a video created between pages would otherwise appear twice.
         const seen = new Set(prev.map((v) => v.id));
-        return [...prev, ...page.filter((v) => !seen.has(v.id))];
+        const visible = showMatureVideos() ? page : page.filter((v) => !v.is_mature);
+        return [...prev, ...visible.filter((v) => !seen.has(v.id))];
       });
       setHasMore(page.length === PAGE_SIZE);
     } catch {

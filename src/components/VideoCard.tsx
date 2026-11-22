@@ -61,6 +61,7 @@ import { useChristmasMode } from "@/lib/christmas";
 import { QUALITY_OPTIONS, resolveQualitySource, useVideoQuality } from "@/lib/videoQuality";
 import { QualitySelector } from "@/components/QualitySelector";
 import { createWatchDurationTracker, recordWatchHistory } from "@/lib/watchHistory";
+import { MATURE_LABEL, useMatureGate } from "@/lib/matureVideos";
 
 const Comments = lazy(() => import("./Comments").then((m) => ({ default: m.Comments })));
 const ShareMenu = lazy(() => import("./ShareMenu").then((m) => ({ default: m.ShareMenu })));
@@ -175,6 +176,12 @@ function VideoCardImpl({
   const [isFollowing, setIsFollowing] = useState(isFollowingProp ?? false);
   const auth = useAuth();
   const myUsername = auth.handle;
+  // 18+ Mature: the row flag plus the viewer's account birthday. The video is
+  // blurred and locked until an adult taps to unlock it; under-18 accounts are
+  // blocked outright. No camera or face scan is involved.
+  const matureGate = useMatureGate(video);
+  const [matureUnlocked, setMatureUnlocked] = useState(false);
+  const matureLocked = matureGate.mature && (!matureUnlocked || !matureGate.allowed);
   const [authorAvatar, setAuthorAvatar] = useState<string | null>(null);
   const progressRef = useRef<HTMLDivElement>(null);
   // Playback position, so switching quality doesn't jump back to the start.
@@ -190,6 +197,7 @@ function VideoCardImpl({
   useEffect(() => {
     resumeRef.current = 0;
     setPreviewEnded(false);
+    setMatureUnlocked(false);
     setEdits({});
   }, [video.id]);
 
@@ -626,12 +634,18 @@ function VideoCardImpl({
       el,
       (e) => {
         if (e && e.isIntersecting && e.intersectionRatio > 0.6) {
-          if (autoplay) el.play().catch(() => {});
+          if (autoplay && !matureLocked) el.play().catch(() => {});
         } else el.pause();
       },
       { threshold: [0, 0.6, 1] },
     );
-  }, [src, isImage, autoplay]);
+  }, [src, isImage, autoplay, matureLocked]);
+
+  // A locked 18+ video must never keep playing, even if it started before the
+  // gate settled (for example a cached row that arrived without the flag).
+  useEffect(() => {
+    if (matureLocked) ref.current?.pause();
+  }, [matureLocked]);
 
   useEffect(() => {
     const el = cardRef.current;
@@ -1026,8 +1040,53 @@ function VideoCardImpl({
                     if (Math.abs(a.currentTime - target) > 0.45) a.currentTime = target;
                   }
                 }}
-                className={`h-full w-full cursor-pointer ${full ? "object-contain" : "object-cover"}`}
+                className={`h-full w-full cursor-pointer ${full ? "object-contain" : "object-cover"} ${matureLocked ? "scale-110 blur-2xl" : ""}`}
               />
+            )}
+
+            {matureGate.mature && (
+              <div
+                className="pointer-events-none absolute left-3 top-[calc(env(safe-area-inset-top)+8.5rem)] z-20 flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold"
+                style={{ backgroundColor: "rgba(0,0,0,0.7)", color: "#fff" }}
+              >
+                <span aria-hidden>🔒</span>
+                {MATURE_LABEL}
+              </div>
+            )}
+
+            {matureLocked && (
+              <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-black/55 px-6 text-center">
+                <span className="flex h-14 w-14 items-center justify-center rounded-full bg-black/70 text-2xl">
+                  🔒
+                </span>
+                <p className="text-base font-bold" style={{ color: "#fff" }}>
+                  {MATURE_LABEL}
+                </p>
+                {matureGate.allowed ? (
+                  <>
+                    <p className="max-w-xs text-xs" style={{ color: "rgba(255,255,255,0.75)" }}>
+                      This video is for adults. Your account birthday confirms you&apos;re 18+.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setMatureUnlocked(true);
+                        void ref.current?.play().catch(() => {});
+                      }}
+                      className="rounded-full px-5 py-2 text-sm font-bold"
+                      style={{ backgroundColor: "#fff", color: "#000" }}
+                    >
+                      Watch 18+ video
+                    </button>
+                  </>
+                ) : (
+                  <p className="max-w-xs text-sm font-semibold" style={{ color: "#FE2C55" }}>
+                    {matureGate.blockedMessage ??
+                      "Add your date of birth in Settings to verify you're 18+"}
+                  </p>
+                )}
+              </div>
             )}
 
             {isPaid && !paidOwned && (

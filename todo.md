@@ -1,21 +1,19 @@
-# AI Safety Bots for Coolerup
-
-## Detection
-- [x] Extend classifier: PII/passwords, fake-account impersonation, keep 3-strike ordering
-- [x] Screen messages (DMs) and profile name/bio; keep profile-pic + video image checks
-- [x] Change sexual content from instant ban to the 1/2/3 ladder
-
-## UI
-- [x] Coolerup Safety Bot badge (green check) + bot profile
-- [x] Report button on long-form video page
-- [x] Warning popup already black/white/#FE2C55 — verified
-- [x] Admin AI Bot Logs page with owner-only Unban
-
-## Database
-- [x] New migration: ladder without sexual shortcut, owner protection, bot log columns + RPC
-- [x] 5 reports + AI agreement -> auto-hide video until owner review
-
+# 18+ Mature Video Toggle
+## Data
+- [x] Migration: `is_mature` on videos + full_videos, index
+- [x] `Video` / `FullVideo` types gain `is_mature`
+- [x] `src/lib/matureVideos.ts` pure helpers (age check, pref, label)
+## Posting
+- [x] UploadDialog: "Mark as 18+ — Mature" toggle (OFF default, video only)
+- [x] uploadVideo passes `is_mature` (tolerant if column missing)
+- [x] Long-form upload page: same toggle + createFullVideo support
+## Feed / watching
+- [x] VideoCard: blurred thumbnail + "18+ Mature" + lock; DOB gate + block under 18
+- [x] watch.$id.tsx: same gate for long-form
+- [x] Feed hides 18+ when "Show 18+ Videos" is OFF
+## Settings
+- [x] Settings > Privacy "Show 18+ Videos" ON/OFF (black bg, white text)
 ## Verify
-- [x] Tests for classifier + fake/PII
-- [x] Typecheck/build
-- [x] Push branch + open PR
+- [x] Tests for helpers + wiring (19 passing)
+- [x] Typecheck/build/test
+- [x] Push branch + open PR (https://github.com/drewmclawhorn89-cyber/coolerup/pull/331)

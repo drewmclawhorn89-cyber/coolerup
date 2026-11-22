@@ -22,6 +22,7 @@ import {
 } from "@/lib/fullVideos";
 import { clearPendingVideo, registerPendingVideo } from "@/lib/pendingUploads";
 import { PaidVideoFields, paidSelectionInvalid } from "@/components/PaidVideoFields";
+import { MatureVideoFields } from "@/components/MatureVideoFields";
 import {
   cancelCompression,
   compressVideoTo720p,
@@ -98,6 +99,8 @@ function UploadFullPage() {
   // Paid videos: OFF by default, so publishing is unchanged unless turned on.
   const [isPaid, setIsPaid] = useState(false);
   const [priceCents, setPriceCents] = useState<number | null>(null);
+  // 18+ Mature: OFF by default. Only the creator can mark their own video.
+  const [isMature, setIsMature] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   /** 720p re-encode progress, shown before the bytes start moving. */
@@ -380,6 +383,7 @@ function UploadFullPage() {
         expectedBytes: file.size,
         isPaid,
         priceCents,
+        isMature,
       });
 
       // Let the watch page read straight off the user's disk until the real
@@ -722,6 +726,7 @@ function UploadFullPage() {
           </p>
         )}
 
+        <MatureVideoFields enabled={isMature} onEnabledChange={setIsMature} />
         <PaidVideoFields
           enabled={isPaid}
           onEnabledChange={setIsPaid}

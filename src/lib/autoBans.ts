@@ -956,7 +956,12 @@ export async function adminBotLogs(limit = 200): Promise<BotLogRow[]> {
     const { data, error } = await supabase.rpc("admin_bot_logs" as never, {
       p_limit: limit,
     } as never);
-    if (error) return [];
+    if (error) {
+      // Surface the reason (usually not_authorized) instead of silently
+      // rendering an empty AI Bot Logs tab.
+      console.warn("admin_bot_logs failed:", error.message);
+      return [];
+    }
     return (data ?? []) as BotLogRow[];
   } catch {
     return [];

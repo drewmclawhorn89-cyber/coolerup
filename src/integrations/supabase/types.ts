@@ -2612,6 +2612,48 @@ export type Database = {
         }
         Relationships: []
       }
+      video_purchases: {
+        Row: {
+          amount_cents: number
+          buyer_id: string
+          coins_spent: number
+          created_at: string
+          creator_cents: number
+          creator_id: string
+          id: string
+          kind: string
+          paid_with: string
+          platform_cents: number
+          video_id: string
+        }
+        Insert: {
+          amount_cents: number
+          buyer_id: string
+          coins_spent?: number
+          created_at?: string
+          creator_cents: number
+          creator_id: string
+          id?: string
+          kind: string
+          paid_with: string
+          platform_cents: number
+          video_id: string
+        }
+        Update: {
+          amount_cents?: number
+          buyer_id?: string
+          coins_spent?: number
+          created_at?: string
+          creator_cents?: number
+          creator_id?: string
+          id?: string
+          kind?: string
+          paid_with?: string
+          platform_cents?: number
+          video_id?: string
+        }
+        Relationships: []
+      }
       video_views: {
         Row: {
           created_at: string
@@ -2664,8 +2706,8 @@ export type Database = {
           id: string
           is_paid: boolean
           is_tiktok: boolean
-          price_cents: number | null
           likes_count: number
+          price_cents: number | null
           quality: string
           reposts_count: number
           rights_basis: string | null
@@ -2694,8 +2736,8 @@ export type Database = {
           id?: string
           is_paid?: boolean
           is_tiktok?: boolean
-          price_cents?: number | null
           likes_count?: number
+          price_cents?: number | null
           quality?: string
           reposts_count?: number
           rights_basis?: string | null
@@ -2724,8 +2766,8 @@ export type Database = {
           id?: string
           is_paid?: boolean
           is_tiktok?: boolean
-          price_cents?: number | null
           likes_count?: number
+          price_cents?: number | null
           quality?: string
           reposts_count?: number
           rights_basis?: string | null
@@ -2863,6 +2905,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      _record_paid_video_purchase: {
+        Args: {
+          p_buyer: string
+          p_kind: string
+          p_paid_with: string
+          p_video_id: string
+        }
+        Returns: Json
+      }
       add_live_mod: {
         Args: { p_live_id: string; p_user_id: string }
         Returns: number
@@ -3081,6 +3132,15 @@ export type Database = {
       contains_banned_word: { Args: { _text: string }; Returns: boolean }
       create_sound_from_video: { Args: { _video_id: string }; Returns: string }
       end_live_session: { Args: { p_live_id: string }; Returns: undefined }
+      grant_paid_video_purchase: {
+        Args: {
+          p_buyer: string
+          p_kind: string
+          p_payment_ref?: string
+          p_video_id: string
+        }
+        Returns: Json
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -3140,6 +3200,14 @@ export type Database = {
       my_gift_earnings: { Args: { p_limit?: number }; Returns: Json }
       my_lifetime_subscription: { Args: never; Returns: Json }
       my_offline_entitlement: { Args: never; Returns: Json }
+      my_paid_video_earnings: { Args: never; Returns: Json }
+      my_paid_video_entitlements: {
+        Args: { p_full_ids?: string[]; p_short_ids?: string[] }
+        Returns: {
+          kind: string
+          video_id: string
+        }[]
+      }
       my_payouts: { Args: { p_limit?: number }; Returns: Json }
       my_profile: {
         Args: never
@@ -3165,6 +3233,20 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      my_purchased_videos: {
+        Args: { p_limit?: number }
+        Returns: {
+          amount_cents: number
+          caption: string
+          created_at: string
+          kind: string
+          purchase_id: string
+          thumbnail_url: string
+          username: string
+          video_id: string
+          video_url: string
+        }[]
+      }
       my_real_balance: { Args: never; Returns: number }
       my_strike_status: { Args: never; Returns: Json }
       my_wallet: { Args: never; Returns: Json }
@@ -3175,12 +3257,32 @@ export type Database = {
       }
       owner_revoke_lifetime: { Args: { _handle: string }; Returns: Json }
       owner_unban: { Args: { p_username: string }; Returns: Json }
+      paid_video_lock_state: {
+        Args: { p_full_ids?: string[]; p_short_ids?: string[] }
+        Returns: {
+          kind: string
+          owned: boolean
+          price_cents: number
+          video_id: string
+        }[]
+      }
+      paid_video_split: {
+        Args: { p_amount_cents: number }
+        Returns: {
+          creator_cents: number
+          platform_cents: number
+        }[]
+      }
       pexels_claim_run: {
         Args: { p_interval_minutes: number; p_trigger: string }
         Returns: string
       }
       pin_live_message: {
         Args: { p_live_id: string; p_message: Json }
+        Returns: Json
+      }
+      purchase_paid_video: {
+        Args: { p_kind: string; p_paid_with?: string; p_video_id: string }
         Returns: Json
       }
       record_video_view: { Args: { p_video_id: string }; Returns: Json }

@@ -24,7 +24,7 @@ export function UploadDialog({
   /** Pre-selected sound ("Use this sound" from a sound page). */
   sound?: Sound | null;
 }) {
-  const { muted, mutedUntil } = useWarnings();
+  const { muted, mutedUntil, strikeCount, notify } = useWarnings();
   const [files, setFiles] = useState<File[]>([]);
   const file = files[0] ?? null;
   const [preview, setPreview] = useState("");
@@ -130,11 +130,20 @@ export function UploadDialog({
     e.preventDefault();
     if (!file || !username.trim()) return;
     if (muted) {
-      toast.error(
-        mutedUntil
+      // Re-raise the warning popup rather than a passing toast: a muted user
+      // trying to post again is still a rule break, and the modal is the thing
+      // they actually read.
+      notify({
+        ok: true,
+        strike: Math.max(strikeCount, 2),
+        action: "mute",
+        permanent: false,
+        muted_until: mutedUntil,
+        deleted: false,
+        message: mutedUntil
           ? `You're muted until ${new Date(mutedUntil).toLocaleString()}.`
           : "You're muted and can't post right now.",
-      );
+      });
       return;
     }
     if (readBool("wifi-upload") && isCellularConnection()) {

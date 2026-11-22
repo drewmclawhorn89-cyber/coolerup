@@ -42,7 +42,7 @@ export function Comments({
   const [showGifs, setShowGifs] = useState(false);
   const [replyTo, setReplyTo] = useState<Comment | null>(null);
   const { handle, signIn, user } = useAuth();
-  const { muted, mutedUntil } = useWarnings();
+  const { muted, mutedUntil, strikeCount, notify } = useWarnings();
 
   const load = useCallback(async () => {
     setLoadError(null);
@@ -108,11 +108,20 @@ export function Comments({
     // Strike 2 mutes commenting for 24 hours. Block before the insert so a
     // muted user cannot keep posting and stacking strikes.
     if (muted) {
-      toast.error(
-        mutedUntil
+      // Re-raise the warning popup rather than a passing toast: a muted user
+      // trying to post again is still a rule break, and the modal is the thing
+      // they actually read.
+      notify({
+        ok: true,
+        strike: Math.max(strikeCount, 2),
+        action: "mute",
+        permanent: false,
+        muted_until: mutedUntil,
+        deleted: false,
+        message: mutedUntil
           ? `You're muted until ${new Date(mutedUntil).toLocaleString()}.`
           : "You're muted and can't comment right now.",
-      );
+      });
       return;
     }
     setBusy(true);

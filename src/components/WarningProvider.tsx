@@ -14,6 +14,8 @@ type WarningContextValue = {
   /** True while the 24-hour mute from strike 2 is in effect. */
   muted: boolean;
   mutedUntil: string | null;
+  /** Current strike count, so a blocked post can re-show the right 1/2/3 popup. */
+  strikeCount: number;
   /** Re-read `my_strike_status()` (call after a strike or on focus). */
   refresh: () => Promise<void>;
   /** Raise the popup manually, e.g. when a muted user tries to post. */
@@ -23,6 +25,7 @@ type WarningContextValue = {
 const WarningContext = createContext<WarningContextValue>({
   muted: false,
   mutedUntil: null,
+  strikeCount: 0,
   refresh: async () => {},
   notify: () => {},
 });
@@ -30,11 +33,13 @@ const WarningContext = createContext<WarningContextValue>({
 export function WarningProvider({ children }: { children: React.ReactNode }) {
   const [result, setResult] = useState<StrikeResult | null>(null);
   const [mutedUntil, setMutedUntil] = useState<string | null>(null);
+  const [strikeCount, setStrikeCount] = useState(0);
 
   const refresh = useCallback(async () => {
     const status = await myStrikeStatus();
     const until = status.muted ? status.muted_until : null;
     setMutedUntil(until && new Date(until).getTime() > Date.now() ? until : null);
+    setStrikeCount(status.strike_count ?? 0);
   }, []);
 
   // Any strike raised anywhere in the app lands here.
@@ -61,13 +66,14 @@ export function WarningProvider({ children }: { children: React.ReactNode }) {
     () => ({
       muted: Boolean(mutedUntil),
       mutedUntil,
+      strikeCount,
       refresh,
       notify: (r: StrikeResult) => {
         setResult(r);
         void refresh();
       },
     }),
-    [mutedUntil, refresh],
+    [mutedUntil, strikeCount, refresh],
   );
 
   return (

@@ -49,7 +49,13 @@ do $$
 declare
   bot_uid uuid := public.safety_bot_uid();
   bot_email text := 'safety-bot@coolerup.app';
+  bot_instance uuid;
 begin
+  -- auth.users.instance_id is a FK to auth.instances. Look up the real row;
+  -- hardcoding the zero uuid fails on projects where it is missing.
+  select coalesce((select i.id from auth.instances i order by i.id limit 1),
+                  '00000000-0000-0000-0000-000000000000'::uuid)
+    into bot_instance;
   -- auth.users: the real account. The password is random and never stored, so
   -- there is no way to sign in as the bot.
   if not exists (select 1 from auth.users u where u.id = bot_uid) then
@@ -62,7 +68,7 @@ begin
         email_change_token_new, email_change
       )
       values (
-        '00000000-0000-0000-0000-000000000000',
+        bot_instance,
         bot_uid,
         'authenticated',
         'authenticated',
@@ -76,7 +82,8 @@ begin
         '', '', '', ''
       );
     exception when others then
-      raise notice 'safety bot auth user insert skipped: %', sqlerrm;
+      raise exception
+        'SAFETY BOT SETUP FAILED at auth.users insert [%]: %', sqlstate, sqlerrm;
     end;
   end if;
 
@@ -96,7 +103,7 @@ begin
         now(), now(), now()
       );
     exception when others then
-      raise notice 'safety bot identity insert skipped: %', sqlerrm;
+      raise warning 'safety bot auth.identities insert skipped [%]: %', sqlstate, sqlerrm;
     end;
   end if;
 

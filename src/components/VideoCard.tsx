@@ -138,6 +138,9 @@ function VideoCardImpl({
 }: VideoCardProps) {
   const ref = useRef<HTMLVideoElement>(null);
   const [src, setSrc] = useState("");
+  // Owner edits (new caption / re-cut file) patched in without refetching the
+  // feed. Cleared whenever the card is recycled for a different video.
+  const [edits, setEdits] = useState<{ caption?: string; video_url?: string }>({});
   const [likes, setLikes] = useState(video.likes_count);
   const [comments, setComments] = useState(video.comments_count);
   const [shares, setShares] = useState(video.shares_count);
@@ -179,7 +182,11 @@ function VideoCardImpl({
   useEffect(() => {
     resumeRef.current = 0;
     setPreviewEnded(false);
+    setEdits({});
   }, [video.id]);
+
+  // The row as the card should render it: server data plus any in-session edit.
+  const currentVideo = { ...video, ...edits };
 
   // The feed paints from a cached snapshot first, then swaps in fresh rows. The
   // card instance survives that swap (same React key), so `useState` keeps the
@@ -230,7 +237,7 @@ function VideoCardImpl({
   // sound is already in the file, so it doesn't need a second audio element.
   // Recordings made with a sound have it baked into the file ([[baked]]), so
   // they must not overlay it again.
-  const soundBakedIn = parseCaption(video.caption).baked;
+  const soundBakedIn = parseCaption(currentVideo.caption).baked;
   // YouTube songs stream from YouTube and have no audio file, so there is
   // nothing for the <audio> overlay to play — the Short carries its own audio.
   const hasBorrowedSound =
@@ -289,7 +296,7 @@ function VideoCardImpl({
   const lite = isLiteMode(net);
   // What actually plays for the current selection, with a fallback to the
   // original upload when the row has no rendition for that quality.
-  const qualitySource = resolveQualitySource(video, quality, net.effectiveType);
+  const qualitySource = resolveQualitySource(currentVideo, quality, net.effectiveType);
   const qualityLabel =
     quality === "auto" ? "Auto" : (QUALITY_OPTIONS.find((o) => o.id === quality)?.label ?? "Auto");
   const [showCaptions] = useState(() => readBool("captions"));
@@ -492,12 +499,13 @@ function VideoCardImpl({
   );
 
   const isImage =
-    isImageUrl(video.video_url) || /\.(jpe?g|png|webp|gif|avif)$/i.test(video.video_url);
+    isImageUrl(currentVideo.video_url) ||
+    /\.(jpe?g|png|webp|gif|avif)$/i.test(currentVideo.video_url);
   // Ingested TikTok clips are not hosted by us: `video_url` is the canonical
   // share link and playback goes through TikTok's own embed player, so there is
   // no file to sign or stream and no <video> element to drive.
   const isTikTok = Boolean(video.is_tiktok && video.tiktok_id);
-  const { text: captionText, song, full } = parseCaption(video.caption);
+  const { text: captionText, song, full } = parseCaption(currentVideo.caption);
   const songRef = useRef<HTMLAudioElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
   const [near, setNear] = useState(false);
@@ -848,7 +856,7 @@ function VideoCardImpl({
           title: captionText.trim() || `Video by @${poster}`,
           creator: poster,
           thumbnailUrl: "",
-          videoUrl: video.video_url,
+          videoUrl: currentVideo.video_url,
         });
       },
     });
@@ -860,7 +868,7 @@ function VideoCardImpl({
       tracker.dispose();
       if (watchTrackerRef.current === tracker) watchTrackerRef.current = null;
     };
-  }, [auth.user?.id, video.id, video.video_url, captionText, poster, isImage]);
+  }, [auth.user?.id, video.id, currentVideo.video_url, captionText, poster, isImage]);
 
   if (deleted || isBanned || notInterested) return null;
 
@@ -1417,6 +1425,7 @@ function VideoCardImpl({
             onShared={onShared}
             onReport={() => setShowReport(true)}
             onDeleted={() => setDeleted(true)}
+            onEdited={(next) => setEdits((prev) => ({ ...prev, ...next }))}
           />
         </Suspense>
       )}

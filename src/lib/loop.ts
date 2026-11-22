@@ -642,3 +642,96 @@ export async function deleteVideo(video: Video) {
     await supabase.storage.from("videos").remove([video.video_url.slice(STORAGE_PREFIX.length)]);
   }
 }
+
+/**
+ * Rebuild a caption after an edit, keeping the hidden metadata tags that the
+ * feed relies on (borrowed song, baked-in audio, full-video marker).
+ *
+ * Editing a caption must never silently detach a video from its sound or flip a
+ * full video back into the Shorts pool, so those tags are carried over from the
+ * original row rather than being retyped by the user.
+ */
+export function rebuildCaption(text: string, original: string): string {
+  const { song, baked, full } = parseCaption(original);
+  let next = withSong(text.trim(), song);
+  if (baked) next += "[[baked]]";
+  if (full) next += "[[full]]";
+  return next;
+}
+
+/** Update just the caption of a video the signed-in user owns. */
+export async function updateVideoCaption(videoId: string, caption: string): Promise<void> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Sign in to edit");
+  const { error } = await supabase
+    .from("videos")
+    .update({ caption })
+    .eq("id", videoId)
+    .eq("user_id", user.id);
+  if (error) throw error;
+}
+
+/**
+ * Upload a re-cut version of a Short and point the existing row at it.
+ *
+ * The row keeps its id, so every like, comment and share already attached to
+ * the video survives the edit. The old object is removed from storage after the
+ * update succeeds; a failed cleanup is ignored because the row no longer
+ * references it.
+ */
+export async function replaceVideoFile(
+  video: Video,
+  file: File,
+  caption: string,
+): Promise<{ video_url: string; caption: string }> {
+  if (file.size > MAX_FEED_UPLOAD_BYTES) {
+    throw new Error(
+      `That file is ${(file.size / (1024 * 1024)).toFixed(0)} MB. The limit is ${MAX_FEED_UPLOAD_MB} MB.`,
+    );
+  }
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Sign in to edit");
+
+  const ext = file.name.split(".").pop() || "mp4";
+  const path = `${user.id}/${crypto.randomUUID()}.${ext}`;
+  const { error: upErr } = await supabase.storage
+    .from("videos")
+    .upload(path, file, { contentType: file.type || "video/mp4" });
+  if (upErr) throw upErr;
+
+  const renditions = await createQualityVersions(STORAGE_PREFIX + path);
+  const nextUrl = STORAGE_PREFIX + path;
+  const { error } = await supabase
+    .from("videos")
+    .update({
+      video_url: nextUrl,
+      caption,
+      ...qualityColumns(renditions),
+    })
+    .eq("id", video.id)
+    .eq("user_id", user.id);
+  if (error) {
+    // Don't leave an orphan behind if the row update is rejected.
+    await supabase.storage
+      .from("videos")
+      .remove([path])
+      .catch(() => {});
+    throw error;
+  }
+
+  if (video.video_url.startsWith(STORAGE_PREFIX)) {
+    const oldPath = video.video_url.slice(STORAGE_PREFIX.length);
+    if (oldPath !== path) {
+      await supabase.storage
+        .from("videos")
+        .remove([oldPath])
+        .catch(() => {});
+    }
+  }
+
+  return { video_url: nextUrl, caption };
+}

@@ -375,6 +375,7 @@ function Index() {
       .from("videos")
       .select("id", { count: "exact", head: true })
       .eq("username", me)
+      .eq("hidden", false)
       .then(({ count }) => setMyPostCount(count ?? 0));
   }, [me, videos]);
   const [page, setPage] = useState(0);

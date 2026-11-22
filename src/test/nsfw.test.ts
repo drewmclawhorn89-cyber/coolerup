@@ -114,3 +114,68 @@ describe("real Safety Bot account SQL", () => {
     expect(sql).toContain("not_authorized");
   });
 });
+
+/**
+ * The Safety Bot used to run only in the browser, after the row was already
+ * written. Anything that skipped that path (TikTok sync, a repost, a direct
+ * API call, or a classifier that failed to load) stayed live. These tests pin
+ * the database-side enforcement that closed that hole, so it cannot quietly
+ * regress back to client-only moderation.
+ */
+describe("instant takedown SQL", () => {
+  const sql = readFileSync(
+    resolve(process.cwd(), "supabase/sql-editor-instant-takedown.sql"),
+    "utf8",
+  );
+
+  it("hides videos at write time instead of deleting them", () => {
+    expect(sql).toContain("add column if not exists hidden boolean not null default false");
+    expect(sql).toContain("new.hidden := true");
+    expect(sql).toContain("new.hidden_by := 'Coolerup Safety Bot'");
+  });
+
+  it("enforces on insert and on caption edits", () => {
+    expect(sql).toContain("before insert on public.videos");
+    expect(sql).toContain("before update of caption on public.videos");
+  });
+
+  it("refuses to store a bad comment or message at all", () => {
+    expect(sql).toContain("before insert on public.comments");
+    expect(sql).toContain("before insert on public.messages");
+    // `return null` in a BEFORE INSERT trigger cancels the write entirely.
+    expect(sql).toContain("return null");
+  });
+
+  it("blanks a bad bio but keeps the account", () => {
+    expect(sql).toContain("before update of bio, display_name on public.profiles");
+    expect(sql).toContain("before insert on public.profiles");
+    expect(sql).toContain("'[removed by Coolerup]'");
+  });
+
+  it("never touches reposts of other people's videos", () => {
+    expect(sql).toContain("new.source_id is not null");
+    expect(sql).toContain("new.is_tiktok");
+  });
+
+  it("never touches the owner", () => {
+    expect(sql).toContain("public.is_owner_uid");
+  });
+
+  it("ships a sweep for content that predates the triggers", () => {
+    expect(sql).toContain("create or replace function public.safety_bot_sweep()");
+    expect(sql).toContain("videos_hidden");
+    expect(sql).toContain("create or replace function public.purge_hidden_videos()");
+  });
+
+  it("hides moderated rows from the app even if a query forgets to filter", () => {
+    expect(sql).toContain('create policy "hide moderated videos"');
+    expect(sql).toContain("as restrictive");
+    expect(sql).toContain("using (not hidden)");
+  });
+
+  it("classifies the same violations the app does", () => {
+    for (const kind of ["threat", "sexual", "bullying", "pii", "fake", "spam"]) {
+      expect(sql).toContain(`'${kind}'`);
+    }
+  });
+});

@@ -1008,6 +1008,55 @@ export async function safetyBotTakedown(input: {
   }
 }
 
+/**
+ * Re-scan everything already on the app (migration 0030).
+ *
+ * The database triggers only protect new writes. This walks the existing
+ * videos, comments and profiles and applies the same rules, so the app can be
+ * cleaned in one click instead of waiting for old content to age out.
+ *
+ * Owner/admin only; the function refuses anyone else.
+ */
+export type SweepReport = {
+  ok: boolean;
+  error?: string | undefined;
+  videos_hidden: number;
+  comments_removed: number;
+  profiles_cleared: number;
+};
+
+export async function safetyBotSweep(): Promise<SweepReport> {
+  const empty: SweepReport = {
+    ok: false,
+    videos_hidden: 0,
+    comments_removed: 0,
+    profiles_cleared: 0,
+  };
+  try {
+    const { data, error } = await supabase.rpc("safety_bot_sweep" as never);
+    if (error) return { ...empty, error: error.message };
+    return { ...empty, ...((data ?? {}) as Partial<SweepReport>) } as SweepReport;
+  } catch (e) {
+    return { ...empty, error: e instanceof Error ? e.message : "sweep_failed" };
+  }
+}
+
+/** Delete every video the bot has hidden. Owner/admin only. */
+export async function purgeHiddenVideos(): Promise<{
+  ok: boolean;
+  deleted: number;
+  error?: string | undefined;
+}> {
+  try {
+    const { data, error } = await supabase.rpc("purge_hidden_videos" as never);
+    if (error) return { ok: false, deleted: 0, error: error.message };
+    const row = (data ?? {}) as { ok?: boolean; deleted?: number };
+    return { ok: Boolean(row.ok), deleted: Number(row.deleted ?? 0) };
+  } catch (e) {
+    return { ok: false, deleted: 0, error: e instanceof Error ? e.message : "purge_failed" };
+  }
+}
+
 export async function amIOwner(): Promise<boolean> {
   try {
     const { data, error } = await supabase.rpc("is_owner");

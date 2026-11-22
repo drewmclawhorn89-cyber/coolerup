@@ -29,6 +29,7 @@ vi.mock("@/integrations/supabase/client", () => {
         idOnly = cols.trim() === "id";
         return api;
       },
+      eq: () => api,
       order: () => api,
       range: (from: number, to: number) => {
         const rows = VIDEOS.slice(from, to + 1).map((v) => (idOnly ? { id: v.id } : v));

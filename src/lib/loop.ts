@@ -178,9 +178,13 @@ const ID_PAGE_SIZE = 1000;
 async function loadVideoIds(): Promise<string[]> {
   const ids: string[] = [];
   for (let from = 0; ; from += ID_PAGE_SIZE) {
+    // `hidden` is excluded here as well as by RLS. Belt and braces: if the
+    // restrictive policy is ever dropped, a moderated video still cannot enter
+    // the shuffle and reappear in someone's feed.
     const { data, error } = await supabase
       .from("videos")
       .select("id")
+      .eq("hidden", false)
       .order("id", { ascending: true })
       .range(from, from + ID_PAGE_SIZE - 1);
     if (error) throw error;

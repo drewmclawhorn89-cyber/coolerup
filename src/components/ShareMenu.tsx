@@ -27,8 +27,17 @@ export function ShareMenu({
   onOpenQuality?: () => void;
   /** Opens the report flow. Report lives here now instead of on the action rail. */
   onReport?: (() => void) | undefined;
-  /** Patch the card in place after the owner edits the clip or its caption. */
-  onEdited?: ((next: { caption: string; video_url?: string }) => void) | undefined;
+  /** Patch the card in place after the owner edits the clip or its details. */
+  onEdited?:
+    | ((next: {
+        caption: string;
+        username?: string;
+        sound_id?: string | null;
+        is_paid?: boolean;
+        price_cents?: number | null;
+        video_url?: string;
+      }) => void)
+    | undefined;
 }) {
   const [savedSize, setSavedSize] = useState<number | null>(null);
   const [progress, setProgress] = useState<number | null>(null);

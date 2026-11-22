@@ -140,7 +140,14 @@ function VideoCardImpl({
   const [src, setSrc] = useState("");
   // Owner edits (new caption / re-cut file) patched in without refetching the
   // feed. Cleared whenever the card is recycled for a different video.
-  const [edits, setEdits] = useState<{ caption?: string; video_url?: string }>({});
+  const [edits, setEdits] = useState<{
+    caption?: string;
+    username?: string;
+    sound_id?: string | null;
+    is_paid?: boolean;
+    price_cents?: number | null;
+    video_url?: string;
+  }>({});
   const [likes, setLikes] = useState(video.likes_count);
   const [comments, setComments] = useState(video.comments_count);
   const [shares, setShares] = useState(video.shares_count);
@@ -173,7 +180,8 @@ function VideoCardImpl({
   // Playback position, so switching quality doesn't jump back to the start.
   const resumeRef = useRef(0);
   // Paid videos: the first FREE_PREVIEW_SECONDS play, then the lock appears.
-  const isPaid = Boolean(video.is_paid) && (video.price_cents ?? 0) > 0;
+  const isPaid =
+    Boolean(edits.is_paid ?? video.is_paid) && (edits.price_cents ?? video.price_cents ?? 0) > 0;
   const paidOwned = useVideoOwnership(video.id, "short", isPaid);
   const [previewEnded, setPreviewEnded] = useState(false);
   // Video id whose view has already been reported this session.
@@ -840,7 +848,7 @@ function VideoCardImpl({
 
   // Who uploaded the video. Resolved from videos.user_id → profiles.handle by
   // the feed; `video.username` is the same value when the join isn't available.
-  const poster = posterUsername ?? video.poster_username ?? video.username;
+  const poster = edits.username ?? posterUsername ?? video.poster_username ?? video.username;
 
   useEffect(() => {
     const uid = auth.user?.id;

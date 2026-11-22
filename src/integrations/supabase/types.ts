@@ -1508,13 +1508,19 @@ export type Database = {
         Row: {
           action: string
           actor: string | null
+          actor_id: string | null
           auto: boolean
+          content_excerpt: string | null
+          content_id: string | null
+          content_type: string | null
           created_at: string
           expires_at: string | null
           id: string
           is_permanent: boolean
+          kind: string | null
           reason: string | null
           report_count: number | null
+          strike_count: number | null
           user_id: string | null
           username: string | null
           window_hours: number | null
@@ -1522,13 +1528,19 @@ export type Database = {
         Insert: {
           action: string
           actor?: string | null
+          actor_id?: string | null
           auto?: boolean
+          content_excerpt?: string | null
+          content_id?: string | null
+          content_type?: string | null
           created_at?: string
           expires_at?: string | null
           id?: string
           is_permanent?: boolean
+          kind?: string | null
           reason?: string | null
           report_count?: number | null
+          strike_count?: number | null
           user_id?: string | null
           username?: string | null
           window_hours?: number | null
@@ -1536,13 +1548,19 @@ export type Database = {
         Update: {
           action?: string
           actor?: string | null
+          actor_id?: string | null
           auto?: boolean
+          content_excerpt?: string | null
+          content_id?: string | null
+          content_type?: string | null
           created_at?: string
           expires_at?: string | null
           id?: string
           is_permanent?: boolean
+          kind?: string | null
           reason?: string | null
           report_count?: number | null
+          strike_count?: number | null
           user_id?: string | null
           username?: string | null
           window_hours?: number | null
@@ -2702,6 +2720,8 @@ export type Database = {
           comments_count: number
           created_at: string
           hidden: boolean
+          hidden_at: string | null
+          hidden_by: string | null
           hidden_reason: string | null
           id: string
           is_paid: boolean
@@ -2732,6 +2752,8 @@ export type Database = {
           comments_count?: number
           created_at?: string
           hidden?: boolean
+          hidden_at?: string | null
+          hidden_by?: string | null
           hidden_reason?: string | null
           id?: string
           is_paid?: boolean
@@ -2762,6 +2784,8 @@ export type Database = {
           comments_count?: number
           created_at?: string
           hidden?: boolean
+          hidden_at?: string | null
+          hidden_by?: string | null
           hidden_reason?: string | null
           id?: string
           is_paid?: boolean
@@ -2960,6 +2984,26 @@ export type Database = {
           kind: string
           reason: string
           report_count: number
+          user_id: string
+          username: string
+        }[]
+      }
+      admin_bot_logs: {
+        Args: { p_limit?: number }
+        Returns: {
+          action: string
+          actor: string
+          auto: boolean
+          content_excerpt: string
+          content_id: string
+          content_type: string
+          created_at: string
+          expires_at: string
+          id: string
+          is_permanent: boolean
+          kind: string
+          reason: string
+          strike_count: number
           user_id: string
           username: string
         }[]
@@ -3174,6 +3218,7 @@ export type Database = {
       }
       is_muted: { Args: { _username: string }; Returns: boolean }
       is_owner: { Args: never; Returns: boolean }
+      is_owner_uid: { Args: { _uid: string }; Returns: boolean }
       is_reserved_username: { Args: { _username: string }; Returns: boolean }
       leave_live_guest: {
         Args: { p_live_id: string; p_user_id?: string }
@@ -3285,6 +3330,7 @@ export type Database = {
         Args: { p_kind: string; p_paid_with?: string; p_video_id: string }
         Returns: Json
       }
+      purge_hidden_videos: { Args: never; Returns: Json }
       record_video_view: { Args: { p_video_id: string }; Returns: Json }
       redeem_subscription_code: { Args: { _code: string }; Returns: Json }
       register_device: { Args: { p_device_id: string }; Returns: Json }
@@ -3314,6 +3360,25 @@ export type Database = {
         Args: { p_accept: boolean; p_request_id: string }
         Returns: string
       }
+      safety_bot_sweep: { Args: never; Returns: Json }
+      safety_classify: {
+        Args: { _scope?: string; _text: string }
+        Returns: string
+      }
+      safety_log: {
+        Args: {
+          _action: string
+          _content_id: string
+          _content_type: string
+          _excerpt: string
+          _kind: string
+          _user_id: string
+          _username: string
+        }
+        Returns: undefined
+      }
+      safety_normalize: { Args: { _text: string }; Returns: string }
+      safety_reason: { Args: { _kind: string }; Returns: string }
       send_live_gift: {
         Args: {
           p_coins: number

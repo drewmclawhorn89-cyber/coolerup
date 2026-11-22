@@ -570,7 +570,7 @@ export async function moderate(opts: {
       p_kind: classification.kind,
       p_reason: classification.reason,
       p_content_type: contentType,
-      p_content_id: contentId,
+      ...(contentId ? { p_content_id: contentId } : {}),
     });
     if (error) {
       console.error("auto_moderate failed", error);

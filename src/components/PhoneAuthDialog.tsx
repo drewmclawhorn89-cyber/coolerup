@@ -295,10 +295,21 @@ function GoogleLogo({ className }: { className?: string }) {
   );
 }
 
+function MicrosoftLogo({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 23 23" aria-hidden="true" className={className}>
+      <path fill="#f25022" d="M1 1h10v10H1z" />
+      <path fill="#7fba00" d="M12 1h10v10H12z" />
+      <path fill="#00a4ef" d="M1 12h10v10H1z" />
+      <path fill="#ffb900" d="M12 12h10v10H12z" />
+    </svg>
+  );
+}
+
 export function PhoneAuthDialog() {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState("phone");
-  const [oauth, setOauth] = useState<"apple" | "google" | null>(null);
+  const [oauth, setOauth] = useState<"apple" | "google" | "microsoft" | null>(null);
 
   useEffect(() => {
     const show = () => {
@@ -314,10 +325,11 @@ export function PhoneAuthDialog() {
     toast.success("You're signed in");
   }, []);
 
-  const signInWithOAuth = async (provider: "apple" | "google") => {
+  const signInWithOAuth = async (provider: "apple" | "google" | "microsoft") => {
     if (oauth) return;
     setOauth(provider);
-    const label = provider === "apple" ? "Apple" : "Google";
+    const label =
+      provider === "apple" ? "Apple" : provider === "google" ? "Google" : "Microsoft";
     try {
       const result = await lovable.auth.signInWithOAuth(provider, {
         redirect_uri: window.location.origin,
@@ -352,7 +364,7 @@ export function PhoneAuthDialog() {
         <DialogHeader>
           <DialogTitle>Sign in to coolerup</DialogTitle>
           <DialogDescription>
-            Use your phone number, email, Apple or Google to continue.
+            Use your phone number, email, Apple, Google or Microsoft to continue.
           </DialogDescription>
         </DialogHeader>
 
@@ -403,6 +415,20 @@ export function PhoneAuthDialog() {
               <GoogleLogo className="h-4 w-4" />
             )}
             Continue with Google
+          </Button>
+          <Button
+            variant="outline"
+            className="w-full rounded-full"
+            onClick={() => void signInWithOAuth("microsoft")}
+            disabled={oauth !== null}
+            aria-label="Continue with Microsoft"
+          >
+            {oauth === "microsoft" ? (
+              <Loader2 className="animate-spin" />
+            ) : (
+              <MicrosoftLogo className="h-4 w-4" />
+            )}
+            Continue with Microsoft
           </Button>
         </div>
       </DialogContent>

@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { isValidPaidPriceCents } from "@/lib/paidVideos";
 import { resolveSupabaseUrl } from "@/integrations/supabase/project";
 import { requestOfflineSync } from "./offlineEvents";
 import { untypedDb } from "@/lib/untypedDb";
@@ -511,6 +512,12 @@ export type FullVideoEdit = {
   tags: string[];
   /** New `storage:` ref (or plain URL) when the thumbnail was replaced. */
   thumbnailUrl?: string | null;
+  /**
+   * The paid switch. Omitted means "don't touch the price" — which is what
+   * every caller did before paid videos existed. `false` clears the price.
+   */
+  isPaid?: boolean;
+  priceCents?: number | null;
 };
 
 /**
@@ -538,15 +545,34 @@ export async function updateFullVideo(
   };
   if (patch.thumbnailUrl !== undefined) row["thumbnail_url"] = patch.thumbnailUrl;
 
-  const { data, error } = await db
-    .from("full_videos")
-    .update(row)
-    .eq("id", id)
-    .eq("user_id", userId)
-    .select("*")
-    .single();
-  if (error) throw error;
-  return data as FullVideo;
+  if (patch.isPaid !== undefined) {
+    if (patch.isPaid) {
+      if (!isValidPaidPriceCents(patch.priceCents ?? null)) {
+        throw new Error("Pick a price between $0.50 and $1,000.");
+      }
+      row["is_paid"] = true;
+      row["price_cents"] = patch.priceCents;
+    } else {
+      // Free again: the check constraint wants the price gone, not zero.
+      row["is_paid"] = false;
+      row["price_cents"] = null;
+    }
+  }
+
+  // Same tolerance as the insert path: if this database predates the paid
+  // columns, save everything else instead of failing the whole edit.
+  for (let attempt = 0; attempt < OPTIONAL_COLUMNS.length + 1; attempt += 1) {
+    const { data, error } = await db
+      .from("full_videos")
+      .update(row)
+      .eq("id", id)
+      .eq("user_id", userId)
+      .select("*")
+      .single();
+    if (!error) return data as FullVideo;
+    if (!dropUnknownColumn(row, error)) throw error;
+  }
+  throw new Error("Could not save your changes. Try again.");
 }
 
 /** Remove a video the user owns. Storage objects are left alone (cheap, safe). */

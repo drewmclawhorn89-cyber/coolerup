@@ -6,6 +6,7 @@ import {
   youtubeThumbnail,
   youtubeWatchUrl,
 } from "./youtube";
+import { MAX_PAID_PRICE_CENTS, MIN_PAID_PRICE_CENTS } from "./paidVideos";
 
 /** A desktop UA — the mobile page omits the player config we parse. */
 const YOUTUBE_UA =
@@ -40,12 +41,30 @@ async function fetchYouTubeDuration(id: string): Promise<number | null> {
 
 export const addYouTubeVideo = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((input: { url: string }) => {
+  .validator((input: { url: string; isPaid?: boolean; priceCents?: number | null }) => {
     if (typeof input?.url !== "string" || input.url.length > 2048)
       throw new Error("Paste a valid YouTube link.");
     const id = extractYouTubeId(input.url);
     if (!id) throw new Error("Paste a valid YouTube video link.");
-    return { id };
+
+    // Paid is opt-in, and the price is validated here rather than trusted from
+    // the client. Anything outside $0.50-$1,000 is rejected outright.
+    const isPaid = input?.isPaid === true;
+    let priceCents: number | null = null;
+    if (isPaid) {
+      const raw = input?.priceCents;
+      if (
+        typeof raw !== "number" ||
+        !Number.isInteger(raw) ||
+        raw < MIN_PAID_PRICE_CENTS ||
+        raw > MAX_PAID_PRICE_CENTS
+      ) {
+        throw new Error("Pick a price between $0.50 and $1,000.");
+      }
+      priceCents = raw;
+    }
+
+    return { id, isPaid, priceCents };
   })
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
@@ -87,23 +106,42 @@ export const addYouTubeVideo = createServerFn({ method: "POST" })
 
     if (metadata) title = metadata;
 
-    const { data: row, error } = await supabase
+    const payload: Record<string, unknown> = {
+      user_id: userId,
+      username: profile.handle,
+      title,
+      description: "",
+      video_url: youtubeWatchUrl(data.id),
+      thumbnail_url: youtubeThumbnail(data.id),
+      is_youtube: true,
+      youtube_id: data.id,
+      duration: duration ?? 0,
+      status: "ready",
+      category: "All",
+    };
+    if (data.isPaid) {
+      payload["is_paid"] = true;
+      payload["price_cents"] = data.priceCents;
+    }
+
+    let { data: row, error } = await supabase
       .from("full_videos")
-      .insert({
-        user_id: userId,
-        username: profile.handle,
-        title,
-        description: "",
-        video_url: youtubeWatchUrl(data.id),
-        thumbnail_url: youtubeThumbnail(data.id),
-        is_youtube: true,
-        youtube_id: data.id,
-        duration: duration ?? 0,
-        status: "ready",
-        category: "All",
-      })
+      .insert(payload as never)
       .select("*")
       .single();
+
+    // A database that predates the paid columns should still get the video,
+    // just as a free one, rather than failing the whole add.
+    if (error && /is_paid|price_cents/i.test(`${error.message ?? ""} ${error.details ?? ""}`)) {
+      delete payload["is_paid"];
+      delete payload["price_cents"];
+      ({ data: row, error } = await supabase
+        .from("full_videos")
+        .insert(payload as never)
+        .select("*")
+        .single());
+    }
+
     if (error || !row) throw new Error("Could not add the YouTube video. Please try again.");
     return { ...row, status: "ready" as const };
   });

@@ -3,6 +3,7 @@ import { WarningModal } from "@/components/WarningModal";
 import { toast } from "sonner";
 import { moderationAvailable, myStrikeStatus, onStrike, type StrikeResult } from "@/lib/autoBans";
 import { amIAdmin } from "@/lib/moderation";
+import { preloadNsfwModel } from "@/lib/nsfw";
 
 /**
  * Owns the 3-strike warning popup and the current mute state.
@@ -74,6 +75,13 @@ export function WarningProvider({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  // Warm the on-device NSFW model in the background. Doing it here means the
+  // first upload is not stuck waiting for ~3.5 MB of weights to parse.
+  useEffect(() => {
+    const id = window.setTimeout(preloadNsfwModel, 4000);
+    return () => window.clearTimeout(id);
   }, []);
 
   useEffect(() => {

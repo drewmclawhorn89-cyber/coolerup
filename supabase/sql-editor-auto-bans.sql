@@ -1,8 +1,9 @@
 -- ============================================================================
--- Coolerup · Auto Bans (3-strike ladder)
+-- Coolerup · Auto Bans (3-strike ladder + instant ban for sexual content)
 -- ============================================================================
 -- Adds the missing half of moderation: the escalation ladder.
 --
+--   sexual content -> PERMANENT BAN on the first offence (no ladder)
 --   strike 1  -> warning popup + the offending post/comment is removed
 --   strike 2  -> warning popup + removal + 24 hour mute (no post, no comment)
 --   strike 3  -> warning popup + PERMANENT BAN
@@ -321,8 +322,14 @@ begin
     );
   end if;
 
-  new_count := coalesce(row_strike.strike_count, 0) + 1;
-  if new_count > 3 then new_count := 3; end if;
+  -- Explicit sexual content is an instant permanent ban: no ladder, no second
+  -- chance, no 24h mute. Bullying / threats / spam still climb 1 -> 2 -> 3.
+  if p_kind = 'sexual' then
+    new_count := 3;
+  else
+    new_count := coalesce(row_strike.strike_count, 0) + 1;
+    if new_count > 3 then new_count := 3; end if;
+  end if;
 
   -- Remove the offending content on every strike.
   if p_content_id is not null then
@@ -363,7 +370,11 @@ begin
   else
     action := 'ban';
     permanent := true;
-    message := 'Warning 3/3 — This breaks Coolerup rules. Your account is permanently banned.';
+    if p_kind = 'sexual' then
+      message := 'Your account is permanently banned — explicit sexual content is not allowed on Coolerup.';
+    else
+      message := 'Warning 3/3 — This breaks Coolerup rules. Your account is permanently banned.';
+    end if;
   end if;
 
   insert into public.user_strikes as us (

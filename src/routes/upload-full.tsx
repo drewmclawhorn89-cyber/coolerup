@@ -21,6 +21,7 @@ import {
   type UploadProgress,
 } from "@/lib/fullVideos";
 import { clearPendingVideo, registerPendingVideo } from "@/lib/pendingUploads";
+import { PaidVideoFields, paidSelectionInvalid } from "@/components/PaidVideoFields";
 import {
   cancelCompression,
   compressVideoTo720p,
@@ -94,6 +95,9 @@ function UploadFullPage() {
   const [speed, setSpeed] = useState<UploadProgress | null>(null);
   const [uploaded, setUploaded] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  // Paid videos: OFF by default, so publishing is unchanged unless turned on.
+  const [isPaid, setIsPaid] = useState(false);
+  const [priceCents, setPriceCents] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   /** 720p re-encode progress, shown before the bytes start moving. */
@@ -347,6 +351,10 @@ function UploadFullPage() {
       setError("Give your video a title of at least 3 characters.");
       return;
     }
+    if (paidSelectionInvalid(isPaid, priceCents)) {
+      setError("Pick a price between $0.50 and $1,000 for your paid video.");
+      return;
+    }
 
     setError(null);
     setPublishing(true);
@@ -370,6 +378,8 @@ function UploadFullPage() {
         // Lets the watch page detect an upload that finished but never got
         // flipped to `ready` (e.g. the tab closed right at the end).
         expectedBytes: file.size,
+        isPaid,
+        priceCents,
       });
 
       // Let the watch page read straight off the user's disk until the real
@@ -711,6 +721,13 @@ function UploadFullPage() {
             {error}
           </p>
         )}
+
+        <PaidVideoFields
+          enabled={isPaid}
+          onEnabledChange={setIsPaid}
+          priceCents={priceCents}
+          onPriceCentsChange={setPriceCents}
+        />
 
         {(uploading || stage === "saving" || stage === "done" || uploaded) && (
           <div className="space-y-2 rounded-xl border border-border bg-card p-4">

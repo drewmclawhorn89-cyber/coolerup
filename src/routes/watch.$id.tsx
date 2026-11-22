@@ -23,6 +23,8 @@ import { YouTubePlayer } from "@/components/YouTubePlayer";
 import { EditFullVideoDialog } from "@/components/EditFullVideoDialog";
 import { FullVideoShareMenu } from "@/components/FullVideoShareMenu";
 import { FullVideoCard } from "@/components/FullVideoCard";
+import { PaidVideoGate } from "@/components/PaidVideoGate";
+import { useVideoOwnership } from "@/lib/paidVideos";
 import { GifPicker } from "@/components/GifPicker";
 import { useYouTubeDurations, withYouTubeDurations } from "@/lib/useYouTubeDurations";
 import { useAuth } from "@/hooks/useAuth";
@@ -319,6 +321,14 @@ function WatchPage() {
   /** Only the uploader can rename, re-tag or delete their own video. */
   const isOwner = !!auth.user && !!video && video.user_id === auth.user.id;
 
+  /* ---------------- paid videos ---------------- */
+
+  /** A paid video is only "paid" once it has a real price attached. */
+  const isPaid = Boolean(video?.is_paid) && (video?.price_cents ?? 0) > 0;
+  const paidOwned = useVideoOwnership(video?.id ?? null, "full", isPaid);
+  /** The uploader always sees their own video; buyers see it once they've paid. */
+  const showPaidLock = isPaid && !isOwner && !paidOwned;
+
   /**
    * True when the row exists but the bytes are still in flight AND this browser
    * isn't the one holding the file — i.e. a stranger who has nothing to play.
@@ -526,151 +536,163 @@ function WatchPage() {
 
       <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_360px] lg:gap-6">
         <div className="min-w-0">
-          {waitingForUpload ? (
-            // The object isn't in storage yet, so there is nothing to play.
-            // Show an honest placeholder instead of a dead player; the poll
-            // above swaps this out the moment the upload finishes.
-            <div className="mx-3 mt-2 flex aspect-video flex-col items-center justify-center gap-3 rounded-xl bg-muted text-center sm:mx-0">
-              <Loader2 className="size-7 animate-spin text-muted-foreground" />
-              <div className="px-6">
-                <p className="text-sm font-semibold">This video is still uploading</p>
-                <p className="mt-1 text-[13px] text-muted-foreground">
-                  It'll start playing here on its own — no need to refresh.
-                </p>
+          <div className="relative">
+            {waitingForUpload ? (
+              // The object isn't in storage yet, so there is nothing to play.
+              // Show an honest placeholder instead of a dead player; the poll
+              // above swaps this out the moment the upload finishes.
+              <div className="mx-3 mt-2 flex aspect-video flex-col items-center justify-center gap-3 rounded-xl bg-muted text-center sm:mx-0">
+                <Loader2 className="size-7 animate-spin text-muted-foreground" />
+                <div className="px-6">
+                  <p className="text-sm font-semibold">This video is still uploading</p>
+                  <p className="mt-1 text-[13px] text-muted-foreground">
+                    It'll start playing here on its own — no need to refresh.
+                  </p>
+                </div>
               </div>
-            </div>
-          ) : uploadFailed ? (
-            <div className="mx-3 mt-2 flex aspect-video flex-col items-center justify-center gap-3 rounded-xl bg-muted text-center sm:mx-0">
-              <div className="px-6">
-                <p className="text-sm font-semibold">This upload didn't finish</p>
-                <p className="mt-1 text-[13px] text-muted-foreground">
-                  {isOwner
-                    ? (video.upload_error ?? "The file never finished uploading.")
-                    : "The owner can re-upload it."}
-                </p>
-                {isOwner && (
-                  <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+            ) : uploadFailed ? (
+              <div className="mx-3 mt-2 flex aspect-video flex-col items-center justify-center gap-3 rounded-xl bg-muted text-center sm:mx-0">
+                <div className="px-6">
+                  <p className="text-sm font-semibold">This upload didn't finish</p>
+                  <p className="mt-1 text-[13px] text-muted-foreground">
+                    {isOwner
+                      ? (video.upload_error ?? "The file never finished uploading.")
+                      : "The owner can re-upload it."}
+                  </p>
+                  {isOwner && (
+                    <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void navigate({ to: "/upload-full" })}
+                        className="rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
+                      >
+                        Upload again
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void removeFailed()}
+                        className="rounded-full bg-secondary px-4 py-2 text-sm font-semibold text-secondary-foreground"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : unplayable ? (
+              <div className="mx-3 mt-2 flex aspect-video flex-col items-center justify-center gap-3 rounded-xl bg-muted text-center sm:mx-0">
+                <div className="px-6">
+                  <p className="text-sm font-semibold">This video can't be played</p>
+                  <p className="mt-1 text-[13px] text-muted-foreground">
+                    {isOwner
+                      ? "The file isn't in storage. Upload it again to fix this."
+                      : "The file is missing from storage."}
+                  </p>
+                  {isOwner && (
                     <button
                       type="button"
                       onClick={() => void navigate({ to: "/upload-full" })}
-                      className="rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
+                      className="mt-4 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
                     >
                       Upload again
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => void removeFailed()}
-                      className="rounded-full bg-secondary px-4 py-2 text-sm font-semibold text-secondary-foreground"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
-            </div>
-          ) : unplayable ? (
-            <div className="mx-3 mt-2 flex aspect-video flex-col items-center justify-center gap-3 rounded-xl bg-muted text-center sm:mx-0">
-              <div className="px-6">
-                <p className="text-sm font-semibold">This video can't be played</p>
-                <p className="mt-1 text-[13px] text-muted-foreground">
-                  {isOwner
-                    ? "The file isn't in storage. Upload it again to fix this."
-                    : "The file is missing from storage."}
-                </p>
-                {isOwner && (
-                  <button
-                    type="button"
-                    onClick={() => void navigate({ to: "/upload-full" })}
-                    className="mt-4 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
-                  >
-                    Upload again
-                  </button>
-                )}
-              </div>
-            </div>
-          ) : video.is_tiktok && video.tiktok_id ? (
-            <div className="mx-3 mt-2 sm:mx-0">
-              {/* TikTok provenance, same rule as YouTube: we embed the original
+            ) : video.is_tiktok && video.tiktok_id ? (
+              <div className="mx-3 mt-2 sm:mx-0">
+                {/* TikTok provenance, same rule as YouTube: we embed the original
                   and never rehost the file. */}
-              <div className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg bg-black px-3 py-2 text-white">
-                <span className="flex items-center gap-1.5 text-[13px] font-bold">
-                  <Play className="size-4 fill-current" /> TikTok
-                </span>
-                <span className="text-[12px] opacity-90">
-                  Playing from @{video.tiktok_author || video.username}
-                </span>
-              </div>
+                <div className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg bg-black px-3 py-2 text-white">
+                  <span className="flex items-center gap-1.5 text-[13px] font-bold">
+                    <Play className="size-4 fill-current" /> TikTok
+                  </span>
+                  <span className="text-[12px] opacity-90">
+                    Playing from @{video.tiktok_author || video.username}
+                  </span>
+                </div>
 
-              <div className="flex justify-center">
-                <div className="aspect-[9/16] w-full max-w-[420px] overflow-hidden bg-black sm:rounded-lg">
+                <div className="flex justify-center">
+                  <div className="aspect-[9/16] w-full max-w-[420px] overflow-hidden bg-black sm:rounded-lg">
+                    <iframe
+                      className="h-full w-full"
+                      title={video.title}
+                      src={`https://www.tiktok.com/embed/v2/${encodeURIComponent(video.tiktok_id)}`}
+                      allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
+                      referrerPolicy="strict-origin-when-cross-origin"
+                      allowFullScreen
+                    />
+                  </div>
+                </div>
+
+                <a
+                  href={video.video_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-white px-4 py-2 text-sm font-semibold text-black transition hover:opacity-90"
+                >
+                  <Play className="size-4 fill-current" />
+                  Watch on TikTok
+                  <ExternalLink className="size-3.5" />
+                </a>
+              </div>
+            ) : video.is_youtube && video.youtube_id ? (
+              <div className="mx-3 mt-2 sm:mx-0">
+                {/* Red provenance badge above the player, the way a YouTube embed
+                  announces itself. The grid stays clean; this is the one place
+                  we tell the viewer the bytes come from YouTube. */}
+                <div className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg bg-youtube px-3 py-2 text-youtube-foreground">
+                  <span className="flex items-center gap-1.5 text-[13px] font-bold">
+                    <Play className="size-4 fill-current" /> YouTube
+                  </span>
+                  <span className="text-[12px] opacity-90">Playing from YouTube</span>
+                </div>
+
+                <div className="aspect-video w-full overflow-hidden bg-background sm:rounded-lg">
+                  {/* The official IFrame player, with YouTube's own branding and
+                    logo kept in the control bar (modestbranding=0). */}
                   <iframe
                     className="h-full w-full"
                     title={video.title}
-                    src={`https://www.tiktok.com/embed/v2/${encodeURIComponent(video.tiktok_id)}`}
-                    allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
+                    src={`https://www.youtube.com/embed/${encodeURIComponent(video.youtube_id)}?rel=0&modestbranding=0&playsinline=1`}
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                     referrerPolicy="strict-origin-when-cross-origin"
                     allowFullScreen
                   />
                 </div>
-              </div>
 
-              <a
-                href={video.video_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-white px-4 py-2 text-sm font-semibold text-black transition hover:opacity-90"
-              >
-                <Play className="size-4 fill-current" />
-                Watch on TikTok
-                <ExternalLink className="size-3.5" />
-              </a>
-            </div>
-          ) : video.is_youtube && video.youtube_id ? (
-            <div className="mx-3 mt-2 sm:mx-0">
-              {/* Red provenance badge above the player, the way a YouTube embed
-                  announces itself. The grid stays clean; this is the one place
-                  we tell the viewer the bytes come from YouTube. */}
-              <div className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg bg-youtube px-3 py-2 text-youtube-foreground">
-                <span className="flex items-center gap-1.5 text-[13px] font-bold">
-                  <Play className="size-4 fill-current" /> YouTube
-                </span>
-                <span className="text-[12px] opacity-90">Playing from YouTube</span>
+                <a
+                  href={`https://www.youtube.com/watch?v=${encodeURIComponent(video.youtube_id)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-youtube px-4 py-2 text-sm font-semibold text-youtube-foreground transition hover:opacity-90"
+                >
+                  <Play className="size-4 fill-current" />
+                  Watch on YouTube
+                  <ExternalLink className="size-3.5" />
+                </a>
               </div>
+            ) : (
+              <YouTubePlayer
+                src={src}
+                poster={poster || undefined}
+                sources={renditions}
+                onFirstPlay={countView}
+                onWatchThreshold={recordWatchedVideo}
+                className="sm:rounded-xl"
+              />
+            )}
 
-              <div className="aspect-video w-full overflow-hidden bg-background sm:rounded-lg">
-                {/* The official IFrame player, with YouTube's own branding and
-                    logo kept in the control bar (modestbranding=0). */}
-                <iframe
-                  className="h-full w-full"
-                  title={video.title}
-                  src={`https://www.youtube.com/embed/${encodeURIComponent(video.youtube_id)}?rel=0&modestbranding=0&playsinline=1`}
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                  referrerPolicy="strict-origin-when-cross-origin"
-                  allowFullScreen
-                />
-              </div>
-
-              <a
-                href={`https://www.youtube.com/watch?v=${encodeURIComponent(video.youtube_id)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-youtube px-4 py-2 text-sm font-semibold text-youtube-foreground transition hover:opacity-90"
-              >
-                <Play className="size-4 fill-current" />
-                Watch on YouTube
-                <ExternalLink className="size-3.5" />
-              </a>
-            </div>
-          ) : (
-            <YouTubePlayer
-              src={src}
-              poster={poster || undefined}
-              sources={renditions}
-              onFirstPlay={countView}
-              onWatchThreshold={recordWatchedVideo}
-              className="sm:rounded-xl"
-            />
-          )}
+            {showPaidLock && (
+              <PaidVideoGate
+                videoId={video.id}
+                kind="full"
+                priceCents={video.price_cents ?? 0}
+                title={video.title}
+                thumbnailUrl={poster || null}
+              />
+            )}
+          </div>
 
           {video.status === "processing" && (
             <div className="mx-3 mt-3 flex items-start gap-2 rounded-lg bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-400">

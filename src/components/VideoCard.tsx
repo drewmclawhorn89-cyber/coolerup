@@ -22,6 +22,8 @@ import {
 } from "@/lib/loop";
 import { getSaved } from "@/lib/offline";
 import { SoundBar } from "@/components/SoundBar";
+import { PaidVideoGate } from "@/components/PaidVideoGate";
+import { FREE_PREVIEW_SECONDS, formatPriceCents, useVideoOwnership } from "@/lib/paidVideos";
 import {
   cacheSound,
   createSoundFromVideo,
@@ -167,11 +169,16 @@ function VideoCardImpl({
   const progressRef = useRef<HTMLDivElement>(null);
   // Playback position, so switching quality doesn't jump back to the start.
   const resumeRef = useRef(0);
+  // Paid videos: the first FREE_PREVIEW_SECONDS play, then the lock appears.
+  const isPaid = Boolean(video.is_paid) && (video.price_cents ?? 0) > 0;
+  const paidOwned = useVideoOwnership(video.id, "short", isPaid);
+  const [previewEnded, setPreviewEnded] = useState(false);
   // Video id whose view has already been reported this session.
   const viewRecordedRef = useRef<string | null>(null);
   const watchTrackerRef = useRef<ReturnType<typeof createWatchDurationTracker> | null>(null);
   useEffect(() => {
     resumeRef.current = 0;
+    setPreviewEnded(false);
   }, [video.id]);
 
   // The feed paints from a cached snapshot first, then swaps in fresh rows. The
@@ -984,6 +991,12 @@ function VideoCardImpl({
                 onTimeUpdate={(e) => {
                   const v = e.currentTarget;
                   resumeRef.current = v.currentTime;
+                  // Paid videos play the first 10 seconds, then stop and lock.
+                  if (isPaid && !paidOwned && v.currentTime >= FREE_PREVIEW_SECONDS) {
+                    v.pause();
+                    setPreviewEnded(true);
+                    return;
+                  }
                   if (auth.user?.id && !v.paused) {
                     watchTrackerRef.current?.tick();
                   }
@@ -999,6 +1012,30 @@ function VideoCardImpl({
                 }}
                 className={`h-full w-full cursor-pointer ${full ? "object-contain" : "object-cover"}`}
               />
+            )}
+
+            {isPaid && !paidOwned && (
+              <>
+                <div
+                  className="pointer-events-none absolute left-3 top-[calc(env(safe-area-inset-top)+8.5rem)] z-10 flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold"
+                  style={{ backgroundColor: "rgba(0,0,0,0.6)", color: "#FFC107" }}
+                >
+                  <span aria-hidden>🔒</span>
+                  {formatPriceCents(video.price_cents)}
+                </div>
+                {previewEnded && (
+                  <PaidVideoGate
+                    videoId={video.id}
+                    kind="short"
+                    priceCents={video.price_cents ?? 0}
+                    title={captionText ? captionText.slice(0, 80) : undefined}
+                    onUnlocked={() => {
+                      setPreviewEnded(false);
+                      void ref.current?.play();
+                    }}
+                  />
+                )}
+              </>
             )}
 
             {hasBorrowedSound && soundSrc && (

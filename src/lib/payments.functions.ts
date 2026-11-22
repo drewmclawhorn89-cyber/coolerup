@@ -238,3 +238,133 @@ export const paymentStatus = createServerFn({ method: "GET" })
   .handler(async () => {
     return { configured: stripeConfigured() };
   });
+
+/* -------------------------------------------------------------------------- */
+/*  Paid videos                                                               */
+/* -------------------------------------------------------------------------- */
+
+export type VideoChargeResult =
+  | { ok: true; amountCents: number; purchaseId: string; alreadyOwned: boolean }
+  | { ok: false; configured: boolean; message: string };
+
+/**
+ * Buy a single paid video with a card.
+ *
+ * The client sends a video id and a Google Pay token, never an amount: the
+ * price is read off the row here, charged through Stripe, and only then is the
+ * purchase recorded by the service-role `grant_paid_video_purchase` function.
+ * That ordering is what stops a tampered client from unlocking a video for free.
+ */
+export const chargeVideoWithGooglePay = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((d: { videoId: string; kind: "short" | "full"; paymentToken: string }) => {
+    if (!d?.videoId || typeof d.videoId !== "string") throw new Error("Unknown video");
+    if (d.kind !== "short" && d.kind !== "full") throw new Error("Unknown video type");
+    if (!d?.paymentToken || typeof d.paymentToken !== "string") {
+      throw new Error("Missing payment token");
+    }
+    return d;
+  })
+  .handler(async ({ data, context }): Promise<VideoChargeResult> => {
+    const table = data.kind === "full" ? "full_videos" : "videos";
+    const { data: row, error: readError } = await context.supabase
+      .from(table)
+      .select("is_paid, price_cents")
+      .eq("id", data.videoId)
+      .maybeSingle();
+
+    if (readError || !row) {
+      return {
+        ok: false,
+        configured: stripeConfigured(),
+        message: "This video is no longer available",
+      };
+    }
+
+    const priceCents = Number((row as { price_cents?: number | null }).price_cents ?? 0);
+    const isPaid = Boolean((row as { is_paid?: boolean | null }).is_paid);
+    if (!isPaid || priceCents <= 0) {
+      return { ok: false, configured: stripeConfigured(), message: "This video is free" };
+    }
+
+    if (!stripeConfigured()) {
+      return {
+        ok: false,
+        configured: false,
+        message: "Card payments aren't set up yet — pay with Coolerup Coins instead.",
+      };
+    }
+
+    try {
+      const pm = await paymentMethodFromToken(data.paymentToken);
+      const pmId = String(pm["id"]);
+
+      const intent = await stripe("payment_intents", {
+        amount: String(priceCents),
+        currency: "usd",
+        payment_method: pmId,
+        confirm: "true",
+        description: `Coolerup paid video (${data.kind})`,
+        "automatic_payment_methods[enabled]": "false",
+        "payment_method_types[0]": "card",
+        "metadata[video_id]": data.videoId,
+        "metadata[video_kind]": data.kind,
+        "metadata[user_id]": context.userId,
+        "metadata[source]": "paid_video",
+      });
+
+      const status = String(intent["status"]);
+      if (status !== "succeeded" && status !== "processing") {
+        const lastError = intent["last_payment_error"] as Record<string, unknown> | undefined;
+        return {
+          ok: false,
+          configured: true,
+          message: String(lastError?.["message"] ?? `Payment ${status}`),
+        };
+      }
+
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const admin = supabaseAdmin as unknown as {
+        rpc: (
+          fn: string,
+          args: Record<string, unknown>,
+        ) => Promise<{ data: unknown; error: { message: string } | null }>;
+      };
+
+      const { data: granted, error: grantError } = await admin.rpc("grant_paid_video_purchase", {
+        p_buyer: context.userId,
+        p_video_id: data.videoId,
+        p_kind: data.kind,
+        p_payment_ref: String(intent["id"]),
+      });
+
+      if (grantError) {
+        return { ok: false, configured: true, message: grantError.message };
+      }
+
+      const result = (Array.isArray(granted) ? granted[0] : granted) as Record<
+        string,
+        unknown
+      > | null;
+      if (!result || result["ok"] !== true) {
+        return {
+          ok: false,
+          configured: true,
+          message: String(result?.["error"] ?? "Couldn't record that purchase"),
+        };
+      }
+
+      return {
+        ok: true,
+        amountCents: Number(result["amountCents"] ?? priceCents),
+        purchaseId: String(result["purchaseId"] ?? ""),
+        alreadyOwned: result["alreadyOwned"] === true,
+      };
+    } catch (err) {
+      return {
+        ok: false,
+        configured: true,
+        message: err instanceof Error ? err.message : "Payment failed",
+      };
+    }
+  });

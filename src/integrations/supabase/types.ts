@@ -701,7 +701,9 @@ export type Database = {
           description: string
           duration: number
           id: string
+          is_paid: boolean
           is_youtube: boolean
+          price_cents: number | null
           status: string
           tags: string[]
           thumbnail_url: string | null
@@ -721,7 +723,9 @@ export type Database = {
           description?: string
           duration?: number
           id?: string
+          is_paid?: boolean
           is_youtube?: boolean
+          price_cents?: number | null
           status?: string
           tags?: string[]
           thumbnail_url?: string | null
@@ -741,7 +745,9 @@ export type Database = {
           description?: string
           duration?: number
           id?: string
+          is_paid?: boolean
           is_youtube?: boolean
+          price_cents?: number | null
           status?: string
           tags?: string[]
           thumbnail_url?: string | null
@@ -2656,7 +2662,9 @@ export type Database = {
           hidden: boolean
           hidden_reason: string | null
           id: string
+          is_paid: boolean
           is_tiktok: boolean
+          price_cents: number | null
           likes_count: number
           quality: string
           reposts_count: number
@@ -2684,7 +2692,9 @@ export type Database = {
           hidden?: boolean
           hidden_reason?: string | null
           id?: string
+          is_paid?: boolean
           is_tiktok?: boolean
+          price_cents?: number | null
           likes_count?: number
           quality?: string
           reposts_count?: number
@@ -2712,7 +2722,9 @@ export type Database = {
           hidden?: boolean
           hidden_reason?: string | null
           id?: string
+          is_paid?: boolean
           is_tiktok?: boolean
+          price_cents?: number | null
           likes_count?: number
           quality?: string
           reposts_count?: number

@@ -3,6 +3,7 @@ import { createQualityVersions, qualityColumns } from "./videoQuality";
 import { requestOfflineSync } from "./offlineEvents";
 import { reportExplicitMedia, screenContent } from "./autoBans";
 import { inspectMedia } from "./nsfw";
+import { paidColumns } from "./paidVideos";
 
 export type Video = {
   id: string;
@@ -14,6 +15,10 @@ export type Video = {
   shares_count: number;
   created_at: string;
   is_live?: boolean | null;
+  /** True when the creator is selling this video. */
+  is_paid?: boolean | null;
+  /** Price in cents when `is_paid`; null/undefined for a free video. */
+  price_cents?: number | null;
   /** Repost count, kept in sync with the `reposts` table. */
   reposts?: number;
   /** Raw column name returned by `select("*")` on the videos table. */
@@ -223,9 +228,9 @@ export async function fetchVideos(page = 0, pageSize = 20) {
   // cannot tell an ingested clip from a normal upload: it would try to play the
   // TikTok share URL as a media file and silently fail.
   const withSound =
-    "id, username, caption, video_url, likes_count, comments_count, shares_count, reposts_count, created_at, sound_id, is_tiktok, tiktok_id, tiktok_author, sounds!videos_sound_id_fkey(id, original_video_id, audio_url, title, creator_username, uses_count)";
+    "id, username, caption, video_url, likes_count, comments_count, shares_count, reposts_count, created_at, sound_id, is_tiktok, tiktok_id, tiktok_author, is_paid, price_cents, sounds!videos_sound_id_fkey(id, original_video_id, audio_url, title, creator_username, uses_count)";
   const withoutSound =
-    "id, username, caption, video_url, likes_count, comments_count, shares_count, reposts_count, created_at, sound_id, is_tiktok, tiktok_id, tiktok_author";
+    "id, username, caption, video_url, likes_count, comments_count, shares_count, reposts_count, created_at, sound_id, is_tiktok, tiktok_id, tiktok_author, is_paid, price_cents";
   // Used only when the TikTok columns are absent from the database.
   const LEGACY_COLUMNS =
     "id, username, caption, video_url, likes_count, comments_count, shares_count, reposts_count, created_at, sound_id";
@@ -243,7 +248,7 @@ export async function fetchVideos(page = 0, pageSize = 20) {
   // Last resort: the TikTok migration has not been applied yet, so the
   // provenance columns do not exist. Fall back to the pre-TikTok column list
   // rather than breaking the whole feed for every user.
-  if (error && /is_tiktok|tiktok_id|tiktok_author/i.test(error.message ?? "")) {
+  if (error && /is_tiktok|tiktok_id|tiktok_author|is_paid|price_cents/i.test(error.message ?? "")) {
     const legacy = await supabase.from("videos").select(LEGACY_COLUMNS).in("id", ids);
     data = legacy.data as typeof data;
     error = legacy.error;
@@ -376,6 +381,7 @@ export async function uploadVideo(
   song?: Song | null,
   full = false,
   soundId?: string | null,
+  paid?: { isPaid: boolean; priceCents: number | null } | null,
 ): Promise<string | null> {
   // Fail before the bytes leave the device. The `videos` bucket caps objects at
   // 1 GiB (see 20261122000000_videos_bucket_size_limit.sql); without this guard
@@ -412,23 +418,33 @@ export async function uploadVideo(
   // The upload is the 1080p rendition. Lower qualities reuse it until the
   // transcode-video Edge Function exists, so the selector works today.
   const renditions = isVideo ? await createQualityVersions(STORAGE_PREFIX + path) : null;
-  const { data, error } = await supabase
-    .from("videos")
-    .insert({
-      // Without user_id the row has no owner: the "owners read own videos"
-      // policy can never match it, so the uploader can't see their own video
-      // and nobody else can either.
-      user_id: uploader.id,
-      username,
-      caption:
-        withSong(caption, file.type.startsWith("image/") ? song : null) +
-        (full && isVideo ? "[[full]]" : ""),
-      video_url: STORAGE_PREFIX + path,
-      sound_id: isVideo ? (soundId ?? null) : null,
-      ...(renditions ? qualityColumns(renditions) : {}),
-    })
-    .select("id")
-    .single();
+  // Paid videos add two columns. If this database hasn't run the paid-videos
+  // migration yet, retry without them rather than failing the whole upload.
+  const paidRow = paidColumns(paid?.isPaid ?? false, paid?.priceCents ?? null);
+  const insertVideo = (extra: Record<string, unknown>) =>
+    supabase
+      .from("videos")
+      .insert({
+        // Without user_id the row has no owner: the "owners read own videos"
+        // policy can never match it, so the uploader can't see their own video
+        // and nobody else can either.
+        user_id: uploader.id,
+        username,
+        caption:
+          withSong(caption, file.type.startsWith("image/") ? song : null) +
+          (full && isVideo ? "[[full]]" : ""),
+        video_url: STORAGE_PREFIX + path,
+        sound_id: isVideo ? (soundId ?? null) : null,
+        ...(renditions ? qualityColumns(renditions) : {}),
+        ...extra,
+      })
+      .select("id")
+      .single();
+
+  let { data, error } = await insertVideo(paidRow);
+  if (error && /is_paid|price_cents/i.test(`${error.message ?? ""} ${error.details ?? ""}`)) {
+    ({ data, error } = await insertVideo({}));
+  }
   if (error) throw error;
   const id = (data as { id?: string } | null)?.id ?? null;
   if (id && isVideo) await ensureOriginalSound(id);

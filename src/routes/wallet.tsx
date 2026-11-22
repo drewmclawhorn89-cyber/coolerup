@@ -10,6 +10,7 @@ import {
   Gem,
   Gift,
   Loader2,
+  Lock,
   Sparkles,
   Wallet as WalletIcon,
 } from "lucide-react";
@@ -18,6 +19,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { WalletBalance } from "@/components/WalletBalance";
+import { PAID_GOLD } from "@/components/PaidVideoFields";
+import { formatPriceCents, usePaidVideoEarnings } from "@/lib/paidVideos";
 import { useAuth } from "@/hooks/useAuth";
 import { useCoins } from "@/lib/coins";
 import {
@@ -76,6 +79,7 @@ function WalletPage() {
   const auth = useAuth();
   const coins = useCoins(auth.user?.id);
   const wallet = useWallet(auth.user?.id);
+  const paid = usePaidVideoEarnings(auth.user?.id);
 
   const [summary, setSummary] = useState<EarningsSummary>(EMPTY_SUMMARY);
   const [gifts, setGifts] = useState<GiftEarning[]>([]);
@@ -268,12 +272,55 @@ function WalletPage() {
               hint="First-follower bonus"
             />
             <Stat
+              icon={<Lock className="h-4 w-4" />}
+              label="Paid videos"
+              value={formatPriceCents(paid.creatorCents)}
+              hint={
+                paid.sales === 0
+                  ? "No sales yet"
+                  : `${paid.sales} sale${paid.sales === 1 ? "" : "s"} \u00b7 you keep 80%`
+              }
+            />
+            <Stat
               icon={<WalletIcon className="h-4 w-4" />}
               label="Total earned"
               value={formatUsd(summary.totalEarned)}
               hint="All time"
             />
           </div>
+
+          <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+            <h2 className="flex items-center gap-2 text-sm font-semibold">
+              <Lock className="h-4 w-4" style={{ color: PAID_GOLD }} aria-hidden="true" /> Paid
+              video sales
+            </h2>
+            <p className="mt-1 text-xs text-white/45">
+              You keep 80% of every unlock. Coolerup keeps 20%.
+            </p>
+            <dl className="mt-3 grid grid-cols-3 gap-3 text-center">
+              <div className="rounded-xl bg-white/[0.04] px-2 py-2.5">
+                <dt className="text-[11px] uppercase tracking-wide text-white/45">Gross</dt>
+                <dd className="mt-0.5 text-sm font-semibold tabular-nums">
+                  {formatPriceCents(paid.grossCents)}
+                </dd>
+              </div>
+              <div className="rounded-xl bg-white/[0.04] px-2 py-2.5">
+                <dt className="text-[11px] uppercase tracking-wide text-white/45">Your 80%</dt>
+                <dd
+                  className="mt-0.5 text-sm font-semibold tabular-nums"
+                  style={{ color: PAID_GOLD }}
+                >
+                  {formatPriceCents(paid.creatorCents)}
+                </dd>
+              </div>
+              <div className="rounded-xl bg-white/[0.04] px-2 py-2.5">
+                <dt className="text-[11px] uppercase tracking-wide text-white/45">Coolerup 20%</dt>
+                <dd className="mt-0.5 text-sm font-semibold tabular-nums">
+                  {formatPriceCents(paid.platformCents)}
+                </dd>
+              </div>
+            </dl>
+          </section>
 
           <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
             <h2 className="flex items-center gap-2 text-sm font-semibold">

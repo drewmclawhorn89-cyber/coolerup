@@ -147,7 +147,16 @@ type TopTabsCtx = {
 // the strip down and rebuilt it — resetting its horizontal scroll position to 0
 // on every state change. That made the arrow buttons look dead: they scrolled,
 // then the strip remounted and snapped back. Keeping it stable fixes that.
-function TopTabs({ className = "", ctx }: { className?: string; ctx: TopTabsCtx }) {
+function TopTabs({
+  className = "",
+  ctx,
+  overlay = false,
+}: {
+  className?: string;
+  ctx: TopTabsCtx;
+  /** Floating over the video: the bar must not swallow taps meant for the video. */
+  overlay?: boolean;
+}) {
   const { items, christmas, onSearch, onAuth, authUser, authAvatar } = ctx;
   const stripRef = useRef<HTMLDivElement | null>(null);
   const btnRefs = useRef<Array<HTMLButtonElement | null>>([]);
@@ -228,6 +237,9 @@ function TopTabs({ className = "", ctx }: { className?: string; ctx: TopTabsCtx 
 
   const arrowClass =
     "flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white/20 text-white transition hover:bg-white/30 disabled:bg-white/5 disabled:text-white/25";
+  // When the bar floats over the video it is click-through except for its own
+  // controls, so tapping the top of the frame still plays/pauses the video.
+  const hitClass = overlay ? "pointer-events-auto" : "";
   const mask = ends.atEnd
     ? undefined
     : "linear-gradient(to right, black 0, black calc(100% - 24px), transparent 100%)";
@@ -240,7 +252,7 @@ function TopTabs({ className = "", ctx }: { className?: string; ctx: TopTabsCtx 
         onClick={() => step("left")}
         disabled={ends.atStart}
         aria-label="Show earlier tabs"
-        className={arrowClass}
+        className={`${arrowClass} ${hitClass}`}
       >
         <ChevronLeft className="size-4" />
       </button>
@@ -248,7 +260,7 @@ function TopTabs({ className = "", ctx }: { className?: string; ctx: TopTabsCtx 
         ref={stripRef}
         onScroll={measure}
         style={{ maskImage: mask, WebkitMaskImage: mask }}
-        className="no-scrollbar flex min-w-0 flex-1 items-center gap-2 overflow-x-auto touch-pan-x"
+        className={`no-scrollbar flex min-w-0 flex-1 items-center gap-2 overflow-x-auto touch-pan-x ${hitClass}`}
       >
         {items.map((item, index) => (
           <button
@@ -273,13 +285,13 @@ function TopTabs({ className = "", ctx }: { className?: string; ctx: TopTabsCtx 
         onClick={() => step("right")}
         disabled={ends.atEnd}
         aria-label="Show later tabs"
-        className={arrowClass}
+        className={`${arrowClass} ${hitClass}`}
       >
         <ChevronRight className="size-4" />
       </button>
       {/* Search + profile ride along on the right of the bar on phones so they
           never overlap the tabs (they used to float on top of them). */}
-      <div className="ml-1 flex shrink-0 items-center gap-1 md:hidden">
+      <div className={`ml-1 flex shrink-0 items-center gap-1 md:hidden ${hitClass}`}>
         <button
           type="button"
           aria-label="Search videos"
@@ -864,6 +876,18 @@ function Index() {
   // The top tab bar is the home menu's primary navigation, so keep it on every
   // screen (feed, inbox, shop, subscriptions, offline) and at every breakpoint.
   const showTopTabs = true;
+
+  // Is the default branch below the video feed? The feed is the only screen that
+  // goes full-bleed: everything else (Inbox, Shop, LIVE, Groups, Marketplace,
+  // codes) keeps its normal scrolling page layout.
+  const feedView =
+    !onLiveTab &&
+    feedTab !== "codes" &&
+    !(activeTab === "foryou" && feedTab === "marketplace" && !offlineMode) &&
+    !(activeTab === "foryou" && feedTab === "groups" && !offlineMode) &&
+    activeTab !== "shop" &&
+    activeTab !== "subscriptions" &&
+    activeTab !== "inbox";
   const topTab =
     activeTab === "shop" || activeTab === "subscriptions"
       ? activeTab
@@ -999,6 +1023,17 @@ function Index() {
   const topTabsStaticClass =
     "relative z-30 flex shrink-0 items-center gap-1 border-b border-white/10 bg-black px-2 pb-2 pt-[calc(env(safe-area-inset-top)+0.5rem)] md:gap-2 md:px-4 md:pb-2 md:pt-2";
 
+  // On the feed the bar floats over the video instead of pushing it down, so the
+  // frame can be a true 100dvh. The gradient keeps the labels readable over any
+  // footage and the bar itself ignores taps (only its buttons catch them).
+  const topTabsOverlayClass =
+    "pointer-events-none absolute inset-x-0 top-0 z-40 flex items-center gap-1 px-2 pb-3 " +
+    "bg-gradient-to-b from-black/75 via-black/35 to-transparent " +
+    "md:gap-2 md:px-4 md:pb-4 " +
+    (christmas
+      ? "pt-[calc(max(0.5rem,env(safe-area-inset-top))+0.65rem)]"
+      : "pt-[max(0.5rem,env(safe-area-inset-top))]");
+
   const [title, sub] = query
     ? [`Results for "${query}"`, `${shown.length} videos`]
     : HEADERS[activeTab];
@@ -1061,7 +1096,13 @@ function Index() {
 
   return (
     <div className="flex h-dvh overflow-hidden bg-background">
-      <aside className="hidden w-72 shrink-0 flex-col gap-6 border-r bg-sidebar p-6 md:flex">
+      <aside
+        className={`hidden w-72 shrink-0 flex-col gap-6 border-r bg-sidebar p-6 ${
+          // On the feed, tablets get the full-bleed video too; the desktop nav
+          // rail only comes back at laptop width.
+          feedView ? "lg:flex" : "md:flex"
+        }`}
+      >
         <div>
           <h1 className="font-display text-4xl tracking-tight">
             coolerup
@@ -1151,7 +1192,16 @@ function Index() {
         )}
       </aside>
 
-      <main className="relative mx-auto flex h-[100dvh] w-full min-w-0 max-w-[430px] flex-1 flex-col bg-black md:h-auto md:max-w-none md:bg-transparent">
+      <main
+        className={`relative mx-auto flex h-[100dvh] w-full min-w-0 flex-1 flex-col bg-black ${
+          feedView
+            ? // The feed owns the whole viewport on every device, so it must not
+              // be capped to a phone-width column and must keep a real height on
+              // desktop for the 100dvh video frame.
+              "max-w-none md:h-[100dvh]"
+            : "max-w-[430px] md:h-auto md:max-w-none md:bg-transparent"
+        }`}
+      >
         {offlineMode && (
           <div className="flex shrink-0 items-center gap-2 bg-primary/10 px-4 py-2 text-sm font-bold text-primary md:px-10">
             <WifiOff className="h-4 w-4" /> You're offline — watching saved videos
@@ -1347,7 +1397,7 @@ function Index() {
         ) : (
           <>
             <header
-              className={`shrink-0 px-4 pb-2 pt-[calc(env(safe-area-inset-top)+5.75rem)] md:px-10 md:pb-2 md:pt-6 ${showTopTabs ? "hidden md:block" : ""}`}
+              className={`shrink-0 px-4 pb-2 pt-[calc(env(safe-area-inset-top)+5.75rem)] md:px-10 md:pb-2 md:pt-6 ${showTopTabs || feedView ? "hidden" : ""}`}
             >
               <h2 className="break-words font-display text-base md:text-3xl">{title}</h2>
               <p className="hidden text-sm text-muted-foreground md:block">{sub}</p>
@@ -1359,7 +1409,14 @@ function Index() {
               feedTab === "foryou" &&
               !offlineMode &&
               !query.trim() && (
-                <div className="christmas-banner relative mx-3 mb-2 flex shrink-0 items-center gap-2.5 rounded-2xl px-3 py-2.5 text-white shadow-lg md:mx-10">
+                <div
+                  className={
+                    feedView
+                      ? // Floats over the full-bleed video instead of stealing height.
+                        "christmas-banner absolute left-0 right-0 top-[calc(env(safe-area-inset-top)+3.25rem)] z-30 mx-3 flex items-center gap-2.5 rounded-2xl px-3 py-2.5 text-white shadow-lg md:mx-10"
+                      : "christmas-banner relative mx-3 mb-2 flex shrink-0 items-center gap-2.5 rounded-2xl px-3 py-2.5 text-white shadow-lg md:mx-10"
+                  }
+                >
                   <span className="text-2xl" aria-hidden>
                     🎄
                   </span>
@@ -1399,8 +1456,16 @@ function Index() {
               )}
 
             <div className="relative flex min-h-0 flex-1 flex-col">
-              <TopTabs className={topTabsClass} ctx={topTabsCtx} />
-              <div className="no-scrollbar min-h-0 flex-1 snap-y snap-mandatory overflow-y-scroll overscroll-contain scroll-smooth">
+              {feedView ? (
+                <TopTabs overlay className={topTabsOverlayClass} ctx={topTabsCtx} />
+              ) : (
+                <TopTabs className={topTabsClass} ctx={topTabsCtx} />
+              )}
+              <div
+                className={`no-scrollbar min-h-0 flex-1 snap-y snap-mandatory overflow-y-scroll overscroll-contain scroll-smooth ${
+                  feedView ? "w-full" : ""
+                }`}
+              >
                 {error && !offlineMode && !(videos && videos.length > 0) && (
                   <Empty text="Couldn't load videos. Refresh to try again." />
                 )}
@@ -1446,7 +1511,12 @@ function Index() {
 
         <nav
           aria-label="Phone navigation"
-          className="mobile-top-nav grid shrink-0 grid-cols-5 place-items-center w-full gap-0 border-0 bg-black px-0 rounded-none md:hidden"
+          className={
+            feedView
+              ? // Floats over the video on the feed so the frame stays 100dvh.
+                "mobile-top-nav fixed inset-x-0 bottom-0 z-40 grid w-full grid-cols-5 place-items-center gap-0 rounded-none border-0 bg-gradient-to-t from-black/85 via-black/55 to-transparent px-0 pb-[env(safe-area-inset-bottom)] md:hidden"
+              : "mobile-top-nav grid shrink-0 grid-cols-5 place-items-center w-full gap-0 border-0 bg-black px-0 rounded-none md:hidden"
+          }
         >
           {NAV.filter((n) => n.id === "foryou" || n.id === "following").map(
             ({ id, label, icon: Icon }) => (

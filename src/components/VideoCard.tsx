@@ -292,7 +292,7 @@ function VideoCardImpl({
   const qualitySource = resolveQualitySource(video, quality, net.effectiveType);
   const qualityLabel =
     quality === "auto" ? "Auto" : (QUALITY_OPTIONS.find((o) => o.id === quality)?.label ?? "Auto");
-  const [showCaptions] = useState(() => readBool("captions"));
+  const [showCaptions] = useState(() => readBool("captions", true));
   const [autoplay] = useState(() => readBool("autoplay", true));
 
   useEffect(() => {
@@ -868,9 +868,12 @@ function VideoCardImpl({
   const reposter = repostedBy && repostedBy !== video.username ? repostedBy : null;
 
   return (
-    <section className="feed-card relative h-full w-full snap-start snap-always bg-black md:flex md:items-center md:justify-center md:bg-transparent md:py-4">
-      <div className="relative flex h-full w-full items-end md:h-auto md:w-auto md:gap-4">
-        <div className="flex h-full min-w-0 flex-1 flex-col md:h-auto md:flex-none md:gap-3">
+    // Full-bleed stage: the card is always exactly one viewport tall and the
+    // video covers it edge to edge on every device. Chrome (rail, caption,
+    // tabs, nav) floats on top instead of stealing height from the frame.
+    <section className="feed-card relative h-full w-full snap-start snap-always overflow-hidden bg-black">
+      <div className="relative h-full w-full">
+        <div className="flex h-full w-full min-w-0 flex-col">
           <div
             ref={cardRef}
             onPointerDown={(e) => {
@@ -895,7 +898,7 @@ function VideoCardImpl({
               if (longPressRef.current) window.clearTimeout(longPressRef.current);
               longPressRef.current = null;
             }}
-            className="relative h-full w-full overflow-hidden bg-black md:aspect-[9/16] md:h-[calc(100dvh-11rem)] md:max-h-[760px] md:w-auto md:rounded-2xl md:bg-card"
+            className="relative h-full w-full overflow-hidden bg-black"
           >
             {isTikTok && (
               <div className="absolute inset-0 flex items-center justify-center bg-black">
@@ -1010,7 +1013,7 @@ function VideoCardImpl({
                     if (Math.abs(a.currentTime - target) > 0.45) a.currentTime = target;
                   }
                 }}
-                className={`h-full w-full cursor-pointer ${full ? "object-contain" : "object-cover"}`}
+                className="h-full w-full cursor-pointer object-cover"
               />
             )}
 
@@ -1117,9 +1120,11 @@ function VideoCardImpl({
                 grow *upward* from it, so a long caption never pushes the
                 username into the middle of the frame. Order here is
                 top→bottom: caption, sound, @handle, repost attribution. */}
-            <div className="video-caption absolute inset-x-0 bottom-0 z-20 pb-4 pl-3 pr-16 pt-16 md:pb-4">
-              <div className={showCaptions ? "" : "md:hidden"}>
-                <p className="line-clamp-3 break-words text-sm">{captionText}</p>
+            <div className="video-caption absolute inset-x-0 bottom-0 z-20 pb-[calc(env(safe-area-inset-bottom)+4.75rem)] pl-3 pr-16 pt-16 md:pb-6 md:pl-5 md:pr-24">
+              <div className={showCaptions ? "" : "hidden"}>
+                <p className="line-clamp-3 break-words text-sm md:line-clamp-2 md:max-w-[46ch]">
+                  {captionText}
+                </p>
               </div>
               {soundId && (
                 <SoundBar
@@ -1163,7 +1168,10 @@ function VideoCardImpl({
               </div>
             </div>
             {!isImage && (
-              <div onClick={seek} className="absolute inset-x-0 bottom-0 h-3 cursor-pointer">
+              <div
+                onClick={seek}
+                className="absolute inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+3.5rem)] z-20 h-3 cursor-pointer md:bottom-0"
+              >
                 <div className="absolute inset-x-0 bottom-0 h-1 bg-foreground/20">
                   <div ref={progressRef} className="h-full bg-primary" style={{ width: "0%" }} />
                 </div>
@@ -1171,18 +1179,15 @@ function VideoCardImpl({
             )}
             {/* Quality badge — only when the user picked a quality by hand. */}
             {!isImage && qualitySource.badge && (
-              <span className="pointer-events-none absolute bottom-3 right-3 z-20 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-bold leading-tight text-white backdrop-blur">
+              <span className="pointer-events-none absolute bottom-[calc(env(safe-area-inset-bottom)+4rem)] right-3 z-20 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-bold leading-tight text-white backdrop-blur md:bottom-4 md:right-4">
                 {qualitySource.badge}
               </span>
             )}
           </div>
-          {/* Desktop caption column. The handle and repost label live on the
-              video itself now, so they are not repeated here. */}
-          <div className="hidden max-w-[calc((100dvh-11rem)*9/16)] md:block">
-            <p className="text-sm text-muted-foreground">{captionText}</p>
-          </div>
         </div>
-        <div className="absolute bottom-14 right-1.5 z-20 flex flex-col items-center gap-3.5 md:static md:mb-10 md:gap-3.5">
+        {/* Action rail — always floating on top of the video, pinned to the
+            right edge on phones and desktop alike. */}
+        <div className="absolute bottom-[calc(env(safe-area-inset-bottom)+4.75rem)] right-1.5 z-20 flex flex-col items-center gap-3.5 md:bottom-24 md:right-5 md:gap-4">
           {/* Avatar + follow badge — TikTok pins the + onto the avatar's chin. */}
           <div className="flex flex-col items-center">
             <Link

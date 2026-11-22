@@ -60,6 +60,8 @@ export type FullVideo = {
   tiktok_id?: string | null;
   /** Creator handle the clip belongs to, without the leading "@". */
   tiktok_author?: string | null;
+  /** True when the creator marked this video 18+ (mature). */
+  is_mature?: boolean | null;
   /** True when the creator is selling this video. */
   is_paid?: boolean | null;
   /** Price in cents when `is_paid`; null/undefined for a free video. */
@@ -1151,6 +1153,7 @@ const OPTIONAL_COLUMNS = [
   "upload_error",
   "is_paid",
   "price_cents",
+  "is_mature",
 ] as const;
 
 type PgError = { message?: string; details?: string; hint?: string; code?: string } | null;
@@ -1206,6 +1209,8 @@ export type CreateFullVideoInput = {
   isPaid?: boolean;
   /** Price in cents, required when `isPaid` is true. */
   priceCents?: number | null;
+  /** Mark this video 18+. Omitted/false leaves it safe for everyone. */
+  isMature?: boolean;
 };
 
 export async function createFullVideo(input: CreateFullVideoInput): Promise<FullVideo> {
@@ -1229,6 +1234,9 @@ export async function createFullVideo(input: CreateFullVideoInput): Promise<Full
     payload["is_paid"] = true;
     payload["price_cents"] = input.priceCents ?? null;
   }
+
+  // Same rule for 18+: only write the column when the creator opted in.
+  if (input.isMature) payload["is_mature"] = true;
 
   // Retry without any column this database doesn't have yet, so posting still
   // works before the migrations are run.

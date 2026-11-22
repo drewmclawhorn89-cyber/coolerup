@@ -36,6 +36,7 @@ import { OnboardingBanner, useOnboardingGuard } from "@/components/OnboardingBan
 import { isChristmasCountdownVisible, useChristmasMode } from "@/lib/christmas";
 import { useChristmasCodesSeason } from "@/lib/christmas-codes";
 import { matchesKeyword, readBool } from "@/lib/prefs";
+import { SHOW_MATURE_PREF } from "@/lib/matureVideos";
 // Heavy, interaction-only surfaces are split out so the initial feed bundle stays small.
 const UploadDialog = lazy(() =>
   import("@/components/UploadDialog").then((m) => ({ default: m.UploadDialog })),
@@ -783,6 +784,9 @@ function Index() {
     // "Not interested" and blocked authors never come back in this browser.
     if (notInterested.size > 0) list = list.filter((v) => !notInterested.has(v.id));
     if (blocked.size > 0) list = list.filter((v) => !blocked.has(v.username));
+    // Settings > Privacy > "Show 18+ Videos". OFF hides every mature video
+    // from every feed tab, including saved and following.
+    if (!readBool(SHOW_MATURE_PREF, true)) list = list.filter((v) => !v.is_mature);
     if (activeTab === "explore") list = [...list].sort((a, b) => b.likes_count - a.likes_count);
     if (activeTab === "following") {
       const own = list.filter((v) => followingList.includes(v.username));

@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { Pencil, Play, Loader2 } from "lucide-react";
 import { PaidVideoGate } from "@/components/PaidVideoGate";
 import { formatPriceCents, useVideoOwnership } from "@/lib/paidVideos";
+import { MATURE_LABEL, isMatureVideo } from "@/lib/matureVideos";
 import {
   formatDuration,
   formatViews,
@@ -45,6 +46,7 @@ export function FullVideoCard({
 }) {
   const [thumb, setThumb] = useState<string>("");
   const isPaid = Boolean(video.is_paid) && (video.price_cents ?? 0) > 0;
+  const mature = isMatureVideo(video);
   const owned = useVideoOwnership(video.id, "full", isPaid);
 
   useEffect(() => {
@@ -85,7 +87,7 @@ export function FullVideoCard({
                 src={thumb}
                 alt=""
                 loading="lazy"
-                className="h-full w-full object-cover transition duration-200 group-hover:scale-[1.02]"
+                className={`h-full w-full object-cover transition duration-200 group-hover:scale-[1.02] ${mature ? "scale-110 blur-xl" : ""}`}
               />
             ) : (
               <div className="flex h-full w-full items-center justify-center bg-secondary text-muted-foreground">
@@ -106,6 +108,16 @@ export function FullVideoCard({
               >
                 <span aria-hidden>🔒</span>
                 {formatPriceCents(video.price_cents)}
+              </span>
+            )}
+
+            {mature && (
+              <span
+                className="absolute left-1.5 top-1.5 z-[1] flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-bold leading-none"
+                style={{ backgroundColor: "rgba(0,0,0,0.8)", color: "#fff" }}
+              >
+                <span aria-hidden>🔒</span>
+                {MATURE_LABEL}
               </span>
             )}
 
@@ -146,7 +158,7 @@ export function FullVideoCard({
                 src={thumb}
                 alt=""
                 loading="lazy"
-                className="h-full w-full object-cover transition duration-200 group-hover:scale-[1.02]"
+                className={`h-full w-full object-cover transition duration-200 group-hover:scale-[1.02] ${mature ? "scale-110 blur-xl" : ""}`}
               />
             ) : (
               <div className="flex h-full w-full items-center justify-center bg-secondary text-muted-foreground">
@@ -169,6 +181,16 @@ export function FullVideoCard({
                 thumbnailUrl={thumb || null}
                 variant="compact"
               />
+            )}
+
+            {mature && (
+              <span
+                className="absolute left-1.5 top-1.5 z-[1] flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-bold leading-none"
+                style={{ backgroundColor: "rgba(0,0,0,0.8)", color: "#fff" }}
+              >
+                <span aria-hidden>🔒</span>
+                {MATURE_LABEL}
+              </span>
             )}
 
             {video.is_youtube && showBadge && (

@@ -18,7 +18,8 @@ import { EditProfileDialog } from "@/components/EditProfileDialog";
 import { refreshProfile, useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { writePref } from "@/lib/prefs";
+import { readBool, writePref } from "@/lib/prefs";
+import { SHOW_MATURE_PREF, setShowMatureVideos } from "@/lib/matureVideos";
 import { getFirebaseConfigSummary } from "@/lib/firebase";
 import { normalizePhone } from "@/lib/phone";
 import { useShowOnlineSetting } from "@/lib/onlineStatus";
@@ -204,6 +205,8 @@ function Settings() {
     }
   });
   const [showOnline, setShowOnline] = useShowOnlineSetting();
+  // 18+ feed visibility. ON by default; OFF hides every mature video.
+  const [showMature, setShowMature] = useState(() => readBool(SHOW_MATURE_PREF, true));
   // Theme
   const [theme, setTheme] = useState<string>(() => {
     try {
@@ -701,6 +704,33 @@ function Settings() {
             <span
               className="h-5 w-5 rounded-full bg-white transition"
               style={{ transform: showOnline ? "translateX(20px)" : "translateX(0)" }}
+            />
+          </button>
+        </div>
+        <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-black px-4 py-3 text-white">
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-white">Show 18+ Videos</p>
+            <p className="mt-0.5 text-xs text-white/60">
+              When off, all 18+ mature videos are hidden from your feed.
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={showMature}
+            aria-label="Show 18+ Videos"
+            onClick={() => {
+              const next = !showMature;
+              setShowMature(next);
+              setShowMatureVideos(next);
+              toast.success(next ? "18+ videos shown" : "18+ videos hidden");
+            }}
+            className="flex h-7 w-12 shrink-0 items-center rounded-full p-1 transition"
+            style={{ backgroundColor: showMature ? "#FE2C55" : "#333" }}
+          >
+            <span
+              className="h-5 w-5 rounded-full bg-white transition"
+              style={{ transform: showMature ? "translateX(20px)" : "translateX(0)" }}
             />
           </button>
         </div>

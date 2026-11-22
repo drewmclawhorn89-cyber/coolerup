@@ -15,6 +15,8 @@ export type Video = {
   shares_count: number;
   created_at: string;
   is_live?: boolean | null;
+  /** True when the creator marked this video 18+ (mature). */
+  is_mature?: boolean | null;
   /** True when the creator is selling this video. */
   is_paid?: boolean | null;
   /** Price in cents when `is_paid`; null/undefined for a free video. */
@@ -386,6 +388,8 @@ export async function uploadVideo(
   full = false,
   soundId?: string | null,
   paid?: { isPaid: boolean; priceCents: number | null } | null,
+  /** Creator-marked 18+ video. OFF by default. */
+  mature = false,
 ): Promise<string | null> {
   // Fail before the bytes leave the device. The `videos` bucket caps objects at
   // 1 GiB (see 20261122000000_videos_bucket_size_limit.sql); without this guard
@@ -424,7 +428,10 @@ export async function uploadVideo(
   const renditions = isVideo ? await createQualityVersions(STORAGE_PREFIX + path) : null;
   // Paid videos add two columns. If this database hasn't run the paid-videos
   // migration yet, retry without them rather than failing the whole upload.
-  const paidRow = paidColumns(paid?.isPaid ?? false, paid?.priceCents ?? null);
+  const paidRow = {
+    ...paidColumns(paid?.isPaid ?? false, paid?.priceCents ?? null),
+    ...(mature ? { is_mature: true } : {}),
+  };
   const insertVideo = (extra: Record<string, unknown>) =>
     supabase
       .from("videos")
@@ -446,7 +453,7 @@ export async function uploadVideo(
       .single();
 
   let { data, error } = await insertVideo(paidRow);
-  if (error && /is_paid|price_cents/i.test(`${error.message ?? ""} ${error.details ?? ""}`)) {
+  if (error && /is_paid|price_cents|is_mature/i.test(`${error.message ?? ""} ${error.details ?? ""}`)) {
     ({ data, error } = await insertVideo({}));
   }
   if (error) throw error;

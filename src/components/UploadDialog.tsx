@@ -10,6 +10,7 @@ import { SoundPickerDialog } from "@/components/SoundPickerDialog";
 import type { Sound } from "@/lib/sounds";
 import { useWarnings } from "@/components/WarningProvider";
 import { PaidVideoFields, paidSelectionInvalid } from "@/components/PaidVideoFields";
+import { MatureVideoFields } from "@/components/MatureVideoFields";
 
 export function UploadDialog({
   onClose,
@@ -46,6 +47,9 @@ export function UploadDialog({
   // until the creator deliberately turns this on and picks a price.
   const [isPaid, setIsPaid] = useState(false);
   const [priceCents, setPriceCents] = useState<number | null>(null);
+  // 18+ Mature: OFF by default, so posting behaves exactly as it always has
+  // until the creator deliberately marks this video as mature.
+  const [isMature, setIsMature] = useState(false);
 
   const findSongs = async () => {
     setSearching(true);
@@ -166,6 +170,7 @@ export function UploadDialog({
     const cap = caption.trim().slice(0, 500);
     // Paid only applies to video posts, never to a photo.
     const paidForPost = !isPhoto && isPaid;
+    const matureForPost = !isPhoto && isMature;
     if (paidForPost && paidSelectionInvalid(true, priceCents)) {
       toast.error("Pick a price between $0.50 and $1,000 for your paid video.");
       return;
@@ -185,6 +190,7 @@ export function UploadDialog({
             full,
             f.type.startsWith("video/") ? (chosenSound?.id ?? null) : null,
             paidForPost ? { isPaid: true, priceCents } : null,
+            matureForPost,
           );
         }
         onDone();
@@ -352,6 +358,9 @@ export function UploadDialog({
                   )}
                 </div>
               </div>
+            )}
+            {!isPhoto && (
+              <MatureVideoFields enabled={isMature} onEnabledChange={setIsMature} />
             )}
             {!isPhoto && (
               <PaidVideoFields

@@ -53,9 +53,13 @@ declare
 begin
   -- auth.users.instance_id is a FK to auth.instances. Look up the real row;
   -- hardcoding the zero uuid fails on projects where it is missing.
-  select coalesce((select i.id from auth.instances i order by i.id limit 1),
-                  '00000000-0000-0000-0000-000000000000'::uuid)
-    into bot_instance;
+  if to_regclass('auth.instances') is not null then
+    select coalesce((select i.id from auth.instances i order by i.id limit 1),
+                    '00000000-0000-0000-0000-000000000000'::uuid)
+      into bot_instance;
+  else
+    bot_instance := '00000000-0000-0000-0000-000000000000'::uuid;
+  end if;
   -- auth.users: the real account. The password is random and never stored, so
   -- there is no way to sign in as the bot.
   if not exists (select 1 from auth.users u where u.id = bot_uid) then
@@ -88,8 +92,12 @@ begin
   end if;
 
   -- auth.identities keeps GoTrue happy if it ever looks the account up.
-  if exists (select 1 from auth.users u where u.id = bot_uid)
-     and not exists (select 1 from auth.identities i where i.user_id = bot_uid) then
+  -- Nested on purpose: PL/pgSQL plans a whole IF expression as one query, so
+  -- `to_regclass(...) is not null and exists (select ... from auth.identities)`
+  -- still resolves the table and errors on projects where it is absent.
+  if to_regclass('auth.identities') is not null then
+   if exists (select 1 from auth.users u where u.id = bot_uid)
+      and not exists (select 1 from auth.identities i where i.user_id = bot_uid) then
     begin
       insert into auth.identities (
         provider_id, user_id, identity_data, provider,
@@ -105,6 +113,7 @@ begin
     exception when others then
       raise warning 'safety bot auth.identities insert skipped [%]: %', sqlstate, sqlerrm;
     end;
+   end if;
   end if;
 
   -- public.profiles: the real profile row the whole app reads.

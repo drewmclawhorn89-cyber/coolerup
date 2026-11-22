@@ -179,3 +179,53 @@ describe("instant takedown SQL", () => {
     }
   });
 });
+
+/**
+ * The user pastes ONE file into the SQL Editor, so its internal order is a
+ * real correctness constraint: Part 1 creates the tables, Part 2 creates the
+ * bot and safety_bot_uid(), Part 3's logger depends on both. Getting that
+ * order wrong produces a half-installed database, which is exactly the
+ * failure mode we already hit twice.
+ */
+describe("all-in-one SQL paste file", () => {
+  const sql = readFileSync(
+    resolve(process.cwd(), "supabase/sql-editor-safety-bot-ALL-IN-ONE.sql"),
+    "utf8",
+  );
+
+  it("puts the parts in dependency order", () => {
+    const bans = sql.indexOf("PART 1 of 3");
+    const bot = sql.indexOf("PART 2 of 3");
+    const takedown = sql.indexOf("PART 3 of 3");
+    expect(bans).toBeGreaterThan(-1);
+    expect(bot).toBeGreaterThan(bans);
+    expect(takedown).toBeGreaterThan(bot);
+  });
+
+  it("creates safety_bot_uid() before anything that calls it", () => {
+    const def = sql.indexOf("function public.safety_bot_uid()");
+    expect(def).toBeGreaterThan(-1);
+    // The logger in Part 3 and the final checklist both call it, so the
+    // definition has to land first or the paste fails half-way.
+    expect(def).toBeLessThan(sql.indexOf("PART 3 of 3"));
+    expect(def).toBeLessThan(sql.indexOf("from auth.users u where u.id = public.safety_bot_uid()"));
+  });
+
+  it("does not use '#' as a comment, which Postgres rejects", () => {
+    const offenders = sql
+      .split("\n")
+      .filter((line) => /^\s*#/.test(line) && !/^\s*#\s*$/.test(line));
+    expect(offenders).toEqual([]);
+  });
+
+  it("guards optional auth tables instead of assuming they exist", () => {
+    expect(sql).toContain("to_regclass('auth.instances')");
+    expect(sql).toContain("to_regclass('auth.identities')");
+  });
+
+  it("prints a checklist so a silent half-install is visible", () => {
+    expect(sql).toContain("bot: auth.users row");
+    expect(sql).toContain("bot: moderator role");
+    expect(sql).toContain("SAFETY BOT: all good");
+  });
+});

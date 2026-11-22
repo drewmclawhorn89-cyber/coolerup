@@ -58,16 +58,23 @@ describe("judgePredictions", () => {
 describe("auto_moderate SQL", () => {
   const sql = readFileSync(resolve(process.cwd(), "supabase/sql-editor-auto-bans.sql"), "utf8");
 
-  it("jumps sexual content straight to a permanent ban", () => {
-    expect(sql).toContain("if p_kind = 'sexual' then");
-    expect(sql).toMatch(/if p_kind = 'sexual' then\s*\n\s*new_count := 3;/);
+  it("does NOT jump sexual content straight to a permanent ban", () => {
+    // The Safety Bot ladder treats every violation kind the same: 1st warning,
+    // 2nd 24h mute, 3rd permanent ban. Sexual content is no longer an instant
+    // ban, so the old shortcut must be gone.
+    expect(sql).not.toContain("if p_kind = 'sexual' then");
   });
 
-  it("still keeps the 3-strike ladder for everything else", () => {
+  it("climbs the 3-strike ladder for every kind", () => {
     expect(sql).toContain("new_count := coalesce(row_strike.strike_count, 0) + 1;");
+    expect(sql).toContain("Warning 1/3");
+    expect(sql).toContain("Warning 2/3");
+    expect(sql).toContain("Warning 3/3");
   });
 
-  it("gives sexual bans their own message", () => {
-    expect(sql).toContain("explicit sexual content is not allowed on Coolerup");
+  it("never bans the owner or an admin", () => {
+    expect(sql).toContain("public.is_owner_uid(p_user_id)");
+    expect(sql).toContain("target_is_owner");
+    expect(sql).toContain("target_is_admin");
   });
 });

@@ -9,7 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { Camera, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { errorText } from "@/lib/uploadErrors";
-import { reportExplicitMedia, screenContent } from "@/lib/autoBans";
+import { reportExplicitMedia, screenProfile } from "@/lib/autoBans";
 import { inspectMedia } from "@/lib/nsfw";
 
 export const LINK_FIELDS = [
@@ -148,13 +148,14 @@ export function EditProfileDialog({
         .eq("id", auth.user.id);
       if (error) throw error;
       refreshProfile();
-      // Bio goes through the text ladder; the avatar was screened above.
+      // Name + bio go through the Safety Bot (text, passwords/PII and
+      // fake-account impersonation); the avatar was screened above.
       if (auth.user) {
-        void screenContent({
+        void screenProfile({
           userId: auth.user.id,
           username: auth.handle ?? "",
-          text: bio.trim(),
-          contentType: "none",
+          displayName: name.trim(),
+          bio: bio.trim(),
         });
       }
       toast.success("Profile updated");

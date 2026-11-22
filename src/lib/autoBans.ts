@@ -8,16 +8,26 @@ import { inspectMedia } from "./nsfw";
  * bucket it falls in. `moderate()` then hands the decision to the
  * `auto_moderate()` database function, which owns the actual ladder:
  *
- *   sexual   -> PERMANENT BAN immediately, on the first offence
  *   strike 1 -> warning + content removed
  *   strike 2 -> warning + content removed + 24h mute
  *   strike 3 -> warning + PERMANENT BAN (+ email / phone / device burned)
+ *
+ * Every violation kind climbs the same ladder. Sexual / explicit content is
+ * removed on the first strike like everything else, but it is not an instant
+ * ban: the account gets the same 1/3, 2/3, 3/3 path.
  *
  * The ladder lives in Postgres on purpose. A client-side counter would reset
  * every time someone cleared local storage.
  */
 
-export type ViolationKind = "sexual" | "bullying" | "threat" | "spam" | "other";
+export type ViolationKind =
+  | "sexual"
+  | "bullying"
+  | "threat"
+  | "pii"
+  | "fake"
+  | "spam"
+  | "other";
 
 export type Classification = {
   kind: ViolationKind;
@@ -63,6 +73,24 @@ export type BanListRow = {
   created_at: string;
   active: boolean;
   identity_count: number;
+};
+
+export type BotLogRow = {
+  id: string;
+  username: string | null;
+  user_id: string | null;
+  action: string;
+  reason: string | null;
+  kind: string | null;
+  content_type: string | null;
+  content_id: string | null;
+  content_excerpt: string | null;
+  strike_count: number;
+  is_permanent: boolean;
+  expires_at: string | null;
+  auto: boolean;
+  actor: string | null;
+  created_at: string;
 };
 
 // ---------------------------------------------------------------------------
@@ -387,6 +415,100 @@ const SPAM_PHRASES = [
 const SPAM_URL_RE = /(https?:\/\/|www\.)\S+/gi;
 const REPEAT_CHAR_RE = /(.)\1{6,}/;
 
+/**
+ * Personal information that must never be posted.
+ *
+ * Passwords and login details are always a violation. Phone numbers, SSNs,
+ * card numbers and home addresses are too: a public caption is not a private
+ * DM, and people post this by accident more often than on purpose.
+ */
+const PII_PATTERNS: { re: RegExp; label: string }[] = [
+  {
+    re: /\b(?:my|the|your)?\s*(?:password|passcode|pass word|login|log in|pin)\s*(?:is|:|=)\s*\S+/i,
+    label: "password or login details",
+  },
+  {
+    re: /\b(?:here(?:'s| is)|send me|text me|dm me)\s+(?:my\s+)?(?:password|login|pin)\b/i,
+    label: "password or login details",
+  },
+  { re: /\b\d{3}-\d{2}-\d{4}\b/, label: "social security number" },
+  { re: /\b(?:\d[ -]*?){13,16}\b/, label: "card number" },
+  {
+    re: /\b(?:\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}\b/,
+    label: "phone number",
+  },
+  {
+    re: /\b(?:my|home|street)\s+address\s*(?:is|:)\s*\d+\s+\S+/i,
+    label: "home address",
+  },
+  {
+    re: /\b\d{1,5}\s+[A-Za-z0-9.'-]+(?:\s+[A-Za-z0-9.'-]+){0,3}\s+(?:street|st|avenue|ave|road|rd|lane|ln|drive|dr|boulevard|blvd)\b/i,
+    label: "home address",
+  },
+];
+
+/** Words that only make sense when someone is impersonating Coolerup staff. */
+const IMPERSONATION_RE =
+  /\b(?:coolerup|loop)[\s._-]*(?:support|admin|official|team|mod|moderator|help|security|staff|verify|verification)\b/i;
+const IMPERSONATION_CLAIM_RE =
+  /\b(?:i am|i'm|im|we are|official)\b[^.!?]{0,24}\b(?:coolerup|loop)\b[^.!?]{0,24}\b(?:admin|support|official|team|moderator|staff|security)\b/i;
+const FAKE_ACCOUNT_BAIT_RE =
+  /\b(?:dm me to get verified|get verified here|free verification|verify your account here|send your password|i can get you verified)\b/i;
+
+function piiHits(text: string): string[] {
+  const found: string[] = [];
+  for (const { re, label } of PII_PATTERNS) {
+    if (re.test(text)) found.push(label);
+  }
+  return found;
+}
+
+/**
+ * Conservative fake-account check.
+ *
+ * Only strong impersonation counts: claiming to be Coolerup support / admin /
+ * official, or baiting people into "verification" that asks for a password.
+ * A new account with few followers is *not* a fake account, and a handle that
+ * merely contains a common word is not either — false positives here would
+ * ban real people.
+ */
+export function detectFakeAccount(opts: {
+  username?: string | null;
+  displayName?: string | null;
+  bio?: string | null;
+}): Classification | null {
+  const handle = (opts.username ?? "").replace(/^@+/, "").trim();
+  const name = (opts.displayName ?? "").trim();
+  const bio = (opts.bio ?? "").trim();
+  const haystack = `${handle} ${name} ${bio}`;
+
+  if (FAKE_ACCOUNT_BAIT_RE.test(haystack)) {
+    return {
+      kind: "fake",
+      reason: "Fake account: impersonating Coolerup verification",
+      matches: ["verification bait"],
+    };
+  }
+
+  if (IMPERSONATION_RE.test(handle) || IMPERSONATION_RE.test(name)) {
+    return {
+      kind: "fake",
+      reason: "Fake account: impersonating Coolerup staff",
+      matches: ["impersonation"],
+    };
+  }
+
+  if (IMPERSONATION_CLAIM_RE.test(bio)) {
+    return {
+      kind: "fake",
+      reason: "Fake account: claims to be Coolerup staff",
+      matches: ["impersonation"],
+    };
+  }
+
+  return null;
+}
+
 /** Fold leetspeak and strip punctuation so `p0rn` and `p.o.r.n` both hit. */
 function normalize(text: string): string {
   return (
@@ -457,6 +579,15 @@ export function classifyText(raw: string | null | undefined): Classification | n
     };
   }
 
+  const pii = piiHits(text);
+  if (pii.length) {
+    return {
+      kind: "pii",
+      reason: `Personal information: ${pii[0]}`,
+      matches: pii,
+    };
+  }
+
   const spamPhrases = hits(n, SPAM_PHRASES);
   const links = text.match(SPAM_URL_RE) ?? [];
   const spammy =
@@ -478,6 +609,22 @@ export function classifyText(raw: string | null | undefined): Classification | n
   }
 
   return null;
+}
+
+/**
+ * Screen a profile as a whole: display name, bio and fake-account signals.
+ *
+ * The text classifier runs first so a slur or a password in the bio is
+ * reported as that, not as "fake account". Impersonation only wins when the
+ * profile is otherwise clean.
+ */
+export function classifyProfile(opts: {
+  username?: string | null;
+  displayName?: string | null;
+  bio?: string | null;
+}): Classification | null {
+  const text = [opts.displayName, opts.bio].filter(Boolean).join("\n");
+  return classifyText(text) ?? detectFakeAccount(opts);
 }
 
 // ---------------------------------------------------------------------------
@@ -574,7 +721,7 @@ export async function moderate(opts: {
     });
     if (error) {
       console.error("auto_moderate failed", error);
-      return { ...fallback, error: error.message ?? "moderation_unavailable" };
+      return { ...fallback, error: error.message || "moderation_unavailable" };
     }
     const row = (data ?? {}) as Partial<StrikeResult>;
     return {
@@ -671,12 +818,37 @@ export async function screenBeforeWrite(opts: {
 }
 
 /**
+ * Screen a profile name / bio / impersonation before it is saved.
+ *
+ * Same contract as `screenBeforeWrite`: returns the strike result when the
+ * profile is blocked, or null when it is clean.
+ */
+export async function screenProfile(opts: {
+  userId: string;
+  username: string;
+  displayName?: string | null;
+  bio?: string | null;
+}): Promise<StrikeResult | null> {
+  const classification = classifyProfile(opts);
+  if (!classification) return null;
+  const result = await moderate({
+    userId: opts.userId,
+    username: opts.username,
+    classification,
+    contentType: "none",
+    contentId: null,
+  });
+  if (result.strike > 0) emitStrike(result);
+  return result;
+}
+
+/**
  * Record an explicit-media hit found by the on-device image classifier.
  *
- * This is the one path that skips the 3-strike ladder: `auto_moderate` treats
- * `kind = 'sexual'` as an instant permanent ban, so a single naked upload ends
- * the account. The content was never written (the caller blocks the upload), so
- * there is no row for the database to delete — `contentType: "none"`.
+ * This uses the same 3-strike ladder as everything else: the first explicit
+ * upload is removed and earns Warning 1/3, not an instant ban. The content was
+ * never written (the caller blocks the upload), so there is no row for the
+ * database to delete — `contentType: "none"`.
  *
  * The popup is raised even when the RPC is missing, because the upload is
  * blocked locally either way and the poster needs to see why.
@@ -704,16 +876,17 @@ export async function reportExplicitMedia(opts: {
     return result;
   }
   // Moderation RPCs are not installed. The media is still refused; show the
-  // ban popup so the poster is not left guessing why the upload vanished.
+  // first-strike popup so the poster is not left guessing why the upload
+  // vanished, without pretending the account was banned when it was not.
   const local: StrikeResult = {
     ok: true,
-    strike: 3,
-    action: "ban",
-    permanent: true,
+    strike: 1,
+    action: "warn",
+    permanent: false,
     muted_until: null,
     deleted: false,
     message:
-      "Explicit sexual content is not allowed on Coolerup. Your account is permanently banned.",
+      "Explicit sexual content is not allowed on Coolerup. This upload was removed — Warning 1/3.",
     error: result.error,
   };
   emitStrike(local);
@@ -775,6 +948,21 @@ export async function adminBanList(): Promise<BanListRow[]> {
   }
 }
 
+/** Everything the Safety Bot removed, muted or banned, newest first. */
+export async function adminBotLogs(limit = 200): Promise<BotLogRow[]> {
+  try {
+    // admin_bot_logs is added by migration 0027 and is not in the generated
+    // Supabase types yet, so the RPC name is cast here.
+    const { data, error } = await supabase.rpc("admin_bot_logs" as never, {
+      p_limit: limit,
+    } as never);
+    if (error) return [];
+    return (data ?? []) as BotLogRow[];
+  } catch {
+    return [];
+  }
+}
+
 export async function amIOwner(): Promise<boolean> {
   try {
     const { data, error } = await supabase.rpc("is_owner");
@@ -802,6 +990,8 @@ export const VIOLATION_LABEL: Record<ViolationKind, string> = {
   sexual: "Sexual / explicit",
   bullying: "Bullying / hate",
   threat: "Threat",
+  pii: "Password / personal info",
+  fake: "Fake account",
   spam: "Spam",
   other: "Other",
 };

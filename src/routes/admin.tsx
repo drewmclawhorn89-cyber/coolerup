@@ -45,13 +45,16 @@ import {
 } from "@/lib/moderation";
 import {
   adminBanList,
+  adminBotLogs,
   scanPublishedVideos,
   amIOwner,
   ownerUnban,
   VIOLATION_LABEL,
   type BanListRow,
+  type BotLogRow,
   type ViolationKind,
 } from "@/lib/autoBans";
+import { SafetyBotBadge } from "@/components/SafetyBotBadge";
 import { appBuildId } from "@/lib/appBuild";
 import {
   DEFAULT_MAINTENANCE_MESSAGE,
@@ -74,7 +77,16 @@ export const Route = createFileRoute("/admin")({
 });
 
 type Tab =
-  "reports" | "bans" | "banlist" | "log" | "coins" | "free" | "payouts" | "tiktok" | "update";
+  | "reports"
+  | "bans"
+  | "banlist"
+  | "botlogs"
+  | "log"
+  | "coins"
+  | "free"
+  | "payouts"
+  | "tiktok"
+  | "update";
 
 const reasonLabel = (id: string) => REPORT_REASONS.find((r) => r.id === id)?.label ?? id;
 
@@ -102,6 +114,7 @@ function AdminPage() {
   const [bans, setBans] = useState<AdminBan[]>([]);
   const [log, setLog] = useState<ModerationLogRow[]>([]);
   const [banList, setBanList] = useState<BanListRow[]>([]);
+  const [botLogs, setBotLogs] = useState<BotLogRow[]>([]);
   const [isOwner, setIsOwner] = useState(false);
   const [coinOrders, setCoinOrders] = useState<AdminVenmoOrder[]>([]);
   const [loading, setLoading] = useState(false);
@@ -128,6 +141,12 @@ function AdminPage() {
         // Ban list is additive; a missing migration must not blank the page.
         setBanList([]);
         setIsOwner(false);
+      }
+      try {
+        setBotLogs(await adminBotLogs(200));
+      } catch {
+        // Bot logs are additive too.
+        setBotLogs([]);
       }
       try {
         setCoinOrders(await adminCoinVenmoOrders());
@@ -299,6 +318,7 @@ function AdminPage() {
             ["reports", `Reports (${pending.length})`],
             ["bans", `Bans (${activeBans.length + activeMutes.length})`],
             ["banlist", "Ban List"],
+            ["botlogs", "AI Bot Logs"],
             ["log", "Auto-ban log"],
             ["coins", `Coins (${pendingCoins})`],
             ["free", "Free coins"],
@@ -628,6 +648,97 @@ function AdminPage() {
                             return res.ok ? { ok: true } : res;
                           },
                           `@${row.username} unbanned`,
+                        )
+                      }
+                    >
+                      <Undo2 className="h-3.5 w-3.5" /> Unban
+                    </Button>
+                  </div>
+                )}
+              </article>
+            );
+          })}
+        </section>
+      )}
+
+      {tab === "botlogs" && (
+        <section className="space-y-3">
+          <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3">
+            <p className="flex flex-wrap items-center gap-2 text-sm font-bold">
+              <SafetyBotBadge /> AI Bot Logs
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Everything the Safety Bot removed, muted or banned, with the content it acted on and
+              why. Unban is owner-only (@drewmclawhorn3).
+            </p>
+          </div>
+          {botLogs.length === 0 && <Empty text="The Safety Bot has not taken any action yet." />}
+          {botLogs.map((l) => {
+            const kindLabel =
+              VIOLATION_LABEL[l.kind as ViolationKind] ?? l.kind ?? "Rule break";
+            const active =
+              l.is_permanent ||
+              (l.expires_at ? new Date(l.expires_at).getTime() > Date.now() : false);
+            return (
+              <article key={l.id} className="rounded-xl border border-border bg-card p-3">
+                <div className="flex flex-wrap items-center gap-2 text-sm font-semibold">
+                  <span className="text-emerald-400">Safety Bot</span>
+                  <span className="text-muted-foreground">→</span>
+                  {l.username ? (
+                    <Link
+                      to="/u/$username"
+                      params={{ username: l.username }}
+                      className="hover:text-primary"
+                    >
+                      @{l.username}
+                    </Link>
+                  ) : (
+                    <span>unknown</span>
+                  )}
+                  <span className="rounded-full bg-[#FE2C55]/15 px-2 py-0.5 text-[11px] font-bold text-[#FE2C55]">
+                    {l.action}
+                  </span>
+                  <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                    {kindLabel}
+                  </span>
+                  {l.strike_count > 0 && (
+                    <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                      strike {Math.min(l.strike_count, 3)}/3
+                    </span>
+                  )}
+                  {l.is_permanent && (
+                    <span className="rounded-full bg-destructive px-2 py-0.5 text-[11px] font-bold text-white">
+                      permanent
+                    </span>
+                  )}
+                </div>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {l.reason || "—"}
+                  {l.content_type && l.content_type !== "none" ? ` · ${l.content_type}` : ""}
+                </p>
+                {l.content_excerpt && (
+                  <p className="mt-2 rounded-lg bg-black px-3 py-2 text-xs text-white/70">
+                    “{l.content_excerpt}”
+                  </p>
+                )}
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  {when(l.created_at)} · by {l.actor || "Safety Bot"}
+                  {l.expires_at ? ` · until ${when(l.expires_at)}` : ""}
+                </p>
+                {isOwner && active && l.username && (
+                  <div className="mt-3">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      disabled={busy === `bl-${l.id}`}
+                      onClick={() =>
+                        void run(
+                          `bl-${l.id}`,
+                          async () => {
+                            const res = await ownerUnban(l.username as string);
+                            return res.ok ? { ok: true } : res;
+                          },
+                          `@${l.username} unbanned`,
                         )
                       }
                     >

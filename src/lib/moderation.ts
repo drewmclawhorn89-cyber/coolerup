@@ -257,6 +257,9 @@ export type ModerationResult = {
   action?: string | null | undefined;
   expires_at?: string | null | undefined;
   duplicate?: boolean | undefined;
+  /** True when 5+ reports + Safety Bot agreement auto-hid the video. */
+  hidden?: boolean | undefined;
+  report_count?: number | undefined;
   error?: string | undefined;
 };
 
@@ -317,6 +320,8 @@ export async function reportContent(
       action: (row["action"] as string | undefined) ?? null,
       expires_at: (row["expires_at"] as string | undefined) ?? null,
       duplicate: Boolean(row["duplicate"]),
+      hidden: Boolean(row["hidden"]),
+      report_count: (row["report_count"] as number | undefined) ?? undefined,
       error: (row["error"] as string | undefined) ?? undefined,
     };
   } catch (e) {

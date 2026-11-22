@@ -48,6 +48,13 @@ import type { Profile as ProfileRow } from "@/hooks/useAuth";
 import { OnlineDot, OnlineStatusSubtitle } from "@/components/OnlineStatusBadge";
 import { normalizePresenceHandle, useOnlineStatus, useOnlineStatuses } from "@/lib/onlineStatus";
 import { ReportButton } from "@/components/ReportButton";
+import {
+  SAFETY_BOT_AVATAR,
+  SAFETY_BOT_BIO,
+  SAFETY_BOT_NAME,
+  SafetyBotBadge,
+  isSafetyBot,
+} from "@/components/SafetyBotBadge";
 import { PaidVideoGate } from "@/components/PaidVideoGate";
 import { PAID_GOLD } from "@/components/PaidVideoFields";
 import {
@@ -686,7 +693,9 @@ function Profile() {
             ? (likedVideos ?? [])
             : []
           : videos;
-  const displayName = profile?.display_name || username;
+  const bot = isSafetyBot(username);
+  const displayName = bot ? SAFETY_BOT_NAME : profile?.display_name || username;
+  const shownAvatar = bot ? SAFETY_BOT_AVATAR : avatar;
   const total = shownVideos?.length ?? 0;
   const sentinel = useRef<HTMLDivElement>(null);
 
@@ -728,8 +737,8 @@ function Profile() {
               <div
                 className={`flex h-24 w-24 items-center justify-center overflow-hidden rounded-full bg-primary ${findItem(equipped.top)?.className ?? ""} text-4xl uppercase text-primary-foreground`}
               >
-                {avatar ? (
-                  <img src={avatar} alt={displayName} className="h-full w-full object-cover" />
+                {shownAvatar ? (
+                  <img src={shownAvatar} alt={displayName} className="h-full w-full object-cover" />
                 ) : (
                   username?.[0]
                 )}
@@ -762,11 +771,19 @@ function Profile() {
             )}
           </div>
           <div>
-            <h1 className={`text-2xl ${findItem(equipped.name)?.className ?? ""}`}>
+            <h1
+              className={`flex flex-wrap items-center justify-center gap-2 text-2xl ${findItem(equipped.name)?.className ?? ""}`}
+            >
               {findItem(equipped.top)?.emoji} {displayName}
+              {bot && <SafetyBotBadge />}
             </h1>
             <p className="flex flex-wrap items-center justify-center gap-1.5 text-sm text-muted-foreground">
               <span>@{username}</span>
+              {bot && (
+                <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-400">
+                  Official
+                </span>
+              )}
             </p>
             {profilePresence.visible && !profilePresence.isOnline && (
               <div className="mt-0.5 flex justify-center">
@@ -774,7 +791,7 @@ function Profile() {
               </div>
             )}
           </div>
-          {!isOwn && auth.ready && (
+          {!isOwn && auth.ready && !bot && (
             <div className="flex items-center gap-2">
               <Button
                 type="button"
@@ -804,7 +821,11 @@ function Profile() {
               />
             </div>
           )}
-          {profile?.bio && <p className="max-w-md text-sm text-muted-foreground">{profile.bio}</p>}
+          {(bot || profile?.bio) && (
+            <p className="max-w-md text-sm text-muted-foreground">
+              {bot ? SAFETY_BOT_BIO : profile?.bio}
+            </p>
+          )}
           {profile?.links && Object.keys(profile.links).length > 0 && (
             <div className="flex flex-wrap justify-center gap-2">
               {LINK_FIELDS.filter(

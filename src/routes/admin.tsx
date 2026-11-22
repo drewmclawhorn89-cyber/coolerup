@@ -22,6 +22,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { FreeCoinClaimsPanel } from "@/components/FreeCoinClaimsPanel";
 import { TikTokSyncPanel } from "@/components/TikTokSyncPanel";
+import { AgeVerificationAdminPanel } from "@/components/AgeVerificationAdminPanel";
 import {
   adminCoinVenmoOrders,
   adminReviewCoinVenmoOrder,
@@ -88,6 +89,7 @@ type Tab =
   | "free"
   | "payouts"
   | "tiktok"
+  | "ageverify"
   | "update";
 
 const reasonLabel = (id: string) => REPORT_REASONS.find((r) => r.id === id)?.label ?? id;
@@ -377,6 +379,7 @@ function AdminPage() {
             ["free", "Free coins"],
             ["payouts", "Payouts"],
             ["tiktok", "TikTok"],
+            ["ageverify", "ID Checks"],
           ] as const
         ).map(([id, label]) => (
           <button
@@ -908,6 +911,8 @@ function AdminPage() {
           <TikTokSyncPanel />
         </section>
       )}
+
+      {tab === "ageverify" && <AgeVerificationAdminPanel />}
 
       {tab === "update" && (
         <section className="space-y-4">

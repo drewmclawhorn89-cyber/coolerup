@@ -1,27 +1,23 @@
-# Link TikTok Account
+# Real-ID 18+ Gate (short form fix + ID verification)
 
-## Data
-- [x] Migration: `tiktok_accounts` (server-only tokens) + `my_tiktok_account()` RPC + publish log
-- [x] Types for the new table/RPC
-
-## OAuth (Login Kit)
-- [x] `src/lib/tiktokLink.server.ts` — creds, redirect, sealed state, token exchange/refresh, API calls
-- [x] `/api/tiktok/auth/url` — requires signed-in user, returns authorize URL
-- [x] `/api/tiktok/auth/callback` — exchange code, store tokens, postMessage back
-- [x] `/api/tiktok/unlink` — delete the caller's link
-- [x] `/api/tiktok/videos` — list the caller's OWN videos (video.list)
-- [x] `/api/tiktok/publish` — Content Posting API, caption + "Posted from Coolerup"
-
-## Client lib
-- [x] `src/lib/tiktokLink.ts` — `useTikTokAccount`, link/unlink, import, publish, share helpers
+## Data / backend
+- [x] Migration `20261222000000_age_verification.sql` (table, RLS lockdown, private bucket, 4 RPCs)
+- [x] `src/lib/ageVerification.ts` client (status hook, upload, submit, signed URL)
+- [x] `src/lib/matureVideos.ts` requires `age_verifications.status = 'approved'`
+- [x] Add `age_verifications` + 4 RPCs to `src/integrations/supabase/types.ts`
 
 ## UI
-- [x] Settings > Linked Accounts: Link button, "Connected as @username", Unlink (black/white)
-- [x] UploadDialog: "Also post to TikTok" toggle (ON/OFF)
-- [x] Import from TikTok picker (own videos only)
-- [x] Profile: TikTok + Coolerup follower counts, Share Coolerup to TikTok, Share TikTok to Coolerup
+- [x] `AgeVerificationDialog.tsx`
+- [x] VideoCard: gate `togglePlay`, lock TikTok iframe, overlay with "Verify my ID"
+- [x] watch.$id: same ID gate + overlay
+- [x] Settings: "Verify your ID for 18+ videos" row with live status
+- [x] Admin: ID Checks tab (view docs, approve/reject)
+
+## Feed correctness
+- [x] `src/lib/loop.ts`: add `is_mature` to LEGACY_COLUMNS + fallback regex
 
 ## Verify
-- [x] Tests (31 in `src/test/tiktok-link.test.ts`)
-- [x] Typecheck/build/test (tsc clean, vite build ok, 909/909 tests pass)
-- [x] Push branch + PR + merge
+- [x] Update `src/test/mature-videos.test.ts` for new signature/reasons
+- [x] New tests for ageVerification + VideoCard gating
+- [x] `npx tsc --noEmit`, `npm run build`, `npx vitest run` (938/938)
+- [ ] Branch, commit, push, PR, merge

@@ -237,8 +237,14 @@ export async function fetchVideos(page = 0, pageSize = 20) {
     "id, username, caption, video_url, likes_count, comments_count, shares_count, reposts_count, created_at, sound_id, is_tiktok, tiktok_id, tiktok_author, is_paid, price_cents, is_mature, sounds!videos_sound_id_fkey(id, original_video_id, audio_url, title, creator_username, uses_count)";
   const withoutSound =
     "id, username, caption, video_url, likes_count, comments_count, shares_count, reposts_count, created_at, sound_id, is_tiktok, tiktok_id, tiktok_author, is_paid, price_cents, is_mature";
-  // Used only when the TikTok columns are absent from the database.
+  // Used only when the TikTok columns are absent from the database. `is_mature`
+  // is kept here on purpose: dropping it would silently un-gate every 18+
+  // video, so the feed would play adult content with no lock.
   const LEGACY_COLUMNS =
+    "id, username, caption, video_url, likes_count, comments_count, shares_count, reposts_count, created_at, sound_id, is_mature";
+  // Truly ancient schema: even the 18+ column is missing, so no row can be
+  // marked mature and there is nothing to gate.
+  const ANCIENT_COLUMNS =
     "id, username, caption, video_url, likes_count, comments_count, shares_count, reposts_count, created_at, sound_id";
 
   let { data, error } = await supabase.from("videos").select(withSound).in("id", ids);
@@ -254,10 +260,21 @@ export async function fetchVideos(page = 0, pageSize = 20) {
   // Last resort: the TikTok migration has not been applied yet, so the
   // provenance columns do not exist. Fall back to the pre-TikTok column list
   // rather than breaking the whole feed for every user.
-  if (error && /is_tiktok|tiktok_id|tiktok_author|is_paid|price_cents/i.test(error.message ?? "")) {
+  if (
+    error &&
+    /is_tiktok|tiktok_id|tiktok_author|is_paid|price_cents|is_mature/i.test(error.message ?? "")
+  ) {
     const legacy = await supabase.from("videos").select(LEGACY_COLUMNS).in("id", ids);
     data = legacy.data as typeof data;
     error = legacy.error;
+  }
+
+  // If `is_mature` itself is missing, no row can be 18+, so the ancient column
+  // list is safe and still lets the feed load.
+  if (error && /is_mature/i.test(error.message ?? "")) {
+    const ancient = await supabase.from("videos").select(ANCIENT_COLUMNS).in("id", ids);
+    data = ancient.data as typeof data;
+    error = ancient.error;
   }
 
   if (error) throw error;

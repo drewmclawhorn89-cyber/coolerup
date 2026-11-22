@@ -68,6 +68,9 @@ const ShareMenu = lazy(() => import("./ShareMenu").then((m) => ({ default: m.Sha
 const ChristmasGiftSheet = lazy(() =>
   import("./ChristmasGiftSheet").then((m) => ({ default: m.ChristmasGiftSheet })),
 );
+const AgeVerificationDialog = lazy(() =>
+  import("./AgeVerificationDialog").then((m) => ({ default: m.AgeVerificationDialog })),
+);
 
 /** Cache resolved avatar URLs per handle so feed scrolling doesn't refetch. */
 const avatarCache = new Map<string, string | null>();
@@ -181,6 +184,7 @@ function VideoCardImpl({
   // blocked outright. No camera or face scan is involved.
   const matureGate = useMatureGate(video);
   const [matureUnlocked, setMatureUnlocked] = useState(false);
+  const [ageDialogOpen, setAgeDialogOpen] = useState(false);
   const matureLocked = matureGate.mature && (!matureUnlocked || !matureGate.allowed);
   const [authorAvatar, setAuthorAvatar] = useState<string | null>(null);
   const progressRef = useRef<HTMLDivElement>(null);
@@ -673,6 +677,12 @@ function VideoCardImpl({
       suppressClickRef.current = false;
       return;
     }
+    // A locked 18+ video never plays from a tap. Tapping it offers the ID
+    // check instead, so the lock can't be bypassed by tapping the frame.
+    if (matureLocked) {
+      if (matureGate.needsVerification) setAgeDialogOpen(true);
+      return;
+    }
     const el = ref.current;
     if (!el) return;
     if (el.paused) el.play();
@@ -928,8 +938,12 @@ function VideoCardImpl({
             className="relative h-full w-full overflow-hidden bg-black md:aspect-[9/16] md:h-[calc(100dvh-11rem)] md:max-h-[760px] md:w-auto md:rounded-2xl md:bg-card"
           >
             {isTikTok && (
-              <div className="absolute inset-0 flex items-center justify-center bg-black">
-                {shouldLoad ? (
+              <div
+                className={`absolute inset-0 flex items-center justify-center bg-black ${
+                  matureLocked ? "pointer-events-none scale-110 blur-2xl" : ""
+                }`}
+              >
+                {shouldLoad && !matureLocked ? (
                   <iframe
                     src={`https://www.tiktok.com/embed/v2/${encodeURIComponent(video.tiktok_id!)}`}
                     title={captionText ? captionText.slice(0, 90) : `TikTok by @${video.username}`}
@@ -1055,7 +1069,10 @@ function VideoCardImpl({
             )}
 
             {matureLocked && (
-              <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-black/55 px-6 text-center">
+              <div
+                className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-black/55 px-6 text-center"
+                onClick={(e) => e.stopPropagation()}
+              >
                 <span className="flex h-14 w-14 items-center justify-center rounded-full bg-black/70 text-2xl">
                   🔒
                 </span>
@@ -1065,7 +1082,7 @@ function VideoCardImpl({
                 {matureGate.allowed ? (
                   <>
                     <p className="max-w-xs text-xs" style={{ color: "rgba(255,255,255,0.75)" }}>
-                      This video is for adults. Your account birthday confirms you&apos;re 18+.
+                      This video is for adults. Your ID is verified.
                     </p>
                     <button
                       type="button"
@@ -1080,13 +1097,53 @@ function VideoCardImpl({
                       Watch 18+ video
                     </button>
                   </>
+                ) : matureGate.needsVerification ? (
+                  <>
+                    <p className="max-w-xs text-sm font-semibold" style={{ color: "#fff" }}>
+                      {matureGate.blockedMessage}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setAgeDialogOpen(true);
+                      }}
+                      className="rounded-full px-5 py-2 text-sm font-bold"
+                      style={{ backgroundColor: "#FE2C55", color: "#fff" }}
+                    >
+                      Verify my ID
+                    </button>
+                  </>
+                ) : matureGate.needsBirthday ? (
+                  <>
+                    <p className="max-w-xs text-sm font-semibold" style={{ color: "#fff" }}>
+                      {matureGate.blockedMessage}
+                    </p>
+                    <Link
+                      to="/settings"
+                      onClick={(e) => e.stopPropagation()}
+                      className="rounded-full px-5 py-2 text-sm font-bold"
+                      style={{ backgroundColor: "#fff", color: "#000" }}
+                    >
+                      Open Settings
+                    </Link>
+                  </>
                 ) : (
                   <p className="max-w-xs text-sm font-semibold" style={{ color: "#FE2C55" }}>
-                    {matureGate.blockedMessage ??
-                      "Add your date of birth in Settings to verify you're 18+"}
+                    {matureGate.blockedMessage ?? MATURE_LABEL}
                   </p>
                 )}
               </div>
+            )}
+
+            {ageDialogOpen && (
+              <Suspense fallback={null}>
+                <AgeVerificationDialog
+                  open={ageDialogOpen}
+                  onOpenChange={setAgeDialogOpen}
+                  onSubmitted={() => setAgeDialogOpen(false)}
+                />
+              </Suspense>
             )}
 
             {isPaid && !paidOwned && (

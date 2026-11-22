@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate, useParams } from "@tanstack/react-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowLeft,
   Bookmark,
@@ -27,6 +27,9 @@ import { FullVideoCard } from "@/components/FullVideoCard";
 import { PaidVideoGate } from "@/components/PaidVideoGate";
 import { useVideoOwnership } from "@/lib/paidVideos";
 import { MATURE_LABEL, useMatureGate } from "@/lib/matureVideos";
+const AgeVerificationDialog = lazy(() =>
+  import("@/components/AgeVerificationDialog").then((m) => ({ default: m.AgeVerificationDialog })),
+);
 import { GifPicker } from "@/components/GifPicker";
 import { useYouTubeDurations, withYouTubeDurations } from "@/lib/useYouTubeDurations";
 import { useAuth } from "@/hooks/useAuth";
@@ -337,6 +340,7 @@ function WatchPage() {
   // accounts are blocked outright; adults unlock with one tap. No camera.
   const matureGate = useMatureGate(video);
   const [matureUnlocked, setMatureUnlocked] = useState(false);
+  const [ageDialogOpen, setAgeDialogOpen] = useState(false);
   const matureLocked = matureGate.mature && (!matureUnlocked || !matureGate.allowed);
 
   /**
@@ -567,7 +571,7 @@ function WatchPage() {
                   {matureGate.allowed ? (
                     <>
                       <p className="max-w-sm text-xs" style={{ color: "rgba(255,255,255,0.75)" }}>
-                        This video is for adults. Your account birthday confirms you&apos;re 18+.
+                        This video is for adults. Your ID is verified.
                       </p>
                       <button
                         type="button"
@@ -578,13 +582,48 @@ function WatchPage() {
                         Watch 18+ video
                       </button>
                     </>
+                  ) : matureGate.needsVerification ? (
+                    <>
+                      <p className="max-w-sm text-sm font-semibold" style={{ color: "#fff" }}>
+                        {matureGate.blockedMessage}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setAgeDialogOpen(true)}
+                        className="rounded-full px-5 py-2 text-sm font-bold"
+                        style={{ backgroundColor: "#FE2C55", color: "#fff" }}
+                      >
+                        Verify my ID
+                      </button>
+                    </>
+                  ) : matureGate.needsBirthday ? (
+                    <>
+                      <p className="max-w-sm text-sm font-semibold" style={{ color: "#fff" }}>
+                        {matureGate.blockedMessage}
+                      </p>
+                      <Link
+                        to="/settings"
+                        className="rounded-full px-5 py-2 text-sm font-bold"
+                        style={{ backgroundColor: "#fff", color: "#000" }}
+                      >
+                        Open Settings
+                      </Link>
+                    </>
                   ) : (
                     <p className="max-w-sm text-sm font-semibold" style={{ color: "#FE2C55" }}>
-                      {matureGate.blockedMessage ??
-                        "Add your date of birth in Settings to verify you're 18+"}
+                      {matureGate.blockedMessage ?? MATURE_LABEL}
                     </p>
                   )}
                 </div>
+                {ageDialogOpen && (
+                  <Suspense fallback={null}>
+                    <AgeVerificationDialog
+                      open={ageDialogOpen}
+                      onOpenChange={setAgeDialogOpen}
+                      onSubmitted={() => setAgeDialogOpen(false)}
+                    />
+                  </Suspense>
+                )}
               </div>
             ) : waitingForUpload ? (
               // The object isn't in storage yet, so there is nothing to play.

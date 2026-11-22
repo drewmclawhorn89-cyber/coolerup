@@ -48,6 +48,15 @@ import type { Profile as ProfileRow } from "@/hooks/useAuth";
 import { OnlineDot, OnlineStatusSubtitle } from "@/components/OnlineStatusBadge";
 import { normalizePresenceHandle, useOnlineStatus, useOnlineStatuses } from "@/lib/onlineStatus";
 import { ReportButton } from "@/components/ReportButton";
+import { PaidVideoGate } from "@/components/PaidVideoGate";
+import { PAID_GOLD } from "@/components/PaidVideoFields";
+import {
+  formatPriceCents,
+  useMyPaidVideos,
+  usePurchasedVideos,
+  useVideoOwnership,
+  type PaidVideoKind,
+} from "@/lib/paidVideos";
 
 export const Route = createFileRoute("/u/$username")({
   component: Profile,
@@ -123,6 +132,141 @@ const TABS = [
   { key: "saved", label: "Saved videos", icon: Bookmark },
 ] as const;
 
+/* -------------------------------------------------------------------------- */
+/*  Paid video shelves                                                        */
+/* -------------------------------------------------------------------------- */
+
+/** One card on either shelf, normalised from the two different row shapes. */
+type ShelfItem = {
+  id: string;
+  kind: PaidVideoKind;
+  title: string;
+  thumbnailUrl: string | null;
+  videoUrl: string;
+  priceCents: number;
+  subtitle?: string | undefined;
+};
+
+/**
+ * A single shelf card. Long form opens the real watch page; short form opens a
+ * small in-page player, because short videos have no page of their own.
+ */
+function PaidShelfCard({ item, onOpen }: { item: ShelfItem; onOpen: (item: ShelfItem) => void }) {
+  const owned = useVideoOwnership(item.id, item.kind, true);
+  const [src, setSrc] = useState("");
+  useEffect(() => {
+    let alive = true;
+    resolveVideoUrl(item.videoUrl)
+      .then((u) => {
+        if (alive) setSrc(u);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [item.videoUrl]);
+
+  const inner = (
+    <>
+      <div className="absolute inset-0 bg-secondary">
+        {src ? (
+          <video
+            src={src}
+            muted
+            playsInline
+            preload="metadata"
+            className="h-full w-full object-cover"
+          />
+        ) : null}
+      </div>
+      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 to-transparent px-1.5 pb-1.5 pt-6">
+        <p className="line-clamp-2 text-[11px] font-semibold leading-tight text-white">
+          {item.title || "Paid video"}
+        </p>
+        {item.subtitle && (
+          <p className="mt-0.5 truncate text-[10px] text-white/60">{item.subtitle}</p>
+        )}
+      </div>
+      <span
+        className="absolute left-1.5 top-1.5 flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-bold leading-none"
+        style={{ backgroundColor: "rgba(0,0,0,0.78)", color: PAID_GOLD }}
+      >
+        <span aria-hidden>{owned ? "✓" : "🔒"}</span>
+        {owned ? "Unlocked" : formatPriceCents(item.priceCents)}
+      </span>
+    </>
+  );
+
+  if (item.kind === "full") {
+    return (
+      <Link
+        to="/watch/$id"
+        params={{ id: item.id }}
+        className="group relative aspect-[3/4] w-32 shrink-0 overflow-hidden rounded-lg bg-secondary"
+        aria-label={`Open ${item.title || "paid video"}`}
+      >
+        {inner}
+      </Link>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(item)}
+      className="group relative aspect-[3/4] w-32 shrink-0 overflow-hidden rounded-lg bg-secondary"
+      aria-label={`Play ${item.title || "paid video"}`}
+    >
+      {inner}
+    </button>
+  );
+}
+
+/** A titled horizontal shelf with an honest empty state. */
+function PaidShelf({
+  title,
+  hint,
+  empty,
+  items,
+  loading,
+  onOpen,
+}: {
+  title: string;
+  hint?: string;
+  empty: string;
+  items: ShelfItem[];
+  loading: boolean;
+  onOpen: (item: ShelfItem) => void;
+}) {
+  return (
+    <section className="rounded-2xl border border-border p-3">
+      <div className="flex items-baseline justify-between gap-2">
+        <h2 className="flex items-center gap-1.5 text-sm font-bold">
+          <span aria-hidden style={{ color: PAID_GOLD }}>
+            🔒
+          </span>
+          {title}
+        </h2>
+        {items.length > 0 && (
+          <span className="text-xs tabular-nums text-muted-foreground">{items.length}</span>
+        )}
+      </div>
+      {hint && <p className="mt-0.5 text-[11px] text-muted-foreground">{hint}</p>}
+      {loading ? (
+        <p className="mt-3 text-xs text-muted-foreground">Loading…</p>
+      ) : items.length === 0 ? (
+        <p className="mt-3 text-xs text-muted-foreground">{empty}</p>
+      ) : (
+        <div className="mt-2.5 flex gap-2 overflow-x-auto pb-1">
+          {items.map((item) => (
+            <PaidShelfCard key={`${item.kind}:${item.id}`} item={item} onOpen={onOpen} />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
 function Profile() {
   const { username } = Route.useParams();
   const auth = useAuth();
@@ -165,6 +309,26 @@ function Profile() {
 
   const equipped = useEquipped(username);
   const isOwn = !!auth.handle && auth.handle === username;
+  /** Paid shelves are private: they only ever load for your own profile. */
+  const myPaid = useMyPaidVideos(isOwn ? (profile?.id ?? null) : null);
+  const purchased = usePurchasedVideos(isOwn ? (auth.user?.id ?? null) : null);
+  const [paidPreview, setPaidPreview] = useState<ShelfItem | null>(null);
+  const [paidPreviewSrc, setPaidPreviewSrc] = useState("");
+  useEffect(() => {
+    if (!paidPreview) {
+      setPaidPreviewSrc("");
+      return;
+    }
+    let alive = true;
+    resolveVideoUrl(paidPreview.videoUrl)
+      .then((u) => {
+        if (alive) setPaidPreviewSrc(u);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [paidPreview]);
   const showLiked = profile?.show_liked !== false;
   const canSeeLiked = showLiked || isOwn;
   const profilePresence = useOnlineStatus(username);
@@ -612,32 +776,32 @@ function Profile() {
           </div>
           {!isOwn && auth.ready && (
             <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              onClick={() => void toggleProfileFollow()}
-              disabled={followBusy}
-              variant={following ? "outline" : "default"}
-              className={`min-w-36 rounded-full font-bold ${
-                following ? "border-border" : "bg-[#fe2c55] text-white hover:bg-[#e9274d]"
-              }`}
-              aria-pressed={following}
-            >
-              {following ? (
-                <>
-                  <UserRoundCheck className="mr-2 h-4 w-4" /> Following
-                </>
-              ) : (
-                <>
-                  <UserRoundPlus className="mr-2 h-4 w-4" /> Follow
-                </>
-              )}
-            </Button>
-            <ReportButton
-              username={username}
-              target="profile"
-              className="rounded-full border border-border p-2 text-muted-foreground transition-colors hover:text-[#FE2C55]"
-              iconClassName="h-4 w-4"
-            />
+              <Button
+                type="button"
+                onClick={() => void toggleProfileFollow()}
+                disabled={followBusy}
+                variant={following ? "outline" : "default"}
+                className={`min-w-36 rounded-full font-bold ${
+                  following ? "border-border" : "bg-[#fe2c55] text-white hover:bg-[#e9274d]"
+                }`}
+                aria-pressed={following}
+              >
+                {following ? (
+                  <>
+                    <UserRoundCheck className="mr-2 h-4 w-4" /> Following
+                  </>
+                ) : (
+                  <>
+                    <UserRoundPlus className="mr-2 h-4 w-4" /> Follow
+                  </>
+                )}
+              </Button>
+              <ReportButton
+                username={username}
+                target="profile"
+                className="rounded-full border border-border p-2 text-muted-foreground transition-colors hover:text-[#FE2C55]"
+                iconClassName="h-4 w-4"
+              />
             </div>
           )}
           {profile?.bio && <p className="max-w-md text-sm text-muted-foreground">{profile.bio}</p>}
@@ -777,7 +941,69 @@ function Profile() {
         {loadingMore && (
           <p className="py-4 text-center text-xs text-muted-foreground">Loading more…</p>
         )}
+
+        {isOwn && (
+          <div className="mt-5 space-y-3 px-1">
+            <PaidShelf
+              title="My Paid Videos"
+              hint="You keep 80% of every unlock."
+              empty="No paid videos yet. Turn on “Make this video Paid” when you upload."
+              loading={myPaid.loading}
+              items={myPaid.videos.map((v) => ({
+                id: v.id,
+                kind: v.kind,
+                title: v.title,
+                thumbnailUrl: v.thumbnailUrl,
+                videoUrl: v.videoUrl,
+                priceCents: v.priceCents,
+              }))}
+              onOpen={setPaidPreview}
+            />
+            <PaidShelf
+              title="Purchased Videos"
+              empty="You haven't unlocked any paid videos yet."
+              loading={purchased.loading}
+              items={purchased.videos.map((v) => ({
+                id: v.videoId,
+                kind: v.kind,
+                title: v.caption || "Paid video",
+                thumbnailUrl: v.thumbnailUrl,
+                videoUrl: v.videoUrl,
+                priceCents: v.amountCents,
+                subtitle: v.username ? `@${v.username}` : undefined,
+              }))}
+              onOpen={setPaidPreview}
+            />
+          </div>
+        )}
       </div>
+
+      <Dialog open={paidPreview !== null} onOpenChange={(o) => !o && setPaidPreview(null)}>
+        <DialogContent className="max-w-md border-white/10 bg-black p-0 text-white">
+          <DialogHeader className="px-4 pb-1 pt-4">
+            <DialogTitle className="text-sm font-bold text-white">
+              {paidPreview?.title || "Paid video"}
+            </DialogTitle>
+          </DialogHeader>
+          {paidPreview && (
+            <div className="relative aspect-[9/16] w-full overflow-hidden bg-black">
+              <video
+                src={paidPreviewSrc}
+                controls
+                playsInline
+                className="h-full w-full object-contain"
+              />
+              <PaidVideoGate
+                videoId={paidPreview.id}
+                kind={paidPreview.kind}
+                priceCents={paidPreview.priceCents}
+                title={paidPreview.title}
+                thumbnailUrl={paidPreview.thumbnailUrl}
+              />
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {open !== null && shownVideos && (
         <div className="fixed inset-0 z-40 bg-black">

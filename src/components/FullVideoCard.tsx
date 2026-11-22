@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { Pencil, Play, Loader2 } from "lucide-react";
+import { PaidVideoGate } from "@/components/PaidVideoGate";
+import { formatPriceCents, useVideoOwnership } from "@/lib/paidVideos";
 import {
   formatDuration,
   formatViews,
@@ -42,6 +44,8 @@ export function FullVideoCard({
   showBadge?: boolean;
 }) {
   const [thumb, setThumb] = useState<string>("");
+  const isPaid = Boolean(video.is_paid) && (video.price_cents ?? 0) > 0;
+  const owned = useVideoOwnership(video.id, "full", isPaid);
 
   useEffect(() => {
     let alive = true;
@@ -95,6 +99,16 @@ export function FullVideoCard({
               </span>
             )}
 
+            {isPaid && !owned && (
+              <span
+                className="absolute left-1.5 top-1.5 flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-bold leading-none"
+                style={{ backgroundColor: "rgba(0,0,0,0.78)", color: "#FFC107" }}
+              >
+                <span aria-hidden>🔒</span>
+                {formatPriceCents(video.price_cents)}
+              </span>
+            )}
+
             {video.is_youtube && showBadge && (
               <span className="absolute bottom-1.5 left-1.5 flex items-center gap-1 rounded bg-youtube px-1.5 py-1 text-[11px] font-semibold leading-none text-youtube-foreground">
                 <Play className="size-3 fill-current" /> YouTube
@@ -144,6 +158,17 @@ export function FullVideoCard({
               <span className="absolute bottom-1.5 right-1.5 rounded bg-black/80 px-1 py-0.5 text-[11px] font-semibold leading-none text-white tabular-nums">
                 {formatDuration(video.duration)}
               </span>
+            )}
+
+            {isPaid && !owned && (
+              <PaidVideoGate
+                videoId={video.id}
+                kind="full"
+                priceCents={video.price_cents ?? 0}
+                title={video.title}
+                thumbnailUrl={thumb || null}
+                variant="compact"
+              />
             )}
 
             {video.is_youtube && showBadge && (

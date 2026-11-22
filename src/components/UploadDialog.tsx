@@ -9,6 +9,7 @@ import { fetchTracks, type Track } from "@/components/MusicPlayer";
 import { SoundPickerDialog } from "@/components/SoundPickerDialog";
 import type { Sound } from "@/lib/sounds";
 import { useWarnings } from "@/components/WarningProvider";
+import { PaidVideoFields, paidSelectionInvalid } from "@/components/PaidVideoFields";
 
 export function UploadDialog({
   onClose,
@@ -41,6 +42,10 @@ export function UploadDialog({
   const [chosenSound, setChosenSound] = useState<Sound | null>(sound ?? null);
   const [soundPickerOpen, setSoundPickerOpen] = useState(false);
   const autoOpenedSound = useRef(false);
+  // Paid videos: OFF by default, so posting behaves exactly as it always has
+  // until the creator deliberately turns this on and picks a price.
+  const [isPaid, setIsPaid] = useState(false);
+  const [priceCents, setPriceCents] = useState<number | null>(null);
 
   const findSongs = async () => {
     setSearching(true);
@@ -159,6 +164,12 @@ export function UploadDialog({
     }
     const name = username.trim().replace(/^@/, "").slice(0, 40);
     const cap = caption.trim().slice(0, 500);
+    // Paid only applies to video posts, never to a photo.
+    const paidForPost = !isPhoto && isPaid;
+    if (paidForPost && paidSelectionInvalid(true, priceCents)) {
+      toast.error("Pick a price between $0.50 and $1,000 for your paid video.");
+      return;
+    }
     const batch = files;
     const chosenSong = song;
     // Close immediately and upload in the background so posting feels instant.
@@ -173,6 +184,7 @@ export function UploadDialog({
             f.type.startsWith("image/") ? chosenSong : null,
             full,
             f.type.startsWith("video/") ? (chosenSound?.id ?? null) : null,
+            paidForPost ? { isPaid: true, priceCents } : null,
           );
         }
         onDone();
@@ -340,6 +352,14 @@ export function UploadDialog({
                   )}
                 </div>
               </div>
+            )}
+            {!isPhoto && (
+              <PaidVideoFields
+                enabled={isPaid}
+                onEnabledChange={setIsPaid}
+                priceCents={priceCents}
+                onPriceCentsChange={setPriceCents}
+              />
             )}
             <button
               disabled={!file || busy}

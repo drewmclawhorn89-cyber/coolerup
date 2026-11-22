@@ -59,6 +59,10 @@ export type FullVideo = {
   tiktok_id?: string | null;
   /** Creator handle the clip belongs to, without the leading "@". */
   tiktok_author?: string | null;
+  /** True when the creator is selling this video. */
+  is_paid?: boolean | null;
+  /** Price in cents when `is_paid`; null/undefined for a free video. */
+  price_cents?: number | null;
 };
 
 export type FullVideoComment = {
@@ -1115,7 +1119,13 @@ async function resumableUpload(
  * entirely. Every write below retries without the unknown column instead, so
  * the app keeps working on an un-migrated database.
  */
-const OPTIONAL_COLUMNS = ["status", "expected_bytes", "upload_error"] as const;
+const OPTIONAL_COLUMNS = [
+  "status",
+  "expected_bytes",
+  "upload_error",
+  "is_paid",
+  "price_cents",
+] as const;
 
 type PgError = { message?: string; details?: string; hint?: string; code?: string } | null;
 
@@ -1136,6 +1146,9 @@ function dropUnknownColumn(payload: Record<string, unknown>, error: PgError): bo
   for (const col of OPTIONAL_COLUMNS) {
     if (text.includes(col) && col in payload) {
       delete payload[col];
+      // A paid row without its price violates the check constraint, so drop
+      // both together if the price column is the one missing.
+      if (col === "price_cents") delete payload["is_paid"];
       return true;
     }
   }
@@ -1163,6 +1176,10 @@ export type CreateFullVideoInput = {
   status?: "processing" | "ready" | "failed" | "draft";
   /** Size of the file being uploaded, so a finished upload can be detected. */
   expectedBytes?: number | null;
+  /** Sell this video. Omitted/false leaves it free. */
+  isPaid?: boolean;
+  /** Price in cents, required when `isPaid` is true. */
+  priceCents?: number | null;
 };
 
 export async function createFullVideo(input: CreateFullVideoInput): Promise<FullVideo> {
@@ -1179,6 +1196,13 @@ export async function createFullVideo(input: CreateFullVideoInput): Promise<Full
     status: input.status ?? "ready",
     expected_bytes: input.expectedBytes ?? null,
   };
+
+  // Only write the paid columns when the video is actually for sale, so a free
+  // upload never touches a column this database might not have yet.
+  if (input.isPaid) {
+    payload["is_paid"] = true;
+    payload["price_cents"] = input.priceCents ?? null;
+  }
 
   // Retry without any column this database doesn't have yet, so posting still
   // works before the migrations are run.

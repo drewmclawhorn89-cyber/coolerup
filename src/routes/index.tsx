@@ -19,7 +19,6 @@ import {
   Search,
   ShoppingBag,
   Store,
-  Twitch,
   User,
   Users,
   Wifi,
@@ -55,10 +54,6 @@ const GroupsPanel = lazy(() =>
 );
 const ChristmasCodesPanel = lazy(() =>
   import("@/components/ChristmasCodesPanel").then((m) => ({ default: m.ChristmasCodesPanel })),
-);
-// Twitch lives inside the app shell so the top tab bar never disappears.
-const TwitchPanel = lazy(() =>
-  import("@/components/TwitchPanel").then((m) => ({ default: m.TwitchPanel })),
 );
 const LiveStreamDialog = lazy(() =>
   import("@/components/LiveStreamDialog").then((m) => ({ default: m.LiveStreamDialog })),
@@ -126,15 +121,7 @@ export const Route = createFileRoute("/")({
 type Tab =
   "foryou" | "explore" | "following" | "liked" | "saved" | "inbox" | "shop" | "subscriptions";
 type FeedTab =
-  | "home"
-  | "following"
-  | "foryou"
-  | "explore"
-  | "marketplace"
-  | "groups"
-  | "live"
-  | "codes"
-  | "twitch";
+  "home" | "following" | "foryou" | "explore" | "marketplace" | "groups" | "live" | "codes";
 type NotificationFilter = "all" | "unread";
 
 // One entry in the home-menu "top tabs" strip.
@@ -423,8 +410,7 @@ function Index() {
       wantedFeed === "explore" ||
       wantedFeed === "marketplace" ||
       wantedFeed === "groups" ||
-      wantedFeed === "live" ||
-      wantedFeed === "twitch"
+      wantedFeed === "live"
     ) {
       setFeedTab(wantedFeed);
     }
@@ -901,7 +887,7 @@ function Index() {
     }
   }, [codesSeason, feedTab]);
 
-  // One shared top tab bar (Home | Following | For You | Videos | Music | Twitch | Browser | Marketplace | Groups | LIVE | Codes | Explore | Shop).
+  // One shared top tab bar (Home | Following | For You | Videos | Music | Browser | Marketplace | Groups | LIVE | Codes | Explore | Shop).
   // It renders on every screen and at every breakpoint, scrolls smoothly with touch/wheel,
   // and steps left/right with the always-visible arrows so no tab is ever unreachable.
   const topTabItems: TopTabItem[] = [
@@ -933,14 +919,6 @@ function Index() {
       icon: <Music className="size-3.5" />,
       onClick: () => void navigate({ to: "/music" }),
       active: false,
-    },
-    {
-      // Twitch streams inside Coolerup with the official Twitch embed player.
-      key: "twitch",
-      label: "Twitch",
-      icon: <Twitch className="size-3.5" />,
-      onClick: () => pickFeedTab("twitch"),
-      active: topTab === "twitch",
     },
     {
       key: "browser",
@@ -1251,13 +1229,6 @@ function Index() {
                 }
               />
             </div>
-          </div>
-        ) : activeTab === "foryou" && feedTab === "twitch" ? (
-          <div className="relative flex min-h-0 flex-1 flex-col bg-black">
-            <TopTabs className={topTabsClass} ctx={topTabsCtx} />
-            <Suspense fallback={null}>
-              <TwitchPanel />
-            </Suspense>
           </div>
         ) : feedTab === "codes" ? (
           <div className="relative flex min-h-0 flex-1 flex-col bg-black">

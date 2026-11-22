@@ -651,25 +651,70 @@ export async function deleteVideo(video: Video) {
  * full video back into the Shorts pool, so those tags are carried over from the
  * original row rather than being retyped by the user.
  */
-export function rebuildCaption(text: string, original: string): string {
+export function rebuildCaption(
+  text: string,
+  original: string,
+  opts?: { song?: Song | null; dropSong?: boolean },
+): string {
   const { song, baked, full } = parseCaption(original);
-  let next = withSong(text.trim(), song);
+  const nextSong = opts?.dropSong ? null : opts?.song !== undefined ? opts.song : song;
+  let next = withSong(text.trim(), nextSong);
   if (baked) next += "[[baked]]";
   if (full) next += "[[full]]";
   return next;
 }
 
-/** Update just the caption of a video the signed-in user owns. */
-export async function updateVideoCaption(videoId: string, caption: string): Promise<void> {
+/** Every field the post form can set, and therefore the editor can change. */
+export type VideoEditPatch = {
+  caption?: string;
+  username?: string;
+  /** Borrowed sound for a video; null = the clip's own original audio. */
+  sound_id?: string | null;
+  is_paid?: boolean;
+  price_cents?: number | null;
+};
+
+type PaidEditColumns = { is_paid?: boolean; price_cents?: number | null };
+
+/** Only the columns that actually exist in this database get sent. */
+function paidEditColumns(patch: VideoEditPatch): PaidEditColumns {
+  const cols: PaidEditColumns = {};
+  if (patch.is_paid !== undefined) cols.is_paid = patch.is_paid;
+  if (patch.price_cents !== undefined) cols.price_cents = patch.price_cents;
+  return cols;
+}
+
+/**
+ * Apply an edit to a video the signed-in user owns.
+ *
+ * Mirrors `uploadVideo`: the same columns the post form writes are the ones the
+ * editor can change. If this database predates the paid-videos migration the
+ * paid columns are dropped and the rest of the edit still lands, so an edit
+ * never fails because of a missing optional column.
+ */
+export async function updateVideoDetails(videoId: string, patch: VideoEditPatch): Promise<void> {
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) throw new Error("Sign in to edit");
-  const { error } = await supabase
-    .from("videos")
-    .update({ caption })
-    .eq("id", videoId)
-    .eq("user_id", user.id);
+
+  const base: { caption?: string; username?: string; sound_id?: string | null } = {};
+  if (patch.caption !== undefined) base.caption = patch.caption;
+  if (patch.username !== undefined) base.username = patch.username;
+  if (patch.sound_id !== undefined) base.sound_id = patch.sound_id;
+
+  const write = (extra: PaidEditColumns) =>
+    supabase
+      .from("videos")
+      .update({ ...base, ...extra })
+      .eq("id", videoId)
+      .eq("user_id", user.id);
+
+  const paid = paidEditColumns(patch);
+  let { error } = await write(paid);
+  if (error && /is_paid|price_cents/i.test(`${error.message ?? ""} ${error.details ?? ""}`)) {
+    ({ error } = await write({}));
+  }
   if (error) throw error;
 }
 
@@ -684,8 +729,8 @@ export async function updateVideoCaption(videoId: string, caption: string): Prom
 export async function replaceVideoFile(
   video: Video,
   file: File,
-  caption: string,
-): Promise<{ video_url: string; caption: string }> {
+  patch: VideoEditPatch,
+): Promise<{ video_url: string }> {
   if (file.size > MAX_FEED_UPLOAD_BYTES) {
     throw new Error(
       `That file is ${(file.size / (1024 * 1024)).toFixed(0)} MB. The limit is ${MAX_FEED_UPLOAD_MB} MB.`,
@@ -705,15 +750,28 @@ export async function replaceVideoFile(
 
   const renditions = await createQualityVersions(STORAGE_PREFIX + path);
   const nextUrl = STORAGE_PREFIX + path;
-  const { error } = await supabase
-    .from("videos")
-    .update({
+
+  const base: { video_url: string; caption?: string; username?: string; sound_id?: string | null } =
+    {
       video_url: nextUrl,
-      caption,
       ...qualityColumns(renditions),
-    })
-    .eq("id", video.id)
-    .eq("user_id", user.id);
+    };
+  if (patch.caption !== undefined) base.caption = patch.caption;
+  if (patch.username !== undefined) base.username = patch.username;
+  if (patch.sound_id !== undefined) base.sound_id = patch.sound_id;
+
+  const write = (extra: PaidEditColumns) =>
+    supabase
+      .from("videos")
+      .update({ ...base, ...extra })
+      .eq("id", video.id)
+      .eq("user_id", user.id);
+
+  const paid = paidEditColumns(patch);
+  let { error } = await write(paid);
+  if (error && /is_paid|price_cents/i.test(`${error.message ?? ""} ${error.details ?? ""}`)) {
+    ({ error } = await write({}));
+  }
   if (error) {
     // Don't leave an orphan behind if the row update is rejected.
     await supabase.storage
@@ -733,5 +791,5 @@ export async function replaceVideoFile(
     }
   }
 
-  return { video_url: nextUrl, caption };
+  return { video_url: nextUrl };
 }

@@ -16,3 +16,5 @@
 - YouTube additions use authenticated server functions and full_videos source fields; play embeds separately from uploaded media so YouTube links are never treated as downloadable files.
 
 - Secrets live in the hosting environment, never in the repo. `.env` is gitignored and untracked; `.env.example` holds blank placeholders only. Anything named `VITE_*` is inlined into the browser bundle and is therefore public, so a secret must never carry that prefix. Rotate a leaked key rather than trying to scrub it — the value stays readable in git history.
+- Bind moderation owner permissions to the verified account UUID plus an admin role, never an editable handle; renaming must not transfer ownership.
+- Enforce text safety and mute restrictions with database triggers, serialize strikes per account and deduplicate by content ID; browser checks alone are bypassable.

@@ -3,6 +3,7 @@
 - [ ] Review the three currently flagged public comment-like and live-mute read policies (access decision required).
 - [x] Offline viewing: save/remove in Share menu, Saved tab, offline banner
 - [x] Profile pages (/u/$username) showing all of a user's videos, linked from avatars/usernames
-- [ ] Safety & moderation system (waiting on answers: accent color, admin lock-down)
+- [ ] Safety bot: activate always-on text enforcement, three strikes, owner protection, reports and warning delivery.
+- [ ] Continuous cloud video/image AI review (needs a supported media-scanning service; upload-time visual AI already exists).
 - [ ] Edit your profile
 - [ ] Real calling from the Messages inbox

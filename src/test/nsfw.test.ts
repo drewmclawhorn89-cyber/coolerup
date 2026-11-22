@@ -78,3 +78,39 @@ describe("auto_moderate SQL", () => {
     expect(sql).toContain("target_is_admin");
   });
 });
+
+describe("real Safety Bot account SQL", () => {
+  const sql = readFileSync(resolve(process.cwd(), "supabase/sql-editor-bot-account.sql"), "utf8");
+
+  it("creates a real auth user and profile for the bot", () => {
+    expect(sql).toContain("insert into auth.users");
+    expect(sql).toContain("insert into public.profiles");
+    expect(sql).toContain("'coolerup_safety'");
+    expect(sql).toContain("'Coolerup Safety Bot'");
+  });
+
+  it("gives the bot a real moderator role, not admin", () => {
+    expect(sql).toContain("'moderator'::public.app_role");
+    expect(sql).not.toContain("values (bot_uid, 'admin'::public.app_role)");
+  });
+
+  it("cannot be signed into: the password is random", () => {
+    expect(sql).toContain("$2a$10$");
+  });
+
+  it("exposes a bot uid and refuses to moderate the bot", () => {
+    expect(sql).toContain("public.safety_bot_uid()");
+    expect(sql).toContain("public.is_safety_bot_uid(p_user_id)");
+    expect(sql).toContain("target_is_bot");
+  });
+
+  it("records which real account acted", () => {
+    expect(sql).toContain("add column if not exists actor_id uuid");
+    expect(sql).toContain("public.safety_bot_uid(), true, p_reason");
+  });
+
+  it("ships the bot's own takedown path", () => {
+    expect(sql).toContain("create or replace function public.bot_takedown(");
+    expect(sql).toContain("not_authorized");
+  });
+});

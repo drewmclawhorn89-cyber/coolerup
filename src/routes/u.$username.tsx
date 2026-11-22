@@ -693,9 +693,11 @@ function Profile() {
             ? (likedVideos ?? [])
             : []
           : videos;
-  const bot = isSafetyBot(username);
-  const displayName = bot ? SAFETY_BOT_NAME : profile?.display_name || username;
-  const shownAvatar = bot ? SAFETY_BOT_AVATAR : avatar;
+  // The bot is a real account now (migration 0029), so the profile row wins.
+  // The constants are only a fallback for the moment before the row resolves.
+  const bot = isSafetyBot(username, profile?.id);
+  const displayName = profile?.display_name || (bot ? SAFETY_BOT_NAME : username);
+  const shownAvatar = avatar || (bot ? SAFETY_BOT_AVATAR : null);
   const total = shownVideos?.length ?? 0;
   const sentinel = useRef<HTMLDivElement>(null);
 

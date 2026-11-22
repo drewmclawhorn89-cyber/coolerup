@@ -54,7 +54,7 @@ import {
   type BotLogRow,
   type ViolationKind,
 } from "@/lib/autoBans";
-import { SafetyBotBadge } from "@/components/SafetyBotBadge";
+import { SafetyBotBadge, SAFETY_BOT_HANDLE } from "@/components/SafetyBotBadge";
 import { appBuildId } from "@/lib/appBuild";
 import {
   DEFAULT_MAINTENANCE_MESSAGE,
@@ -682,7 +682,13 @@ function AdminPage() {
             return (
               <article key={l.id} className="rounded-xl border border-border bg-card p-3">
                 <div className="flex flex-wrap items-center gap-2 text-sm font-semibold">
-                  <span className="text-emerald-400">Safety Bot</span>
+                  <Link
+                    to="/u/$username"
+                    params={{ username: SAFETY_BOT_HANDLE }}
+                    className="text-emerald-400 hover:underline"
+                  >
+                    Safety Bot
+                  </Link>
                   <span className="text-muted-foreground">→</span>
                   {l.username ? (
                     <Link

@@ -19,7 +19,17 @@ export const USERNAME_MIN = 3;
 export const USERNAME_MAX = 30;
 
 /** Usernames nobody may claim, even if the DB table is unavailable. */
-export const RESERVED_USERNAMES = new Set(["drewmclawhorn3", "coolerup", "admin", "support"]);
+export const RESERVED_USERNAMES = new Set([
+  "drewmclawhorn3",
+  "coolerup",
+  "admin",
+  "support",
+  // Real system accounts (see migration 0029). The Safety Bot owns this handle
+  // in public.profiles, so claiming it would also fail the unique index.
+  "coolerup_safety",
+  "safety",
+  "moderator",
+]);
 
 /**
  * Spam / bot-looking usernames we refuse:

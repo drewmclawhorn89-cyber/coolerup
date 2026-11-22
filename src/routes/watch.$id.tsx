@@ -526,29 +526,22 @@ function WatchPage() {
   }
 
   return (
-    <div className="relative mx-auto w-full max-w-6xl px-0 pb-24">
-      {/* Floats over the full-bleed player instead of pushing it down, so the
-          video frame is exactly one viewport tall. */}
-      <div className="absolute left-2 top-2 z-30 flex items-center gap-2 rounded-full bg-black/55 px-2 py-1 text-white backdrop-blur">
-        <Link
-          to="/videos"
-          aria-label="Back to videos"
-          className="rounded-full p-1 hover:bg-white/15"
-        >
+    <div className="mx-auto w-full max-w-6xl px-0 pb-24 sm:px-3">
+      <div className="flex items-center gap-2 px-3 py-2">
+        <Link to="/videos" aria-label="Back to videos" className="rounded-full p-1 hover:bg-accent">
           <ArrowLeft className="h-5 w-5" />
         </Link>
-        <span className="pr-1 text-sm font-semibold">Watch</span>
+        <span className="text-sm font-semibold">Watch</span>
       </div>
 
       <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_360px] lg:gap-6">
         <div className="min-w-0">
-          {/* The player owns the whole screen: 100vw x 100dvh, edge to edge. */}
-          <div className="relative h-[100dvh] w-full overflow-hidden bg-black">
+          <div className="relative">
             {waitingForUpload ? (
               // The object isn't in storage yet, so there is nothing to play.
               // Show an honest placeholder instead of a dead player; the poll
               // above swaps this out the moment the upload finishes.
-              <div className="flex h-full w-full flex-col items-center justify-center gap-3 bg-muted px-6 text-center">
+              <div className="mx-3 mt-2 flex aspect-video flex-col items-center justify-center gap-3 rounded-xl bg-muted text-center sm:mx-0">
                 <Loader2 className="size-7 animate-spin text-muted-foreground" />
                 <div className="px-6">
                   <p className="text-sm font-semibold">This video is still uploading</p>
@@ -558,7 +551,7 @@ function WatchPage() {
                 </div>
               </div>
             ) : uploadFailed ? (
-              <div className="flex h-full w-full flex-col items-center justify-center gap-3 bg-muted px-6 text-center">
+              <div className="mx-3 mt-2 flex aspect-video flex-col items-center justify-center gap-3 rounded-xl bg-muted text-center sm:mx-0">
                 <div className="px-6">
                   <p className="text-sm font-semibold">This upload didn't finish</p>
                   <p className="mt-1 text-[13px] text-muted-foreground">
@@ -587,7 +580,7 @@ function WatchPage() {
                 </div>
               </div>
             ) : unplayable ? (
-              <div className="flex h-full w-full flex-col items-center justify-center gap-3 bg-muted px-6 text-center">
+              <div className="mx-3 mt-2 flex aspect-video flex-col items-center justify-center gap-3 rounded-xl bg-muted text-center sm:mx-0">
                 <div className="px-6">
                   <p className="text-sm font-semibold">This video can't be played</p>
                   <p className="mt-1 text-[13px] text-muted-foreground">
@@ -607,10 +600,10 @@ function WatchPage() {
                 </div>
               </div>
             ) : video.is_tiktok && video.tiktok_id ? (
-              <div className="relative h-full w-full">
+              <div className="mx-3 mt-2 sm:mx-0">
                 {/* TikTok provenance, same rule as YouTube: we embed the original
                   and never rehost the file. */}
-                <div className="absolute inset-x-3 top-3 z-10 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg bg-black/70 px-3 py-2 text-white backdrop-blur">
+                <div className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg bg-black px-3 py-2 text-white">
                   <span className="flex items-center gap-1.5 text-[13px] font-bold">
                     <Play className="size-4 fill-current" /> TikTok
                   </span>
@@ -619,8 +612,8 @@ function WatchPage() {
                   </span>
                 </div>
 
-                <div className="flex h-full w-full justify-center">
-                  <div className="h-full w-full overflow-hidden bg-black">
+                <div className="flex justify-center">
+                  <div className="aspect-[9/16] w-full max-w-[420px] overflow-hidden bg-black sm:rounded-lg">
                     <iframe
                       className="h-full w-full"
                       title={video.title}
@@ -636,7 +629,7 @@ function WatchPage() {
                   href={video.video_url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="absolute bottom-4 left-1/2 z-10 inline-flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-white px-4 py-2 text-sm font-semibold text-black transition hover:opacity-90"
+                  className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-white px-4 py-2 text-sm font-semibold text-black transition hover:opacity-90"
                 >
                   <Play className="size-4 fill-current" />
                   Watch on TikTok
@@ -644,18 +637,18 @@ function WatchPage() {
                 </a>
               </div>
             ) : video.is_youtube && video.youtube_id ? (
-              <div className="relative h-full w-full">
+              <div className="mx-3 mt-2 sm:mx-0">
                 {/* Red provenance badge above the player, the way a YouTube embed
                   announces itself. The grid stays clean; this is the one place
                   we tell the viewer the bytes come from YouTube. */}
-                <div className="absolute inset-x-3 top-3 z-10 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg bg-youtube/95 px-3 py-2 text-youtube-foreground backdrop-blur">
+                <div className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg bg-youtube px-3 py-2 text-youtube-foreground">
                   <span className="flex items-center gap-1.5 text-[13px] font-bold">
                     <Play className="size-4 fill-current" /> YouTube
                   </span>
                   <span className="text-[12px] opacity-90">Playing from YouTube</span>
                 </div>
 
-                <div className="h-full w-full overflow-hidden bg-black">
+                <div className="aspect-video w-full overflow-hidden bg-background sm:rounded-lg">
                   {/* The official IFrame player, with YouTube's own branding and
                     logo kept in the control bar (modestbranding=0). */}
                   <iframe
@@ -672,7 +665,7 @@ function WatchPage() {
                   href={`https://www.youtube.com/watch?v=${encodeURIComponent(video.youtube_id)}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="absolute bottom-4 left-1/2 z-10 inline-flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-youtube px-4 py-2 text-sm font-semibold text-youtube-foreground transition hover:opacity-90"
+                  className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-youtube px-4 py-2 text-sm font-semibold text-youtube-foreground transition hover:opacity-90"
                 >
                   <Play className="size-4 fill-current" />
                   Watch on YouTube
@@ -686,7 +679,7 @@ function WatchPage() {
                 sources={renditions}
                 onFirstPlay={countView}
                 onWatchThreshold={recordWatchedVideo}
-                fill
+                className="sm:rounded-xl"
               />
             )}
 

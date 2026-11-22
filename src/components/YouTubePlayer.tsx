@@ -31,12 +31,6 @@ export type YouTubePlayerProps = {
   /** Called once after >3 seconds of active playback. */
   onWatchThreshold?: () => void;
   className?: string;
-  /**
-   * Stretch the video to fill its container (100% width and height, cropped
-   * with `object-fit: cover`) instead of the default 16:9 letterbox. Used by
-   * the full-screen watch stage.
-   */
-  fill?: boolean;
 };
 
 /**
@@ -87,7 +81,6 @@ export function YouTubePlayer({
   onFirstPlay,
   onWatchThreshold,
   className = "",
-  fill = false,
 }: YouTubePlayerProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -316,12 +309,10 @@ export function YouTubePlayer({
   return (
     <div
       ref={wrapRef}
-      className={`group relative overflow-hidden bg-black ${
+      className={`group relative w-full overflow-hidden bg-black ${
         // Drop the caller's styling (rounded corners, margins) in fullscreen so
         // the black backdrop reaches the screen edges.
-        fullscreen
-          ? "flex h-screen w-screen items-center justify-center"
-          : `w-full ${fill ? "h-full" : ""} ${className}`
+        fullscreen ? "flex h-screen w-screen items-center justify-center" : className
       }`}
       onMouseMove={revealControls}
       onTouchStart={revealControls}
@@ -333,7 +324,7 @@ export function YouTubePlayer({
         className={
           fullscreen
             ? "relative flex aspect-[9/16] h-full max-h-screen w-auto max-w-full items-center justify-center bg-black"
-            : `relative w-full ${fill ? "h-full" : ""}`
+            : "relative w-full"
         }
       >
         <video
@@ -344,11 +335,7 @@ export function YouTubePlayer({
           preload="metadata"
           style={videoStyle}
           className={
-            fullscreen
-              ? "h-full w-full bg-black object-contain"
-              : fill
-                ? "h-full w-full bg-black object-cover"
-                : "aspect-video w-full bg-black"
+            fullscreen ? "h-full w-full bg-black object-contain" : "aspect-video w-full bg-black"
           }
           onClick={togglePlay}
           onPlay={() => {

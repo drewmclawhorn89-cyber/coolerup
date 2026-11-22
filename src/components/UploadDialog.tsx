@@ -11,6 +11,9 @@ import type { Sound } from "@/lib/sounds";
 import { useWarnings } from "@/components/WarningProvider";
 import { PaidVideoFields, paidSelectionInvalid } from "@/components/PaidVideoFields";
 import { MatureVideoFields } from "@/components/MatureVideoFields";
+import { TikTokPostFields } from "@/components/TikTokPostFields";
+import { publishVideoToTikTok, useTikTokAccount } from "@/lib/tiktokLink";
+import { useAuth } from "@/hooks/useAuth";
 
 export function UploadDialog({
   onClose,
@@ -27,6 +30,7 @@ export function UploadDialog({
   sound?: Sound | null;
 }) {
   const { muted, mutedUntil, strikeCount, notify } = useWarnings();
+  const auth = useAuth();
   const [files, setFiles] = useState<File[]>([]);
   const file = files[0] ?? null;
   const [preview, setPreview] = useState("");
@@ -50,6 +54,8 @@ export function UploadDialog({
   // 18+ Mature: OFF by default, so posting behaves exactly as it always has
   // until the creator deliberately marks this video as mature.
   const [isMature, setIsMature] = useState(false);
+  const [alsoPostToTikTok, setAlsoPostToTikTok] = useState(false);
+  const tiktok = useTikTokAccount(!!auth.user);
 
   const findSongs = async () => {
     setSearching(true);
@@ -177,12 +183,16 @@ export function UploadDialog({
     }
     const batch = files;
     const chosenSong = song;
+    // TikTok cross-posting only applies to videos, and only when the creator
+    // has a linked account to post to.
+    const crossPost = !isPhoto && alsoPostToTikTok && Boolean(tiktok.account);
     // Close immediately and upload in the background so posting feels instant.
     onClose();
     toast.promise(
       (async () => {
+        const postedIds: string[] = [];
         for (const f of batch) {
-          await uploadVideo(
+          const newId = await uploadVideo(
             f,
             name,
             cap,
@@ -192,8 +202,26 @@ export function UploadDialog({
             paidForPost ? { isPaid: true, priceCents } : null,
             matureForPost,
           );
+          if (newId) postedIds.push(newId);
         }
         onDone();
+
+        // Cross-post after the Coolerup post is safely saved, so a TikTok
+        // failure can never cost the creator their upload.
+        if (crossPost) {
+          for (const id of postedIds) {
+            try {
+              const result = await publishVideoToTikTok({ videoId: id, caption: cap });
+              toast.success(result.message);
+            } catch (error) {
+              toast.error(
+                error instanceof Error
+                  ? `Saved to Coolerup, but TikTok failed: ${error.message}`
+                  : "Saved to Coolerup, but the TikTok post failed.",
+              );
+            }
+          }
+        }
       })(),
       {
         loading: batch.length > 1 ? `Posting ${batch.length} items…` : "Posting…",
@@ -361,6 +389,14 @@ export function UploadDialog({
             )}
             {!isPhoto && (
               <MatureVideoFields enabled={isMature} onEnabledChange={setIsMature} />
+            )}
+            {!isPhoto && (
+              <TikTokPostFields
+                enabled={alsoPostToTikTok}
+                onEnabledChange={setAlsoPostToTikTok}
+                linkedUsername={tiktok.account?.username ?? null}
+                checking={tiktok.loading && !tiktok.checked}
+              />
             )}
             {!isPhoto && (
               <PaidVideoFields

@@ -1,19 +1,27 @@
-# 18+ Mature Video Toggle
+# Link TikTok Account
+
 ## Data
-- [x] Migration: `is_mature` on videos + full_videos, index
-- [x] `Video` / `FullVideo` types gain `is_mature`
-- [x] `src/lib/matureVideos.ts` pure helpers (age check, pref, label)
-## Posting
-- [x] UploadDialog: "Mark as 18+ — Mature" toggle (OFF default, video only)
-- [x] uploadVideo passes `is_mature` (tolerant if column missing)
-- [x] Long-form upload page: same toggle + createFullVideo support
-## Feed / watching
-- [x] VideoCard: blurred thumbnail + "18+ Mature" + lock; DOB gate + block under 18
-- [x] watch.$id.tsx: same gate for long-form
-- [x] Feed hides 18+ when "Show 18+ Videos" is OFF
-## Settings
-- [x] Settings > Privacy "Show 18+ Videos" ON/OFF (black bg, white text)
+- [x] Migration: `tiktok_accounts` (server-only tokens) + `my_tiktok_account()` RPC + publish log
+- [x] Types for the new table/RPC
+
+## OAuth (Login Kit)
+- [x] `src/lib/tiktokLink.server.ts` — creds, redirect, sealed state, token exchange/refresh, API calls
+- [x] `/api/tiktok/auth/url` — requires signed-in user, returns authorize URL
+- [x] `/api/tiktok/auth/callback` — exchange code, store tokens, postMessage back
+- [x] `/api/tiktok/unlink` — delete the caller's link
+- [x] `/api/tiktok/videos` — list the caller's OWN videos (video.list)
+- [x] `/api/tiktok/publish` — Content Posting API, caption + "Posted from Coolerup"
+
+## Client lib
+- [x] `src/lib/tiktokLink.ts` — `useTikTokAccount`, link/unlink, import, publish, share helpers
+
+## UI
+- [x] Settings > Linked Accounts: Link button, "Connected as @username", Unlink (black/white)
+- [x] UploadDialog: "Also post to TikTok" toggle (ON/OFF)
+- [x] Import from TikTok picker (own videos only)
+- [x] Profile: TikTok + Coolerup follower counts, Share Coolerup to TikTok, Share TikTok to Coolerup
+
 ## Verify
-- [x] Tests for helpers + wiring (19 passing)
-- [x] Typecheck/build/test
-- [x] Push branch + open PR (https://github.com/drewmclawhorn89-cyber/coolerup/pull/331)
+- [x] Tests (31 in `src/test/tiktok-link.test.ts`)
+- [x] Typecheck/build/test (tsc clean, vite build ok, 909/909 tests pass)
+- [x] Push branch + PR + merge

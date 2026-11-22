@@ -52,10 +52,15 @@ import { Route as ApiFacebookResolveRouteImport } from './routes/api/facebook/re
 import { Route as ApiPexelsHeartbeatRouteImport } from './routes/api/pexels/heartbeat'
 import { Route as ApiPexelsSyncRouteImport } from './routes/api/pexels/sync'
 import { Route as ApiTiktokHeartbeatRouteImport } from './routes/api/tiktok/heartbeat'
+import { Route as ApiTiktokPublishRouteImport } from './routes/api/tiktok/publish'
 import { Route as ApiTiktokSyncRouteImport } from './routes/api/tiktok/sync'
+import { Route as ApiTiktokUnlinkRouteImport } from './routes/api/tiktok/unlink'
+import { Route as ApiTiktokVideosRouteImport } from './routes/api/tiktok/videos'
 import { Route as ApiTwitchFollowRouteImport } from './routes/api/twitch/follow'
 import { Route as ApiTwitchMeRouteImport } from './routes/api/twitch/me'
 import { Route as ApiTwitchStreamsRouteImport } from './routes/api/twitch/streams'
+import { Route as ApiTiktokAuthCallbackRouteImport } from './routes/api/tiktok/auth/callback'
+import { Route as ApiTiktokAuthUrlRouteImport } from './routes/api/tiktok/auth/url'
 import { Route as ApiTwitchAuthCallbackRouteImport } from './routes/api/twitch/auth/callback'
 import { Route as ApiTwitchAuthUrlRouteImport } from './routes/api/twitch/auth/url'
 
@@ -274,9 +279,24 @@ const ApiTiktokHeartbeatRoute = ApiTiktokHeartbeatRouteImport.update({
   path: '/api/tiktok/heartbeat',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiTiktokPublishRoute = ApiTiktokPublishRouteImport.update({
+  id: '/api/tiktok/publish',
+  path: '/api/tiktok/publish',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiTiktokSyncRoute = ApiTiktokSyncRouteImport.update({
   id: '/api/tiktok/sync',
   path: '/api/tiktok/sync',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiTiktokUnlinkRoute = ApiTiktokUnlinkRouteImport.update({
+  id: '/api/tiktok/unlink',
+  path: '/api/tiktok/unlink',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiTiktokVideosRoute = ApiTiktokVideosRouteImport.update({
+  id: '/api/tiktok/videos',
+  path: '/api/tiktok/videos',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiTwitchFollowRoute = ApiTwitchFollowRouteImport.update({
@@ -292,6 +312,16 @@ const ApiTwitchMeRoute = ApiTwitchMeRouteImport.update({
 const ApiTwitchStreamsRoute = ApiTwitchStreamsRouteImport.update({
   id: '/api/twitch/streams',
   path: '/api/twitch/streams',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiTiktokAuthCallbackRoute = ApiTiktokAuthCallbackRouteImport.update({
+  id: '/api/tiktok/auth/callback',
+  path: '/api/tiktok/auth/callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiTiktokAuthUrlRoute = ApiTiktokAuthUrlRouteImport.update({
+  id: '/api/tiktok/auth/url',
+  path: '/api/tiktok/auth/url',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiTwitchAuthCallbackRoute = ApiTwitchAuthCallbackRouteImport.update({
@@ -349,10 +379,15 @@ export interface FileRoutesByFullPath {
   '/api/pexels/heartbeat': typeof ApiPexelsHeartbeatRoute
   '/api/pexels/sync': typeof ApiPexelsSyncRoute
   '/api/tiktok/heartbeat': typeof ApiTiktokHeartbeatRoute
+  '/api/tiktok/publish': typeof ApiTiktokPublishRoute
   '/api/tiktok/sync': typeof ApiTiktokSyncRoute
+  '/api/tiktok/unlink': typeof ApiTiktokUnlinkRoute
+  '/api/tiktok/videos': typeof ApiTiktokVideosRoute
   '/api/twitch/follow': typeof ApiTwitchFollowRoute
   '/api/twitch/me': typeof ApiTwitchMeRoute
   '/api/twitch/streams': typeof ApiTwitchStreamsRoute
+  '/api/tiktok/auth/callback': typeof ApiTiktokAuthCallbackRoute
+  '/api/tiktok/auth/url': typeof ApiTiktokAuthUrlRoute
   '/api/twitch/auth/callback': typeof ApiTwitchAuthCallbackRoute
   '/api/twitch/auth/url': typeof ApiTwitchAuthUrlRoute
 }
@@ -398,10 +433,15 @@ export interface FileRoutesByTo {
   '/api/pexels/heartbeat': typeof ApiPexelsHeartbeatRoute
   '/api/pexels/sync': typeof ApiPexelsSyncRoute
   '/api/tiktok/heartbeat': typeof ApiTiktokHeartbeatRoute
+  '/api/tiktok/publish': typeof ApiTiktokPublishRoute
   '/api/tiktok/sync': typeof ApiTiktokSyncRoute
+  '/api/tiktok/unlink': typeof ApiTiktokUnlinkRoute
+  '/api/tiktok/videos': typeof ApiTiktokVideosRoute
   '/api/twitch/follow': typeof ApiTwitchFollowRoute
   '/api/twitch/me': typeof ApiTwitchMeRoute
   '/api/twitch/streams': typeof ApiTwitchStreamsRoute
+  '/api/tiktok/auth/callback': typeof ApiTiktokAuthCallbackRoute
+  '/api/tiktok/auth/url': typeof ApiTiktokAuthUrlRoute
   '/api/twitch/auth/callback': typeof ApiTwitchAuthCallbackRoute
   '/api/twitch/auth/url': typeof ApiTwitchAuthUrlRoute
 }
@@ -450,10 +490,15 @@ export interface FileRoutesById {
   '/api/pexels/heartbeat': typeof ApiPexelsHeartbeatRoute
   '/api/pexels/sync': typeof ApiPexelsSyncRoute
   '/api/tiktok/heartbeat': typeof ApiTiktokHeartbeatRoute
+  '/api/tiktok/publish': typeof ApiTiktokPublishRoute
   '/api/tiktok/sync': typeof ApiTiktokSyncRoute
+  '/api/tiktok/unlink': typeof ApiTiktokUnlinkRoute
+  '/api/tiktok/videos': typeof ApiTiktokVideosRoute
   '/api/twitch/follow': typeof ApiTwitchFollowRoute
   '/api/twitch/me': typeof ApiTwitchMeRoute
   '/api/twitch/streams': typeof ApiTwitchStreamsRoute
+  '/api/tiktok/auth/callback': typeof ApiTiktokAuthCallbackRoute
+  '/api/tiktok/auth/url': typeof ApiTiktokAuthUrlRoute
   '/api/twitch/auth/callback': typeof ApiTwitchAuthCallbackRoute
   '/api/twitch/auth/url': typeof ApiTwitchAuthUrlRoute
 }
@@ -503,10 +548,15 @@ export interface FileRouteTypes {
     | '/api/pexels/heartbeat'
     | '/api/pexels/sync'
     | '/api/tiktok/heartbeat'
+    | '/api/tiktok/publish'
     | '/api/tiktok/sync'
+    | '/api/tiktok/unlink'
+    | '/api/tiktok/videos'
     | '/api/twitch/follow'
     | '/api/twitch/me'
     | '/api/twitch/streams'
+    | '/api/tiktok/auth/callback'
+    | '/api/tiktok/auth/url'
     | '/api/twitch/auth/callback'
     | '/api/twitch/auth/url'
   fileRoutesByTo: FileRoutesByTo
@@ -552,10 +602,15 @@ export interface FileRouteTypes {
     | '/api/pexels/heartbeat'
     | '/api/pexels/sync'
     | '/api/tiktok/heartbeat'
+    | '/api/tiktok/publish'
     | '/api/tiktok/sync'
+    | '/api/tiktok/unlink'
+    | '/api/tiktok/videos'
     | '/api/twitch/follow'
     | '/api/twitch/me'
     | '/api/twitch/streams'
+    | '/api/tiktok/auth/callback'
+    | '/api/tiktok/auth/url'
     | '/api/twitch/auth/callback'
     | '/api/twitch/auth/url'
   id:
@@ -603,10 +658,15 @@ export interface FileRouteTypes {
     | '/api/pexels/heartbeat'
     | '/api/pexels/sync'
     | '/api/tiktok/heartbeat'
+    | '/api/tiktok/publish'
     | '/api/tiktok/sync'
+    | '/api/tiktok/unlink'
+    | '/api/tiktok/videos'
     | '/api/twitch/follow'
     | '/api/twitch/me'
     | '/api/twitch/streams'
+    | '/api/tiktok/auth/callback'
+    | '/api/tiktok/auth/url'
     | '/api/twitch/auth/callback'
     | '/api/twitch/auth/url'
   fileRoutesById: FileRoutesById
@@ -649,10 +709,15 @@ export interface RootRouteChildren {
   ApiPexelsHeartbeatRoute: typeof ApiPexelsHeartbeatRoute
   ApiPexelsSyncRoute: typeof ApiPexelsSyncRoute
   ApiTiktokHeartbeatRoute: typeof ApiTiktokHeartbeatRoute
+  ApiTiktokPublishRoute: typeof ApiTiktokPublishRoute
   ApiTiktokSyncRoute: typeof ApiTiktokSyncRoute
+  ApiTiktokUnlinkRoute: typeof ApiTiktokUnlinkRoute
+  ApiTiktokVideosRoute: typeof ApiTiktokVideosRoute
   ApiTwitchFollowRoute: typeof ApiTwitchFollowRoute
   ApiTwitchMeRoute: typeof ApiTwitchMeRoute
   ApiTwitchStreamsRoute: typeof ApiTwitchStreamsRoute
+  ApiTiktokAuthCallbackRoute: typeof ApiTiktokAuthCallbackRoute
+  ApiTiktokAuthUrlRoute: typeof ApiTiktokAuthUrlRoute
   ApiTwitchAuthCallbackRoute: typeof ApiTwitchAuthCallbackRoute
   ApiTwitchAuthUrlRoute: typeof ApiTwitchAuthUrlRoute
 }
@@ -960,11 +1025,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiTiktokHeartbeatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/tiktok/publish': {
+      id: '/api/tiktok/publish'
+      path: '/api/tiktok/publish'
+      fullPath: '/api/tiktok/publish'
+      preLoaderRoute: typeof ApiTiktokPublishRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/tiktok/sync': {
       id: '/api/tiktok/sync'
       path: '/api/tiktok/sync'
       fullPath: '/api/tiktok/sync'
       preLoaderRoute: typeof ApiTiktokSyncRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/tiktok/unlink': {
+      id: '/api/tiktok/unlink'
+      path: '/api/tiktok/unlink'
+      fullPath: '/api/tiktok/unlink'
+      preLoaderRoute: typeof ApiTiktokUnlinkRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/tiktok/videos': {
+      id: '/api/tiktok/videos'
+      path: '/api/tiktok/videos'
+      fullPath: '/api/tiktok/videos'
+      preLoaderRoute: typeof ApiTiktokVideosRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/twitch/follow': {
@@ -986,6 +1072,20 @@ declare module '@tanstack/react-router' {
       path: '/api/twitch/streams'
       fullPath: '/api/twitch/streams'
       preLoaderRoute: typeof ApiTwitchStreamsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/tiktok/auth/callback': {
+      id: '/api/tiktok/auth/callback'
+      path: '/api/tiktok/auth/callback'
+      fullPath: '/api/tiktok/auth/callback'
+      preLoaderRoute: typeof ApiTiktokAuthCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/tiktok/auth/url': {
+      id: '/api/tiktok/auth/url'
+      path: '/api/tiktok/auth/url'
+      fullPath: '/api/tiktok/auth/url'
+      preLoaderRoute: typeof ApiTiktokAuthUrlRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/twitch/auth/callback': {
@@ -1081,10 +1181,15 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPexelsHeartbeatRoute: ApiPexelsHeartbeatRoute,
   ApiPexelsSyncRoute: ApiPexelsSyncRoute,
   ApiTiktokHeartbeatRoute: ApiTiktokHeartbeatRoute,
+  ApiTiktokPublishRoute: ApiTiktokPublishRoute,
   ApiTiktokSyncRoute: ApiTiktokSyncRoute,
+  ApiTiktokUnlinkRoute: ApiTiktokUnlinkRoute,
+  ApiTiktokVideosRoute: ApiTiktokVideosRoute,
   ApiTwitchFollowRoute: ApiTwitchFollowRoute,
   ApiTwitchMeRoute: ApiTwitchMeRoute,
   ApiTwitchStreamsRoute: ApiTwitchStreamsRoute,
+  ApiTiktokAuthCallbackRoute: ApiTiktokAuthCallbackRoute,
+  ApiTiktokAuthUrlRoute: ApiTiktokAuthUrlRoute,
   ApiTwitchAuthCallbackRoute: ApiTwitchAuthCallbackRoute,
   ApiTwitchAuthUrlRoute: ApiTwitchAuthUrlRoute,
 }

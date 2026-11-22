@@ -44,6 +44,7 @@ import {
 import { syncOfflineLibrary, type OfflineSyncProgress } from "@/lib/offlineAutoDownload";
 import { setOfflineModeOn, useOfflineMode } from "@/lib/offlineMode";
 import { ThemePicker } from "@/components/ThemePicker";
+import { TikTokLinkedAccounts } from "@/components/TikTokLinkedAccounts";
 import { QUALITY_OPTIONS, useVideoQuality } from "@/lib/videoQuality";
 import {
   BACKGROUND_PLAY_HELP,
@@ -864,6 +865,7 @@ function Settings() {
           )}
         </div>
       </div>
+      <TikTokLinkedAccounts enabled={!!auth.user} />
       {/* DIFFERENT MESSAGE SETTINGS - BLACK + WHITE */}
       <div
         className="rounded-xl p-4 mb-4 shadow-sm"

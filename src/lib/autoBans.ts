@@ -113,11 +113,48 @@ const SEXUAL = [
   "fuck me",
   "suck my",
   "jerking off",
-  "masturbat",
+  "masturbat*",
   "erotic",
   "fetish",
   "bdsm",
   "lingerie haul",
+  "explicit",
+  "pussy",
+  "dick pic",
+  "dick pics",
+  "cock pic",
+  "boob",
+  "boobs",
+  "titty",
+  "titties",
+  "tits",
+  "horny",
+  "sext",
+  "sex tape",
+  "sex video",
+  "sex vid",
+  "nude video",
+  "nudes video",
+  "cum video",
+  "xxx video",
+  "adult content",
+  "porn video",
+  "pornhub link",
+  "fuck video",
+  "squirting",
+  "orgasm",
+  "clit",
+  "penis",
+  "vagina",
+  "anus",
+  "nipple",
+  "nipples",
+  "stripper",
+  "strip club",
+  "webcam sex",
+  "snap for nudes",
+  "kik for nudes",
+  "trade nudes",
 ];
 
 /** Bullying, hate and dehumanising language. */
@@ -165,6 +202,74 @@ const BULLYING = [
   "kill urself",
   "end yourself",
   "drink bleach",
+  "stupid",
+  "stupidest",
+  "idiot",
+  "idiotic",
+  "moron",
+  "moronic",
+  "imbecile",
+  "dumbass",
+  "dumb ass",
+  "dumbest",
+  "dumb bitch",
+  "stupid bitch",
+  "bitch",
+  "bitches",
+  "son of a bitch",
+  "bastard",
+  "whore",
+  "whores",
+  "slut",
+  "sluts",
+  "skank",
+  "hoe",
+  "thot",
+  "cunt",
+  "prick",
+  "douche",
+  "douchebag",
+  "scumbag",
+  "trash human",
+  "human trash",
+  "pathetic",
+  "pathetic loser",
+  "shut up",
+  "shut your mouth",
+  "nobody cares",
+  "no one cares",
+  "nobody asked",
+  "no one asked",
+  "nobody likes you",
+  "no one likes you",
+  "everyone hates you",
+  "you have no friends",
+  "youre worthless",
+  "you are worthless",
+  "youre nothing",
+  "you are nothing",
+  "youre a joke",
+  "you are a joke",
+  "ugly",
+  "ugliest",
+  "disgusting",
+  "go away forever",
+  "hope you die",
+  "hope you get",
+  "unalive yourself",
+  "off yourself",
+  "hang yourself",
+  "go hang",
+  "slit your wrists",
+  "cut yourself",
+  "you should be dead",
+  "better off dead",
+  "no one would miss you",
+  "nobody would miss you",
+  "go cry",
+  "cry about it",
+  "touch grass",
+  "neck yourself",
 ];
 
 /** Direct threats of violence. */
@@ -228,7 +333,8 @@ const SPAM_PHRASES = [
   "crypto giveaway",
   "bitcoin giveaway",
   "double your",
-  "make $",
+  "make money",
+  "make cash",
   "make money fast",
   "work from home",
   "investment opportunity",
@@ -236,6 +342,44 @@ const SPAM_PHRASES = [
   "telegram me",
   "whatsapp me",
   "text me at",
+  "dm me",
+  "dms open",
+  "buy followers",
+  "cheap followers",
+  "followers for sale",
+  "selling followers",
+  "get followers",
+  "gain followers",
+  "real followers",
+  "1000 followers",
+  "10k followers",
+  "sub for sub",
+  "sub4sub",
+  "like for like",
+  "like4like",
+  "comment for comment",
+  "c4c",
+  "earn money online",
+  "earn from home",
+  "passive income",
+  "financial freedom",
+  "get rich quick",
+  "click my link",
+  "link in bio",
+  "check the link",
+  "promo link",
+  "promoting my",
+  "promo available",
+  "advertising space",
+  "dm for collab",
+  "dm for promo",
+  "dm for price",
+  "dm for details",
+  "serious buyers only",
+  "no refunds",
+  "limited offer",
+  "act fast",
+  "first 100 people",
 ];
 
 const SPAM_URL_RE = /(https?:\/\/|www\.)\S+/gi;
@@ -259,12 +403,22 @@ function normalize(text: string): string {
   );
 }
 
+/**
+ * Find needles in the normalised haystack.
+ *
+ * Matching is word-exact by default. The old version also accepted a bare
+ * prefix, which meant "anal" fired on "analysis", "spic" on "spicy" and "paki"
+ * on "Pakistan" — innocent captions were being deleted and the account was
+ * taking a strike for them. Entries that genuinely want prefix matching end in
+ * `*` ("masturbat*"), and everything else has to be a whole word.
+ */
 function hits(haystack: string, needles: string[]): string[] {
   const found: string[] = [];
   for (const needle of needles) {
-    const n = normalize(needle).trim();
+    const prefix = needle.endsWith("*");
+    const n = normalize(prefix ? needle.slice(0, -1) : needle).trim();
     if (!n) continue;
-    if (haystack.includes(` ${n} `) || haystack.includes(` ${n}`)) found.push(needle);
+    if (prefix ? haystack.includes(` ${n}`) : haystack.includes(` ${n} `)) found.push(needle);
   }
   return found;
 }
@@ -512,6 +666,23 @@ export async function screenBeforeWrite(opts: {
   });
   if (result.strike > 0) emitStrike(result);
   return result;
+}
+
+/**
+ * Is the ladder actually installed in this database?
+ *
+ * Returns false when `my_strike_status()` is missing, which is what happens
+ * when `supabase/sql-editor-auto-bans.sql` has never been run. Without this
+ * check every violation fails silently: the RPC errors, `moderate()` returns
+ * strike 0, and no popup appears — indistinguishable from "the text was fine".
+ */
+export async function moderationAvailable(): Promise<boolean> {
+  try {
+    const { error } = await supabase.rpc("my_strike_status");
+    return !error;
+  } catch {
+    return false;
+  }
 }
 
 export async function myStrikeStatus(): Promise<StrikeStatus> {

@@ -1,6 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { WarningModal } from "@/components/WarningModal";
-import { myStrikeStatus, onStrike, type StrikeResult } from "@/lib/autoBans";
+import { toast } from "sonner";
+import { moderationAvailable, myStrikeStatus, onStrike, type StrikeResult } from "@/lib/autoBans";
+import { amIAdmin } from "@/lib/moderation";
 
 /**
  * Owns the 3-strike warning popup and the current mute state.
@@ -50,6 +52,29 @@ export function WarningProvider({ children }: { children: React.ReactNode }) {
     });
     return off;
   }, [refresh]);
+
+  // If the SQL has not been run, every violation fails silently. Tell the
+  // owner once per session instead of letting them think the feature is dead.
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const ready = await moderationAvailable();
+      if (ready || cancelled) return;
+      console.error(
+        "[auto-bans] moderation RPCs are missing. Run supabase/sql-editor-auto-bans.sql " +
+          "in the Supabase SQL editor — until then no warning, removal or ban can happen.",
+      );
+      const admin = await amIAdmin();
+      if (admin && !cancelled) {
+        toast.error("Auto-bans are not installed. Run the auto-bans SQL in Supabase.", {
+          duration: 15000,
+        });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     void refresh();

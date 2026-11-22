@@ -234,9 +234,9 @@ export async function fetchVideos(page = 0, pageSize = 20) {
   // cannot tell an ingested clip from a normal upload: it would try to play the
   // TikTok share URL as a media file and silently fail.
   const withSound =
-    "id, username, caption, video_url, likes_count, comments_count, shares_count, reposts_count, created_at, sound_id, is_tiktok, tiktok_id, tiktok_author, is_paid, price_cents, sounds!videos_sound_id_fkey(id, original_video_id, audio_url, title, creator_username, uses_count)";
+    "id, username, caption, video_url, likes_count, comments_count, shares_count, reposts_count, created_at, sound_id, is_tiktok, tiktok_id, tiktok_author, is_paid, price_cents, is_mature, sounds!videos_sound_id_fkey(id, original_video_id, audio_url, title, creator_username, uses_count)";
   const withoutSound =
-    "id, username, caption, video_url, likes_count, comments_count, shares_count, reposts_count, created_at, sound_id, is_tiktok, tiktok_id, tiktok_author, is_paid, price_cents";
+    "id, username, caption, video_url, likes_count, comments_count, shares_count, reposts_count, created_at, sound_id, is_tiktok, tiktok_id, tiktok_author, is_paid, price_cents, is_mature";
   // Used only when the TikTok columns are absent from the database.
   const LEGACY_COLUMNS =
     "id, username, caption, video_url, likes_count, comments_count, shares_count, reposts_count, created_at, sound_id";

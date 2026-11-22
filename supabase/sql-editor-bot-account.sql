@@ -62,9 +62,13 @@ begin
   -- Supabase stores a row in auth.instances; auth.users.instance_id is a FK to
   -- it. Hardcoding the zero uuid fails on projects where that row is missing,
   -- so look up the real one and only fall back to the zero uuid.
-  select coalesce((select i.id from auth.instances i order by i.id limit 1),
-                  '00000000-0000-0000-0000-000000000000'::uuid)
-    into bot_instance;
+  if to_regclass('auth.instances') is not null then
+    select coalesce((select i.id from auth.instances i order by i.id limit 1),
+                    '00000000-0000-0000-0000-000000000000'::uuid)
+      into bot_instance;
+  else
+    bot_instance := '00000000-0000-0000-0000-000000000000'::uuid;
+  end if;
   -- auth.users: the real account. The password is random and never stored, so
   -- there is no way to sign in as the bot.
   if not exists (select 1 from auth.users u where u.id = bot_uid) then
@@ -99,24 +103,29 @@ begin
   end if;
 
   -- auth.identities keeps GoTrue happy if it ever looks the account up.
-  if exists (select 1 from auth.users u where u.id = bot_uid)
-     and not exists (select 1 from auth.identities i where i.user_id = bot_uid) then
-    begin
-      insert into auth.identities (
-        provider_id, user_id, identity_data, provider,
-        last_sign_in_at, created_at, updated_at
-      )
-      values (
-        bot_uid::text,
-        bot_uid,
-        jsonb_build_object('sub', bot_uid::text, 'email', bot_email, 'email_verified', true),
-        'email',
-        now(), now(), now()
-      );
-    exception when others then
-      -- Non-fatal: the profile is what the app reads. But say it loudly.
-      raise warning 'safety bot auth.identities insert skipped [%]: %', sqlstate, sqlerrm;
-    end;
+  -- Nested on purpose: PL/pgSQL plans a whole IF expression as one query, so
+  -- `to_regclass(...) is not null and exists (select ... from auth.identities)`
+  -- still resolves the table and errors on projects where it is absent.
+  if to_regclass('auth.identities') is not null then
+    if exists (select 1 from auth.users u where u.id = bot_uid)
+       and not exists (select 1 from auth.identities i where i.user_id = bot_uid) then
+      begin
+        insert into auth.identities (
+          provider_id, user_id, identity_data, provider,
+          last_sign_in_at, created_at, updated_at
+        )
+        values (
+          bot_uid::text,
+          bot_uid,
+          jsonb_build_object('sub', bot_uid::text, 'email', bot_email, 'email_verified', true),
+          'email',
+          now(), now(), now()
+        );
+      exception when others then
+        -- Non-fatal: the profile is what the app reads. But say it loudly.
+        raise warning 'safety bot auth.identities insert skipped [%]: %', sqlstate, sqlerrm;
+      end;
+    end if;
   end if;
 
   -- public.profiles: the real profile row the whole app reads.

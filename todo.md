@@ -24,5 +24,5 @@
 - [x] eslint clean on changed files
 
 ## Ship
-- [ ] Branch, commit, push
-- [ ] Open PR and merge
+- [x] Branch, commit, push
+- [x] Open PR #335 and merge (`7314e7f`)

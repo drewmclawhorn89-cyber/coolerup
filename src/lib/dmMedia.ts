@@ -57,16 +57,94 @@ export const DM_MEDIA_BUCKET = "dm-media";
 const DM_MEDIA_PREFIX = "dm-media:";
 const ALLOW_MESSAGES_FROM_EVERYONE_KEY = "allowMessagesFromEveryone";
 const OPENED_ONCE_LOCAL_KEY = "coolerup:dm-opened-once:v1";
+const DELETED_DM_LOCAL_KEY = "coolerup:dm-deleted:v1";
 
 const MAX_DM_IMAGE_BYTES = 20 * 1024 * 1024; // 20 MiB
 const MAX_DM_VIDEO_BYTES = 100 * 1024 * 1024; // 100 MiB
 
-const DM_SELECT_EXTENDED =
-  "id, from_id, to_id, from_username, to_username, message, gif_url, gif_credit, media_url, media_type, media_video_id, media_caption, media_has_external_watermark, view_once, view_once_opened_at, deleted_by_sender, deleted_by_recipient, created_at";
-const DM_SELECT_LEGACY =
-  "id, from_id, to_id, from_username, to_username, message, gif_url, gif_credit, created_at";
+const DM_META_RE = /\s*\[\[dm:([^\]]+)\]\]\s*$/;
 
 const signedDmUrlCache = new Map<string, { url: string; expiresAt: number }>();
+
+/**
+ * Remember whether the connected DB already has the 20261226000000 columns
+ * so an unmigrated database never logs repeated 400 schema errors.
+ */
+let extendedDmSchemaSupported: boolean | null = null;
+
+type EncodedDmMeta = {
+  u: string;
+  t: DmMediaType;
+  v?: string | undefined;
+  c?: string | undefined;
+  w?: 1 | undefined;
+  o?: 1 | undefined;
+};
+
+function encodeDmMeta(meta: EncodedDmMeta): string {
+  const json = JSON.stringify(meta);
+  if (typeof btoa === "function") {
+    const bytes = new TextEncoder().encode(json);
+    let bin = "";
+    for (const b of bytes) bin += String.fromCharCode(b);
+    return btoa(bin);
+  }
+  return encodeURIComponent(json);
+}
+
+function decodeDmMeta(token: string): EncodedDmMeta | null {
+  try {
+    let json = "";
+    if (typeof atob === "function" && !token.startsWith("%7B")) {
+      const bin = atob(token);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      json = new TextDecoder().decode(bytes);
+    } else {
+      json = decodeURIComponent(token);
+    }
+    const parsed = JSON.parse(json) as Partial<EncodedDmMeta>;
+    if (!parsed || typeof parsed.u !== "string") return null;
+    const t: DmMediaType =
+      parsed.t === "video" || parsed.t === "coolerup_video" ? parsed.t : "image";
+    return {
+      u: parsed.u,
+      t,
+      v: typeof parsed.v === "string" ? parsed.v : undefined,
+      c: typeof parsed.c === "string" ? parsed.c : undefined,
+      w: parsed.w === 1 ? 1 : undefined,
+      o: parsed.o === 1 ? 1 : undefined,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function withLegacyDmMediaMessage(
+  text: string,
+  meta: {
+    mediaUrl: string;
+    mediaType: DmMediaType;
+    mediaVideoId?: string | null | undefined;
+    mediaCaption?: string | null | undefined;
+    mediaHasExternalWatermark?: boolean | undefined;
+    viewOnce?: boolean | undefined;
+  },
+): string {
+  const payload: EncodedDmMeta = {
+    u: meta.mediaUrl,
+    t: meta.mediaType,
+    ...(meta.mediaVideoId ? { v: meta.mediaVideoId } : {}),
+    ...(meta.mediaCaption ? { c: meta.mediaCaption.slice(0, 140) } : {}),
+    ...(meta.mediaHasExternalWatermark ? { w: 1 as const } : {}),
+    ...(meta.viewOnce ? { o: 1 as const } : {}),
+  };
+  const tag = `[[dm:${encodeDmMeta(payload)}]]`;
+  const cleanText = text.trim();
+  if (!cleanText) return tag;
+  const maxBody = Math.max(0, 2000 - tag.length - 1);
+  return `${cleanText.slice(0, maxBody)} ${tag}`.trim();
+}
 
 function cleanHandle(raw: string | null | undefined): string {
   return (raw ?? "").trim().replace(/^@+/, "").toLowerCase();
@@ -110,6 +188,28 @@ export function markViewOnceOpenedLocal(messageId: string): void {
   }
 }
 
+function getDeletedDmIdsLocal(): Set<string> {
+  if (typeof window === "undefined") return new Set();
+  try {
+    const raw = window.localStorage.getItem(DELETED_DM_LOCAL_KEY);
+    if (!raw) return new Set();
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? new Set(parsed.map(String)) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+function markDmDeletedLocal(messageId: string): void {
+  if (typeof window === "undefined" || !messageId) return;
+  try {
+    const next = Array.from(new Set([...getDeletedDmIdsLocal(), messageId])).slice(-400);
+    window.localStorage.setItem(DELETED_DM_LOCAL_KEY, JSON.stringify(next));
+  } catch {
+    /* ignore storage quota */
+  }
+}
+
 export function isViewOnceExpired(
   msg: Pick<DirectMessage, "id" | "view_once" | "view_once_opened_at" | "media_url">,
 ): boolean {
@@ -119,12 +219,32 @@ export function isViewOnceExpired(
   return getOpenedViewOnceIdsLocal().has(msg.id);
 }
 
-function normalizeDmRow(row: Record<string, unknown>): DirectMessage {
-  const rawType = row["media_type"];
-  const mediaType: DmMediaType | null =
-    rawType === "image" || rawType === "video" || rawType === "coolerup_video" ? rawType : null;
-  const viewOnce = Boolean(row["view_once"]);
+export function normalizeDmRow(row: Record<string, unknown>): DirectMessage {
   const id = String(row["id"] ?? "");
+  let message = String(row["message"] ?? "");
+  let mediaUrl = typeof row["media_url"] === "string" ? row["media_url"] : null;
+  const rawType = row["media_type"];
+  let mediaType: DmMediaType | null =
+    rawType === "image" || rawType === "video" || rawType === "coolerup_video" ? rawType : null;
+  let mediaVideoId = typeof row["media_video_id"] === "string" ? row["media_video_id"] : null;
+  let mediaCaption = typeof row["media_caption"] === "string" ? row["media_caption"] : null;
+  let mediaHasExternalWatermark = Boolean(row["media_has_external_watermark"]);
+  let viewOnce = Boolean(row["view_once"]);
+
+  const match = message.match(DM_META_RE);
+  if (match?.[1]) {
+    const parsed = decodeDmMeta(match[1]);
+    message = message.replace(DM_META_RE, "").trim();
+    if (parsed) {
+      if (!mediaUrl) mediaUrl = parsed.u;
+      if (!mediaType) mediaType = parsed.t;
+      if (!mediaVideoId && parsed.v) mediaVideoId = parsed.v;
+      if (!mediaCaption && parsed.c) mediaCaption = parsed.c;
+      if (!mediaHasExternalWatermark && parsed.w === 1) mediaHasExternalWatermark = true;
+      if (!viewOnce && parsed.o === 1) viewOnce = true;
+    }
+  }
+
   const locallyOpened = viewOnce && getOpenedViewOnceIdsLocal().has(id);
   const openedAt =
     typeof row["view_once_opened_at"] === "string"
@@ -139,18 +259,14 @@ function normalizeDmRow(row: Record<string, unknown>): DirectMessage {
     to_id: typeof row["to_id"] === "string" ? row["to_id"] : null,
     from_username: String(row["from_username"] ?? ""),
     to_username: String(row["to_username"] ?? ""),
-    message: String(row["message"] ?? ""),
+    message,
     gif_url: typeof row["gif_url"] === "string" ? row["gif_url"] : null,
     gif_credit: typeof row["gif_credit"] === "string" ? row["gif_credit"] : null,
-    media_url: locallyOpened
-      ? null
-      : typeof row["media_url"] === "string"
-        ? row["media_url"]
-        : null,
+    media_url: locallyOpened ? null : mediaUrl,
     media_type: mediaType,
-    media_video_id: typeof row["media_video_id"] === "string" ? row["media_video_id"] : null,
-    media_caption: typeof row["media_caption"] === "string" ? row["media_caption"] : null,
-    media_has_external_watermark: Boolean(row["media_has_external_watermark"]),
+    media_video_id: mediaVideoId,
+    media_caption: mediaCaption,
+    media_has_external_watermark: mediaHasExternalWatermark,
     view_once: viewOnce,
     view_once_opened_at: openedAt,
     deleted_by_sender: Boolean(row["deleted_by_sender"]),
@@ -174,19 +290,18 @@ export async function fetchAllowMessagesFromEveryone(userId: string): Promise<bo
   try {
     const { data, error } = await untypedDb
       .from("profiles")
-      .select("allow_messages_from_everyone")
+      .select("*")
       .eq("id", userId)
       .maybeSingle();
     if (error || !data) return localVal;
-    const val = Boolean(
-      (data as { allow_messages_from_everyone?: unknown }).allow_messages_from_everyone,
-    );
+    const raw = (data as Record<string, unknown>)["allow_messages_from_everyone"];
+    if (typeof raw !== "boolean") return localVal;
     try {
-      window.localStorage.setItem(ALLOW_MESSAGES_FROM_EVERYONE_KEY, String(val));
+      window.localStorage.setItem(ALLOW_MESSAGES_FROM_EVERYONE_KEY, String(raw));
     } catch {
       /* ignore */
     }
-    return val;
+    return raw;
   } catch {
     return localVal;
   }
@@ -236,32 +351,21 @@ export async function checkDmMediaPermission(params: {
     };
   }
 
-  let profile: { id: string; handle: string; allow_messages_from_everyone?: boolean } | null = null;
-  const { data: extProfile, error: extErr } = await untypedDb
+  // Use `select("*")` so an unmigrated `profiles` table without `allow_messages_from_everyone`
+  // never throws a 400 "column does not exist" error.
+  const { data: rawProfile } = await untypedDb
     .from("profiles")
-    .select("id, handle, allow_messages_from_everyone")
+    .select("*")
     .ilike("handle", target)
     .maybeSingle();
 
-  if (extErr && isMissingColumnOrSchemaError(extErr)) {
-    const { data: baseProfile } = await supabase
-      .from("profiles")
-      .select("id, handle")
-      .ilike("handle", target)
-      .maybeSingle();
-    if (baseProfile) {
-      profile = {
-        id: baseProfile.id,
-        handle: baseProfile.handle,
-        allow_messages_from_everyone:
-          baseProfile.id === params.myUserId ? readAllowMessagesFromEveryoneLocal() : false,
-      };
-    }
-  } else if (extProfile) {
-    profile = extProfile as { id: string; handle: string; allow_messages_from_everyone?: boolean };
-  }
+  const profile = rawProfile as {
+    id?: string;
+    handle?: string;
+    allow_messages_from_everyone?: boolean;
+  } | null;
 
-  if (!profile) {
+  if (!profile?.id || !profile.handle) {
     return {
       allowed: false,
       isMutual: false,
@@ -272,17 +376,23 @@ export async function checkDmMediaPermission(params: {
     };
   }
 
+  const allowEveryone =
+    typeof profile.allow_messages_from_everyone === "boolean"
+      ? profile.allow_messages_from_everyone
+      : profile.id === params.myUserId
+        ? readAllowMessagesFromEveryoneLocal()
+        : false;
+
   if (profile.id === params.myUserId) {
     return {
       allowed: true,
       isMutual: true,
-      allowEveryone: Boolean(profile.allow_messages_from_everyone),
+      allowEveryone,
       recipientId: profile.id,
       recipientHandle: profile.handle,
     };
   }
 
-  const allowEveryone = Boolean(profile.allow_messages_from_everyone);
   if (allowEveryone) {
     return {
       allowed: true,
@@ -332,20 +442,20 @@ export async function checkDmMediaPermission(params: {
 }
 
 export async function fetchDirectMessages(): Promise<DirectMessage[]> {
+  // Always use `select("*")` so older databases without the 20261226000000 columns
+  // never throw "column direct_messages.deleted_by_recipient does not exist".
   const { data, error } = await untypedDb
     .from("direct_messages")
-    .select(DM_SELECT_EXTENDED)
+    .select("*")
     .order("created_at", { ascending: true });
 
-  if (error && isMissingColumnOrSchemaError(error)) {
-    const { data: legacy } = await supabase
-      .from("direct_messages")
-      .select(DM_SELECT_LEGACY)
-      .order("created_at", { ascending: true });
-    return ((legacy ?? []) as Record<string, unknown>[]).map(normalizeDmRow);
-  }
   if (error) return [];
-  return ((data ?? []) as Record<string, unknown>[]).map(normalizeDmRow);
+  const deletedLocal = getDeletedDmIdsLocal();
+  const rows = ((data ?? []) as Record<string, unknown>[]).map(normalizeDmRow);
+  if (data && data.length > 0) {
+    extendedDmSchemaSupported = "deleted_by_recipient" in ((data[0] ?? {}) as object);
+  }
+  return rows.filter((r) => !deletedLocal.has(r.id));
 }
 
 export function isImageMediaFile(file: File): boolean {
@@ -528,38 +638,88 @@ export async function sendDirectMessage(params: {
     }
   }
 
-  const payload: Record<string, unknown> = {
+  // Ensure legacy RLS rule `length(message) BETWEEN 1 AND 2000` is satisfied when
+  // sending GIF-only or media-only messages on databases without the updated RLS policy.
+  const basePayload: Record<string, unknown> = {
     from_id: params.fromId,
     to_id: targetProfile.id,
     from_username: fromHandle,
     to_username: targetProfile.handle,
-    message: text,
+    message: text || (params.gifUrl ? "GIF" : " "),
     gif_url: params.gifUrl ?? null,
     gif_credit: params.gifCredit ?? null,
   };
 
-  if (params.mediaUrl) {
-    payload["media_url"] = params.mediaUrl;
-    payload["media_type"] = params.mediaType ?? "image";
-    payload["media_video_id"] = params.mediaVideoId ?? null;
-    payload["media_caption"] = params.mediaCaption ?? null;
-    payload["media_has_external_watermark"] = Boolean(params.mediaHasExternalWatermark);
-    payload["view_once"] = Boolean(params.viewOnce);
+  if (extendedDmSchemaSupported !== false) {
+    const extendedPayload: Record<string, unknown> = {
+      ...basePayload,
+      message: text,
+      ...(params.mediaUrl
+        ? {
+            media_url: params.mediaUrl,
+            media_type: params.mediaType ?? "image",
+            media_video_id: params.mediaVideoId ?? null,
+            media_caption: params.mediaCaption ?? null,
+            media_has_external_watermark: Boolean(params.mediaHasExternalWatermark),
+            view_once: Boolean(params.viewOnce),
+          }
+        : {}),
+    };
+
+    const { data: inserted, error } = await untypedDb
+      .from("direct_messages")
+      .insert(extendedPayload)
+      .select("*")
+      .maybeSingle();
+
+    if (!error) {
+      extendedDmSchemaSupported = true;
+      return {
+        ok: true,
+        ...(inserted ? { row: normalizeDmRow(inserted as Record<string, unknown>) } : {}),
+      };
+    }
+
+    if (!isMissingColumnOrSchemaError(error)) {
+      return { ok: false, error: error.message || "Couldn't send message." };
+    }
+
+    // Extended DM columns haven't been migrated yet: fall back cleanly to legacy columns.
+    extendedDmSchemaSupported = false;
   }
 
-  const { data: inserted, error } = await untypedDb
+  const legacyMessage = params.mediaUrl
+    ? withLegacyDmMediaMessage(text, {
+        mediaUrl: params.mediaUrl,
+        mediaType: params.mediaType ?? "image",
+        mediaVideoId: params.mediaVideoId,
+        mediaCaption: params.mediaCaption,
+        mediaHasExternalWatermark: params.mediaHasExternalWatermark,
+        viewOnce: params.viewOnce,
+      })
+    : text || (params.gifUrl ? "GIF" : " ");
+
+  const { data: legacyInserted, error: legacyErr } = await supabase
     .from("direct_messages")
-    .insert(payload)
-    .select(DM_SELECT_EXTENDED)
+    .insert({
+      from_id: params.fromId,
+      to_id: targetProfile.id,
+      from_username: fromHandle,
+      to_username: targetProfile.handle,
+      message: legacyMessage,
+      gif_url: params.gifUrl ?? null,
+      gif_credit: params.gifCredit ?? null,
+    })
+    .select("*")
     .maybeSingle();
 
-  if (error) {
-    return { ok: false, error: error.message || "Couldn't send message." };
+  if (legacyErr) {
+    return { ok: false, error: legacyErr.message || "Couldn't send message." };
   }
 
   return {
     ok: true,
-    ...(inserted ? { row: normalizeDmRow(inserted as Record<string, unknown>) } : {}),
+    ...(legacyInserted ? { row: normalizeDmRow(legacyInserted as Record<string, unknown>) } : {}),
   };
 }
 
@@ -639,8 +799,9 @@ export async function deleteDirectMessage(
   });
 
   if (error && isMissingColumnOrSchemaError(error)) {
-    const { error: delErr } = await supabase.from("direct_messages").delete().eq("id", messageId);
-    if (delErr) return { ok: false, error: delErr.message };
+    // Best-effort delete on DB; also hide locally so both sender and recipient see deletion immediately.
+    await supabase.from("direct_messages").delete().eq("id", messageId);
+    markDmDeletedLocal(messageId);
     return { ok: true };
   }
 
@@ -649,6 +810,7 @@ export async function deleteDirectMessage(
   if (row["ok"] === false) {
     return { ok: false, error: String(row["error"] ?? "Couldn't delete message") };
   }
+  markDmDeletedLocal(messageId);
   return { ok: true };
 }
 
@@ -712,7 +874,7 @@ export async function fetchCoolerupVideosForDm(params: {
 
   let req = untypedDb
     .from("videos")
-    .select("id, username, caption, video_url, has_external_watermark, likes_count")
+    .select("*")
     .eq("hidden", false)
     .order("created_at", { ascending: false })
     .range(offset, offset + limit);

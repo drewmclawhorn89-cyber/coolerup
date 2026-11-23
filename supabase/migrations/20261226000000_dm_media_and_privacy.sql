@@ -22,16 +22,15 @@ alter table public.profiles
 -- 2. Direct messages media + view-once + delete columns
 -- ---------------------------------------------------------------------------
 
-alter table public.direct_messages
-  add column if not exists media_url text,
-  add column if not exists media_type text,
-  add column if not exists media_video_id uuid,
-  add column if not exists media_caption text,
-  add column if not exists media_has_external_watermark boolean not null default false,
-  add column if not exists view_once boolean not null default false,
-  add column if not exists view_once_opened_at timestamptz,
-  add column if not exists deleted_by_sender boolean not null default false,
-  add column if not exists deleted_by_recipient boolean not null default false;
+alter table public.direct_messages add column if not exists media_url text;
+alter table public.direct_messages add column if not exists media_type text;
+alter table public.direct_messages add column if not exists media_video_id uuid;
+alter table public.direct_messages add column if not exists media_caption text;
+alter table public.direct_messages add column if not exists media_has_external_watermark boolean not null default false;
+alter table public.direct_messages add column if not exists view_once boolean not null default false;
+alter table public.direct_messages add column if not exists view_once_opened_at timestamptz;
+alter table public.direct_messages add column if not exists deleted_by_sender boolean not null default false;
+alter table public.direct_messages add column if not exists deleted_by_recipient boolean not null default false;
 
 alter table public.direct_messages
   drop constraint if exists direct_messages_media_type_check;

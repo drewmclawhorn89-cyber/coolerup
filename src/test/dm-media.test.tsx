@@ -84,9 +84,12 @@ vi.mock("@/hooks/useAuth", () => ({
 
 import {
   checkDmMediaPermission,
+  fetchDirectMessages,
   isViewOnceExpired,
+  normalizeDmRow,
   openViewOnceMedia,
   saveDmMediaToDevice,
+  withLegacyDmMediaMessage,
   type DirectMessage,
 } from "@/lib/dmMedia";
 import { DmAttachmentSheet } from "@/components/DmAttachmentSheet";
@@ -323,5 +326,28 @@ describe("DM pics & videos privacy, View Once, viewer, and actions", () => {
     expect(mocks.prepareWatermarkedFileMock).toHaveBeenCalledTimes(1);
     expect(mocks.saveFileToDiskMock).toHaveBeenCalledWith(watermarkedFile);
     fetchSpy.mockRestore();
+  });
+
+  it("loads messages using wildcard select and preserves media when DB lacks new DM columns", async () => {
+    const encodedMessage = withLegacyDmMediaMessage("Check this out", {
+      mediaUrl: "storage:dm/user-1/clip.mp4",
+      mediaType: "video",
+      viewOnce: true,
+    });
+
+    const decoded = normalizeDmRow({
+      id: "legacy-1",
+      from_username: "alice",
+      to_username: "bob",
+      message: encodedMessage,
+      created_at: new Date().toISOString(),
+    });
+
+    expect(decoded.message).toBe("Check this out");
+    expect(decoded.media_url).toBe("storage:dm/user-1/clip.mp4");
+    expect(decoded.media_type).toBe("video");
+    expect(decoded.view_once).toBe(true);
+
+    await expect(fetchDirectMessages()).resolves.toEqual([]);
   });
 });

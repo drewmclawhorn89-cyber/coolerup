@@ -15,6 +15,7 @@ import { Suspense, lazy, useEffect, useState, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { pingTikTokSync } from "../lib/tiktokHeartbeat";
+import { restoreTakenDownContent } from "../lib/restoreContent";
 import { CallProvider } from "../lib/calls";
 import { CallOverlay } from "../components/CallOverlay";
 import { PhoneAuthDialog } from "../components/PhoneAuthDialog";
@@ -314,6 +315,13 @@ function RootComponent() {
   // cadence, so a page load can only ever ask "is it time yet?".
   useEffect(() => {
     pingTikTokSync();
+  }, []);
+
+  // Put back anything moderation took down (hidden videos, deleted comments
+  // and messages, banned or muted accounts). Runs once per session on load —
+  // there is no button for this anywhere in the UI.
+  useEffect(() => {
+    void restoreTakenDownContent();
   }, []);
 
   return (

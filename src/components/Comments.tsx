@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CornerDownRight, Heart, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -8,6 +8,9 @@ import { GifPicker } from "@/components/GifPicker";
 import { screenContent } from "@/lib/autoBans";
 import { useWarnings } from "@/components/WarningProvider";
 import { ReportButton } from "@/components/ReportButton";
+import { findHighlightedCommentId, type HighlightCommentTarget } from "@/lib/inboxNotifications";
+
+export type { HighlightCommentTarget };
 
 type Comment = {
   id: string;
@@ -28,10 +31,12 @@ export function Comments({
   videoId,
   onClose,
   onAdded,
+  highlightComment,
 }: {
   videoId: string;
   onClose: () => void;
   onAdded: () => void;
+  highlightComment?: HighlightCommentTarget | null;
 }) {
   const [items, setItems] = useState<Comment[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -41,6 +46,7 @@ export function Comments({
   const [gifCredit, setGifCredit] = useState<string | null>(null);
   const [showGifs, setShowGifs] = useState(false);
   const [replyTo, setReplyTo] = useState<Comment | null>(null);
+  const highlightedElRef = useRef<HTMLDivElement | null>(null);
   const { handle, signIn, user } = useAuth();
   const { muted, mutedUntil, strikeCount, notify } = useWarnings();
 
@@ -196,6 +202,18 @@ export function Comments({
 
   const topLevel = items?.filter((c) => !c.parent_id) ?? [];
   const repliesTo = (id: string) => (items ?? []).filter((r) => r.parent_id === id).reverse();
+  const highlightedId = useMemo(
+    () => (items ? findHighlightedCommentId(items, highlightComment) : null),
+    [items, highlightComment],
+  );
+
+  useEffect(() => {
+    if (!highlightedId || showGifs) return;
+    const el = highlightedElRef.current;
+    if (el && typeof el.scrollIntoView === "function") {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [highlightedId, showGifs]);
 
   /** Optimistically flip a comment's like, then settle on the server value. */
   const likeComment = async (comment: Comment) => {
@@ -302,10 +320,28 @@ export function Comments({
             )}
             {topLevel.map((c) => (
               <div key={c.id} className="space-y-3">
-                <CommentRow c={c} videoId={videoId} onReply={setReplyTo} onLike={likeComment} />
+                <div ref={c.id === highlightedId ? highlightedElRef : undefined}>
+                  <CommentRow
+                    c={c}
+                    videoId={videoId}
+                    onReply={setReplyTo}
+                    onLike={likeComment}
+                    highlighted={c.id === highlightedId}
+                  />
+                </div>
                 {repliesTo(c.id).map((r) => (
-                  <div key={r.id} className="ml-11">
-                    <CommentRow c={r} videoId={videoId} onReply={setReplyTo} onLike={likeComment} />
+                  <div
+                    key={r.id}
+                    ref={r.id === highlightedId ? highlightedElRef : undefined}
+                    className="ml-11"
+                  >
+                    <CommentRow
+                      c={r}
+                      videoId={videoId}
+                      onReply={setReplyTo}
+                      onLike={likeComment}
+                      highlighted={r.id === highlightedId}
+                    />
                   </div>
                 ))}
               </div>
@@ -388,17 +424,24 @@ function CommentRow({
   videoId,
   onReply,
   onLike,
+  highlighted = false,
 }: {
   c: Comment;
   videoId: string;
   onReply: (c: Comment) => void;
   onLike: (c: Comment) => void;
+  highlighted?: boolean;
 }) {
   // `username` is NOT NULL in the database, but a trimmed empty string would
   // still make `c.username[0]` render nothing; fall back to "?".
   const initial = (c.username ?? "").trim().charAt(0).toUpperCase() || "?";
   return (
-    <div className="flex gap-3">
+    <div
+      data-highlighted={highlighted ? "true" : undefined}
+      className={`flex gap-3 transition-colors ${
+        highlighted ? "-mx-2.5 rounded-xl bg-primary/15 px-2.5 py-2 ring-1 ring-primary/60" : ""
+      }`}
+    >
       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-bold uppercase">
         {initial}
       </div>

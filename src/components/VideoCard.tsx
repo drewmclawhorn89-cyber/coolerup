@@ -63,6 +63,7 @@ import { QUALITY_OPTIONS, resolveQualitySource, useVideoQuality } from "@/lib/vi
 import { QualitySelector } from "@/components/QualitySelector";
 import { createWatchDurationTracker, recordWatchHistory } from "@/lib/watchHistory";
 import { MATURE_LABEL, useMatureGate } from "@/lib/matureVideos";
+import type { HighlightCommentTarget } from "@/lib/inboxNotifications";
 
 const Comments = lazy(() => import("./Comments").then((m) => ({ default: m.Comments })));
 const ShareMenu = lazy(() => import("./ShareMenu").then((m) => ({ default: m.ShareMenu })));
@@ -126,6 +127,10 @@ export type VideoCardProps = {
    * the video, TikTok-style. Falls back to `video.username`.
    */
   posterUsername?: string | null;
+  /** Opens the comments sheet immediately (used when tapping a comment notification). */
+  initialShowComments?: boolean;
+  /** Optional comment target to scroll to and highlight when Comments opens. */
+  highlightComment?: HighlightCommentTarget | null;
 };
 
 function VideoCardImpl({
@@ -140,6 +145,8 @@ function VideoCardImpl({
   onSavedChange,
   repostedBy,
   posterUsername,
+  initialShowComments = false,
+  highlightComment = null,
 }: VideoCardProps) {
   const ref = useRef<HTMLVideoElement>(null);
   const [src, setSrc] = useState("");
@@ -163,7 +170,7 @@ function VideoCardImpl({
   const [showLikeMenu, setShowLikeMenu] = useState(false);
   const likePressRef = useRef<number | null>(null);
   const likeSuppressRef = useRef(false);
-  const [showComments, setShowComments] = useState(false);
+  const [showComments, setShowComments] = useState(() => Boolean(initialShowComments));
   const [showShare, setShowShare] = useState(false);
   const [showGift, setShowGift] = useState(false);
   // Quality: shared preference (localStorage `video_quality`), plus the "..."
@@ -204,7 +211,8 @@ function VideoCardImpl({
     setPreviewEnded(false);
     setMatureUnlocked(false);
     setEdits({});
-  }, [video.id]);
+    setShowComments(Boolean(initialShowComments));
+  }, [video.id, initialShowComments]);
 
   // The row as the card should render it: server data plus any in-session edit.
   const currentVideo = { ...video, ...edits };
@@ -1535,6 +1543,7 @@ function VideoCardImpl({
         <Suspense fallback={null}>
           <Comments
             videoId={video.id}
+            highlightComment={highlightComment}
             onClose={() => setShowComments(false)}
             onAdded={() => setComments((n) => n + 1)}
           />

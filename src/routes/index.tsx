@@ -82,6 +82,16 @@ import { fetchRepostAttribution, REPOST_EVENT } from "@/lib/reposts";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { InboxNotificationCard } from "@/components/InboxNotificationCard";
+import {
+  hydrateNotificationActors,
+  hydrateNotificationVideos,
+  parseCommentNotification,
+  parseFollowHandle,
+  type HighlightCommentTarget,
+  type InboxActor,
+  type NotificationRow,
+} from "@/lib/inboxNotifications";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -308,17 +318,6 @@ function TopTabs({ className = "", ctx }: { className?: string; ctx: TopTabsCtx 
   );
 }
 
-type NotificationRow = {
-  id: string;
-  text: string | null;
-  type: string | null;
-  read: boolean | null;
-  created_at: string | null;
-  actor_user_id: string | null;
-  target_user_id: string | null;
-  video_id: string | null;
-};
-
 /** How long a feed request may stay pending before we show the retry state. */
 const FEED_LOAD_TIMEOUT_MS = 20_000;
 
@@ -540,6 +539,13 @@ function Index() {
   }, [query]);
   const [notifications, setNotifications] = useState<NotificationRow[]>([]);
   const [notificationFilter, setNotificationFilter] = useState<NotificationFilter>("all");
+  const [inboxVideos, setInboxVideos] = useState<Map<string, Video>>(() => new Map());
+  const [inboxActors, setInboxActors] = useState<Map<string, InboxActor>>(() => new Map());
+  const [inboxViewer, setInboxViewer] = useState<{
+    video: Video;
+    openComments: boolean;
+    highlightComment?: HighlightCommentTarget | null;
+  } | null>(null);
 
   // Ref guard (not just state) so two loads can never overlap: a stale
   // `loadingMore` closure used to let the sentinel append a page while the
@@ -694,9 +700,35 @@ function Index() {
   useEffect(() => {
     if (!auth.user) {
       setNotifications([]);
+      setInboxVideos(new Map());
+      setInboxActors(new Map());
       return;
     }
     let mounted = true;
+
+    const hydrateRows = async (rows: NotificationRow[]) => {
+      const videoIds = rows.map((r) => r.video_id).filter((id): id is string => Boolean(id));
+      const actorIds = rows.map((r) => r.actor_user_id).filter((id): id is string => Boolean(id));
+      const [videosMap, actorsMap] = await Promise.all([
+        hydrateNotificationVideos(videoIds),
+        hydrateNotificationActors(actorIds),
+      ]);
+      if (!mounted) return;
+      if (videosMap.size > 0) {
+        setInboxVideos((prev) => {
+          const next = new Map(prev);
+          for (const [k, v] of videosMap) next.set(k, v);
+          return next;
+        });
+      }
+      if (actorsMap.size > 0) {
+        setInboxActors((prev) => {
+          const next = new Map(prev);
+          for (const [k, v] of actorsMap) next.set(k, v);
+          return next;
+        });
+      }
+    };
 
     const loadNotifications = async () => {
       const { data } = await supabase
@@ -705,7 +737,9 @@ function Index() {
         .eq("target_user_id", auth.user!.id)
         .order("created_at", { ascending: false });
       if (!mounted) return;
-      setNotifications((data ?? []) as NotificationRow[]);
+      const rows = (data ?? []) as NotificationRow[];
+      setNotifications(rows);
+      void hydrateRows(rows);
     };
 
     void loadNotifications();
@@ -721,7 +755,9 @@ function Index() {
           filter: `target_user_id=eq.${auth.user.id}`,
         },
         (payload) => {
-          setNotifications((cur) => [payload.new as NotificationRow, ...cur]);
+          const inserted = payload.new as NotificationRow;
+          setNotifications((cur) => [inserted, ...cur]);
+          void hydrateRows([inserted]);
         },
       )
       .on(
@@ -752,9 +788,11 @@ function Index() {
   const unreadCount = notifications.filter((n) => !n.read).length;
 
   const markRead = async (id: string) => {
-    const { error } = await supabase.from("notifications").update({ read: true }).eq("id", id);
-    if (error) return;
     setNotifications((n) => n.map((x) => (x.id === id ? { ...x, read: true } : x)));
+    const { error } = await supabase.from("notifications").update({ read: true }).eq("id", id);
+    if (error) {
+      setNotifications((n) => n.map((x) => (x.id === id ? { ...x, read: false } : x)));
+    }
   };
 
   const markAllRead = async () => {
@@ -766,6 +804,66 @@ function Index() {
       .eq("read", false);
     if (error) return;
     setNotifications((n) => n.map((x) => ({ ...x, read: true })));
+  };
+
+  const handleNotificationClick = async (n: NotificationRow) => {
+    if (!n.read) void markRead(n.id);
+    const actor = n.actor_user_id ? inboxActors.get(n.actor_user_id) : undefined;
+
+    if (n.type === "follow") {
+      let handle = parseFollowHandle(n.text, actor?.handle);
+      if (!handle && n.actor_user_id) {
+        const fetched = await hydrateNotificationActors([n.actor_user_id]);
+        handle = fetched.get(n.actor_user_id)?.handle ?? null;
+      }
+      if (!handle) {
+        toast.error("Couldn't find that user's profile");
+        return;
+      }
+      void navigate({ to: "/u/$username", params: { username: handle } });
+      return;
+    }
+
+    if (
+      n.video_id &&
+      (n.type === "like" || n.type === "comment" || n.type === "repost" || n.type === "gift")
+    ) {
+      let video = inboxVideos.get(n.video_id);
+      if (!video) {
+        const fetched = await hydrateNotificationVideos([n.video_id]);
+        video = fetched.get(n.video_id);
+        if (video) {
+          setInboxVideos((prev) => {
+            const next = new Map(prev);
+            next.set(video!.id, video!);
+            return next;
+          });
+        }
+      }
+      if (!video) {
+        toast.error("Video is no longer available");
+        return;
+      }
+      if (n.type === "comment") {
+        const parsed = parseCommentNotification(n.text, actor?.handle);
+        setInboxViewer({
+          video,
+          openComments: true,
+          highlightComment: {
+            username: parsed.username,
+            bodyPrefix: parsed.bodyPrefix,
+            createdAt: n.created_at,
+          },
+        });
+      } else {
+        setInboxViewer({ video, openComments: false });
+      }
+      return;
+    }
+
+    if (n.type === "message") {
+      void navigate({ to: "/messages" });
+    }
   };
 
   const filteredNotifications =
@@ -1279,14 +1377,14 @@ function Index() {
             </div>
           </div>
         ) : activeTab === "inbox" ? (
-          <div className="flex min-h-0 flex-1 flex-col">
+          <div className="flex min-h-0 flex-1 flex-col bg-black text-white">
             <TopTabs className={topTabsStaticClass} ctx={topTabsCtx} />
-            <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain">
-              <div className="sticky top-0 z-10 border-b bg-black/85 px-6 pb-4 pt-4 backdrop-blur">
+            <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain bg-black">
+              <div className="sticky top-0 z-10 border-b border-white/10 bg-black/85 px-6 pb-4 pt-4 backdrop-blur">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <h2 className="text-2xl font-display font-bold">Inbox</h2>
-                    <p className="mt-1 text-sm text-muted-foreground">
+                    <h2 className="text-2xl font-display font-bold text-white">Inbox</h2>
+                    <p className="mt-1 text-sm text-white/60">
                       {notifications.length === 0
                         ? "All your notifications in one place"
                         : `${notifications.length} notification${notifications.length === 1 ? "" : "s"}${
@@ -1298,6 +1396,11 @@ function Index() {
                     <Button
                       variant={notificationFilter === "unread" ? "default" : "outline"}
                       size="sm"
+                      className={
+                        notificationFilter === "unread"
+                          ? undefined
+                          : "border-white/20 bg-transparent text-white hover:bg-white/10 hover:text-white"
+                      }
                       onClick={() => setNotificationFilter((f) => (f === "all" ? "unread" : "all"))}
                     >
                       {notificationFilter === "all" ? "Unread only" : "Show all"}
@@ -1309,7 +1412,7 @@ function Index() {
                     )}
                     <Link
                       to="/messages"
-                      className="flex items-center gap-3 rounded-xl px-4 py-3 font-bold transition hover:bg-secondary"
+                      className="flex items-center gap-3 rounded-xl px-4 py-3 font-bold transition hover:bg-white/10"
                     >
                       <MessageCircle className="h-5 w-5" />
                       Messages
@@ -1320,35 +1423,20 @@ function Index() {
 
               <div className="mx-auto w-full max-w-2xl space-y-3 px-6 pb-28 pt-6">
                 {filteredNotifications.length === 0 ? (
-                  <div className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">
+                  <div className="rounded-xl border bg-card p-4 text-sm text-card-foreground">
                     {notificationFilter === "unread"
                       ? "No unread notifications"
                       : "No notifications"}
                   </div>
                 ) : (
                   filteredNotifications.map((n) => (
-                    <div
+                    <InboxNotificationCard
                       key={n.id}
-                      className={`flex items-center gap-3 rounded-xl border bg-card p-4 ${n.read ? "opacity-70" : ""}`}
-                      onClick={() => !n.read && markRead(n.id)}
-                    >
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-500/10 text-lg">
-                        {n.type === "like"
-                          ? "❤️"
-                          : n.type === "follow"
-                            ? "👤"
-                            : n.type === "gift"
-                              ? "🎁"
-                              : "💬"}
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-sm">{n.text}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {n.created_at ? new Date(n.created_at).toLocaleString() : ""}
-                        </p>
-                      </div>
-                      {!n.read && <div className="h-2 w-2 rounded-full bg-primary" />}
-                    </div>
+                      notification={n}
+                      actor={n.actor_user_id ? inboxActors.get(n.actor_user_id) : undefined}
+                      video={n.video_id ? inboxVideos.get(n.video_id) : undefined}
+                      onSelect={(item) => void handleNotificationClick(item)}
+                    />
                   ))
                 )}
               </div>
@@ -1613,6 +1701,38 @@ function Index() {
             }}
           />
         </Suspense>
+      )}
+
+      {inboxViewer && (
+        <div className="fixed inset-0 z-40 bg-black">
+          <button
+            type="button"
+            aria-label="Close video"
+            onClick={() => setInboxViewer(null)}
+            className="absolute left-3 top-[calc(env(safe-area-inset-top)+0.75rem)] z-50 flex h-10 w-10 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur transition hover:bg-black/80"
+          >
+            <X className="h-5 w-5" />
+          </button>
+          <div className="h-dvh w-full">
+            <VideoCard
+              video={inboxViewer.video}
+              liked={liked.has(inboxViewer.video.id)}
+              muted={muted}
+              onToggleMute={handleToggleMute}
+              onLikeChange={handleLikeChange}
+              isFollowing={followingList.includes(inboxViewer.video.username)}
+              onFollowChange={handleFollowChange}
+              isSaved={savedIds.has(inboxViewer.video.id)}
+              onSavedChange={handleSavedChange}
+              repostedBy={
+                repostBy.get(inboxViewer.video.id) ?? inboxViewer.video.reposted_by ?? null
+              }
+              posterUsername={inboxViewer.video.poster_username ?? inboxViewer.video.username}
+              initialShowComments={inboxViewer.openComments}
+              highlightComment={inboxViewer.highlightComment ?? null}
+            />
+          </div>
+        </div>
       )}
     </div>
   );

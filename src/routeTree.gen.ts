@@ -51,6 +51,7 @@ import { Route as ApiBrowserProxyRouteImport } from './routes/api/browser/proxy'
 import { Route as ApiFacebookResolveRouteImport } from './routes/api/facebook/resolve'
 import { Route as ApiPexelsHeartbeatRouteImport } from './routes/api/pexels/heartbeat'
 import { Route as ApiPexelsSyncRouteImport } from './routes/api/pexels/sync'
+import { Route as ApiReportsNotifyRouteImport } from './routes/api/reports/notify'
 import { Route as ApiTiktokHeartbeatRouteImport } from './routes/api/tiktok/heartbeat'
 import { Route as ApiTiktokPublishRouteImport } from './routes/api/tiktok/publish'
 import { Route as ApiTiktokSyncRouteImport } from './routes/api/tiktok/sync'
@@ -274,6 +275,11 @@ const ApiPexelsSyncRoute = ApiPexelsSyncRouteImport.update({
   path: '/api/pexels/sync',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiReportsNotifyRoute = ApiReportsNotifyRouteImport.update({
+  id: '/api/reports/notify',
+  path: '/api/reports/notify',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiTiktokHeartbeatRoute = ApiTiktokHeartbeatRouteImport.update({
   id: '/api/tiktok/heartbeat',
   path: '/api/tiktok/heartbeat',
@@ -378,6 +384,7 @@ export interface FileRoutesByFullPath {
   '/api/facebook/resolve': typeof ApiFacebookResolveRoute
   '/api/pexels/heartbeat': typeof ApiPexelsHeartbeatRoute
   '/api/pexels/sync': typeof ApiPexelsSyncRoute
+  '/api/reports/notify': typeof ApiReportsNotifyRoute
   '/api/tiktok/heartbeat': typeof ApiTiktokHeartbeatRoute
   '/api/tiktok/publish': typeof ApiTiktokPublishRoute
   '/api/tiktok/sync': typeof ApiTiktokSyncRoute
@@ -432,6 +439,7 @@ export interface FileRoutesByTo {
   '/api/facebook/resolve': typeof ApiFacebookResolveRoute
   '/api/pexels/heartbeat': typeof ApiPexelsHeartbeatRoute
   '/api/pexels/sync': typeof ApiPexelsSyncRoute
+  '/api/reports/notify': typeof ApiReportsNotifyRoute
   '/api/tiktok/heartbeat': typeof ApiTiktokHeartbeatRoute
   '/api/tiktok/publish': typeof ApiTiktokPublishRoute
   '/api/tiktok/sync': typeof ApiTiktokSyncRoute
@@ -489,6 +497,7 @@ export interface FileRoutesById {
   '/api/facebook/resolve': typeof ApiFacebookResolveRoute
   '/api/pexels/heartbeat': typeof ApiPexelsHeartbeatRoute
   '/api/pexels/sync': typeof ApiPexelsSyncRoute
+  '/api/reports/notify': typeof ApiReportsNotifyRoute
   '/api/tiktok/heartbeat': typeof ApiTiktokHeartbeatRoute
   '/api/tiktok/publish': typeof ApiTiktokPublishRoute
   '/api/tiktok/sync': typeof ApiTiktokSyncRoute
@@ -547,6 +556,7 @@ export interface FileRouteTypes {
     | '/api/facebook/resolve'
     | '/api/pexels/heartbeat'
     | '/api/pexels/sync'
+    | '/api/reports/notify'
     | '/api/tiktok/heartbeat'
     | '/api/tiktok/publish'
     | '/api/tiktok/sync'
@@ -601,6 +611,7 @@ export interface FileRouteTypes {
     | '/api/facebook/resolve'
     | '/api/pexels/heartbeat'
     | '/api/pexels/sync'
+    | '/api/reports/notify'
     | '/api/tiktok/heartbeat'
     | '/api/tiktok/publish'
     | '/api/tiktok/sync'
@@ -657,6 +668,7 @@ export interface FileRouteTypes {
     | '/api/facebook/resolve'
     | '/api/pexels/heartbeat'
     | '/api/pexels/sync'
+    | '/api/reports/notify'
     | '/api/tiktok/heartbeat'
     | '/api/tiktok/publish'
     | '/api/tiktok/sync'
@@ -708,6 +720,7 @@ export interface RootRouteChildren {
   ApiFacebookResolveRoute: typeof ApiFacebookResolveRoute
   ApiPexelsHeartbeatRoute: typeof ApiPexelsHeartbeatRoute
   ApiPexelsSyncRoute: typeof ApiPexelsSyncRoute
+  ApiReportsNotifyRoute: typeof ApiReportsNotifyRoute
   ApiTiktokHeartbeatRoute: typeof ApiTiktokHeartbeatRoute
   ApiTiktokPublishRoute: typeof ApiTiktokPublishRoute
   ApiTiktokSyncRoute: typeof ApiTiktokSyncRoute
@@ -1018,6 +1031,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPexelsSyncRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/reports/notify': {
+      id: '/api/reports/notify'
+      path: '/api/reports/notify'
+      fullPath: '/api/reports/notify'
+      preLoaderRoute: typeof ApiReportsNotifyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/tiktok/heartbeat': {
       id: '/api/tiktok/heartbeat'
       path: '/api/tiktok/heartbeat'
@@ -1180,6 +1200,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiFacebookResolveRoute: ApiFacebookResolveRoute,
   ApiPexelsHeartbeatRoute: ApiPexelsHeartbeatRoute,
   ApiPexelsSyncRoute: ApiPexelsSyncRoute,
+  ApiReportsNotifyRoute: ApiReportsNotifyRoute,
   ApiTiktokHeartbeatRoute: ApiTiktokHeartbeatRoute,
   ApiTiktokPublishRoute: ApiTiktokPublishRoute,
   ApiTiktokSyncRoute: ApiTiktokSyncRoute,

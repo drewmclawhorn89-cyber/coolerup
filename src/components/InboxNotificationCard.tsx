@@ -1,39 +1,21 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Play } from "lucide-react";
-import { isImageUrl, resolveVideoUrl, type Video } from "@/lib/loop";
+import { isImageUrl, type Video } from "@/lib/loop";
+import { useCompressedThumbnail } from "@/lib/thumbnailCache";
 import type { InboxActor, NotificationRow } from "@/lib/inboxNotifications";
 
 function VideoThumbnail({ video }: { video: Video }) {
   const isTikTok = Boolean(video.is_tiktok && video.tiktok_id);
-  const isDirect = Boolean(video.video_url && !isTikTok && !video.video_url.startsWith("storage:"));
-  const [src, setSrc] = useState(() => (isDirect ? video.video_url : ""));
   const [failed, setFailed] = useState(false);
 
   const isImage =
     isImageUrl(video.video_url) || /\.(jpe?g|png|webp|gif|avif)$/i.test(video.video_url);
 
-  useEffect(() => {
-    setFailed(false);
-    if (!video.video_url || isTikTok) {
-      setSrc("");
-      return;
-    }
-    if (!video.video_url.startsWith("storage:")) {
-      setSrc(video.video_url);
-      return;
-    }
-    let alive = true;
-    void resolveVideoUrl(video.video_url)
-      .then((url) => {
-        if (alive) setSrc(url);
-      })
-      .catch(() => {
-        if (alive) setFailed(true);
-      });
-    return () => {
-      alive = false;
-    };
-  }, [video.video_url, isTikTok]);
+  const src = useCompressedThumbnail(video.video_url, {
+    isVideo: !isImage,
+    maxDim: 160,
+    enabled: Boolean(video.video_url && !isTikTok),
+  });
 
   return (
     <div className="relative flex h-14 w-11 shrink-0 items-center justify-center overflow-hidden rounded-md border border-white/15 bg-black/50">
@@ -43,6 +25,7 @@ function VideoThumbnail({ video }: { video: Video }) {
             src={src}
             alt=""
             loading="lazy"
+            decoding="async"
             onError={() => setFailed(true)}
             className="h-full w-full object-cover"
           />
@@ -98,6 +81,10 @@ export function InboxNotificationCard({
       notification.type === "gift"),
   );
   const initial = (actor?.handle ?? "").replace(/^@/, "").trim().charAt(0).toUpperCase();
+  const avatarSrc = useCompressedThumbnail(actor?.avatar_url, {
+    maxDim: 120,
+    enabled: Boolean(actor?.avatar_url),
+  });
 
   return (
     <button
@@ -108,10 +95,12 @@ export function InboxNotificationCard({
       }`}
     >
       <div className="relative h-11 w-11 shrink-0">
-        {actor?.avatar_url ? (
+        {avatarSrc ? (
           <img
-            src={actor.avatar_url}
-            alt={actor.handle ? `@${actor.handle}` : "Profile picture"}
+            src={avatarSrc}
+            alt={actor?.handle ? `@${actor.handle}` : "Profile picture"}
+            loading="lazy"
+            decoding="async"
             className="h-11 w-11 rounded-full object-cover"
           />
         ) : isFollow && initial ? (
@@ -123,7 +112,7 @@ export function InboxNotificationCard({
             {typeBadge(notification.type)}
           </div>
         )}
-        {actor?.avatar_url && !isFollow && (
+        {avatarSrc && !isFollow && (
           <span
             aria-hidden
             className="absolute -bottom-0.5 -right-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-black/80 text-[10px] ring-1 ring-white/20"

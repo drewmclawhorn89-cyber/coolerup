@@ -37,11 +37,15 @@ const MAX_LIMIT = 50;
 
 export const searchGiphy = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .validator((d: { q?: string; limit?: number } | undefined) => {
+  .validator((d: { q?: string; limit?: number; offset?: number } | undefined) => {
     const q = typeof d?.q === "string" ? d.q.trim().slice(0, MAX_QUERY) : "";
-    const raw = Number(d?.limit ?? 24);
-    const limit = Number.isFinite(raw) ? Math.min(Math.max(Math.trunc(raw), 1), MAX_LIMIT) : 24;
-    return { q, limit };
+    const raw = Number(d?.limit ?? 10);
+    const limit = Number.isFinite(raw) ? Math.min(Math.max(Math.trunc(raw), 1), MAX_LIMIT) : 10;
+    const rawOffset = Number(d?.offset ?? 0);
+    const offset = Number.isFinite(rawOffset)
+      ? Math.min(Math.max(Math.trunc(rawOffset), 0), 4999)
+      : 0;
+    return { q, limit, offset };
   })
   .handler(async ({ data }): Promise<GiphyResponse> => {
     const key = (process.env["GIPHY_API_KEY"] ?? "").trim();
@@ -51,6 +55,7 @@ export const searchGiphy = createServerFn({ method: "GET" })
     const params = new URLSearchParams({
       api_key: key,
       limit: String(data.limit),
+      offset: String(data.offset),
       rating: "pg-13",
     });
     if (data.q) params.set("q", data.q);

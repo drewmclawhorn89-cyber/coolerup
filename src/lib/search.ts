@@ -43,6 +43,9 @@ export const TRENDING_SEARCHES = [
   "pet tok",
 ] as const;
 
+/** Results fetched per page in Search. */
+export const SEARCH_PAGE_SIZE = 10;
+
 /** Longest query we'll send to the database. */
 export const MAX_QUERY_LENGTH = 80;
 
@@ -154,9 +157,15 @@ const VIDEO_COLUMNS =
   "id, username, caption, video_url, likes_count, comments_count, shares_count, created_at, sound_id";
 
 /** Videos whose caption, username or hashtags match. Newest + most-liked first. */
-export async function searchVideos(raw: string, limit = 48): Promise<Video[]> {
+export async function searchVideos(
+  raw: string,
+  limit = SEARCH_PAGE_SIZE,
+  offset = 0,
+): Promise<Video[]> {
   const term = sanitizeLike(raw);
   if (!term) return [];
+  const from = Math.max(0, offset);
+  const to = from + Math.max(1, Math.min(100, limit)) - 1;
   const { data, error } = await supabase
     .from("videos")
     .select(VIDEO_COLUMNS)
@@ -164,7 +173,7 @@ export async function searchVideos(raw: string, limit = 48): Promise<Video[]> {
     .or(`caption.ilike.%${term}%,username.ilike.%${term}%`)
     .order("likes_count", { ascending: false })
     .order("created_at", { ascending: false })
-    .limit(Math.max(1, Math.min(100, limit)));
+    .range(from, to);
   if (error) return [];
   const banned = await bannedHandles();
   return ((data ?? []) as unknown as Video[]).filter(
@@ -173,29 +182,41 @@ export async function searchVideos(raw: string, limit = 48): Promise<Video[]> {
 }
 
 /** Profiles whose username, handle or display name match. */
-export async function searchUsers(raw: string, limit = 30): Promise<SearchUser[]> {
+export async function searchUsers(
+  raw: string,
+  limit = SEARCH_PAGE_SIZE,
+  offset = 0,
+): Promise<SearchUser[]> {
   const term = sanitizeLike(raw);
   if (!term) return [];
+  const from = Math.max(0, offset);
+  const to = from + Math.max(1, Math.min(50, limit)) - 1;
   const { data, error } = await supabase
     .from("profiles")
     .select("id, handle, display_name, avatar_url")
     .or(`username.ilike.%${term}%,handle.ilike.%${term}%,display_name.ilike.%${term}%`)
-    .limit(Math.max(1, Math.min(50, limit)));
+    .range(from, to);
   if (error) return [];
   const banned = await bannedHandles();
   return ((data ?? []) as SearchUser[]).filter((user) => !isBannedAuthor(banned, user.handle));
 }
 
 /** Sounds whose title or creator matches. */
-export async function searchSounds(raw: string, limit = 20): Promise<Sound[]> {
+export async function searchSounds(
+  raw: string,
+  limit = SEARCH_PAGE_SIZE,
+  offset = 0,
+): Promise<Sound[]> {
   const term = sanitizeLike(raw);
   if (!term) return [];
+  const from = Math.max(0, offset);
+  const to = from + Math.max(1, Math.min(50, limit)) - 1;
   const { data, error } = await supabase
     .from("sounds")
     .select("*")
     .or(`title.ilike.%${term}%,creator_username.ilike.%${term}%`)
     .order("uses_count", { ascending: false })
-    .limit(Math.max(1, Math.min(50, limit)));
+    .range(from, to);
   if (error) return [];
   return (data ?? []) as Sound[];
 }
@@ -204,7 +225,10 @@ export async function searchSounds(raw: string, limit = 20): Promise<Sound[]> {
  * Hashtags are not their own table — they live inside captions. We search
  * videos (a `#fyp` query matches the caption) and tally the tags we find.
  */
-export async function searchHashtags(raw: string, limit = 20): Promise<SearchHashtag[]> {
+export async function searchHashtags(
+  raw: string,
+  limit = SEARCH_PAGE_SIZE,
+): Promise<SearchHashtag[]> {
   const term = sanitizeLike(raw);
   if (!term) return [];
   const videos = await searchVideos(term, 100);
@@ -229,7 +253,7 @@ export async function suggestedUsers(limit = 6): Promise<SearchUser[]> {
 /** One call for the Top tab: everything at once, in parallel. */
 export async function searchAll(raw: string): Promise<SearchResultsBundle> {
   const [videos, users, sounds] = await Promise.all([
-    searchVideos(raw, 12),
+    searchVideos(raw, SEARCH_PAGE_SIZE),
     searchUsers(raw, 6),
     searchSounds(raw, 6),
   ]);

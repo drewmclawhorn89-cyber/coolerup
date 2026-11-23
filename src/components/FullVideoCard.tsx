@@ -4,6 +4,7 @@ import { Pencil, Play, Loader2 } from "lucide-react";
 import { PaidVideoGate } from "@/components/PaidVideoGate";
 import { formatPriceCents, useVideoOwnership } from "@/lib/paidVideos";
 import { MATURE_LABEL, isMatureVideo } from "@/lib/matureVideos";
+import { useCompressedThumbnail } from "@/lib/thumbnailCache";
 import {
   formatDuration,
   formatViews,
@@ -45,6 +46,7 @@ export function FullVideoCard({
   showBadge?: boolean;
 }) {
   const [thumb, setThumb] = useState<string>("");
+  const compressedThumb = useCompressedThumbnail(thumb || null, { maxDim: 320 });
   const isPaid = Boolean(video.is_paid) && (video.price_cents ?? 0) > 0;
   const mature = isMatureVideo(video);
   const owned = useVideoOwnership(video.id, "full", isPaid);
@@ -81,16 +83,17 @@ export function FullVideoCard({
           className="block w-full min-w-0 text-left focus-visible:outline-none"
           aria-label={`Play ${video.title} offline`}
         >
-          <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-muted">
-            {thumb ? (
+          <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-zinc-800">
+            {compressedThumb || thumb ? (
               <img
-                src={thumb}
+                src={compressedThumb || thumb}
                 alt=""
                 loading="lazy"
+                decoding="async"
                 className={`h-full w-full object-cover transition duration-200 group-hover:scale-[1.02] ${mature ? "scale-110 blur-xl" : ""}`}
               />
             ) : (
-              <div className="flex h-full w-full items-center justify-center bg-secondary text-muted-foreground">
+              <div className="flex h-full w-full items-center justify-center bg-zinc-800 text-muted-foreground">
                 <Play className="h-8 w-8" />
               </div>
             )}
@@ -152,16 +155,17 @@ export function FullVideoCard({
           className="block min-w-0 focus-visible:outline-none"
           aria-label={`${video.title} by ${video.username}`}
         >
-          <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-muted">
-            {thumb ? (
+          <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-zinc-800">
+            {compressedThumb || thumb ? (
               <img
-                src={thumb}
+                src={compressedThumb || thumb}
                 alt=""
                 loading="lazy"
+                decoding="async"
                 className={`h-full w-full object-cover transition duration-200 group-hover:scale-[1.02] ${mature ? "scale-110 blur-xl" : ""}`}
               />
             ) : (
-              <div className="flex h-full w-full items-center justify-center bg-secondary text-muted-foreground">
+              <div className="flex h-full w-full items-center justify-center bg-zinc-800 text-muted-foreground">
                 <Play className="h-8 w-8" />
               </div>
             )}

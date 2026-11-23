@@ -1,5 +1,6 @@
 import { Heart, Music2, Pause, Play, Trash2 } from "lucide-react";
 import { DownloadButton } from "@/components/DownloadButton";
+import { useCompressedThumbnail } from "@/lib/thumbnailCache";
 import {
   formatDuration,
   formatPlays,
@@ -32,18 +33,20 @@ export function SoundCover({
     .charAt(0)
     .toUpperCase();
   const cover = soundCoverUrl(sound);
+  const compressedCover = useCompressedThumbnail(cover, { maxDim: 160 });
   return (
     <div
       className={`relative flex items-center justify-center overflow-hidden ${rounded} ${className}`}
       style={{ background: soundCoverGradient(sound.id) }}
       aria-hidden="true"
     >
-      {cover ? (
+      {compressedCover || cover ? (
         // YouTube thumbnail (or any real cover) — the gradient shows while it loads.
         <img
-          src={cover}
+          src={compressedCover || cover || ""}
           alt=""
           loading="lazy"
+          decoding="async"
           className="absolute inset-0 h-full w-full object-cover"
         />
       ) : (

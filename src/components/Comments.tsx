@@ -1,14 +1,18 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CornerDownRight, Heart, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { notifyUser, profileIdForHandle } from "@/lib/notify";
-import { GifPicker } from "@/components/GifPicker";
 import { screenContent } from "@/lib/autoBans";
 import { useWarnings } from "@/components/WarningProvider";
 import { ReportButton } from "@/components/ReportButton";
 import { findHighlightedCommentId, type HighlightCommentTarget } from "@/lib/inboxNotifications";
+import { GifGridSkeleton, ListRowSkeleton } from "@/components/Skeletons";
+
+const GifPicker = lazy(() =>
+  import("@/components/GifPicker").then((m) => ({ default: m.GifPicker })),
+);
 
 export type { HighlightCommentTarget };
 
@@ -26,6 +30,7 @@ type Comment = {
 };
 
 const COLS = "id, username, body, created_at, gif_url, gif_credit, parent_id";
+const COMMENTS_PAGE_SIZE = 10;
 
 export function Comments({
   videoId,
@@ -40,6 +45,8 @@ export function Comments({
 }) {
   const [items, setItems] = useState<Comment[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [gif, setGif] = useState<string | null>(null);
@@ -47,17 +54,61 @@ export function Comments({
   const [showGifs, setShowGifs] = useState(false);
   const [replyTo, setReplyTo] = useState<Comment | null>(null);
   const highlightedElRef = useRef<HTMLDivElement | null>(null);
+  const commentsScrollRef = useRef<HTMLDivElement | null>(null);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const offsetRef = useRef(0);
+  const loadingMoreRef = useRef(false);
   const { handle, signIn, user } = useAuth();
   const { muted, mutedUntil, strikeCount, notify } = useWarnings();
+
+  const fetchLikesForRows = useCallback(
+    async (rows: Omit<Comment, "like_count" | "liked_by_me">[]): Promise<Comment[]> => {
+      if (rows.length === 0) return [];
+      const { data: likeRows, error: likeError } = await supabase
+        .from("comment_likes")
+        .select("comment_id, user_id")
+        .in(
+          "comment_id",
+          rows.map((r) => r.id),
+        );
+
+      if (likeError) {
+        return rows.map((r) => ({ ...r, like_count: 0, liked_by_me: false }));
+      }
+
+      const counts = new Map<string, number>();
+      const mine = new Set<string>();
+      for (const like of (likeRows ?? []) as { comment_id: string; user_id: string }[]) {
+        counts.set(like.comment_id, (counts.get(like.comment_id) ?? 0) + 1);
+        if (user?.id && like.user_id === user.id) mine.add(like.comment_id);
+      }
+
+      return rows.map((r) => ({
+        ...r,
+        like_count: counts.get(r.id) ?? 0,
+        liked_by_me: mine.has(r.id),
+      }));
+    },
+    [user?.id],
+  );
 
   const load = useCallback(async () => {
     setLoadError(null);
     setItems(null);
-    const { data, error } = await supabase
+    offsetRef.current = 0;
+    setHasMore(false);
+    const ordered = supabase
       .from("comments")
       .select(COLS)
       .eq("video_id", videoId)
       .order("created_at", { ascending: false });
+    const hasRange = typeof (ordered as unknown as { range?: unknown }).range === "function";
+    const { data, error } = hasRange
+      ? await (ordered as unknown as { range: (from: number, to: number) => typeof ordered }).range(
+          0,
+          COMMENTS_PAGE_SIZE - 1,
+        )
+      : await ordered;
     if (error) {
       // An empty list and a failed query used to look identical ("No comments
       // yet"), which hid real RLS/network failures. Surface it instead.
@@ -67,45 +118,69 @@ export function Comments({
     }
 
     const rows = (data ?? []) as Omit<Comment, "like_count" | "liked_by_me">[];
+    offsetRef.current = rows.length;
+    setHasMore(hasRange && rows.length === COMMENTS_PAGE_SIZE);
     if (rows.length === 0) {
       setItems([]);
       return;
     }
 
-    // One extra query for every like on the thread, then fold the counts in.
-    // A missing table (migration not applied yet) must not blank the thread.
-    const { data: likeRows, error: likeError } = await supabase
-      .from("comment_likes")
-      .select("comment_id, user_id")
-      .in(
-        "comment_id",
-        rows.map((r) => r.id),
-      );
+    setItems(await fetchLikesForRows(rows));
+  }, [videoId, fetchLikesForRows]);
 
-    if (likeError) {
-      setItems(rows.map((r) => ({ ...r, like_count: 0, liked_by_me: false })));
-      return;
+  const loadMore = useCallback(async () => {
+    if (loadingMoreRef.current || !hasMore) return;
+    loadingMoreRef.current = true;
+    setLoadingMore(true);
+    try {
+      const offset = offsetRef.current;
+      const ordered = supabase
+        .from("comments")
+        .select(COLS)
+        .eq("video_id", videoId)
+        .order("created_at", { ascending: false });
+      const hasRange = typeof (ordered as unknown as { range?: unknown }).range === "function";
+      const { data, error } = hasRange
+        ? await (
+            ordered as unknown as { range: (from: number, to: number) => typeof ordered }
+          ).range(offset, offset + COMMENTS_PAGE_SIZE - 1)
+        : await ordered;
+      if (error) return;
+      const rows = (data ?? []) as Omit<Comment, "like_count" | "liked_by_me">[];
+      offsetRef.current = offset + rows.length;
+      setHasMore(hasRange && rows.length === COMMENTS_PAGE_SIZE);
+      if (rows.length === 0) return;
+      const enriched = await fetchLikesForRows(rows);
+      setItems((prev) => {
+        const cur = prev ?? [];
+        const seen = new Set(cur.map((x) => x.id));
+        return [...cur, ...enriched.filter((r) => !seen.has(r.id))];
+      });
+    } finally {
+      loadingMoreRef.current = false;
+      setLoadingMore(false);
     }
-
-    const counts = new Map<string, number>();
-    const mine = new Set<string>();
-    for (const like of (likeRows ?? []) as { comment_id: string; user_id: string }[]) {
-      counts.set(like.comment_id, (counts.get(like.comment_id) ?? 0) + 1);
-      if (user?.id && like.user_id === user.id) mine.add(like.comment_id);
-    }
-
-    setItems(
-      rows.map((r) => ({
-        ...r,
-        like_count: counts.get(r.id) ?? 0,
-        liked_by_me: mine.has(r.id),
-      })),
-    );
-  }, [videoId, user?.id]);
+  }, [videoId, hasMore, fetchLikesForRows]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    const root = commentsScrollRef.current;
+    const sentinel = sentinelRef.current;
+    if (!root || !sentinel || !hasMore || showGifs || typeof IntersectionObserver === "undefined") {
+      return;
+    }
+    const obs = new IntersectionObserver(
+      ([entry]) => {
+        if (entry?.isIntersecting) void loadMore();
+      },
+      { root, rootMargin: "120px" },
+    );
+    obs.observe(sentinel);
+    return () => obs.disconnect();
+  }, [hasMore, showGifs, loadMore, items?.length]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -289,20 +364,22 @@ export function Comments({
             below the fold and its Create button could not be reached. */}
         {showGifs ? (
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            <GifPicker
-              fill
-              className="min-h-0 flex-1 overflow-hidden"
-              onPick={(u, meta) => {
-                setGif(u);
-                setGifCredit(meta?.username ? `@${meta.username}` : null);
-                setShowGifs(false);
-              }}
-              onClose={() => setShowGifs(false)}
-            />
+            <Suspense fallback={<GifGridSkeleton className="p-3" />}>
+              <GifPicker
+                fill
+                className="min-h-0 flex-1 overflow-hidden"
+                onPick={(u, meta) => {
+                  setGif(u);
+                  setGifCredit(meta?.username ? `@${meta.username}` : null);
+                  setShowGifs(false);
+                }}
+                onClose={() => setShowGifs(false)}
+              />
+            </Suspense>
           </div>
         ) : (
-          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
-            {items === null && <p className="text-sm text-muted-foreground">Loading…</p>}
+          <div ref={commentsScrollRef} className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
+            {items === null && <ListRowSkeleton count={4} />}
             {loadError && (
               <div className="space-y-2">
                 <p className="text-sm text-muted-foreground">Couldn't load comments: {loadError}</p>
@@ -346,6 +423,8 @@ export function Comments({
                 ))}
               </div>
             ))}
+            {hasMore && <div ref={sentinelRef} className="h-2 w-full" aria-hidden="true" />}
+            {loadingMore && <ListRowSkeleton count={2} />}
           </div>
         )}
         {!handle ? (
@@ -450,7 +529,13 @@ function CommentRow({
         {c.body && <p className="text-sm">{c.body}</p>}
         {c.gif_url && (
           <>
-            <img src={c.gif_url} alt="GIF" loading="lazy" className="mt-1 max-h-40 rounded-lg" />
+            <img
+              src={c.gif_url}
+              alt="GIF"
+              loading="lazy"
+              decoding="async"
+              className="mt-1 max-h-40 rounded-lg"
+            />
             {c.gif_credit && (
               <p className="mt-0.5 text-[10px] font-semibold text-muted-foreground">
                 Made by {c.gif_credit}

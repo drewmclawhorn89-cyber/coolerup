@@ -76,7 +76,14 @@ import {
 } from "@/lib/loop";
 import { listSaved, onOfflineChange } from "@/lib/offline";
 import { readFeedCache, writeFeedCache } from "@/lib/feed-cache";
-import { feedPageSize, isLiteMode, useNetwork } from "@/lib/network";
+import { feedPageSize, isLiteMode, useLowDataMode, useNetwork } from "@/lib/network";
+import { useCompressedThumbnail } from "@/lib/thumbnailCache";
+import {
+  FeedSkeleton,
+  InboxSkeleton,
+  ListRowSkeleton,
+  PanelSkeleton,
+} from "@/components/Skeletons";
 import { isBannedAuthor, useBannedHandles, useBlocked } from "@/lib/safety";
 import { fetchRepostAttribution, REPOST_EVENT } from "@/lib/reposts";
 import { useAuth } from "@/hooks/useAuth";
@@ -318,6 +325,9 @@ function TopTabs({ className = "", ctx }: { className?: string; ctx: TopTabsCtx 
   );
 }
 
+/** How many notifications to load per page in Inbox. */
+const INBOX_PAGE_SIZE = 10;
+
 /** How long a feed request may stay pending before we show the retry state. */
 const FEED_LOAD_TIMEOUT_MS = 20_000;
 
@@ -345,7 +355,9 @@ function Index() {
   const navigate = useNavigate();
   const me = auth.handle;
   const net = useNetwork();
+  const lowData = useLowDataMode();
   const lite = isLiteMode(net);
+  const avatarThumb = useCompressedThumbnail(auth.avatar, { maxDim: 120 });
   // Incomplete accounts can still browse, but posting/liking opens a modal.
   const guardOnboarding = useOnboardingGuard();
   const showOnboardingBanner =
@@ -541,6 +553,19 @@ function Index() {
   const [notificationFilter, setNotificationFilter] = useState<NotificationFilter>("all");
   const [inboxVideos, setInboxVideos] = useState<Map<string, Video>>(() => new Map());
   const [inboxActors, setInboxActors] = useState<Map<string, InboxActor>>(() => new Map());
+  const [inboxLoading, setInboxLoading] = useState(false);
+  const [inboxLoadingMore, setInboxLoadingMore] = useState(false);
+  const [inboxHasMore, setInboxHasMore] = useState(true);
+  const [inboxUnreadTotal, setInboxUnreadTotal] = useState<number | null>(null);
+  const inboxOffsetRef = useRef(0);
+  const inboxLoadingRef = useRef(false);
+  const inboxHasMoreRef = useRef(true);
+  const feedScrollRef = useRef<HTMLDivElement | null>(null);
+  const [activeVideoIndex, setActiveVideoIndex] = useState(0);
+
+  useEffect(() => {
+    setActiveVideoIndex(0);
+  }, [tab, feedTab]);
   const [inboxViewer, setInboxViewer] = useState<{
     video: Video;
     openComments: boolean;
@@ -697,52 +722,92 @@ function Index() {
     return () => document.removeEventListener("visibilitychange", onVisibility);
   }, [load]);
 
+  const hydrateInboxRows = useCallback(async (rows: NotificationRow[]) => {
+    const videoIds = rows.map((r) => r.video_id).filter((id): id is string => Boolean(id));
+    const actorIds = rows.map((r) => r.actor_user_id).filter((id): id is string => Boolean(id));
+    if (videoIds.length === 0 && actorIds.length === 0) return;
+    const [videosMap, actorsMap] = await Promise.all([
+      hydrateNotificationVideos(videoIds),
+      hydrateNotificationActors(actorIds),
+    ]);
+    if (videosMap.size > 0) {
+      setInboxVideos((prev) => {
+        const next = new Map(prev);
+        for (const [k, v] of videosMap) next.set(k, v);
+        return next;
+      });
+    }
+    if (actorsMap.size > 0) {
+      setInboxActors((prev) => {
+        const next = new Map(prev);
+        for (const [k, v] of actorsMap) next.set(k, v);
+        return next;
+      });
+    }
+  }, []);
+
+  const loadNotificationsPage = useCallback(
+    async (append: boolean) => {
+      if (!auth.user || inboxLoadingRef.current) return;
+      if (append && !inboxHasMoreRef.current) return;
+      inboxLoadingRef.current = true;
+      if (append) setInboxLoadingMore(true);
+      else setInboxLoading(true);
+      try {
+        const offset = append ? inboxOffsetRef.current : 0;
+        const { data, error: fetchErr } = await supabase
+          .from("notifications")
+          .select("id, actor_user_id, target_user_id, text, type, video_id, created_at, read")
+          .eq("target_user_id", auth.user.id)
+          .order("created_at", { ascending: false })
+          .range(offset, offset + INBOX_PAGE_SIZE - 1);
+        if (fetchErr) return;
+        const rows = (data ?? []) as NotificationRow[];
+        inboxOffsetRef.current = offset + rows.length;
+        const more = rows.length === INBOX_PAGE_SIZE;
+        inboxHasMoreRef.current = more;
+        setInboxHasMore(more);
+        setNotifications((prev) => {
+          if (!append) return rows;
+          const seen = new Set(prev.map((x) => x.id));
+          return [...prev, ...rows.filter((r) => !seen.has(r.id))];
+        });
+        void hydrateInboxRows(rows);
+      } finally {
+        inboxLoadingRef.current = false;
+        setInboxLoading(false);
+        setInboxLoadingMore(false);
+      }
+    },
+    [auth.user, hydrateInboxRows],
+  );
+
   useEffect(() => {
     if (!auth.user) {
       setNotifications([]);
       setInboxVideos(new Map());
       setInboxActors(new Map());
+      setInboxUnreadTotal(null);
+      inboxOffsetRef.current = 0;
+      inboxHasMoreRef.current = true;
+      setInboxHasMore(true);
       return;
     }
     let mounted = true;
+    inboxOffsetRef.current = 0;
+    inboxHasMoreRef.current = true;
+    setInboxHasMore(true);
+    void loadNotificationsPage(false);
 
-    const hydrateRows = async (rows: NotificationRow[]) => {
-      const videoIds = rows.map((r) => r.video_id).filter((id): id is string => Boolean(id));
-      const actorIds = rows.map((r) => r.actor_user_id).filter((id): id is string => Boolean(id));
-      const [videosMap, actorsMap] = await Promise.all([
-        hydrateNotificationVideos(videoIds),
-        hydrateNotificationActors(actorIds),
-      ]);
-      if (!mounted) return;
-      if (videosMap.size > 0) {
-        setInboxVideos((prev) => {
-          const next = new Map(prev);
-          for (const [k, v] of videosMap) next.set(k, v);
-          return next;
-        });
-      }
-      if (actorsMap.size > 0) {
-        setInboxActors((prev) => {
-          const next = new Map(prev);
-          for (const [k, v] of actorsMap) next.set(k, v);
-          return next;
-        });
-      }
-    };
-
-    const loadNotifications = async () => {
-      const { data } = await supabase
-        .from("notifications")
-        .select("id, actor_user_id, target_user_id, text, type, video_id, created_at, read")
-        .eq("target_user_id", auth.user!.id)
-        .order("created_at", { ascending: false });
-      if (!mounted) return;
-      const rows = (data ?? []) as NotificationRow[];
-      setNotifications(rows);
-      void hydrateRows(rows);
-    };
-
-    void loadNotifications();
+    // Accurate unread count even when older unread items sit past page 1.
+    supabase
+      .from("notifications")
+      .select("id", { count: "exact", head: true })
+      .eq("target_user_id", auth.user.id)
+      .eq("read", false)
+      .then(({ count }) => {
+        if (mounted && typeof count === "number") setInboxUnreadTotal(count);
+      });
 
     const channel = supabase
       .channel(`notifications:user=${auth.user.id}`)
@@ -756,8 +821,12 @@ function Index() {
         },
         (payload) => {
           const inserted = payload.new as NotificationRow;
-          setNotifications((cur) => [inserted, ...cur]);
-          void hydrateRows([inserted]);
+          setNotifications((cur) => [inserted, ...cur.filter((x) => x.id !== inserted.id)]);
+          inboxOffsetRef.current += 1;
+          if (!inserted.read) {
+            setInboxUnreadTotal((c) => (c === null ? null : c + 1));
+          }
+          void hydrateInboxRows([inserted]);
         },
       )
       .on(
@@ -785,13 +854,44 @@ function Index() {
     };
   }, [auth.user?.id]);
 
-  const unreadCount = notifications.filter((n) => !n.read).length;
+  // Observe Inbox bottom sentinel to load next 10 notifications on scroll.
+  useEffect(() => {
+    if (tab !== "inbox" || !inboxHasMore || typeof IntersectionObserver === "undefined") return;
+    const el = document.getElementById("inbox-scroll-sentinel");
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry?.isIntersecting) void loadNotificationsPage(true);
+      },
+      { threshold: 0.1 },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [tab, inboxHasMore, notifications.length, loadNotificationsPage]);
+
+  const loadedUnreadCount = notifications.filter((n) => !n.read).length;
+  const unreadCount = Math.max(loadedUnreadCount, inboxUnreadTotal ?? loadedUnreadCount);
 
   const markRead = async (id: string) => {
-    setNotifications((n) => n.map((x) => (x.id === id ? { ...x, read: true } : x)));
+    let wasUnread = false;
+    setNotifications((n) =>
+      n.map((x) => {
+        if (x.id === id) {
+          wasUnread = !x.read;
+          return { ...x, read: true };
+        }
+        return x;
+      }),
+    );
+    if (wasUnread) {
+      setInboxUnreadTotal((c) => (c === null ? null : Math.max(0, c - 1)));
+    }
     const { error } = await supabase.from("notifications").update({ read: true }).eq("id", id);
     if (error) {
       setNotifications((n) => n.map((x) => (x.id === id ? { ...x, read: false } : x)));
+      if (wasUnread) {
+        setInboxUnreadTotal((c) => (c === null ? null : c + 1));
+      }
     }
   };
 
@@ -804,6 +904,7 @@ function Index() {
       .eq("read", false);
     if (error) return;
     setNotifications((n) => n.map((x) => ({ ...x, read: true })));
+    setInboxUnreadTotal(0);
   };
 
   const handleNotificationClick = async (n: NotificationRow) => {
@@ -1091,7 +1192,7 @@ function Index() {
     onSearch: () => void navigate({ to: "/search" }),
     onAuth: auth.user ? auth.signOut : auth.signIn,
     authUser: !!auth.user,
-    authAvatar: auth.avatar,
+    authAvatar: avatarThumb || auth.avatar,
   };
 
   // The bar sits in normal flow at the top of the screen on every breakpoint so
@@ -1230,8 +1331,14 @@ function Index() {
 
         {auth.ready && auth.user ? (
           <div className="mt-auto flex items-center gap-3 rounded-xl bg-secondary p-3">
-            {auth.avatar ? (
-              <img src={auth.avatar} alt="" className="h-10 w-10 rounded-full object-cover" />
+            {avatarThumb || auth.avatar ? (
+              <img
+                src={avatarThumb || auth.avatar!}
+                alt=""
+                loading="lazy"
+                decoding="async"
+                className="h-10 w-10 rounded-full object-cover"
+              />
             ) : (
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary font-display uppercase text-primary-foreground">
                 {auth.name?.[0]}
@@ -1341,14 +1448,14 @@ function Index() {
         ) : feedTab === "codes" ? (
           <div className="relative flex min-h-0 flex-1 flex-col bg-black">
             <TopTabs className={topTabsClass} ctx={topTabsCtx} />
-            <Suspense fallback={null}>
+            <Suspense fallback={<PanelSkeleton />}>
               <ChristmasCodesPanel handle={me} onSignIn={auth.signIn} />
             </Suspense>
           </div>
         ) : activeTab === "foryou" && feedTab === "marketplace" && !offlineMode ? (
           <div className="relative flex min-h-0 flex-1 flex-col">
             <TopTabs className={topTabsClass} ctx={topTabsCtx} />
-            <Suspense fallback={null}>
+            <Suspense fallback={<PanelSkeleton />}>
               <Marketplace />
             </Suspense>
           </div>
@@ -1357,11 +1464,11 @@ function Index() {
             <TopTabs className={topTabsStaticClass} ctx={topTabsCtx} />
             <div className="min-h-0 flex-1 overflow-y-auto">
               {activeTab === "subscriptions" ? (
-                <Suspense fallback={null}>
+                <Suspense fallback={<PanelSkeleton />}>
                   <SubscriptionsPanel handle={me} onSignIn={auth.signIn} />
                 </Suspense>
               ) : (
-                <Suspense fallback={null}>
+                <Suspense fallback={<PanelSkeleton />}>
                   <ShopPanel handle={me} posts={myPostCount} />
                 </Suspense>
               )}
@@ -1371,7 +1478,7 @@ function Index() {
           <div className="relative flex min-h-0 flex-1 flex-col bg-black">
             <TopTabs className={topTabsClass} ctx={topTabsCtx} />
             <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto pt-2">
-              <Suspense fallback={null}>
+              <Suspense fallback={<PanelSkeleton />}>
                 <GroupsPanel />
               </Suspense>
             </div>
@@ -1422,7 +1529,9 @@ function Index() {
               </div>
 
               <div className="mx-auto w-full max-w-2xl space-y-3 px-6 pb-28 pt-6">
-                {filteredNotifications.length === 0 ? (
+                {inboxLoading && notifications.length === 0 ? (
+                  <InboxSkeleton count={5} />
+                ) : filteredNotifications.length === 0 ? (
                   <div className="rounded-xl border bg-card p-4 text-sm text-card-foreground">
                     {notificationFilter === "unread"
                       ? "No unread notifications"
@@ -1439,6 +1548,8 @@ function Index() {
                     />
                   ))
                 )}
+                {inboxLoadingMore && <ListRowSkeleton count={2} />}
+                <div id="inbox-scroll-sentinel" className="h-8 w-full" />
               </div>
             </div>
           </div>
@@ -1498,13 +1609,23 @@ function Index() {
 
             <div className="relative flex min-h-0 flex-1 flex-col">
               <TopTabs className={topTabsClass} ctx={topTabsCtx} />
-              <div className="no-scrollbar min-h-0 flex-1 snap-y snap-mandatory overflow-y-scroll overscroll-contain scroll-smooth">
+              <div
+                ref={feedScrollRef}
+                onScroll={(e) => {
+                  const el = e.currentTarget;
+                  if (el.clientHeight <= 0 || shown.length === 0) return;
+                  const idx = Math.max(
+                    0,
+                    Math.min(shown.length - 1, Math.round(el.scrollTop / el.clientHeight)),
+                  );
+                  setActiveVideoIndex((prev) => (prev === idx ? prev : idx));
+                }}
+                className="no-scrollbar min-h-0 flex-1 snap-y snap-mandatory overflow-y-scroll overscroll-contain scroll-smooth"
+              >
                 {error && !offlineMode && !(videos && videos.length > 0) && (
                   <Empty text="Couldn't load videos. Refresh to try again." />
                 )}
-                {!error && videos === null && activeTab !== "saved" && (
-                  <Empty text="Loading your feed..." />
-                )}
+                {!error && videos === null && activeTab !== "saved" && <FeedSkeleton />}
                 {(!error || offlineMode) &&
                   (videos || activeTab === "saved") &&
                   shown.length === 0 && (
@@ -1520,7 +1641,7 @@ function Index() {
                       }
                     />
                   )}
-                {shown.map((v) => (
+                {shown.map((v, idx) => (
                   <VideoCard
                     key={`${activeTab}-${v.id}`}
                     video={v}
@@ -1534,8 +1655,20 @@ function Index() {
                     onSavedChange={handleSavedChange}
                     repostedBy={repostBy.get(v.id) ?? v.reposted_by ?? null}
                     posterUsername={v.poster_username ?? v.username}
+                    preloadMode={
+                      idx === activeVideoIndex
+                        ? "active"
+                        : !lite && !lowData && idx === activeVideoIndex + 1
+                          ? "next"
+                          : "idle"
+                    }
                   />
                 ))}
+                {loadingMore && shown.length > 0 && (
+                  <div className="px-4 py-4">
+                    <ListRowSkeleton count={2} />
+                  </div>
+                )}
                 <div id="scroll-sentinel" className="h-10 w-full" />
               </div>
             </div>

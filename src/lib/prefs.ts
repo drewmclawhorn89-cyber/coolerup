@@ -1,6 +1,9 @@
 // Client-side user preferences, persisted in localStorage and applied app-wide.
 export const prefKey = (k: string) => `settings:${k}`;
 
+/** Preference key for Low Data Mode in Settings. */
+export const LOW_DATA_MODE_PREF = "low-data-mode";
+
 /**
  * localStorage is synchronous and reading it during render is a measurable cost
  * on low-end phones. Cache values in memory; writes and cross-tab changes clear it.
@@ -35,6 +38,9 @@ export const writePref = (k: string, v: string) => {
     /* ignore */
   }
   applyPrefs();
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("loop-prefs-changed", { detail: { key: k, value: v } }));
+  }
 };
 
 export const readBool = (k: string, d = false) => readPref(k, String(d)) === "true";

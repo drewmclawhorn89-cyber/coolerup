@@ -132,14 +132,16 @@ export const addYouTubeSong = createServerFn({ method: "POST" })
     return inserted as Sound;
   });
 
-/** Every YouTube song in the Music tab, newest first. */
-export async function getYouTubeSongs(limit = 50): Promise<Sound[]> {
+/** YouTube songs in the Music tab, newest first, paginated 10 at a time. */
+export async function getYouTubeSongs(limit = 10, offset = 0): Promise<Sound[]> {
+  const safeLimit = Math.max(1, Math.min(200, limit));
+  const from = Math.max(0, offset);
   const { data, error } = await supabase
     .from("sounds")
     .select("*")
     .eq("source", "youtube")
     .order("created_at", { ascending: false })
-    .limit(Math.max(1, Math.min(200, limit)));
+    .range(from, from + safeLimit - 1);
   if (error) throw error;
   const songs = (data ?? []) as Sound[];
   songs.forEach(cacheSound);

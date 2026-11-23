@@ -10,11 +10,11 @@ import type { Video } from "@/lib/loop";
  * row response cap — a creator with 1,542 videos showed "1000".
  *
  * Grids are paged with `.range(from, to)` instead of `.limit(n)`, so infinite
- * scroll can walk the whole library (30 at a time) rather than a truncated list.
+ * scroll can walk the whole library (10 at a time) rather than a truncated list.
  */
 
 /** Cards fetched per infinite-scroll page. */
-export const PROFILE_PAGE_SIZE = 30;
+export const PROFILE_PAGE_SIZE = 10;
 
 export type ProfileCounts = {
   /** Videos the user has posted. */

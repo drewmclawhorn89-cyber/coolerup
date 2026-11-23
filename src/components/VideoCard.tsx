@@ -36,8 +36,10 @@ import { useAuth } from "@/hooks/useAuth";
 import { recordVideoView } from "@/lib/creatorFund";
 import { requireOnboarding } from "@/lib/auth";
 import { haptic, readBool } from "@/lib/prefs";
-import { isLiteMode, useNetwork } from "@/lib/network";
+import { isLiteMode, useLowDataMode, useNetwork } from "@/lib/network";
 import { observeIntersection } from "@/lib/observer";
+import { useCompressedThumbnail } from "@/lib/thumbnailCache";
+import { ListRowSkeleton, PanelSkeleton } from "@/components/Skeletons";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -131,6 +133,8 @@ export type VideoCardProps = {
   initialShowComments?: boolean;
   /** Optional comment target to scroll to and highlight when Comments opens. */
   highlightComment?: HighlightCommentTarget | null;
+  /** Feed controller hint: only "active" and "next" (+1) may load; "idle" unloads. */
+  preloadMode?: "active" | "next" | "idle";
 };
 
 function VideoCardImpl({
@@ -147,6 +151,7 @@ function VideoCardImpl({
   posterUsername,
   initialShowComments = false,
   highlightComment = null,
+  preloadMode,
 }: VideoCardProps) {
   const ref = useRef<HTMLVideoElement>(null);
   const [src, setSrc] = useState("");
@@ -194,7 +199,9 @@ function VideoCardImpl({
   const [matureUnlocked, setMatureUnlocked] = useState(false);
   const [ageDialogOpen, setAgeDialogOpen] = useState(false);
   const matureLocked = matureGate.mature && (!matureUnlocked || !matureGate.allowed);
-  const [authorAvatar, setAuthorAvatar] = useState<string | null>(null);
+  const [rawAuthorAvatar, setRawAuthorAvatar] = useState<string | null>(null);
+  const authorAvatar = useCompressedThumbnail(rawAuthorAvatar, { maxDim: 120 });
+  const [fullImageLoaded, setFullImageLoaded] = useState(false);
   const progressRef = useRef<HTMLDivElement>(null);
   // Playback position, so switching quality doesn't jump back to the start.
   const resumeRef = useRef(0);
@@ -210,6 +217,7 @@ function VideoCardImpl({
     resumeRef.current = 0;
     setPreviewEnded(false);
     setMatureUnlocked(false);
+    setFullImageLoaded(false);
     setEdits({});
     setShowComments(Boolean(initialShowComments));
   }, [video.id, initialShowComments]);
@@ -349,25 +357,31 @@ function VideoCardImpl({
 
   // Read prefs once per mount instead of on every render.
   const net = useNetwork();
+  const lowData = useLowDataMode();
   const lite = isLiteMode(net);
   // What actually plays for the current selection, with a fallback to the
   // original upload when the row has no rendition for that quality.
-  const qualitySource = resolveQualitySource(currentVideo, quality, net.effectiveType);
+  const qualitySource = resolveQualitySource(currentVideo, quality, net.effectiveType, lowData);
   const qualityLabel =
-    quality === "auto" ? "Auto" : (QUALITY_OPTIONS.find((o) => o.id === quality)?.label ?? "Auto");
+    quality === "auto"
+      ? lowData
+        ? "Low Data (360p)"
+        : "Auto"
+      : (QUALITY_OPTIONS.find((o) => o.id === quality)?.label ?? "Auto");
   const [showCaptions] = useState(() => readBool("captions"));
-  const [autoplay] = useState(() => readBool("autoplay", true));
+  const [autoplayPref] = useState(() => readBool("autoplay", true));
+  const autoplay = !lowData && autoplayPref;
 
   useEffect(() => {
     const username = video.username;
     if (!username) return;
     if (myUsername && username === myUsername && auth.avatar) {
-      setAuthorAvatar(auth.avatar);
+      setRawAuthorAvatar(auth.avatar);
       return;
     }
     let active = true;
     void loadAvatar(username).then((url) => {
-      if (active) setAuthorAvatar(url);
+      if (active) setRawAuthorAvatar(url);
     });
     return () => {
       active = false;
@@ -617,18 +631,53 @@ function VideoCardImpl({
     );
   }, []);
 
-  // Lite mode streams one video at a time; otherwise preload the next card.
-  const shouldLoad = lite ? active || manualLoad : near;
+  // Feed passes explicit preloadMode: only active card + next 1 card may load;
+  // all offscreen cards unload cleanly. Standalone cards fall back to intersection.
+  const shouldLoad =
+    preloadMode === "active"
+      ? true
+      : preloadMode === "next"
+        ? !lite && !lowData
+        : preloadMode === "idle"
+          ? manualLoad
+          : lite
+            ? active || manualLoad
+            : near;
+
+  const isCardActive = preloadMode ? preloadMode === "active" : active;
+
+  // Use 1-hour cached compressed thumbnails for image posts; tap loads full res.
+  const cachedPhotoSrc = useCompressedThumbnail(
+    shouldLoad && isImage && !isTikTok ? src || qualitySource.url : null,
+    {
+      isVideo: false,
+      fullRes: fullImageLoaded,
+      enabled: shouldLoad && isImage && !isTikTok,
+    },
+  );
 
   // Drop a manually-started video once the card is well off screen so it stops
   // holding a network connection and memory.
   useEffect(() => {
-    if (!near) setManualLoad(false);
-  }, [near]);
+    if (!near && preloadMode !== "active") setManualLoad(false);
+  }, [near, preloadMode]);
 
   useEffect(() => {
     if (isTikTok) return;
     if (!shouldLoad) {
+      const v = ref.current;
+      if (v) {
+        try {
+          v.pause();
+          v.removeAttribute("src");
+          v.load();
+        } catch {
+          /* ignore */
+        }
+      }
+      if (soundAudioRef.current) soundAudioRef.current.pause();
+      if (songRef.current) songRef.current.pause();
+      setPlaying(false);
       setSrc("");
       setLoadState("idle");
       return;
@@ -670,6 +719,10 @@ function VideoCardImpl({
   useEffect(() => {
     const el = ref.current;
     if (!el || isImage) return;
+    if (preloadMode && preloadMode !== "active") {
+      el.pause();
+      return;
+    }
     return observeIntersection(
       el,
       (e) => {
@@ -679,7 +732,7 @@ function VideoCardImpl({
       },
       { threshold: [0, 0.6, 1] },
     );
-  }, [src, isImage, autoplay, matureLocked]);
+  }, [src, isImage, autoplay, matureLocked, preloadMode]);
 
   // A locked 18+ video must never keep playing, even if it started before the
   // gate settled (for example a cached row that arrived without the flag).
@@ -993,12 +1046,15 @@ function VideoCardImpl({
                 )}
               </div>
             )}
-            {src && isImage && !isTikTok && (
+            {(cachedPhotoSrc || src) && isImage && !isTikTok && (
               <img
-                src={src}
+                src={cachedPhotoSrc || src}
                 loading="lazy"
                 decoding="async"
                 alt={captionText || `Photo by @${video.username}`}
+                onClick={() => {
+                  if (!fullImageLoaded) setFullImageLoaded(true);
+                }}
                 onLoad={() => setLoadState("ready")}
                 onError={() => setLoadState("error")}
                 onDoubleClick={() => !liked && toggleLike()}
@@ -1024,7 +1080,13 @@ function VideoCardImpl({
                 controls={full}
                 muted={muted || hasBorrowedSound}
                 playsInline
-                preload={lite ? "none" : "metadata"}
+                preload={
+                  isCardActive && (!lowData || manualLoad)
+                    ? "auto"
+                    : preloadMode === "next"
+                      ? "metadata"
+                      : "none"
+                }
                 disableRemotePlayback
                 onClick={togglePlay}
                 onDoubleClick={() => !liked && toggleLike()}
@@ -1173,7 +1235,7 @@ function VideoCardImpl({
             )}
 
             {ageDialogOpen && (
-              <Suspense fallback={null}>
+              <Suspense fallback={<PanelSkeleton />}>
                 <AgeVerificationDialog
                   open={ageDialogOpen}
                   onOpenChange={setAgeDialogOpen}
@@ -1217,6 +1279,20 @@ function VideoCardImpl({
               />
             )}
 
+            {!isImage && lowData && loadState === "ready" && !playing && !matureLocked && (
+              <button
+                type="button"
+                aria-label="Play video"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void ref.current?.play().catch(() => {});
+                }}
+                className="absolute left-1/2 top-1/2 z-[6] flex h-16 w-16 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur transition hover:bg-black/75"
+              >
+                <Play className="h-8 w-8 fill-current" />
+              </button>
+            )}
+
             {!isImage && loadState !== "ready" && (
               <div className="absolute inset-0 z-[5] flex flex-col items-center justify-center gap-3 bg-gradient-to-b from-zinc-900 via-black to-black px-6 text-center">
                 {loadState === "error" ? (
@@ -1248,16 +1324,25 @@ function VideoCardImpl({
                       <Play className="h-7 w-7 fill-current" />
                     </button>
                     <p className="text-xs text-white/60">
-                      {lite ? "Tap to play · lite mode" : "Tap to play"}
+                      {lowData
+                        ? "Tap to play · low data"
+                        : lite
+                          ? "Tap to play · lite mode"
+                          : "Tap to play"}
                     </p>
                   </>
                 ) : (
-                  <>
-                    <span className="h-9 w-9 animate-spin rounded-full border-2 border-white/20 border-t-primary" />
+                  <div className="flex w-full max-w-xs flex-col items-center gap-3">
+                    <div className="h-64 w-full animate-pulse rounded-2xl bg-zinc-800/80" />
+                    <div className="h-3.5 w-36 animate-pulse rounded bg-zinc-800/90" />
                     <p className="text-xs text-white/60">
-                      {lite ? "Loading in lite mode…" : "Loading…"}
+                      {lowData
+                        ? "Loading lower quality…"
+                        : lite
+                          ? "Loading in lite mode…"
+                          : "Loading…"}
                     </p>
-                  </>
+                  </div>
                 )}
               </div>
             )}
@@ -1540,7 +1625,7 @@ function VideoCardImpl({
         </div>
       )}
       {showComments && (
-        <Suspense fallback={null}>
+        <Suspense fallback={<ListRowSkeleton count={4} />}>
           <Comments
             videoId={video.id}
             highlightComment={highlightComment}
@@ -1550,7 +1635,7 @@ function VideoCardImpl({
         </Suspense>
       )}
       {showGift && (
-        <Suspense fallback={null}>
+        <Suspense fallback={<PanelSkeleton />}>
           <ChristmasGiftSheet
             open={showGift}
             onOpenChange={setShowGift}
@@ -1574,7 +1659,7 @@ function VideoCardImpl({
         onClose={() => setShowQuality(false)}
       />
       {showShare && (
-        <Suspense fallback={null}>
+        <Suspense fallback={<PanelSkeleton />}>
           <ShareMenu
             video={video}
             qualityLabel={qualityLabel}

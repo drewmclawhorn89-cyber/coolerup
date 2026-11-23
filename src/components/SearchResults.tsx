@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Heart, Loader2, Music2, Pause, Play, Radio, SearchX, Hash } from "lucide-react";
+import { Heart, Music2, Pause, Play, Radio, SearchX, Hash } from "lucide-react";
 import { SearchAvatar } from "@/components/SearchAvatar";
 import { formatCount, isImageUrl, parseCaption, resolveVideoUrl, type Video } from "@/lib/loop";
 import { soundAudioUrl, type Sound } from "@/lib/sounds";
 import type { LiveHost } from "@/lib/liveDirectory";
+import { useCompressedThumbnail } from "@/lib/thumbnailCache";
+import { ListRowSkeleton, SearchSkeleton } from "@/components/Skeletons";
 import {
   SEARCH_TABS,
   type SearchHashtag,
@@ -18,6 +20,9 @@ type Props = {
   onTabChange: (tab: SearchTab) => void;
   results: SearchResultsBundle;
   loading: boolean;
+  loadingMore?: boolean;
+  hasMore?: boolean;
+  onLoadMore?: () => void;
   liveHosts: LiveHost[];
   onOpenVideo: (video: Video) => void;
   onOpenUser: (user: SearchUser) => void;
@@ -39,6 +44,10 @@ function Thumb({ video }: { video: Video }) {
   useEffect(() => {
     const el = boxRef.current;
     if (!el) return;
+    if (typeof IntersectionObserver === "undefined") {
+      setNear(true);
+      return;
+    }
     const obs = new IntersectionObserver(
       ([entry]) => {
         if (entry?.isIntersecting) {
@@ -66,12 +75,19 @@ function Thumb({ video }: { video: Video }) {
   const caption = parseCaption(video.caption).text;
   const image =
     isImageUrl(video.video_url) || /\.(jpe?g|png|webp|gif|avif)$/i.test(video.video_url);
+  const compressed = useCompressedThumbnail(image && src ? src : null, { maxDim: 240 });
 
   return (
     <div ref={boxRef} className="h-full w-full bg-[#1c1c1c]">
       {src ? (
         image ? (
-          <img src={src} alt={caption} loading="lazy" className="h-full w-full object-cover" />
+          <img
+            src={compressed ?? src}
+            alt={caption}
+            loading="lazy"
+            decoding="async"
+            className="h-full w-full object-cover"
+          />
         ) : (
           <video
             src={`${src}#t=0.5`}
@@ -279,6 +295,9 @@ export function SearchResults({
   onTabChange,
   results,
   loading,
+  loadingMore = false,
+  hasMore = false,
+  onLoadMore,
   liveHosts,
   onOpenVideo,
   onOpenUser,
@@ -290,6 +309,37 @@ export function SearchResults({
   isSignedIn,
 }: Props) {
   const touchStart = useRef<{ x: number; y: number } | null>(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const root = scrollRef.current;
+    const sentinel = sentinelRef.current;
+    if (
+      !root ||
+      !sentinel ||
+      !hasMore ||
+      !onLoadMore ||
+      typeof IntersectionObserver === "undefined"
+    ) {
+      return;
+    }
+    const obs = new IntersectionObserver(
+      ([entry]) => {
+        if (entry?.isIntersecting) onLoadMore();
+      },
+      { root, rootMargin: "150px" },
+    );
+    obs.observe(sentinel);
+    return () => obs.disconnect();
+  }, [
+    hasMore,
+    onLoadMore,
+    tab,
+    results.videos.length,
+    results.users.length,
+    results.sounds.length,
+  ]);
 
   const tabIndex = SEARCH_TABS.findIndex((entry) => entry.id === tab);
 
@@ -353,15 +403,23 @@ export function SearchResults({
       </div>
 
       <div
+        ref={scrollRef}
+        onScroll={(e) => {
+          const el = e.currentTarget;
+          if (
+            hasMore &&
+            !loadingMore &&
+            onLoadMore &&
+            el.scrollTop + el.clientHeight >= el.scrollHeight - 100
+          ) {
+            onLoadMore();
+          }
+        }}
         className="min-h-0 flex-1 overflow-y-auto px-3 pb-28 pt-3"
         onTouchStart={onTouchStart}
         onTouchEnd={onTouchEnd}
       >
-        {loading && (
-          <div className="flex items-center justify-center py-16 text-white/50">
-            <Loader2 className="h-6 w-6 animate-spin" aria-label="Searching" />
-          </div>
-        )}
+        {loading && <SearchSkeleton />}
 
         {!loading && nothing && <EmptyState query={query} />}
 
@@ -502,6 +560,13 @@ export function SearchResults({
           ) : (
             <EmptyState query={query} />
           ))}
+
+        {!loading && hasMore && <div ref={sentinelRef} className="h-3 w-full" aria-hidden="true" />}
+        {loadingMore && (
+          <div className="py-3">
+            <ListRowSkeleton count={2} />
+          </div>
+        )}
       </div>
     </div>
   );

@@ -145,12 +145,12 @@ describe("fetchProfileCounts", () => {
 });
 
 describe("fetchProfileVideosPage", () => {
-  it("pages with range(offset, offset + 29) instead of a hard limit", async () => {
+  it("pages with range(offset, offset + 9) instead of a hard limit", async () => {
     state.rows = Array.from({ length: PROFILE_PAGE_SIZE }, (_, i) => ({ id: `v${i}` }));
 
     const page = await fetchProfileVideosPage("drew", 60);
 
-    expect(state.ranges[0]).toEqual({ from: 60, to: 89 });
+    expect(state.ranges[0]).toEqual({ from: 60, to: 69 });
     expect(page.rows).toHaveLength(PROFILE_PAGE_SIZE);
     expect(page.hasMore).toBe(true);
   });

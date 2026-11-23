@@ -1,11 +1,10 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Loader2, ArrowLeft, Search, Upload, WifiOff, Plus, Play } from "lucide-react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { ArrowLeft, Search, Upload, WifiOff, Plus, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { AddYouTubeModal } from "@/components/AddYouTubeModal";
 import { useYouTubeDurations, withYouTubeDurations } from "@/lib/useYouTubeDurations";
 import { FullVideoCard } from "@/components/FullVideoCard";
-import { EditFullVideoDialog } from "@/components/EditFullVideoDialog";
+import { FullVideoGridSkeleton } from "@/components/Skeletons";
 import { useAuth } from "@/hooks/useAuth";
 import { useOfflineUnlocked } from "@/lib/subscriptions";
 import { FULL_VIDEO_CATEGORIES, listFullVideos, type FullVideo } from "@/lib/fullVideos";
@@ -24,13 +23,21 @@ import {
   type OfflineUsage,
 } from "@/lib/offline";
 import { useIsOnline } from "@/lib/offlineMode";
-import { OfflinePaywallDialog } from "@/components/OfflinePaywallDialog";
+
+const AddYouTubeModal = lazy(() =>
+  import("@/components/AddYouTubeModal").then((m) => ({ default: m.AddYouTubeModal })),
+);
+const EditFullVideoDialog = lazy(() =>
+  import("@/components/EditFullVideoDialog").then((m) => ({ default: m.EditFullVideoDialog })),
+);
+const OfflinePaywallDialog = lazy(() =>
+  import("@/components/OfflinePaywallDialog").then((m) => ({ default: m.OfflinePaywallDialog })),
+);
 
 /**
- * How many cards to fetch per page. Two screens' worth on a phone, so the grid
- * feels populated immediately without pulling the whole library down.
+ * Load 10 videos at a time and fetch the next 10 when scrolling to the bottom.
  */
-const PAGE_SIZE = 12;
+const PAGE_SIZE = 10;
 
 export const Route = createFileRoute("/videos")({
   head: () => ({
@@ -380,8 +387,8 @@ function VideosPage() {
 
       {offlineOnly ? (
         savedLoading ? (
-          <div className="flex items-center justify-center py-20 text-muted-foreground">
-            <Loader2 className="h-6 w-6 animate-spin" />
+          <div className="mt-3">
+            <FullVideoGridSkeleton count={6} />
           </div>
         ) : savedVideos.length === 0 && savedShorts.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -490,8 +497,8 @@ function VideosPage() {
           </>
         )
       ) : loading ? (
-        <div className="flex items-center justify-center py-20 text-muted-foreground">
-          <Loader2 className="h-6 w-6 animate-spin" />
+        <div className="mt-3">
+          <FullVideoGridSkeleton count={6} />
         </div>
       ) : videos.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -529,9 +536,8 @@ function VideosPage() {
           <div ref={sentinelRef} aria-hidden className="h-px w-full" />
 
           {loadingMore && (
-            <div className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Loading more…
+            <div className="w-full py-2">
+              <FullVideoGridSkeleton count={2} />
             </div>
           )}
 
@@ -557,32 +563,40 @@ function VideosPage() {
 
       {/* Owner-only editor, opened from the pencil on a card. */}
       {addingYouTube && (
-        <AddYouTubeModal
-          open
-          onClose={() => setAddingYouTube(false)}
-          onAdded={() => {
-            setOfflineOnly(false);
-            setCategory("All");
-            setSearchInput("");
-            setSearch("");
-            void load();
-          }}
-        />
+        <Suspense fallback={null}>
+          <AddYouTubeModal
+            open
+            onClose={() => setAddingYouTube(false)}
+            onAdded={() => {
+              setOfflineOnly(false);
+              setCategory("All");
+              setSearchInput("");
+              setSearch("");
+              void load();
+            }}
+          />
+        </Suspense>
       )}
       {editing && auth.user && (
-        <EditFullVideoDialog
-          video={editing}
-          userId={auth.user.id}
-          open
-          onClose={() => setEditing(null)}
-          onSaved={(next) => setVideos((prev) => prev.map((v) => (v.id === next.id ? next : v)))}
-          onDeleted={(id) => setVideos((prev) => prev.filter((v) => v.id !== id))}
-        />
+        <Suspense fallback={null}>
+          <EditFullVideoDialog
+            video={editing}
+            userId={auth.user.id}
+            open
+            onClose={() => setEditing(null)}
+            onSaved={(next) => setVideos((prev) => prev.map((v) => (v.id === next.id ? next : v)))}
+            onDeleted={(id) => setVideos((prev) => prev.filter((v) => v.id !== id))}
+          />
+        </Suspense>
       )}
-      <OfflinePaywallDialog
-        open={showOfflinePaywall}
-        onClose={() => setShowOfflinePaywall(false)}
-      />
+      {showOfflinePaywall && (
+        <Suspense fallback={null}>
+          <OfflinePaywallDialog
+            open={showOfflinePaywall}
+            onClose={() => setShowOfflinePaywall(false)}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }

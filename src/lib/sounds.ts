@@ -146,21 +146,63 @@ export async function getChristmasSounds(): Promise<Sound[]> {
   return sounds;
 }
 
+/** Default page size for Music tab lists and search results. */
+export const MUSIC_PAGE_SIZE = 10;
+
 /**
- * Every original sound in the library, most-used first. Used by the in-app
- * music player so users can listen to (and later reuse) sounds without opening
- * a video.
+ * Original sounds in the library, most-used first (paginated).
  */
-export async function getAllSounds(limit = 200): Promise<Sound[]> {
+export async function getAllSounds(limit = MUSIC_PAGE_SIZE, offset = 0): Promise<Sound[]> {
+  const safeLimit = Math.max(1, Math.min(500, limit));
+  const from = Math.max(0, offset);
   const { data, error } = await supabase
     .from("sounds")
     .select("*")
+    .neq("source", "youtube")
     .order("uses_count", { ascending: false })
     .order("created_at", { ascending: false })
-    .limit(Math.max(1, Math.min(500, limit)));
+    .range(from, from + safeLimit - 1);
+
+  if (error) {
+    // Fallback if `source` filter behaves unexpectedly on legacy null values
+    const legacy = await supabase
+      .from("sounds")
+      .select("*")
+      .order("uses_count", { ascending: false })
+      .order("created_at", { ascending: false })
+      .range(from, from + safeLimit - 1);
+    if (legacy.error) throw legacy.error;
+    const sounds = ((legacy.data ?? []) as Sound[]).filter((s) => s.source !== "youtube");
+    sounds.forEach(cacheSound);
+    return sounds;
+  }
+  const sounds = ((data ?? []) as Sound[]).filter((s) => s.source !== "youtube");
+  sounds.forEach(cacheSound);
+  return sounds;
+}
+
+/**
+ * Server-side paginated Music search across both Coolerup sounds and YouTube songs.
+ */
+export async function searchSoundsCatalog(
+  query: string,
+  limit = MUSIC_PAGE_SIZE,
+  offset = 0,
+): Promise<Sound[]> {
+  const q = query.trim().replace(/[%,()]/g, "");
+  if (!q) return [];
+  const safeLimit = Math.max(1, Math.min(50, limit));
+  const from = Math.max(0, offset);
+  const { data, error } = await supabase
+    .from("sounds")
+    .select("*")
+    .or(`title.ilike.%${q}%,creator_username.ilike.%${q}%`)
+    .order("uses_count", { ascending: false })
+    .order("created_at", { ascending: false })
+    .range(from, from + safeLimit - 1);
 
   if (error) throw error;
-  const sounds = ((data ?? []) as Sound[]).filter((s) => s.source !== "youtube");
+  const sounds = (data ?? []) as Sound[];
   sounds.forEach(cacheSound);
   return sounds;
 }
@@ -247,14 +289,16 @@ export function soundTitleForVideo(caption: string, username: string): string {
 /** A sound counts as a "full song" once its file runs longer than this. */
 export const FULL_SONG_SECONDS = 25;
 
-/** Top Songs — the 10 most-used sounds in Coolerup. */
-export async function getTopSounds(limit = 10): Promise<Sound[]> {
+/** Top Songs — the most-used sounds in Coolerup, 10 at a time. */
+export async function getTopSounds(limit = MUSIC_PAGE_SIZE, offset = 0): Promise<Sound[]> {
+  const safeLimit = Math.max(1, Math.min(50, limit));
+  const from = Math.max(0, offset);
   const { data, error } = await supabase
     .from("sounds")
     .select("*")
     .order("uses_count", { ascending: false })
     .order("created_at", { ascending: false })
-    .limit(Math.max(1, Math.min(50, limit)));
+    .range(from, from + safeLimit - 1);
 
   if (error) throw error;
   const sounds = ((data ?? []) as Sound[]).filter((s) => s.source !== "youtube");
@@ -262,8 +306,13 @@ export async function getTopSounds(limit = 10): Promise<Sound[]> {
   return sounds;
 }
 
-/** Trending Sounds — sounds people actually used in videos this week. */
-export async function getTrendingSoundsThisWeek(limit = 20): Promise<Sound[]> {
+/** Trending Sounds — sounds people actually used in videos this week, 10 at a time. */
+export async function getTrendingSoundsThisWeek(
+  limit = MUSIC_PAGE_SIZE,
+  offset = 0,
+): Promise<Sound[]> {
+  const safeLimit = Math.max(1, Math.min(50, limit));
+  const from = Math.max(0, offset);
   const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
   const { data, error } = await supabase
     .from("sounds")
@@ -271,14 +320,14 @@ export async function getTrendingSoundsThisWeek(limit = 20): Promise<Sound[]> {
     .gte("created_at", since)
     .order("uses_count", { ascending: false })
     .order("created_at", { ascending: false })
-    .limit(Math.max(1, Math.min(50, limit)));
+    .range(from, from + safeLimit - 1);
 
   if (error) throw error;
   let sounds = ((data ?? []) as Sound[]).filter((s) => s.source !== "youtube");
 
   // A quiet week shouldn't leave the row empty — fall back to the all-time
-  // chart, which is still "what people are using" just over a longer window.
-  if (!sounds.length) sounds = await getTopSounds(limit);
+  // chart on the initial page.
+  if (offset === 0 && !sounds.length) sounds = await getTopSounds(safeLimit, 0);
   sounds.forEach(cacheSound);
   return sounds;
 }
@@ -298,19 +347,21 @@ export async function getSavedSoundIds(): Promise<Set<string>> {
   return new Set(((data ?? []) as { sound_id: string }[]).map((r) => r.sound_id));
 }
 
-/** "Your Sounds" — the saved songs, newest save first. */
-export async function getSavedSounds(): Promise<Sound[]> {
+/** "Your Sounds" — the saved songs, newest save first, paginated 10 at a time. */
+export async function getSavedSounds(limit = MUSIC_PAGE_SIZE, offset = 0): Promise<Sound[]> {
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return [];
 
+  const safeLimit = Math.max(1, Math.min(100, limit));
+  const from = Math.max(0, offset);
   const { data, error } = await supabase
     .from("saved_sounds")
     .select("sound_id, created_at")
     .eq("user_id", user.id)
     .order("created_at", { ascending: false })
-    .limit(200);
+    .range(from, from + safeLimit - 1);
   if (error) throw error;
 
   const ids = ((data ?? []) as { sound_id: string }[]).map((r) => r.sound_id);

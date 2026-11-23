@@ -66,6 +66,11 @@ import {
   useVideoOwnership,
   type PaidVideoKind,
 } from "@/lib/paidVideos";
+import { useCompressedThumbnail } from "@/lib/thumbnailCache";
+import { isLiteMode, useNetwork } from "@/lib/network";
+import { ListRowSkeleton, VideoGridSkeleton } from "@/components/Skeletons";
+
+const FOLLOW_PAGE_SIZE = 10;
 
 export const Route = createFileRoute("/u/$username")({
   component: Profile,
@@ -75,6 +80,9 @@ function Thumb({ url, caption }: { url: string; caption: string }) {
   const [src, setSrc] = useState("");
   const boxRef = useRef<HTMLDivElement>(null);
   const [near, setNear] = useState(false);
+  const isImage = isImageUrl(url) || /\.(jpe?g|png|webp|gif|avif)$/i.test(url);
+  const compressed = useCompressedThumbnail(isImage && src ? src : null, { maxDim: 240 });
+
   useEffect(() => {
     const el = boxRef.current;
     if (!el) return;
@@ -104,11 +112,10 @@ function Thumb({ url, caption }: { url: string; caption: string }) {
       alive = false;
     };
   }, [url, near]);
-  if (!src) return <div ref={boxRef} className="h-full w-full" />;
-  const isImage = isImageUrl(url) || /\.(jpe?g|png|webp|gif|avif)$/i.test(url);
+  if (!src) return <div ref={boxRef} className="h-full w-full bg-zinc-900" />;
   return isImage ? (
     <img
-      src={src}
+      src={compressed ?? src}
       alt={caption}
       loading="lazy"
       decoding="async"
@@ -120,6 +127,19 @@ function Thumb({ url, caption }: { url: string; caption: string }) {
       muted
       playsInline
       preload="metadata"
+      className="h-full w-full object-cover"
+    />
+  );
+}
+
+function FollowAvatarImg({ avatar, alt }: { avatar: string; alt: string }) {
+  const compressed = useCompressedThumbnail(avatar, { maxDim: 120 });
+  return (
+    <img
+      src={compressed ?? avatar}
+      alt={alt}
+      loading="lazy"
+      decoding="async"
       className="h-full w-full object-cover"
     />
   );
@@ -283,9 +303,12 @@ function Profile() {
   const auth = useAuth();
   // Red/green ring instead of the usual pink gradient, Nov 15 2026 -> Jan 1 2027.
   const christmas = useChristmasMode();
+  const net = useNetwork();
+  const lite = isLiteMode(net);
   const [counts, setCounts] = useState<ProfileCounts | null>(null);
   const [videos, setVideos] = useState<Video[] | null>(null);
   const [open, setOpen] = useState<number | null>(null);
+  const [viewerActiveIndex, setViewerActiveIndex] = useState(0);
   const [profile, setProfile] = useState<ProfileRow | null>(null);
   const [avatar, setAvatar] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
@@ -315,8 +338,20 @@ function Profile() {
   const [followBusy, setFollowBusy] = useState(false);
   const [followingOpen, setFollowingOpen] = useState(false);
   const [followingUsers, setFollowingUsers] = useState<FollowingUser[] | null>(null);
+  const [followingHasMore, setFollowingHasMore] = useState(false);
+  const [followingLoadingMore, setFollowingLoadingMore] = useState(false);
+  const followingOffsetRef = useRef(0);
+  const followingLoadingRef = useRef(false);
+  const followingScrollRef = useRef<HTMLDivElement | null>(null);
+  const followingSentinelRef = useRef<HTMLDivElement | null>(null);
   const [followersOpen, setFollowersOpen] = useState(false);
   const [followersUsers, setFollowersUsers] = useState<FollowingUser[] | null>(null);
+  const [followersHasMore, setFollowersHasMore] = useState(false);
+  const [followersLoadingMore, setFollowersLoadingMore] = useState(false);
+  const followersOffsetRef = useRef(0);
+  const followersLoadingRef = useRef(false);
+  const followersScrollRef = useRef<HTMLDivElement | null>(null);
+  const followersSentinelRef = useRef<HTMLDivElement | null>(null);
 
   const equipped = useEquipped(username);
   const isOwn = !!auth.handle && auth.handle === username;
@@ -393,83 +428,149 @@ function Profile() {
     setFollowBusy(false);
   }
 
+  const hydrateFollowProfiles = useCallback(async (handles: string[]): Promise<FollowingUser[]> => {
+    const unique = Array.from(new Set(handles.filter(Boolean)));
+    if (unique.length === 0) return [];
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("handle, display_name, avatar_url")
+      .in("handle", unique);
+    const byHandle = new Map((profiles ?? []).map((p) => [p.handle, p]));
+    return Promise.all(
+      unique.map(async (handle) => {
+        const p = byHandle.get(handle);
+        return {
+          handle,
+          display_name: p?.display_name ?? null,
+          avatar: await resolveAvatarUrl(p?.avatar_url),
+        } as FollowingUser;
+      }),
+    );
+  }, []);
+
+  const loadFollowingPage = useCallback(
+    async (append: boolean) => {
+      if (!username || followingLoadingRef.current) return;
+      if (append && !followingHasMore) return;
+      followingLoadingRef.current = true;
+      if (append) setFollowingLoadingMore(true);
+      try {
+        const offset = append ? followingOffsetRef.current : 0;
+        const { data: rows } = await supabase
+          .from("follows")
+          .select("following_username")
+          .eq("follower_username", username)
+          .order("created_at", { ascending: false })
+          .range(offset, offset + FOLLOW_PAGE_SIZE - 1);
+        const rawHandles = (rows ?? []).map((r) => r.following_username).filter(Boolean);
+        followingOffsetRef.current = offset + rawHandles.length;
+        setFollowingHasMore(rawHandles.length === FOLLOW_PAGE_SIZE);
+        const list = await hydrateFollowProfiles(rawHandles);
+        setFollowingUsers((prev) => {
+          if (!append) return list;
+          const cur = prev ?? [];
+          const seen = new Set(cur.map((u) => u.handle));
+          return [...cur, ...list.filter((u) => !seen.has(u.handle))];
+        });
+      } finally {
+        followingLoadingRef.current = false;
+        setFollowingLoadingMore(false);
+      }
+    },
+    [username, followingHasMore, hydrateFollowProfiles],
+  );
+
   useEffect(() => {
     if (!followingOpen || !username) return;
-    let alive = true;
+    followingOffsetRef.current = 0;
+    setFollowingHasMore(false);
     setFollowingUsers(null);
-    (async () => {
-      const { data: rows } = await supabase
-        .from("follows")
-        .select("following_username")
-        .eq("follower_username", username)
-        .order("created_at", { ascending: false })
-        .limit(200);
-      const handles = (rows ?? []).map((r) => r.following_username);
-      if (handles.length === 0) {
-        if (alive) setFollowingUsers([]);
-        return;
-      }
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("handle, display_name, avatar_url")
-        .in("handle", handles);
-      const byHandle = new Map((profiles ?? []).map((p) => [p.handle, p]));
-      const list = await Promise.all(
-        handles.map(async (handle) => {
-          const p = byHandle.get(handle);
-          return {
-            handle,
-            display_name: p?.display_name ?? null,
-            avatar: await resolveAvatarUrl(p?.avatar_url),
-          } as FollowingUser;
-        }),
-      );
-      if (alive) setFollowingUsers(list);
-    })();
-    return () => {
-      alive = false;
-    };
+    void loadFollowingPage(false);
   }, [followingOpen, username]);
 
   useEffect(() => {
-    if (!followersOpen || !username) return;
-    let alive = true;
-    setFollowersUsers(null);
-    (async () => {
-      const { data: rows } = await supabase
-        .from("follows")
-        .select("follower_username")
-        .eq("following_username", username)
-        .order("created_at", { ascending: false })
-        .limit(200);
-      const handles = Array.from(
-        new Set((rows ?? []).map((r) => r.follower_username).filter(Boolean)),
-      );
-      if (handles.length === 0) {
-        if (alive) setFollowersUsers([]);
-        return;
+    const root = followingScrollRef.current;
+    const sentinel = followingSentinelRef.current;
+    if (
+      !followingOpen ||
+      !root ||
+      !sentinel ||
+      !followingHasMore ||
+      typeof IntersectionObserver === "undefined"
+    ) {
+      return;
+    }
+    const obs = new IntersectionObserver(
+      ([entry]) => {
+        if (entry?.isIntersecting) void loadFollowingPage(true);
+      },
+      { root, rootMargin: "100px" },
+    );
+    obs.observe(sentinel);
+    return () => obs.disconnect();
+  }, [followingOpen, followingHasMore, followingUsers?.length, loadFollowingPage]);
+
+  const loadFollowersPage = useCallback(
+    async (append: boolean) => {
+      if (!username || followersLoadingRef.current) return;
+      if (append && !followersHasMore) return;
+      followersLoadingRef.current = true;
+      if (append) setFollowersLoadingMore(true);
+      try {
+        const offset = append ? followersOffsetRef.current : 0;
+        const { data: rows } = await supabase
+          .from("follows")
+          .select("follower_username")
+          .eq("following_username", username)
+          .order("created_at", { ascending: false })
+          .range(offset, offset + FOLLOW_PAGE_SIZE - 1);
+        const rawHandles = (rows ?? []).map((r) => r.follower_username).filter(Boolean);
+        followersOffsetRef.current = offset + rawHandles.length;
+        setFollowersHasMore(rawHandles.length === FOLLOW_PAGE_SIZE);
+        const list = await hydrateFollowProfiles(rawHandles);
+        setFollowersUsers((prev) => {
+          if (!append) return list;
+          const cur = prev ?? [];
+          const seen = new Set(cur.map((u) => u.handle));
+          return [...cur, ...list.filter((u) => !seen.has(u.handle))];
+        });
+      } finally {
+        followersLoadingRef.current = false;
+        setFollowersLoadingMore(false);
       }
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("handle, display_name, avatar_url")
-        .in("handle", handles);
-      const byHandle = new Map((profiles ?? []).map((p) => [p.handle, p]));
-      const list = await Promise.all(
-        handles.map(async (handle) => {
-          const p = byHandle.get(handle);
-          return {
-            handle,
-            display_name: p?.display_name ?? null,
-            avatar: await resolveAvatarUrl(p?.avatar_url),
-          } as FollowingUser;
-        }),
-      );
-      if (alive) setFollowersUsers(list);
-    })();
-    return () => {
-      alive = false;
-    };
+    },
+    [username, followersHasMore, hydrateFollowProfiles],
+  );
+
+  useEffect(() => {
+    if (!followersOpen || !username) return;
+    followersOffsetRef.current = 0;
+    setFollowersHasMore(false);
+    setFollowersUsers(null);
+    void loadFollowersPage(false);
   }, [followersOpen, username]);
+
+  useEffect(() => {
+    const root = followersScrollRef.current;
+    const sentinel = followersSentinelRef.current;
+    if (
+      !followersOpen ||
+      !root ||
+      !sentinel ||
+      !followersHasMore ||
+      typeof IntersectionObserver === "undefined"
+    ) {
+      return;
+    }
+    const obs = new IntersectionObserver(
+      ([entry]) => {
+        if (entry?.isIntersecting) void loadFollowersPage(true);
+      },
+      { root, rootMargin: "100px" },
+    );
+    obs.observe(sentinel);
+    return () => obs.disconnect();
+  }, [followersOpen, followersHasMore, followersUsers?.length, loadFollowersPage]);
 
   useEffect(() => {
     if (!username) return;
@@ -661,6 +762,7 @@ function Profile() {
   }, [tab, isOwn]);
   useEffect(() => {
     if (open === null) return;
+    setViewerActiveIndex(open);
     const el = viewer.current;
     if (el) el.scrollTop = open * el.clientHeight;
   }, [open]);
@@ -701,7 +803,8 @@ function Profile() {
   // The constants are only a fallback for the moment before the row resolves.
   const bot = isSafetyBot(username, profile?.id);
   const displayName = profile?.display_name || (bot ? SAFETY_BOT_NAME : username);
-  const shownAvatar = avatar || (bot ? SAFETY_BOT_AVATAR : null);
+  const rawAvatar = avatar || (bot ? SAFETY_BOT_AVATAR : null);
+  const shownAvatar = useCompressedThumbnail(rawAvatar, { maxDim: 200 }) ?? rawAvatar;
   const total = shownVideos?.length ?? 0;
   const sentinel = useRef<HTMLDivElement>(null);
 
@@ -763,7 +866,12 @@ function Profile() {
                 className={`flex h-24 w-24 items-center justify-center overflow-hidden rounded-full bg-primary ${findItem(equipped.top)?.className ?? ""} text-4xl uppercase text-primary-foreground`}
               >
                 {shownAvatar ? (
-                  <img src={shownAvatar} alt={displayName} className="h-full w-full object-cover" />
+                  <img
+                    src={shownAvatar}
+                    alt={displayName}
+                    decoding="async"
+                    className="h-full w-full object-cover"
+                  />
                 ) : (
                   username?.[0]
                 )}
@@ -939,11 +1047,7 @@ function Profile() {
             </p>
           </div>
         ) : tab === "liked" && likedLoading && likedVideos === null ? (
-          <div className="grid grid-cols-3 gap-1">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="aspect-[3/4] animate-pulse bg-secondary" />
-            ))}
-          </div>
+          <VideoGridSkeleton count={6} />
         ) : tab === "liked" && likesGivenCount === 0 ? (
           <div className="flex flex-col items-center gap-2 px-6 py-16 text-center">
             <span className="flex h-16 w-16 items-center justify-center rounded-full bg-secondary">
@@ -962,9 +1066,11 @@ function Profile() {
           <p className="py-10 text-center text-sm text-muted-foreground">No saved videos yet.</p>
         ) : tab === "reposts" && repostsCount === 0 ? (
           <p className="py-10 text-center text-sm text-muted-foreground">No reposts yet.</p>
+        ) : shownVideos === null ? (
+          <VideoGridSkeleton count={6} />
         ) : (
           <div className="grid grid-cols-3 gap-1">
-            {shownVideos?.map((v, i) => (
+            {shownVideos.map((v, i) => (
               <button
                 key={v.id}
                 type="button"
@@ -988,8 +1094,10 @@ function Profile() {
           </p>
         )}
         {hasMore[tab] && <div ref={sentinel} className="h-10" />}
-        {loadingMore && (
-          <p className="py-4 text-center text-xs text-muted-foreground">Loading more…</p>
+        {loadingMore && shownVideos !== null && (
+          <div className="py-3">
+            <ListRowSkeleton count={2} />
+          </div>
         )}
 
         {isOwn && (
@@ -1073,31 +1181,43 @@ function Profile() {
             className="h-dvh snap-y snap-mandatory overflow-y-scroll"
             onScroll={(e) => {
               const el = e.currentTarget;
+              const vh = el.clientHeight || window.innerHeight || 1;
+              const nextIdx = Math.max(0, Math.round(el.scrollTop / vh));
+              setViewerActiveIndex((cur) => (cur === nextIdx ? cur : nextIdx));
               // Near the last loaded card? Pull the next page so the viewer can
-              // keep swiping through every video, not just the first 30.
+              // keep swiping through every video, not just the first 10.
               if (el.scrollHeight - el.scrollTop - el.clientHeight < el.clientHeight * 2) {
                 void loadMore();
               }
             }}
           >
-            {shownVideos.map((v) => (
-              <div key={v.id} className="h-dvh snap-start snap-always">
-                <VideoCard
-                  video={v}
-                  liked={likedIds.has(v.id)}
-                  muted={muted}
-                  onToggleMute={() => setMuted((m) => !m)}
-                  onLikeChange={(on) =>
-                    setLikedIds((prev) => {
-                      const n = new Set(prev);
-                      if (on) n.add(v.id);
-                      else n.delete(v.id);
-                      return n;
-                    })
-                  }
-                />
-              </div>
-            ))}
+            {shownVideos.map((v, i) => {
+              const preloadMode =
+                i === viewerActiveIndex
+                  ? "active"
+                  : !lite && i === viewerActiveIndex + 1
+                    ? "next"
+                    : "idle";
+              return (
+                <div key={v.id} className="h-dvh snap-start snap-always">
+                  <VideoCard
+                    video={v}
+                    liked={likedIds.has(v.id)}
+                    muted={muted}
+                    preloadMode={preloadMode}
+                    onToggleMute={() => setMuted((m) => !m)}
+                    onLikeChange={(on) =>
+                      setLikedIds((prev) => {
+                        const n = new Set(prev);
+                        if (on) n.add(v.id);
+                        else n.delete(v.id);
+                        return n;
+                      })
+                    }
+                  />
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -1121,68 +1241,79 @@ function Profile() {
           <DialogHeader>
             <DialogTitle>Following</DialogTitle>
           </DialogHeader>
-          <div className="-mx-6 max-h-[60dvh] overflow-y-auto px-6">
+          <div
+            ref={followingScrollRef}
+            onScroll={(e) => {
+              const el = e.currentTarget;
+              if (
+                followingHasMore &&
+                !followingLoadingMore &&
+                el.scrollTop + el.clientHeight >= el.scrollHeight - 80
+              ) {
+                void loadFollowingPage(true);
+              }
+            }}
+            className="-mx-6 max-h-[60dvh] overflow-y-auto px-6"
+          >
             {followingUsers === null ? (
-              <div className="space-y-2 py-2">
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <div key={i} className="flex items-center gap-3 py-2">
-                    <div className="h-10 w-10 animate-pulse rounded-full bg-muted" />
-                    <div className="h-3 w-32 animate-pulse rounded bg-muted" />
-                  </div>
-                ))}
-              </div>
+              <ListRowSkeleton count={5} />
             ) : followingUsers.length === 0 ? (
               <p className="py-10 text-center text-sm text-muted-foreground">
                 @{username} isn't following anyone yet.
               </p>
             ) : (
-              <ul className="divide-y">
-                {followingUsers.map((u) => {
-                  const st = dialogPresence[normalizePresenceHandle(u.handle)] ?? {
-                    visible: false,
-                    isOnline: false,
-                    statusText: null,
-                  };
-                  return (
-                    <li key={u.handle}>
-                      <Link
-                        to="/u/$username"
-                        params={{ username: u.handle }}
-                        onClick={() => setFollowingOpen(false)}
-                        className="flex items-center gap-3 py-3 hover:opacity-80"
-                      >
-                        <div className="relative shrink-0">
-                          <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-primary text-sm uppercase text-primary-foreground">
-                            {u.avatar ? (
-                              <img
-                                src={u.avatar}
-                                alt={u.display_name || u.handle}
-                                className="h-full w-full object-cover"
-                              />
-                            ) : (
-                              u.handle[0]
+              <>
+                <ul className="divide-y">
+                  {followingUsers.map((u) => {
+                    const st = dialogPresence[normalizePresenceHandle(u.handle)] ?? {
+                      visible: false,
+                      isOnline: false,
+                      statusText: null,
+                    };
+                    return (
+                      <li key={u.handle}>
+                        <Link
+                          to="/u/$username"
+                          params={{ username: u.handle }}
+                          onClick={() => setFollowingOpen(false)}
+                          className="flex items-center gap-3 py-3 hover:opacity-80"
+                        >
+                          <div className="relative shrink-0">
+                            <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-primary text-sm uppercase text-primary-foreground">
+                              {u.avatar ? (
+                                <FollowAvatarImg
+                                  avatar={u.avatar}
+                                  alt={u.display_name || u.handle}
+                                />
+                              ) : (
+                                u.handle[0]
+                              )}
+                            </div>
+                            <OnlineDot
+                              visible={st.visible && st.isOnline}
+                              size="md"
+                              className="absolute bottom-0 right-0"
+                            />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold">
+                              {u.display_name || u.handle}
+                            </p>
+                            <p className="truncate text-xs text-muted-foreground">@{u.handle}</p>
+                            {st.visible && !st.isOnline && st.statusText && (
+                              <OnlineStatusSubtitle status={st} className="block truncate" />
                             )}
                           </div>
-                          <OnlineDot
-                            visible={st.visible && st.isOnline}
-                            size="md"
-                            className="absolute bottom-0 right-0"
-                          />
-                        </div>
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-semibold">
-                            {u.display_name || u.handle}
-                          </p>
-                          <p className="truncate text-xs text-muted-foreground">@{u.handle}</p>
-                          {st.visible && !st.isOnline && st.statusText && (
-                            <OnlineStatusSubtitle status={st} className="block truncate" />
-                          )}
-                        </div>
-                      </Link>
-                    </li>
-                  );
-                })}
-              </ul>
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+                {followingHasMore && (
+                  <div ref={followingSentinelRef} className="h-3 w-full" aria-hidden="true" />
+                )}
+                {followingLoadingMore && <ListRowSkeleton count={2} />}
+              </>
             )}
           </div>
         </DialogContent>
@@ -1193,68 +1324,79 @@ function Profile() {
           <DialogHeader>
             <DialogTitle>Followers</DialogTitle>
           </DialogHeader>
-          <div className="-mx-6 max-h-[60dvh] overflow-y-auto px-6">
+          <div
+            ref={followersScrollRef}
+            onScroll={(e) => {
+              const el = e.currentTarget;
+              if (
+                followersHasMore &&
+                !followersLoadingMore &&
+                el.scrollTop + el.clientHeight >= el.scrollHeight - 80
+              ) {
+                void loadFollowersPage(true);
+              }
+            }}
+            className="-mx-6 max-h-[60dvh] overflow-y-auto px-6"
+          >
             {followersUsers === null ? (
-              <div className="space-y-2 py-2">
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <div key={i} className="flex items-center gap-3 py-2">
-                    <div className="h-10 w-10 animate-pulse rounded-full bg-muted" />
-                    <div className="h-3 w-32 animate-pulse rounded bg-muted" />
-                  </div>
-                ))}
-              </div>
+              <ListRowSkeleton count={5} />
             ) : followersUsers.length === 0 ? (
               <p className="py-10 text-center text-sm text-muted-foreground">
                 @{username} doesn't have any followers yet.
               </p>
             ) : (
-              <ul className="divide-y">
-                {followersUsers.map((u) => {
-                  const st = dialogPresence[normalizePresenceHandle(u.handle)] ?? {
-                    visible: false,
-                    isOnline: false,
-                    statusText: null,
-                  };
-                  return (
-                    <li key={u.handle}>
-                      <Link
-                        to="/u/$username"
-                        params={{ username: u.handle }}
-                        onClick={() => setFollowersOpen(false)}
-                        className="flex items-center gap-3 py-3 hover:opacity-80"
-                      >
-                        <div className="relative shrink-0">
-                          <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-primary text-sm uppercase text-primary-foreground">
-                            {u.avatar ? (
-                              <img
-                                src={u.avatar}
-                                alt={u.display_name || u.handle}
-                                className="h-full w-full object-cover"
-                              />
-                            ) : (
-                              u.handle[0]
+              <>
+                <ul className="divide-y">
+                  {followersUsers.map((u) => {
+                    const st = dialogPresence[normalizePresenceHandle(u.handle)] ?? {
+                      visible: false,
+                      isOnline: false,
+                      statusText: null,
+                    };
+                    return (
+                      <li key={u.handle}>
+                        <Link
+                          to="/u/$username"
+                          params={{ username: u.handle }}
+                          onClick={() => setFollowersOpen(false)}
+                          className="flex items-center gap-3 py-3 hover:opacity-80"
+                        >
+                          <div className="relative shrink-0">
+                            <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-primary text-sm uppercase text-primary-foreground">
+                              {u.avatar ? (
+                                <FollowAvatarImg
+                                  avatar={u.avatar}
+                                  alt={u.display_name || u.handle}
+                                />
+                              ) : (
+                                u.handle[0]
+                              )}
+                            </div>
+                            <OnlineDot
+                              visible={st.visible && st.isOnline}
+                              size="md"
+                              className="absolute bottom-0 right-0"
+                            />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold">
+                              {u.display_name || u.handle}
+                            </p>
+                            <p className="truncate text-xs text-muted-foreground">@{u.handle}</p>
+                            {st.visible && !st.isOnline && st.statusText && (
+                              <OnlineStatusSubtitle status={st} className="block truncate" />
                             )}
                           </div>
-                          <OnlineDot
-                            visible={st.visible && st.isOnline}
-                            size="md"
-                            className="absolute bottom-0 right-0"
-                          />
-                        </div>
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-semibold">
-                            {u.display_name || u.handle}
-                          </p>
-                          <p className="truncate text-xs text-muted-foreground">@{u.handle}</p>
-                          {st.visible && !st.isOnline && st.statusText && (
-                            <OnlineStatusSubtitle status={st} className="block truncate" />
-                          )}
-                        </div>
-                      </Link>
-                    </li>
-                  );
-                })}
-              </ul>
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+                {followersHasMore && (
+                  <div ref={followersSentinelRef} className="h-3 w-full" aria-hidden="true" />
+                )}
+                {followersLoadingMore && <ListRowSkeleton count={2} />}
+              </>
             )}
           </div>
         </DialogContent>

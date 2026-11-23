@@ -1,4 +1,6 @@
 import {
+  lazy,
+  Suspense,
   useCallback,
   useEffect,
   useRef,
@@ -9,7 +11,7 @@ import { ArrowDown, Flag, Loader2, Plus, RefreshCw, Trash2, X } from "lucide-rea
 import { toast } from "sonner";
 import { searchGiphy } from "@/lib/giphy.functions";
 import { useAuth } from "@/hooks/useAuth";
-import { MakeGif } from "@/components/MakeGif";
+import { GifGridSkeleton, PanelSkeleton } from "@/components/Skeletons";
 import {
   bumpGifUse,
   countMyGifs,
@@ -22,11 +24,13 @@ import {
   type GifRow,
 } from "@/lib/gif";
 
+const MakeGif = lazy(() => import("@/components/MakeGif").then((m) => ({ default: m.MakeGif })));
+
 type Gif = { id: string; url: string; preview: string };
 type Failure = { kind: "missing-key" | "bad-key" | "network"; detail?: string | undefined };
 type Tab = "trending" | "mine";
 
-const GIF_PAGE_SIZE = 20;
+const GIF_PAGE_SIZE = 10;
 const PULL_REFRESH_THRESHOLD = 48;
 
 function mergeUniqueGifs(prev: GifRow[], next: GifRow[]): GifRow[] {
@@ -46,8 +50,8 @@ function mergeUniqueGifs(prev: GifRow[], next: GifRow[]): GifRow[] {
  * GIF picker shared by feed comments, full-video comments, LIVE chat and DMs.
  *
  * Two sources live side by side:
- *  - Coolerup GIFs made by users ("Make Your Own GIFs"), paginated 20 at a time
- *  - Giphy (search + trending)
+ *  - Coolerup GIFs made by users ("Make Your Own GIFs"), paginated 10 at a time
+ *  - Giphy (search + trending), paginated 10 at a time
  *
  * Inside the comments sheet (`fill` = true), the picker stretches inside the
  * 70% height sheet and keeps the 3-column grid vertically scrollable with
@@ -76,6 +80,7 @@ export function GifPicker({
   const [tab, setTab] = useState<Tab>("trending");
 
   const [gifs, setGifs] = useState<Gif[]>([]);
+  const [giphyHasMore, setGiphyHasMore] = useState(false);
   const [loading, setLoading] = useState(false);
   const [failure, setFailure] = useState<Failure | null>(null);
 
@@ -109,15 +114,18 @@ export function GifPicker({
     setLoading(true);
     setFailure(null);
     try {
-      const res = await searchGiphy({ data: { q: term, limit: GIF_PAGE_SIZE } });
+      const res = await searchGiphy({ data: { q: term, limit: GIF_PAGE_SIZE, offset: 0 } });
       if (!res.ok) {
         setGifs([]);
+        setGiphyHasMore(false);
         setFailure({ kind: res.reason, detail: res.detail });
         return;
       }
       setGifs(res.gifs);
+      setGiphyHasMore(res.gifs.length === GIF_PAGE_SIZE);
     } catch (err) {
       setGifs([]);
+      setGiphyHasMore(false);
       setFailure({
         kind: "network",
         detail: err instanceof Error ? err.message : undefined,
@@ -188,7 +196,7 @@ export function GifPicker({
     void loadCustom();
   }, [loadCustom, showMaker]);
 
-  const activeHasMore = tab === "mine" ? mineHasMore : customHasMore;
+  const activeHasMore = tab === "mine" ? mineHasMore : customHasMore || giphyHasMore;
 
   const loadMore = useCallback(async () => {
     if (loadingMoreRef.current || customLoading || loadingMore || refreshing || !activeHasMore) {
@@ -204,11 +212,36 @@ export function GifPicker({
         setMine((prev) => mergeUniqueGifs(prev, nextRows));
         setMineHasMore(nextRows.length === GIF_PAGE_SIZE);
       } else {
-        const nextRows = debouncedQ
-          ? await searchGifs(debouncedQ, GIF_PAGE_SIZE, custom.length)
-          : await listTrendingGifs(GIF_PAGE_SIZE, custom.length);
-        setCustom((prev) => mergeUniqueGifs(prev, nextRows));
-        setCustomHasMore(nextRows.length === GIF_PAGE_SIZE);
+        const tasks: Promise<void>[] = [];
+        if (customHasMore) {
+          tasks.push(
+            (debouncedQ
+              ? searchGifs(debouncedQ, GIF_PAGE_SIZE, custom.length)
+              : listTrendingGifs(GIF_PAGE_SIZE, custom.length)
+            ).then((nextRows) => {
+              setCustom((prev) => mergeUniqueGifs(prev, nextRows));
+              setCustomHasMore(nextRows.length === GIF_PAGE_SIZE);
+            }),
+          );
+        }
+        if (giphyHasMore) {
+          tasks.push(
+            searchGiphy({
+              data: { q: debouncedQ, limit: GIF_PAGE_SIZE, offset: gifs.length },
+            }).then((res) => {
+              if (!res.ok) {
+                setGiphyHasMore(false);
+                return;
+              }
+              setGifs((prev) => {
+                const seen = new Set(prev.map((g) => g.id));
+                return [...prev, ...res.gifs.filter((g) => !seen.has(g.id))];
+              });
+              setGiphyHasMore(res.gifs.length === GIF_PAGE_SIZE);
+            }),
+          );
+        }
+        await Promise.all(tasks);
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Couldn't load more GIFs.");
@@ -225,6 +258,9 @@ export function GifPicker({
     userId,
     mine.length,
     custom.length,
+    customHasMore,
+    giphyHasMore,
+    gifs.length,
     debouncedQ,
   ]);
 
@@ -250,7 +286,7 @@ export function GifPicker({
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [activeHasMore, loadMore, tab, custom.length, mine.length]);
+  }, [activeHasMore, loadMore, tab, custom.length, mine.length, gifs.length]);
 
   const handleScroll = () => {
     const el = scrollRef.current;
@@ -339,16 +375,18 @@ export function GifPicker({
   if (showMaker) {
     return (
       <div className={`flex min-h-0 flex-col border-t p-0 ${fill ? "flex-1" : ""} ${className}`}>
-        <MakeGif
-          className="min-h-0 border-t-0 p-0"
-          expand={fill}
-          onCreated={() => {
-            setShowMaker(false);
-            setTab("mine");
-            void loadCustom();
-          }}
-          onClose={() => setShowMaker(false)}
-        />
+        <Suspense fallback={<PanelSkeleton />}>
+          <MakeGif
+            className="min-h-0 border-t-0 p-0"
+            expand={fill}
+            onCreated={() => {
+              setShowMaker(false);
+              setTab("mine");
+              void loadCustom();
+            }}
+            onClose={() => setShowMaker(false)}
+          />
+        </Suspense>
       </div>
     );
   }
@@ -544,19 +582,7 @@ export function GifPicker({
           </p>
         )}
 
-        {customLoading && (
-          <p className="mb-2 flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading Coolerup GIFs…
-          </p>
-        )}
-
-        <div ref={sentinelRef} className="h-1 w-full" aria-hidden="true" />
-
-        {loadingMore && (
-          <p className="my-2 flex items-center justify-center gap-1.5 text-xs font-medium text-muted-foreground">
-            <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading more GIFs...
-          </p>
-        )}
+        {customLoading && <GifGridSkeleton count={6} className="mb-3" />}
 
         {showGiphy && failure && shownCustom.length === 0 && (
           <div className="mb-2 space-y-1 rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">
@@ -615,8 +641,9 @@ export function GifPicker({
                     src={g.preview}
                     alt="GIF"
                     loading="lazy"
+                    decoding="async"
                     referrerPolicy="no-referrer"
-                    className="h-24 w-full rounded object-cover"
+                    className="h-24 w-full rounded bg-zinc-900 object-cover"
                   />
                 </button>
               ))}
@@ -625,7 +652,18 @@ export function GifPicker({
         )}
 
         {showGiphy && loading && gifs.length === 0 && (
-          <p className="mt-2 text-xs text-muted-foreground">Loading…</p>
+          <GifGridSkeleton count={6} className="mt-2" />
+        )}
+
+        <div ref={sentinelRef} className="h-1 w-full" aria-hidden="true" />
+
+        {loadingMore && (
+          <div className="my-2 space-y-2">
+            <GifGridSkeleton count={3} />
+            <p className="flex items-center justify-center gap-1.5 text-xs font-medium text-muted-foreground">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading more GIFs...
+            </p>
+          </div>
         )}
       </div>
     </div>

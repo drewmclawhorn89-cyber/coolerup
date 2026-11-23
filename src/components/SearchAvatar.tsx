@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { resolveAvatarUrl } from "@/components/EditProfileDialog";
+import { useCompressedThumbnail } from "@/lib/thumbnailCache";
 
 /**
  * Round avatar for search rows. `avatar_url` may be a plain URL or a private
@@ -31,6 +32,7 @@ export function SearchAvatar({
     };
   }, [avatarUrl]);
 
+  const compressed = useCompressedThumbnail(src, { maxDim: 120 });
   const initial = (name.replace(/^@/, "").trim()[0] ?? "?").toUpperCase();
 
   return (
@@ -39,7 +41,13 @@ export function SearchAvatar({
       style={{ width: size, height: size }}
     >
       {src ? (
-        <img src={src} alt="" className="h-full w-full object-cover" loading="lazy" />
+        <img
+          src={compressed ?? src}
+          alt=""
+          className="h-full w-full object-cover"
+          loading="lazy"
+          decoding="async"
+        />
       ) : (
         initial
       )}

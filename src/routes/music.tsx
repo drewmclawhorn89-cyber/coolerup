@@ -1,13 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type FormEvent,
-  type ReactNode,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import {
   ArrowLeft,
   Download,
@@ -36,6 +28,7 @@ import {
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
 import { useAuth } from "@/hooks/useAuth";
+import { ListRowSkeleton } from "@/components/Skeletons";
 import { SongCard, SongRow, SoundCover } from "@/components/SongCard";
 import { RemoveDownloadButton, ReplaceAudioButton } from "@/components/DownloadButton";
 import { Button } from "@/components/ui/button";
@@ -57,8 +50,10 @@ import {
 import { useTrial } from "@/lib/trial";
 import {
   FULL_SONG_SECONDS,
+  MUSIC_PAGE_SIZE,
   getAllSounds,
   getKnownDuration,
+  getSavedSoundIds,
   getSavedSounds,
   getTopSounds,
   getTrendingSoundsThisWeek,
@@ -66,17 +61,13 @@ import {
   isYouTubeSound,
   probeSoundDurations,
   saveSound,
+  searchSoundsCatalog,
   soundAudioUrl,
   soundCoverGradient,
   unsaveSound,
   type Sound,
 } from "@/lib/sounds";
-import {
-  addYouTubeSong,
-  getYouTubeSongs,
-  incrementSoundPlay,
-  youtubeSongId,
-} from "@/lib/youtubeSongs";
+import { addYouTubeSong, getYouTubeSongs, incrementSoundPlay } from "@/lib/youtubeSongs";
 import {
   AUDIO_ACCEPT,
   COVER_ACCEPT,
@@ -137,13 +128,39 @@ function MusicPage() {
 
   const [tab, setTab] = useState<MusicTab>("top");
   const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [all, setAll] = useState<Sound[]>([]);
+  const [allHasMore, setAllHasMore] = useState(false);
+  const [allOffset, setAllOffset] = useState(0);
+
   const [youtubeSongs, setYoutubeSongs] = useState<Sound[]>([]);
+  const [youtubeHasMore, setYoutubeHasMore] = useState(false);
+  const [youtubeLoadingMore, setYoutubeLoadingMore] = useState(false);
+
   const [top, setTop] = useState<Sound[]>([]);
+  const [topHasMore, setTopHasMore] = useState(false);
+
   const [trending, setTrending] = useState<Sound[]>([]);
+  const [trendingHasMore, setTrendingHasMore] = useState(false);
+
   const [saved, setSaved] = useState<Sound[]>([]);
+  const [savedOffset, setSavedOffset] = useState(0);
+  const [savedHasMore, setSavedHasMore] = useState(false);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
+
+  const [searchResults, setSearchResults] = useState<Sound[] | null>(null);
+  const [searchHasMore, setSearchHasMore] = useState(false);
+  const [searchLoading, setSearchLoading] = useState(false);
+
+  const [loadedTabs, setLoadedTabs] = useState<Record<MusicTab, boolean>>({
+    top: false,
+    trending: false,
+    mine: false,
+    full: false,
+    downloaded: false,
+  });
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState("");
   const [probing, setProbing] = useState(false);
   const [durationVersion, setDurationVersion] = useState(0);
@@ -160,40 +177,29 @@ function MusicPage() {
   const [downloadBytes, setDownloadBytes] = useState(0);
   /** Downloaded songs untouched for 30 days — offered up for deletion. */
   const [staleSongs, setStaleSongs] = useState<SavedSong[]>([]);
+  const listSentinelRef = useRef<HTMLDivElement | null>(null);
+
   // Offline music downloads are a VIP-only perk (plus the lifetime "all access"
   // grant). Pro keeps offline *videos*, but music is gated at VIP, so Pro, Plus
   // and free accounts all see the upgrade prompt here.
   const offlineUnlocked = hasMusicOfflineAccess(auth.handle);
   const offlineTrial = useTrial(auth.handle, musicOfflinePlan().id);
 
-  const load = useCallback(async () => {
+  // Initial load fetches only the Top Songs page (10 items) + saved IDs for heart icons.
+  const loadTopTab = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      const [allSounds, topSounds, trendingSounds, youTube] = await Promise.all([
-        getAllSounds(200),
-        getTopSounds(10),
-        getTrendingSoundsThisWeek(20),
-        getYouTubeSongs(50).catch(() => [] as Sound[]),
+      const [topSounds, ids] = await Promise.all([
+        getTopSounds(MUSIC_PAGE_SIZE, 0),
+        auth.user
+          ? getSavedSoundIds().catch(() => new Set<string>())
+          : Promise.resolve(new Set<string>()),
       ]);
-      setAll(allSounds);
       setTop(topSounds);
-      setTrending(trendingSounds);
-      setYoutubeSongs(youTube);
-
-      if (auth.user) {
-        const [mine, uploads] = await Promise.all([
-          getSavedSounds(),
-          getMyUploadedSongs().catch(() => [] as Sound[]),
-        ]);
-        setSaved(mine);
-        setSavedIds(new Set(mine.map((s) => s.id)));
-        setMyUploads(uploads);
-      } else {
-        setSaved([]);
-        setSavedIds(new Set());
-        setMyUploads([]);
-      }
+      setTopHasMore(topSounds.length === MUSIC_PAGE_SIZE);
+      setSavedIds(ids);
+      setLoadedTabs((prev) => ({ ...prev, top: true }));
     } catch {
       setError("Couldn't load songs. Check your connection and try again.");
     } finally {
@@ -202,12 +208,123 @@ function MusicPage() {
   }, [auth.user]);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    void loadTopTab();
+  }, [loadTopTab]);
+
+  // Reset user-scoped tabs when auth state changes.
+  useEffect(() => {
+    if (!auth.user) {
+      setSaved([]);
+      setSavedIds(new Set());
+      setMyUploads([]);
+      setSavedOffset(0);
+      setSavedHasMore(false);
+    }
+    setLoadedTabs((prev) => ({ ...prev, mine: false }));
+  }, [auth.user]);
+
+  // Lazy-load Trending, Your Sounds, and Full Songs tabs only when tapped.
+  const loadTabData = useCallback(
+    async (target: MusicTab) => {
+      if (target === "top" || target === "downloaded" || loadedTabs[target]) return;
+      setLoading(true);
+      setError("");
+      try {
+        if (target === "trending") {
+          const [trendingSounds, youTube] = await Promise.all([
+            getTrendingSoundsThisWeek(MUSIC_PAGE_SIZE, 0),
+            getYouTubeSongs(MUSIC_PAGE_SIZE, 0).catch(() => [] as Sound[]),
+          ]);
+          setTrending(trendingSounds);
+          setTrendingHasMore(trendingSounds.length === MUSIC_PAGE_SIZE);
+          setYoutubeSongs(youTube);
+          setYoutubeHasMore(youTube.length === MUSIC_PAGE_SIZE);
+        } else if (target === "mine") {
+          if (auth.user) {
+            const [mine, uploads] = await Promise.all([
+              getSavedSounds(MUSIC_PAGE_SIZE, 0),
+              getMyUploadedSongs(MUSIC_PAGE_SIZE).catch(() => [] as Sound[]),
+            ]);
+            setSaved(mine);
+            setSavedOffset(MUSIC_PAGE_SIZE);
+            setSavedHasMore(mine.length === MUSIC_PAGE_SIZE);
+            setMyUploads(uploads);
+          } else {
+            setSaved([]);
+            setSavedOffset(0);
+            setSavedHasMore(false);
+            setMyUploads([]);
+          }
+        } else if (target === "full") {
+          const firstPage = await getAllSounds(MUSIC_PAGE_SIZE, 0);
+          setAll(firstPage);
+          setAllOffset(MUSIC_PAGE_SIZE);
+          setAllHasMore(firstPage.length === MUSIC_PAGE_SIZE);
+          if (firstPage.length) {
+            setProbing(true);
+            void probeSoundDurations(firstPage, MUSIC_PAGE_SIZE)
+              .catch(() => undefined)
+              .finally(() => {
+                setProbing(false);
+                setDurationVersion((n) => n + 1);
+              });
+          }
+        }
+        setLoadedTabs((prev) => ({ ...prev, [target]: true }));
+      } catch {
+        setError("Couldn't load this tab. Check your connection and try again.");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [auth.user, loadedTabs],
+  );
+
+  useEffect(() => {
+    if (debouncedQuery) return;
+    void loadTabData(tab);
+  }, [tab, debouncedQuery, loadTabData]);
+
+  // Debounce Music search and query database 10 results at a time.
+  useEffect(() => {
+    const trimmed = query.trim();
+    if (!trimmed) {
+      setDebouncedQuery("");
+      setSearchResults(null);
+      setSearchHasMore(false);
+      setSearchLoading(false);
+      return;
+    }
+    const timer = window.setTimeout(() => setDebouncedQuery(trimmed), 250);
+    return () => window.clearTimeout(timer);
+  }, [query]);
+
+  useEffect(() => {
+    if (!debouncedQuery) return;
+    let alive = true;
+    setSearchLoading(true);
+    void searchSoundsCatalog(debouncedQuery, MUSIC_PAGE_SIZE, 0)
+      .then((rows) => {
+        if (!alive) return;
+        setSearchResults(rows);
+        setSearchHasMore(rows.length === MUSIC_PAGE_SIZE);
+      })
+      .catch(() => {
+        if (!alive) return;
+        setSearchResults([]);
+        setSearchHasMore(false);
+      })
+      .finally(() => {
+        if (alive) setSearchLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [debouncedQuery]);
 
   /**
-   * Keep the Downloaded tab in sync with IndexedDB. This is read straight from
-   * the device, so it works before (and without) any network request.
+   * Keep the Downloaded tab in sync with IndexedDB. Loaded lazily when the
+   * Downloaded tab is opened (or when offline downloads change).
    */
   const refreshDownloads = useCallback(async () => {
     try {
@@ -225,32 +342,151 @@ function MusicPage() {
   }, []);
 
   useEffect(() => {
+    if (tab !== "downloaded") return;
     void refreshDownloads();
     return onOfflineSongsChange(() => void refreshDownloads());
-  }, [refreshDownloads]);
+  }, [tab, refreshDownloads]);
 
-  // Measure real song lengths the first time "Full Songs" is opened. Doing it
-  // up front would download metadata for every sound on the page.
-  const probedRef = useRef(false);
+  const loadMoreActive = useCallback(async () => {
+    if (loading || loadingMore || searchLoading) return;
+    if (debouncedQuery) {
+      if (!searchHasMore || !searchResults) return;
+      setLoadingMore(true);
+      try {
+        const next = await searchSoundsCatalog(
+          debouncedQuery,
+          MUSIC_PAGE_SIZE,
+          searchResults.length,
+        );
+        setSearchResults((prev) => {
+          const seen = new Set((prev ?? []).map((s) => s.id));
+          return [...(prev ?? []), ...next.filter((s) => !seen.has(s.id))];
+        });
+        setSearchHasMore(next.length === MUSIC_PAGE_SIZE);
+      } finally {
+        setLoadingMore(false);
+      }
+      return;
+    }
+
+    if (tab === "top" && topHasMore) {
+      setLoadingMore(true);
+      try {
+        const next = await getTopSounds(MUSIC_PAGE_SIZE, top.length);
+        setTop((prev) => {
+          const seen = new Set(prev.map((s) => s.id));
+          return [...prev, ...next.filter((s) => !seen.has(s.id))];
+        });
+        setTopHasMore(next.length === MUSIC_PAGE_SIZE);
+      } finally {
+        setLoadingMore(false);
+      }
+    } else if (tab === "trending" && trendingHasMore) {
+      setLoadingMore(true);
+      try {
+        const next = await getTrendingSoundsThisWeek(MUSIC_PAGE_SIZE, trending.length);
+        setTrending((prev) => {
+          const seen = new Set(prev.map((s) => s.id));
+          return [...prev, ...next.filter((s) => !seen.has(s.id))];
+        });
+        setTrendingHasMore(next.length === MUSIC_PAGE_SIZE);
+      } finally {
+        setLoadingMore(false);
+      }
+    } else if (tab === "mine" && savedHasMore && auth.user) {
+      setLoadingMore(true);
+      try {
+        const next = await getSavedSounds(MUSIC_PAGE_SIZE, savedOffset);
+        setSaved((prev) => {
+          const seen = new Set(prev.map((s) => s.id));
+          return [...prev, ...next.filter((s) => !seen.has(s.id))];
+        });
+        setSavedOffset((o) => o + MUSIC_PAGE_SIZE);
+        setSavedHasMore(next.length === MUSIC_PAGE_SIZE);
+      } finally {
+        setLoadingMore(false);
+      }
+    } else if (tab === "full" && allHasMore) {
+      setLoadingMore(true);
+      try {
+        const next = await getAllSounds(MUSIC_PAGE_SIZE, allOffset);
+        setAll((prev) => {
+          const seen = new Set(prev.map((s) => s.id));
+          return [...prev, ...next.filter((s) => !seen.has(s.id))];
+        });
+        setAllOffset((o) => o + MUSIC_PAGE_SIZE);
+        setAllHasMore(next.length === MUSIC_PAGE_SIZE);
+        if (next.length) {
+          setProbing(true);
+          void probeSoundDurations(next, MUSIC_PAGE_SIZE)
+            .catch(() => undefined)
+            .finally(() => {
+              setProbing(false);
+              setDurationVersion((n) => n + 1);
+            });
+        }
+      } finally {
+        setLoadingMore(false);
+      }
+    }
+  }, [
+    allHasMore,
+    allOffset,
+    auth.user,
+    debouncedQuery,
+    loading,
+    loadingMore,
+    savedHasMore,
+    savedOffset,
+    searchHasMore,
+    searchLoading,
+    searchResults,
+    tab,
+    top.length,
+    topHasMore,
+    trending.length,
+    trendingHasMore,
+  ]);
+
+  const activeHasMore = debouncedQuery
+    ? searchHasMore
+    : tab === "top"
+      ? topHasMore
+      : tab === "trending"
+        ? trendingHasMore
+        : tab === "mine"
+          ? savedHasMore
+          : tab === "full"
+            ? allHasMore
+            : false;
+
   useEffect(() => {
-    if (tab !== "full" || probedRef.current || !all.length) return;
-    probedRef.current = true;
-    setProbing(true);
-    void probeSoundDurations(all, 24)
-      .catch(() => undefined)
-      .finally(() => {
-        setProbing(false);
-        setDurationVersion((n) => n + 1);
-      });
-  }, [tab, all]);
-
-  const searchResults = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return null;
-    return [...all, ...youtubeSongs].filter(
-      (s) => s.title.toLowerCase().includes(q) || s.creator_username.toLowerCase().includes(q),
+    const node = listSentinelRef.current;
+    if (!node || !activeHasMore || typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) void loadMoreActive();
+      },
+      { rootMargin: "400px 0px" },
     );
-  }, [all, youtubeSongs, query]);
+    io.observe(node);
+    return () => io.disconnect();
+  }, [activeHasMore, loadMoreActive]);
+
+  const loadMoreYouTube = useCallback(async () => {
+    if (youtubeLoadingMore || !youtubeHasMore) return;
+    setYoutubeLoadingMore(true);
+    try {
+      const next = await getYouTubeSongs(MUSIC_PAGE_SIZE, youtubeSongs.length);
+      setYoutubeSongs((prev) => {
+        const seen = new Set(prev.map((s) => s.id));
+        return [...prev, ...next.filter((s) => !seen.has(s.id))];
+      });
+      setYoutubeHasMore(next.length === MUSIC_PAGE_SIZE);
+    } finally {
+      setYoutubeLoadingMore(false);
+    }
+  }, [youtubeHasMore, youtubeLoadingMore, youtubeSongs.length]);
 
   const fullSongs = useMemo(() => {
     // Song lengths live in a module-level cache, not in React state, so
@@ -259,12 +495,13 @@ function MusicPage() {
     const measured = all.filter((s) => isFullSong(s.id));
     if (measured.length) return measured;
     // Nothing measured yet (or every file is short) — show the longest known.
-    return [...all]
+    const withKnown = [...all]
       .filter((s) => {
         const d = getKnownDuration(s.id);
         return typeof d === "number" && d > 0;
       })
       .sort((a, b) => (getKnownDuration(b.id) ?? 0) - (getKnownDuration(a.id) ?? 0));
+    return withKnown.length ? withKnown : all;
   }, [all, durationVersion]);
 
   const toggleSave = useCallback(
@@ -286,10 +523,10 @@ function MusicPage() {
       const ok = next ? await saveSound(sound.id) : await unsaveSound(sound.id);
       if (!ok) {
         toast.error("Couldn't update Your Sounds.");
-        void load();
+        void loadTopTab();
       }
     },
-    [auth.user, savedIds, load],
+    [auth.user, savedIds, loadTopTab],
   );
 
   /** Delete one of the user's own uploads after they confirm. */
@@ -433,32 +670,6 @@ function MusicPage() {
       </div>
     );
   };
-
-  const renderRow = (title: string, icon: ReactNode, sounds: Sound[], empty: string) => (
-    <section className="mb-6">
-      <div className="mb-2 flex items-center gap-1.5 px-1">
-        {icon}
-        <h2 className="text-sm font-bold">{title}</h2>
-        <span className="text-[11px] text-muted-foreground">{sounds.length}</span>
-      </div>
-      {sounds.length ? (
-        <div className="no-scrollbar -mx-4 flex gap-3 overflow-x-auto px-4 pb-1">
-          {sounds.map((s) => (
-            <SongCard
-              key={s.id}
-              sound={s}
-              playing={nowPlayingId === s.id && player.playing}
-              saved={savedIds.has(s.id)}
-              onToggleSave={() => void toggleSave(s)}
-              onOpen={() => void openSong(s, sounds)}
-            />
-          ))}
-        </div>
-      ) : (
-        <p className="px-1 py-3 text-sm text-muted-foreground">{empty}</p>
-      )}
-    </section>
-  );
 
   return (
     <div className="min-h-dvh bg-background pb-32">
@@ -623,72 +834,61 @@ function MusicPage() {
       </div>
 
       <div className="mx-auto max-w-2xl px-4 pt-4">
-        {loading ? (
-          <div className="flex justify-center py-16">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-          </div>
+        {(loading && !debouncedQuery) || (debouncedQuery && searchLoading) ? (
+          <ListRowSkeleton count={5} />
         ) : error ? (
           <div className="py-10 text-center">
             <p className="text-sm text-muted-foreground">{error}</p>
             <button
               type="button"
-              onClick={() => void load()}
+              onClick={() => {
+                if (tab === "top") void loadTopTab();
+                else {
+                  setLoadedTabs((prev) => ({ ...prev, [tab]: false }));
+                }
+              }}
               className="mt-3 rounded-full bg-primary px-4 py-2 text-sm font-bold text-primary-foreground"
             >
               Try again
             </button>
           </div>
-        ) : searchResults ? (
+        ) : debouncedQuery ? (
           <section>
             <h2 className="mb-2 px-1 text-sm font-bold">
-              Results for “{query}”{" "}
-              <span className="text-muted-foreground">{searchResults.length}</span>
+              Results for “{debouncedQuery}”{" "}
+              <span className="text-muted-foreground">{searchResults?.length ?? 0}</span>
             </h2>
-            {renderList(searchResults, "No songs match that search.")}
+            {renderList(searchResults ?? [], "No songs match that search.")}
           </section>
         ) : tab === "top" ? (
-          <>
-            {renderRow(
-              "Top Songs",
-              <Flame className="h-4 w-4 text-orange-500" />,
-              top,
-              "No songs yet.",
-            )}
-            {renderRow(
-              "Trending Sounds",
-              <Sparkles className="h-4 w-4 text-primary" />,
-              trending,
-              "Nothing trending this week.",
-            )}
-            {renderRow(
-              "Your Sounds",
-              <Heart className="h-4 w-4 text-red-500" />,
-              saved,
-              auth.user ? "Tap the heart on a song to save it here." : "Sign in to save sounds.",
-            )}
-            {myUploads.length > 0 &&
-              renderRow(
-                "Your Uploads",
-                <Upload className="h-4 w-4 text-primary" />,
-                myUploads,
-                "No uploads yet.",
-              )}
-            {renderRow(
-              "YouTube Songs",
-              <Youtube className="h-4 w-4 text-red-600" />,
-              youtubeSongs,
-              "No YouTube songs yet. Tap the YouTube button to paste a link.",
-            )}
-            <section className="mb-6">
-              <div className="mb-2 flex items-center gap-1.5 px-1">
-                <Music2 className="h-4 w-4 text-sky-400" />
-                <h2 className="text-sm font-bold">Full Songs</h2>
+          <section>
+            <div className="mb-2 flex items-center gap-1.5 px-1">
+              <Flame className="h-4 w-4 text-orange-500" />
+              <h2 className="text-sm font-bold">Top Songs</h2>
+              <span className="text-[11px] text-muted-foreground">{top.length}</span>
+            </div>
+            {top.length > 0 && (
+              <div className="no-scrollbar -mx-4 mb-4 flex gap-3 overflow-x-auto px-4 pb-1">
+                {top.slice(0, MUSIC_PAGE_SIZE).map((s) => (
+                  <SongCard
+                    key={s.id}
+                    sound={s}
+                    playing={nowPlayingId === s.id && player.playing}
+                    saved={savedIds.has(s.id)}
+                    onToggleSave={() => void toggleSave(s)}
+                    onOpen={() => void openSong(s, top)}
+                  />
+                ))}
               </div>
-              {renderList(fullSongs.slice(0, 10), "No full-length songs yet.")}
-            </section>
-          </>
+            )}
+            {renderList(top, "No songs yet.")}
+          </section>
         ) : tab === "trending" ? (
           <section>
+            <div className="mb-2 flex items-center gap-1.5 px-1">
+              <Sparkles className="h-4 w-4 text-primary" />
+              <h2 className="text-sm font-bold">Trending Sounds</h2>
+            </div>
             {renderList(trending, "Nothing trending this week.")}
             <div className="mt-6">
               <div className="mb-2 flex items-center gap-1.5 px-1">
@@ -697,6 +897,16 @@ function MusicPage() {
                 <span className="text-[11px] text-muted-foreground">{youtubeSongs.length}</span>
               </div>
               {renderList(youtubeSongs, "No YouTube songs yet.")}
+              {youtubeHasMore && (
+                <button
+                  type="button"
+                  onClick={() => void loadMoreYouTube()}
+                  disabled={youtubeLoadingMore}
+                  className="mt-2 rounded-full bg-secondary px-3 py-1.5 text-xs font-semibold text-secondary-foreground hover:bg-accent disabled:opacity-50"
+                >
+                  {youtubeLoadingMore ? "Loading…" : "Load more YouTube songs"}
+                </button>
+              )}
             </div>
           </section>
         ) : tab === "mine" ? (
@@ -756,13 +966,8 @@ function MusicPage() {
           </section>
         ) : tab === "full" ? (
           <section>
-            {probing && (
-              <p className="mb-2 flex items-center gap-2 px-1 text-xs text-muted-foreground">
-                <Loader2 className="h-3 w-3 animate-spin" /> Measuring song lengths…
-              </p>
-            )}
             {probing && !fullSongs.length ? (
-              <p className="px-1 py-6 text-sm text-muted-foreground">Measuring song lengths…</p>
+              <ListRowSkeleton count={4} />
             ) : (
               renderList(
                 fullSongs,
@@ -843,52 +1048,81 @@ function MusicPage() {
             onChanged={() => void refreshDownloads()}
           />
         )}
+
+        {activeHasMore && (
+          <div className="mt-4 flex flex-col items-center gap-2">
+            <div ref={listSentinelRef} aria-hidden="true" className="h-px w-full" />
+            {loadingMore ? (
+              <div className="w-full">
+                <ListRowSkeleton count={2} />
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => void loadMoreActive()}
+                className="rounded-full bg-secondary px-4 py-1.5 text-xs font-semibold text-secondary-foreground hover:bg-accent"
+              >
+                Load 10 more
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
-      <UploadSongDialog
-        open={uploadingSong}
-        onClose={() => setUploadingSong(false)}
-        onUploaded={(song) => {
-          setMyUploads((prev) => [song, ...prev.filter((s) => s.id !== song.id)]);
-          setAll((prev) => [song, ...prev.filter((s) => s.id !== song.id)]);
-          toast.success("Song uploaded to Music.");
-        }}
-      />
+      {uploadingSong && (
+        <UploadSongDialog
+          open={uploadingSong}
+          onClose={() => setUploadingSong(false)}
+          onUploaded={(song) => {
+            setMyUploads((prev) => [song, ...prev.filter((s) => s.id !== song.id)]);
+            setAll((prev) => [song, ...prev.filter((s) => s.id !== song.id)]);
+            toast.success("Song uploaded to Music.");
+          }}
+        />
+      )}
 
-      <Dialog
-        open={Boolean(deletingSong)}
-        onOpenChange={(next) => {
-          if (!next && !deleting) setDeletingSong(null);
-        }}
-      >
-        <DialogContent className="w-[calc(100%-2rem)] rounded-lg" aria-describedby={undefined}>
-          <DialogHeader>
-            <DialogTitle>Delete this song?</DialogTitle>
-          </DialogHeader>
-          <p className="text-sm leading-relaxed text-muted-foreground">
-            “{deletingSong?.title}” will be removed from Music and its file deleted. This can't be
-            undone.
-          </p>
-          <div className="flex justify-end gap-2">
-            <Button variant="secondary" onClick={() => setDeletingSong(null)} disabled={deleting}>
-              Cancel
-            </Button>
-            <Button variant="destructive" onClick={() => void confirmDelete()} disabled={deleting}>
-              {deleting ? <Loader2 className="animate-spin" /> : <Trash2 />} Delete
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      {deletingSong && (
+        <Dialog
+          open={Boolean(deletingSong)}
+          onOpenChange={(next) => {
+            if (!next && !deleting) setDeletingSong(null);
+          }}
+        >
+          <DialogContent className="w-[calc(100%-2rem)] rounded-lg" aria-describedby={undefined}>
+            <DialogHeader>
+              <DialogTitle>Delete this song?</DialogTitle>
+            </DialogHeader>
+            <p className="text-sm leading-relaxed text-muted-foreground">
+              “{deletingSong?.title}” will be removed from Music and its file deleted. This can't be
+              undone.
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button variant="secondary" onClick={() => setDeletingSong(null)} disabled={deleting}>
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => void confirmDelete()}
+                disabled={deleting}
+              >
+                {deleting ? <Loader2 className="animate-spin" /> : <Trash2 />} Delete
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
 
-      <AddYouTubeSongDialog
-        open={addingYouTube}
-        onClose={() => setAddingYouTube(false)}
-        onAdded={(song) => {
-          setYoutubeSongs((prev) => [song, ...prev.filter((s) => s.id !== song.id)]);
-          setAll((prev) => prev.filter((s) => s.id !== song.id));
-          toast.success("YouTube song added to Music.");
-        }}
-      />
+      {addingYouTube && (
+        <AddYouTubeSongDialog
+          open={addingYouTube}
+          onClose={() => setAddingYouTube(false)}
+          onAdded={(song) => {
+            setYoutubeSongs((prev) => [song, ...prev.filter((s) => s.id !== song.id)]);
+            setAll((prev) => prev.filter((s) => s.id !== song.id));
+            toast.success("YouTube song added to Music.");
+          }}
+        />
+      )}
     </div>
   );
 }

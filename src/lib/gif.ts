@@ -19,6 +19,7 @@ export const MAX_GIF_SECONDS = 3;
 export const MIN_GIF_SECONDS = 0.5;
 export const MAX_GIF_BYTES = 5 * 1024 * 1024;
 export const GIF_BUCKET = "gifs";
+export const GIF_PAGE_SIZE = 10;
 
 /** Don't pull a 500 MB video into the wasm heap just to make a 3s GIF. */
 export const MAX_GIF_SOURCE_BYTES = 150 * 1024 * 1024;
@@ -91,7 +92,7 @@ async function attachHandles(rows: GifRow[]): Promise<GifRow[]> {
 }
 
 /** Public GIFs, newest first — the "Trending" tab. */
-export async function listTrendingGifs(limit = 20, offset = 0): Promise<GifRow[]> {
+export async function listTrendingGifs(limit = GIF_PAGE_SIZE, offset = 0): Promise<GifRow[]> {
   const from = Math.max(0, offset);
   const to = from + Math.max(1, limit) - 1;
   const { data, error } = await supabase
@@ -117,7 +118,7 @@ export async function countMyGifs(userId: string): Promise<number> {
 /** The signed-in user's GIFs, newest first — the "My GIFs" tab. */
 export async function listMyGifs(
   userId: string,
-  limit = 20,
+  limit = GIF_PAGE_SIZE,
   offset = 0,
   q = "",
 ): Promise<GifRow[]> {
@@ -134,7 +135,7 @@ export async function listMyGifs(
 }
 
 /** Title search across public GIFs (used by the picker's search box). */
-export async function searchGifs(q: string, limit = 20, offset = 0): Promise<GifRow[]> {
+export async function searchGifs(q: string, limit = GIF_PAGE_SIZE, offset = 0): Promise<GifRow[]> {
   const term = q.trim();
   if (!term) return listTrendingGifs(limit, offset);
   const from = Math.max(0, offset);

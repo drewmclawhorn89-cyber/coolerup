@@ -10,7 +10,7 @@
  * Keep this module free of React so the upload path and tests can import it.
  */
 import { useEffect, useState } from "react";
-import type { EffectiveType } from "./network";
+import { isLowDataMode, type EffectiveType } from "./network";
 
 /** What the user picked. `data` is TikTok's "Data Saver". */
 export type QualityId = "auto" | "1080p" | "720p" | "480p" | "360p" | "data";
@@ -104,9 +104,13 @@ export type QualitySources = {
 
 /**
  * Auto picks a rendition from the connection:
- * 4g → 1080p, 3g → 720p, everything slower (or unknown) → 480p.
+ * Low Data Mode → 360p, 4g → 1080p, 3g → 720p, everything slower (or unknown) → 480p.
  */
-export function autoRendition(effectiveType: EffectiveType = "unknown"): RenditionId {
+export function autoRendition(
+  effectiveType: EffectiveType = "unknown",
+  lowData: boolean = isLowDataMode(),
+): RenditionId {
+  if (lowData) return "360p";
   if (effectiveType === "4g") return "1080p";
   if (effectiveType === "3g") return "720p";
   return "480p";
@@ -114,13 +118,14 @@ export function autoRendition(effectiveType: EffectiveType = "unknown"): Renditi
 
 /**
  * Which rendition a selection resolves to. `data` always means 360p; `auto`
- * asks the network. Returned separately so the UI can show what Auto chose.
+ * asks the network (or 360p in Low Data Mode). Returned separately so the UI can show what Auto chose.
  */
 export function resolveRendition(
   quality: QualityId,
   effectiveType: EffectiveType = "unknown",
+  lowData: boolean = isLowDataMode(),
 ): RenditionId {
-  if (quality === "auto") return autoRendition(effectiveType);
+  if (quality === "auto") return autoRendition(effectiveType, lowData);
   if (quality === "data") return "360p";
   return quality;
 }
@@ -141,16 +146,23 @@ export function resolveQualitySource(
   video: QualitySources,
   quality: QualityId,
   effectiveType: EffectiveType = "unknown",
+  lowData: boolean = isLowDataMode(),
 ): ResolvedSource {
-  const rendition = resolveRendition(quality, effectiveType);
+  const rendition = resolveRendition(quality, effectiveType, lowData);
   const url = video[qualityUrlKey(rendition)];
   return {
     url: url || video.video_url,
     rendition,
     fallback: !url,
-    // Auto hides the badge; Data Saver labels itself so the user knows why the
-    // picture looks softer.
-    badge: quality === "auto" ? null : quality === "data" ? "Data Saver" : rendition,
+    // Auto hides the badge unless Low Data Mode forced it; Data Saver labels itself.
+    badge:
+      quality === "auto"
+        ? lowData
+          ? "Low Data · 360p"
+          : null
+        : quality === "data"
+          ? "Data Saver"
+          : rendition,
   };
 }
 

@@ -55,9 +55,9 @@ describe("GifPicker", () => {
     mockListMyGifs.mockResolvedValue(makeGifs(100, 4));
   });
 
-  it("renders a vertically scrollable 3-column grid and auto-loads next 20 GIFs on scroll", async () => {
-    const page1 = makeGifs(1, 20);
-    const page2 = makeGifs(21, 5);
+  it("renders a vertically scrollable 3-column grid and auto-loads next 10 GIFs on scroll", async () => {
+    const page1 = makeGifs(1, 10);
+    const page2 = makeGifs(11, 5);
     let resolvePage2: ((rows: GifRow[]) => void) | null = null;
 
     mockListTrendingGifs
@@ -83,10 +83,10 @@ describe("GifPicker", () => {
     fireEvent.scroll(scroller!);
 
     expect(await screen.findByText("Loading more GIFs...")).toBeInTheDocument();
-    expect(mockListTrendingGifs).toHaveBeenLastCalledWith(20, 20);
+    expect(mockListTrendingGifs).toHaveBeenLastCalledWith(10, 10);
 
     resolvePage2!(page2);
-    expect(await screen.findByAltText("Funny Clip 21")).toBeInTheDocument();
+    expect(await screen.findByAltText("Funny Clip 11")).toBeInTheDocument();
   });
 
   it("switches to My GIFs tab and shows count and scrollable grid", async () => {

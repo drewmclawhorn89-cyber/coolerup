@@ -230,7 +230,7 @@ function missingStatusColumn(error: { message?: string; details?: string } | nul
  * across title, username and description with a single ilike OR clause.
  */
 export async function listFullVideos(opts: ListOptions = {}): Promise<FullVideo[]> {
-  const { category, search, limit = 60, offset = 0, viewerId } = opts;
+  const { category, search, limit = 10, offset = 0, viewerId } = opts;
 
   const build = (hideInFlight: boolean) => {
     let query = db
@@ -284,7 +284,7 @@ export async function listFullVideosByIds(ids: string[]): Promise<FullVideo[]> {
 }
 
 /** Related videos for the "Up Next" rail: same category first, then recent. */
-export async function listRelatedVideos(video: FullVideo, limit = 12): Promise<FullVideo[]> {
+export async function listRelatedVideos(video: FullVideo, limit = 10): Promise<FullVideo[]> {
   const build = (hideInFlight: boolean) => {
     let query = db
       .from("full_videos")
@@ -410,12 +410,16 @@ export async function setReaction(
 export async function listComments(
   videoId: string,
   viewerId?: string | null,
+  opts: { limit?: number; offset?: number } = {},
 ): Promise<FullVideoComment[]> {
+  const limit = Math.max(1, opts.limit ?? 10);
+  const offset = Math.max(0, opts.offset ?? 0);
   const { data, error } = await db
     .from("full_video_comments")
     .select("*")
     .eq("video_id", videoId)
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .range(offset, offset + limit - 1);
   if (error) throw error;
 
   const rows = (data ?? []) as Omit<FullVideoComment, "like_count" | "liked_by_me">[];

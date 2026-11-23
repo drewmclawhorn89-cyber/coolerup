@@ -25,7 +25,9 @@ import { useAgeVerification } from "@/lib/ageVerification";
 import { getFirebaseConfigSummary } from "@/lib/firebase";
 import { normalizePhone } from "@/lib/phone";
 import { useShowOnlineSetting } from "@/lib/onlineStatus";
-import { MoreSettings } from "@/components/MoreSettings";
+import { PanelSkeleton } from "@/components/Skeletons";
+import { setLowDataMode, useLowDataMode } from "@/lib/network";
+import { useCompressedThumbnail } from "@/lib/thumbnailCache";
 import {
   backgroundPlayPlan,
   hasBackgroundPlayAccess,
@@ -71,6 +73,10 @@ const SubscriptionsPanel = lazy(() =>
   import("@/components/SubscriptionsPanel").then((m) => ({ default: m.SubscriptionsPanel })),
 );
 
+const MoreSettings = lazy(() =>
+  import("@/components/MoreSettings").then((m) => ({ default: m.MoreSettings })),
+);
+
 export const Route = createFileRoute("/settings")({
   // `?subscriptions=1` opens the plans screen directly — used by upgrade CTAs
   // elsewhere in the app (e.g. the Music tab's locked Downloaded tab).
@@ -97,6 +103,9 @@ function Settings() {
   const { status: ageStatus, loading: ageLoading } = useAgeVerification(Boolean(auth.user));
   // Playback quality is a device preference (localStorage `video_quality`).
   const { quality: videoQuality, setQuality: setVideoQuality } = useVideoQuality();
+  // Low Data Mode: lower quality video first, no auto-play, smaller images.
+  const lowDataMode = useLowDataMode();
+  const avatarThumb = useCompressedThumbnail(auth.avatar, { maxDim: 160 });
   // Background play is a VIP perk; the toggle only moves for entitled plans.
   const backgroundPlay = useBackgroundPlay();
   const backgroundUnlocked = hasBackgroundPlayAccess(auth.handle);
@@ -539,9 +548,7 @@ function Settings() {
           </button>
           <h1 className="font-display text-2xl">Subscriptions</h1>
         </div>
-        <Suspense
-          fallback={<p className="px-4 pt-4 text-sm text-muted-foreground">Loading plans…</p>}
-        >
+        <Suspense fallback={<PanelSkeleton />}>
           <SubscriptionsPanel handle={auth.handle} onSignIn={auth.signIn} />
         </Suspense>
       </div>
@@ -563,10 +570,12 @@ function Settings() {
 
       <div className="rounded-2xl border bg-card p-4">
         <div className="flex items-center gap-4">
-          {auth.avatar ? (
+          {avatarThumb ? (
             <img
-              src={auth.avatar}
+              src={avatarThumb}
               alt={auth.name ?? "Profile avatar"}
+              loading="lazy"
+              decoding="async"
               className="h-14 w-14 rounded-full object-cover"
             />
           ) : (
@@ -1284,6 +1293,37 @@ function Settings() {
           songs and downloaded songs play in the background.
         </p>
       </div>
+      {/* Low Data Mode */}
+      <div className="rounded-2xl border border-white/10 bg-black p-4 text-white">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="font-semibold text-white">Low Data Mode</h2>
+            <p className="mt-1 text-xs text-white/70">
+              For slow Wi-Fi or low phones: starts videos in lower quality (360p), turns off
+              auto-play, loads smaller images, and skips background preloading.
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={lowDataMode}
+            aria-label="Low Data Mode"
+            onClick={() => {
+              const next = !lowDataMode;
+              setLowDataMode(next);
+              toast.success(next ? "Low Data Mode ON" : "Low Data Mode OFF");
+            }}
+            className="flex h-7 w-12 shrink-0 items-center rounded-full p-1 transition"
+            style={{ backgroundColor: lowDataMode ? "#25D366" : "#333" }}
+          >
+            <span
+              className="h-5 w-5 rounded-full bg-white transition"
+              style={{ transform: lowDataMode ? "translateX(20px)" : "translateX(0)" }}
+            />
+          </button>
+        </div>
+      </div>
+
       {/* Video quality */}
       <div className="rounded-2xl border bg-card p-4">
         <h2 className="font-semibold">Video Quality</h2>
@@ -1348,7 +1388,9 @@ function Settings() {
         <ChevronRight className="h-4 w-4 text-muted-foreground" />
       </Link>
 
-      <MoreSettings />
+      <Suspense fallback={<PanelSkeleton />}>
+        <MoreSettings />
+      </Suspense>
 
       {auth.user && <EditProfileDialog open={editing} onOpenChange={setEditing} />}
       <OfflinePaywallDialog

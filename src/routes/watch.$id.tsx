@@ -20,18 +20,13 @@ import {
 import { toast } from "sonner";
 import { OfflinePaywallDialog } from "@/components/OfflinePaywallDialog";
 import { YouTubePlayer } from "@/components/YouTubePlayer";
-import { EditFullVideoDialog } from "@/components/EditFullVideoDialog";
-import { FullVideoShareMenu } from "@/components/FullVideoShareMenu";
 import { ReportButton } from "@/components/ReportButton";
 import { captureVideoScreenshot, resolveSafeHttpUrl } from "@/lib/reportScreenshot";
 import { FullVideoCard } from "@/components/FullVideoCard";
 import { PaidVideoGate } from "@/components/PaidVideoGate";
 import { useVideoOwnership } from "@/lib/paidVideos";
 import { MATURE_LABEL, useMatureGate } from "@/lib/matureVideos";
-const AgeVerificationDialog = lazy(() =>
-  import("@/components/AgeVerificationDialog").then((m) => ({ default: m.AgeVerificationDialog })),
-);
-import { GifPicker } from "@/components/GifPicker";
+import { GifGridSkeleton, ListRowSkeleton } from "@/components/Skeletons";
 import { useYouTubeDurations, withYouTubeDurations } from "@/lib/useYouTubeDurations";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -62,6 +57,20 @@ import {
   type Reaction,
 } from "@/lib/fullVideos";
 import { untypedDb } from "@/lib/untypedDb";
+
+const AgeVerificationDialog = lazy(() =>
+  import("@/components/AgeVerificationDialog").then((m) => ({ default: m.AgeVerificationDialog })),
+);
+const EditFullVideoDialog = lazy(() =>
+  import("@/components/EditFullVideoDialog").then((m) => ({ default: m.EditFullVideoDialog })),
+);
+const FullVideoShareMenu = lazy(() =>
+  import("@/components/FullVideoShareMenu").then((m) => ({ default: m.FullVideoShareMenu })),
+);
+const GifPicker = lazy(() =>
+  import("@/components/GifPicker").then((m) => ({ default: m.GifPicker })),
+);
+const WATCH_COMMENTS_PAGE_SIZE = 10;
 
 export const Route = createFileRoute("/watch/$id")({
   head: () => ({
@@ -112,6 +121,10 @@ function WatchPage() {
   const [shareOpen, setShareOpen] = useState(false);
 
   const [comments, setComments] = useState<FullVideoComment[]>([]);
+  const [commentsHasMore, setCommentsHasMore] = useState(false);
+  const [loadingMoreComments, setLoadingMoreComments] = useState(false);
+  const commentsSentinelRef = useRef<HTMLDivElement | null>(null);
+  const commentsLoadingMoreRef = useRef(false);
   const [commentText, setCommentText] = useState("");
   const [commentGif, setCommentGif] = useState<string | null>(null);
   const [commentGifCredit, setCommentGifCredit] = useState<string | null>(null);
@@ -178,8 +191,14 @@ function WatchPage() {
           if (alive) setMyReaction(mine);
         }
 
-        const rows = await listComments(row.id, auth.user?.id ?? null);
-        if (alive) setComments(rows);
+        const rows = await listComments(row.id, auth.user?.id ?? null, {
+          limit: WATCH_COMMENTS_PAGE_SIZE,
+          offset: 0,
+        });
+        if (alive) {
+          setComments(rows);
+          setCommentsHasMore(rows.length === WATCH_COMMENTS_PAGE_SIZE);
+        }
       } catch (err) {
         if (alive) setError(err instanceof Error ? err.message : "Could not load this video.");
       } finally {
@@ -191,6 +210,41 @@ function WatchPage() {
       alive = false;
     };
   }, [id, auth.user]);
+
+  const loadMoreComments = useCallback(async () => {
+    if (!video?.id || commentsLoadingMoreRef.current || !commentsHasMore) return;
+    commentsLoadingMoreRef.current = true;
+    setLoadingMoreComments(true);
+    try {
+      const nextRows = await listComments(video.id, auth.user?.id ?? null, {
+        limit: WATCH_COMMENTS_PAGE_SIZE,
+        offset: comments.length,
+      });
+      setComments((prev) => {
+        const seen = new Set(prev.map((c) => c.id));
+        return [...prev, ...nextRows.filter((c) => !seen.has(c.id))];
+      });
+      setCommentsHasMore(nextRows.length === WATCH_COMMENTS_PAGE_SIZE);
+    } catch {
+      // keep existing comments if loading more fails
+    } finally {
+      commentsLoadingMoreRef.current = false;
+      setLoadingMoreComments(false);
+    }
+  }, [video?.id, auth.user?.id, commentsHasMore, comments.length]);
+
+  useEffect(() => {
+    const el = commentsSentinelRef.current;
+    if (!el || !commentsHasMore || typeof IntersectionObserver === "undefined") return;
+    const obs = new IntersectionObserver(
+      ([entry]) => {
+        if (entry?.isIntersecting) void loadMoreComments();
+      },
+      { rootMargin: "160px" },
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [commentsHasMore, loadMoreComments, comments.length]);
 
   /* ---------------- poll while the upload finishes ---------------- */
 
@@ -524,8 +578,14 @@ function WatchPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-[60vh] items-center justify-center text-muted-foreground">
-        <Loader2 className="h-6 w-6 animate-spin" />
+      <div
+        role="status"
+        aria-label="Loading video"
+        className="mx-auto w-full max-w-6xl space-y-4 bg-black px-3 py-4 text-white"
+      >
+        <div className="aspect-video w-full animate-pulse rounded-xl bg-zinc-800/80" />
+        <div className="h-5 w-2/3 animate-pulse rounded bg-zinc-800/80" />
+        <ListRowSkeleton count={3} />
       </div>
     );
   }
@@ -996,15 +1056,19 @@ function WatchPage() {
                 </div>
               )}
               {showGifs && (
-                <GifPicker
-                  className="mt-2 rounded-xl bg-secondary/40"
-                  onPick={(url, meta) => {
-                    setCommentGif(url);
-                    setCommentGifCredit(meta?.username ? `@${meta.username}` : null);
-                    setShowGifs(false);
-                  }}
-                  onClose={() => setShowGifs(false)}
-                />
+                <Suspense
+                  fallback={<GifGridSkeleton className="mt-2 rounded-xl bg-secondary/40 p-3" />}
+                >
+                  <GifPicker
+                    className="mt-2 rounded-xl bg-secondary/40"
+                    onPick={(url, meta) => {
+                      setCommentGif(url);
+                      setCommentGifCredit(meta?.username ? `@${meta.username}` : null);
+                      setShowGifs(false);
+                    }}
+                    onClose={() => setShowGifs(false)}
+                  />
+                </Suspense>
               )}
               <form onSubmit={submitComment} className="mt-2 flex items-start gap-2">
                 <input
@@ -1084,6 +1148,21 @@ function WatchPage() {
                   </li>
                 )}
               </ul>
+              {commentsHasMore && (
+                <div ref={commentsSentinelRef} className="mt-3 flex flex-col items-center gap-2">
+                  {loadingMoreComments ? (
+                    <ListRowSkeleton count={2} />
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => void loadMoreComments()}
+                      className="rounded-full bg-secondary px-4 py-1.5 text-xs font-semibold text-secondary-foreground"
+                    >
+                      Load more comments
+                    </button>
+                  )}
+                </div>
+              )}
             </section>
           </div>
         </div>
@@ -1103,20 +1182,24 @@ function WatchPage() {
       </div>
 
       {video && shareOpen && (
-        <FullVideoShareMenu video={video} onClose={() => setShareOpen(false)} />
+        <Suspense fallback={null}>
+          <FullVideoShareMenu video={video} onClose={() => setShareOpen(false)} />
+        </Suspense>
       )}
 
       <OfflinePaywallDialog open={offline.paywallOpen} onClose={offline.closePaywall} />
 
-      {video && auth.user && (
-        <EditFullVideoDialog
-          video={video}
-          userId={auth.user.id}
-          open={editing}
-          onClose={() => setEditing(false)}
-          onSaved={setVideo}
-          onDeleted={() => void navigate({ to: "/videos" })}
-        />
+      {video && auth.user && editing && (
+        <Suspense fallback={null}>
+          <EditFullVideoDialog
+            video={video}
+            userId={auth.user.id}
+            open={editing}
+            onClose={() => setEditing(false)}
+            onSaved={setVideo}
+            onDeleted={() => void navigate({ to: "/videos" })}
+          />
+        </Suspense>
       )}
     </div>
   );

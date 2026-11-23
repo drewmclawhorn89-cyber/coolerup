@@ -10,7 +10,7 @@
  * not register 20 separate window/connection listeners.
  */
 import { useSyncExternalStore } from "react";
-import { readBool } from "./prefs";
+import { LOW_DATA_MODE_PREF, readBool, writePref } from "./prefs";
 
 export type EffectiveType = "slow-2g" | "2g" | "3g" | "4g" | "unknown";
 
@@ -75,11 +75,24 @@ export function getNetworkInfo(): NetworkInfo {
 }
 
 /**
- * Lite mode is on when the user asked for it, the browser asked to save data,
- * or the connection looks genuinely constrained.
+ * Low Data Mode in Settings: lower quality video first, no auto-play, smaller
+ * images, and 0 background preloading.
+ */
+export function isLowDataMode(): boolean {
+  return readBool(LOW_DATA_MODE_PREF, false);
+}
+
+export function setLowDataMode(enabled: boolean): void {
+  writePref(LOW_DATA_MODE_PREF, String(enabled));
+}
+
+/**
+ * Lite mode is on when the user asked for Low Data Mode / Lite Mode, the
+ * browser asked to save data, or the connection looks genuinely constrained.
  */
 export function isLiteMode(info: NetworkInfo = getNetworkInfo()): boolean {
   if (!info.online) return true;
+  if (isLowDataMode()) return true;
   if (readBool("lite-mode")) return true;
   if (readBool("data-saver")) return true;
   if (info.saveData) return true;
@@ -94,9 +107,11 @@ export function isCellularConnection(info: NetworkInfo = getNetworkInfo()): bool
   return info.cellular;
 }
 
-/** How many feed items to request per page. Smaller pages are kinder to slow links. */
-export function feedPageSize(info: NetworkInfo = getNetworkInfo()): number {
-  return isLiteMode(info) ? 8 : 20;
+/** How many feed items to request per page. Load 10 videos at a time. */
+export const FEED_PAGE_SIZE = 10;
+
+export function feedPageSize(_info: NetworkInfo = getNetworkInfo()): number {
+  return FEED_PAGE_SIZE;
 }
 
 // --- shared subscription ----------------------------------------------------
@@ -116,6 +131,8 @@ function ensureAttached() {
   const conn = getConnection();
   window.addEventListener("online", refresh);
   window.addEventListener("offline", refresh);
+  window.addEventListener("storage", refresh);
+  window.addEventListener("loop-prefs-changed", refresh);
   conn?.addEventListener?.("change", refresh);
 }
 
@@ -141,4 +158,13 @@ function getServerSnapshot(): NetworkInfo {
 /** React hook: current network snapshot, updated on connectivity changes. */
 export function useNetwork(): NetworkInfo {
   return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+}
+
+/** React hook: reactive Low Data Mode state synced across tabs and Settings. */
+export function useLowDataMode(): boolean {
+  return useSyncExternalStore(
+    subscribe,
+    () => isLowDataMode(),
+    () => false,
+  );
 }

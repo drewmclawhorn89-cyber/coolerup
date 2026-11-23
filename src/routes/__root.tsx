@@ -20,7 +20,7 @@ import { CallOverlay } from "../components/CallOverlay";
 import { PhoneAuthDialog } from "../components/PhoneAuthDialog";
 import { OnboardingRequiredDialog } from "../components/OnboardingBanner";
 import { Toaster } from "sonner";
-import { WellbeingWatcher } from "../components/MoreSettings";
+import { WellbeingWatcher } from "../components/WellbeingWatcher";
 import { OnlineStatusWatcher } from "../lib/onlineStatus";
 import { PushRegistrar } from "../components/PushRegistrar";
 import { OfflineAutoDownloadWatcher } from "../components/OfflineAutoDownloadWatcher";
@@ -321,25 +321,25 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <WarningProvider>
-        <CallProvider>
-          <OnboardingGate />
-          {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-          {/* UpdateGate sits outermost: when a deploy is in progress, or a newer
+          <CallProvider>
+            <OnboardingGate />
+            {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+            {/* UpdateGate sits outermost: when a deploy is in progress, or a newer
               build has shipped, it unmounts the entire app — BanGate included. */}
-          <UpdateGate>
-            <BanGate>
-              <Outlet />
-            </BanGate>
-          </UpdateGate>
-          <CallOverlay />
-          <WellbeingWatcher />
-          <OnlineStatusWatcher />
-          <OfflineAutoDownloadWatcher />
-          <PushRegistrar />
-          {/* Creator fund: celebrates the $1 first-follower reward exactly once. */}
-          <FollowerRewardWatcher />
-          <EarningsWatcher />
-        </CallProvider>
+            <UpdateGate>
+              <BanGate>
+                <Outlet />
+              </BanGate>
+            </UpdateGate>
+            <CallOverlay />
+            <WellbeingWatcher />
+            <OnlineStatusWatcher />
+            <OfflineAutoDownloadWatcher />
+            <PushRegistrar />
+            {/* Creator fund: celebrates the $1 first-follower reward exactly once. */}
+            <FollowerRewardWatcher />
+            <EarningsWatcher />
+          </CallProvider>
         </WarningProvider>
         <PhoneAuthDialog />
         <OnboardingRequiredDialog />

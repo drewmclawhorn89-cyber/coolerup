@@ -11,7 +11,9 @@ import { followUser, unfollowUser } from "@/lib/follow";
 import { fetchMyLikes } from "@/lib/loop";
 import type { Video } from "@/lib/loop";
 import { useLiveDirectory } from "@/lib/liveDirectory";
+import { isLiteMode, useNetwork } from "@/lib/network";
 import {
+  SEARCH_PAGE_SIZE,
   filterLiveHosts,
   isSearchable,
   normalizeQuery,
@@ -47,15 +49,25 @@ function SearchPage() {
   const auth = useAuth();
   const navigate = useNavigate();
 
+  const net = useNetwork();
+  const lite = isLiteMode(net);
   const [query, setQuery] = useState("");
   const [tab, setTab] = useState<SearchTab>("top");
   const [results, setResults] = useState<SearchResultsBundle>(EMPTY);
+  const [hasMore, setHasMore] = useState<{ videos: boolean; users: boolean; sounds: boolean }>({
+    videos: false,
+    users: false,
+    sounds: false,
+  });
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const loadingMoreRef = useRef(false);
   const [suggestions, setSuggestions] = useState<SearchUser[]>([]);
   const [following, setFollowing] = useState<Set<string>>(new Set());
 
   // Full-screen video viewer opened from a result tile.
   const [viewIndex, setViewIndex] = useState<number | null>(null);
+  const [activeViewIndex, setActiveViewIndex] = useState(0);
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
   const [muted, setMuted] = useState(false);
   const viewerRef = useRef<HTMLDivElement>(null);
@@ -106,25 +118,30 @@ function SearchPage() {
     };
   }, [auth.user?.id]);
 
-  // The actual search. Every tab is fed from one parallel fetch so switching
-  // tabs is instant and never re-queries.
+  // Fetch initial 10 results per category so phones and slow networks stay fast.
   useEffect(() => {
     if (!searching) {
       setResults(EMPTY);
+      setHasMore({ videos: false, users: false, sounds: false });
       setLoading(false);
       return;
     }
     let alive = true;
     setLoading(true);
     void Promise.all([
-      searchVideos(term, 48),
-      searchUsers(term, 30),
-      searchSounds(term, 20),
-      searchHashtags(term, 20),
+      searchVideos(term, SEARCH_PAGE_SIZE, 0),
+      searchUsers(term, SEARCH_PAGE_SIZE, 0),
+      searchSounds(term, SEARCH_PAGE_SIZE, 0),
+      searchHashtags(term, SEARCH_PAGE_SIZE),
     ])
       .then(([videos, users, sounds, hashtags]) => {
         if (!alive) return;
         setResults({ videos, users, sounds, hashtags });
+        setHasMore({
+          videos: videos.length === SEARCH_PAGE_SIZE,
+          users: users.length === SEARCH_PAGE_SIZE,
+          sounds: sounds.length === SEARCH_PAGE_SIZE,
+        });
       })
       .finally(() => {
         if (alive) setLoading(false);
@@ -133,6 +150,54 @@ function SearchPage() {
       alive = false;
     };
   }, [searching, term]);
+
+  const loadMoreSearch = useCallback(
+    async (targetTab?: SearchTab) => {
+      const active = targetTab ?? tab;
+      if (!searching || loading || loadingMoreRef.current) return;
+      if (active !== "videos" && active !== "users" && active !== "sounds") return;
+      if (!hasMore[active]) return;
+      loadingMoreRef.current = true;
+      setLoadingMore(true);
+      try {
+        if (active === "videos") {
+          const next = await searchVideos(term, SEARCH_PAGE_SIZE, results.videos.length);
+          setResults((prev) => {
+            const seen = new Set(prev.videos.map((v) => v.id));
+            return { ...prev, videos: [...prev.videos, ...next.filter((v) => !seen.has(v.id))] };
+          });
+          setHasMore((prev) => ({ ...prev, videos: next.length === SEARCH_PAGE_SIZE }));
+        } else if (active === "users") {
+          const next = await searchUsers(term, SEARCH_PAGE_SIZE, results.users.length);
+          setResults((prev) => {
+            const seen = new Set(prev.users.map((u) => u.id));
+            return { ...prev, users: [...prev.users, ...next.filter((u) => !seen.has(u.id))] };
+          });
+          setHasMore((prev) => ({ ...prev, users: next.length === SEARCH_PAGE_SIZE }));
+        } else {
+          const next = await searchSounds(term, SEARCH_PAGE_SIZE, results.sounds.length);
+          setResults((prev) => {
+            const seen = new Set(prev.sounds.map((s) => s.id));
+            return { ...prev, sounds: [...prev.sounds, ...next.filter((s) => !seen.has(s.id))] };
+          });
+          setHasMore((prev) => ({ ...prev, sounds: next.length === SEARCH_PAGE_SIZE }));
+        }
+      } finally {
+        loadingMoreRef.current = false;
+        setLoadingMore(false);
+      }
+    },
+    [
+      searching,
+      loading,
+      tab,
+      hasMore,
+      term,
+      results.videos.length,
+      results.users.length,
+      results.sounds.length,
+    ],
+  );
 
   // Likes for the viewer.
   useEffect(() => {
@@ -144,6 +209,7 @@ function SearchPage() {
   // Scroll the viewer to the tapped tile.
   useEffect(() => {
     if (viewIndex === null) return;
+    setActiveViewIndex(viewIndex);
     const el = viewerRef.current;
     const child = el?.children[viewIndex] as HTMLElement | undefined;
     if (el && child) el.scrollTop = child.offsetTop;
@@ -272,6 +338,17 @@ function SearchPage() {
           onTabChange={setTab}
           results={results}
           loading={loading}
+          loadingMore={loadingMore}
+          hasMore={
+            tab === "videos"
+              ? hasMore.videos
+              : tab === "users"
+                ? hasMore.users
+                : tab === "sounds"
+                  ? hasMore.sounds
+                  : false
+          }
+          onLoadMore={() => void loadMoreSearch()}
           liveHosts={liveHosts}
           onOpenVideo={openVideo}
           onOpenUser={openUser}
@@ -294,25 +371,49 @@ function SearchPage() {
           >
             <X className="h-5 w-5" />
           </button>
-          <div ref={viewerRef} className="h-dvh snap-y snap-mandatory overflow-y-scroll">
-            {results.videos.map((video) => (
-              <div key={video.id} className="h-dvh snap-start snap-always">
-                <VideoCard
-                  video={video}
-                  liked={likedIds.has(video.id)}
-                  muted={muted}
-                  onToggleMute={() => setMuted((value) => !value)}
-                  onLikeChange={(videoId, on) =>
-                    setLikedIds((prev) => {
-                      const next = new Set(prev);
-                      if (on) next.add(videoId);
-                      else next.delete(videoId);
-                      return next;
-                    })
-                  }
-                />
-              </div>
-            ))}
+          <div
+            ref={viewerRef}
+            onScroll={(e) => {
+              const el = e.currentTarget;
+              const vh = el.clientHeight || window.innerHeight || 1;
+              const nextIdx = Math.max(0, Math.round(el.scrollTop / vh));
+              setActiveViewIndex((cur) => (cur === nextIdx ? cur : nextIdx));
+              if (
+                hasMore.videos &&
+                el.scrollHeight - el.scrollTop - el.clientHeight < el.clientHeight * 2
+              ) {
+                void loadMoreSearch("videos");
+              }
+            }}
+            className="h-dvh snap-y snap-mandatory overflow-y-scroll"
+          >
+            {results.videos.map((video, idx) => {
+              const preloadMode =
+                idx === activeViewIndex
+                  ? "active"
+                  : !lite && idx === activeViewIndex + 1
+                    ? "next"
+                    : "idle";
+              return (
+                <div key={video.id} className="h-dvh snap-start snap-always">
+                  <VideoCard
+                    video={video}
+                    liked={likedIds.has(video.id)}
+                    muted={muted}
+                    preloadMode={preloadMode}
+                    onToggleMute={() => setMuted((value) => !value)}
+                    onLikeChange={(videoId, on) =>
+                      setLikedIds((prev) => {
+                        const next = new Set(prev);
+                        if (on) next.add(videoId);
+                        else next.delete(videoId);
+                        return next;
+                      })
+                    }
+                  />
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

@@ -38,6 +38,14 @@ export class WatermarkError extends Error {
   }
 }
 
+/** The underlying reason, flattened to one line so the console shows something usable. */
+export function watermarkCause(error: unknown): string {
+  const cause = (error as { cause?: unknown })?.cause ?? error;
+  if (cause instanceof Error) return cause.message || cause.name;
+  if (typeof cause === "string") return cause;
+  return "";
+}
+
 export type WatermarkProgress = {
   /** 0–100. */
   percent: number;

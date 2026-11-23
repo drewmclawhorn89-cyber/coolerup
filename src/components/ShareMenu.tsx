@@ -13,6 +13,7 @@ import {
   prepareWatermarkedFile,
   saveFileToDisk,
   WatermarkError,
+  watermarkCause,
 } from "@/lib/watermark";
 
 export function ShareMenu({
@@ -139,7 +140,7 @@ export function ShareMenu({
       toast.success("Download started", { id: t });
       onShared();
     } catch (err) {
-      console.error(err);
+      console.error("Download failed:", watermarkCause(err) || err);
       toast.error(
         err instanceof WatermarkError
           ? "Couldn't watermark this video, so the download was cancelled."

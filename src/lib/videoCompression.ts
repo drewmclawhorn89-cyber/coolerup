@@ -61,8 +61,19 @@ export type FfmpegLike = {
 let ffmpegPromise: Promise<FfmpegLike> | null = null;
 let active: FfmpegLike | null = null;
 
-/** CDN copy of the single-threaded core (no SharedArrayBuffer / COOP headers). */
-const CORE_BASE = "https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd";
+/**
+ * CDN copies of the single-threaded core (no SharedArrayBuffer / COOP headers).
+ *
+ * The core is a ~31 MB wasm download, so it is the fragile part of every
+ * watermark and every compression. One CDN having a bad day used to break
+ * downloads outright, so each mirror is tried in turn and the first one that
+ * loads wins. Order is by reliability, not speed.
+ */
+const CORE_BASES = [
+  "https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd",
+  "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/umd",
+  "https://cdnjs.cloudflare.com/ajax/libs/ffmpeg-core/0.12.6/umd",
+];
 
 export async function loadFfmpeg(): Promise<FfmpegLike> {
   if (ffmpegPromise) return ffmpegPromise;
@@ -73,15 +84,23 @@ export async function loadFfmpeg(): Promise<FfmpegLike> {
       import("@ffmpeg/util"),
     ]);
 
-    const ffmpeg = new FFmpeg() as unknown as FfmpegLike;
-    // Blob URLs keep the wasm same-origin, which the single-thread core needs.
-    const [coreURL, wasmURL] = await Promise.all([
-      toBlobURL(`${CORE_BASE}/ffmpeg-core.js`, "text/javascript"),
-      toBlobURL(`${CORE_BASE}/ffmpeg-core.wasm`, "application/wasm"),
-    ]);
-    await ffmpeg.load({ coreURL, wasmURL });
-    active = ffmpeg;
-    return ffmpeg;
+    let lastError: unknown = null;
+    for (const base of CORE_BASES) {
+      try {
+        const ffmpeg = new FFmpeg() as unknown as FfmpegLike;
+        // Blob URLs keep the wasm same-origin, which the single-thread core needs.
+        const [coreURL, wasmURL] = await Promise.all([
+          toBlobURL(`${base}/ffmpeg-core.js`, "text/javascript"),
+          toBlobURL(`${base}/ffmpeg-core.wasm`, "application/wasm"),
+        ]);
+        await ffmpeg.load({ coreURL, wasmURL });
+        active = ffmpeg;
+        return ffmpeg;
+      } catch (err) {
+        lastError = err;
+      }
+    }
+    throw lastError ?? new Error("Could not load the video engine");
   })().catch((err) => {
     // Don't cache a failed load — a retry on the next upload should try again.
     ffmpegPromise = null;

@@ -16,7 +16,12 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { offlinePlan, useOfflineUnlocked } from "@/lib/subscriptions";
 import { toast } from "sonner";
-import { prepareWatermarkedFile, saveFileToDisk, WatermarkError } from "@/lib/watermark";
+import {
+  prepareWatermarkedFile,
+  saveFileToDisk,
+  WatermarkError,
+  watermarkCause,
+} from "@/lib/watermark";
 
 export const Route = createFileRoute("/offline")({
   head: () => ({ meta: [{ title: "Offline videos — Coolerup" }] }),
@@ -102,7 +107,7 @@ function OfflinePage() {
       saveFileToDisk(file);
       toast.success("Download started", { id: t });
     } catch (e) {
-      console.error(e);
+      console.error("Download failed:", watermarkCause(e) || e);
       toast.error(
         e instanceof WatermarkError
           ? "Couldn't watermark this video, so the download was cancelled."
@@ -149,7 +154,7 @@ function OfflinePage() {
       saveFileToDisk(file);
       toast.success("Download started", { id: t });
     } catch (e) {
-      console.error(e);
+      console.error("Download failed:", watermarkCause(e) || e);
       toast.error(
         e instanceof WatermarkError
           ? "Couldn't watermark this video, so the download was cancelled."

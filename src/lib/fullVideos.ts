@@ -83,6 +83,10 @@ export type FullVideo = {
   is_paid?: boolean | null;
   /** Price in cents when `is_paid`; null/undefined for a free video. */
   price_cents?: number | null;
+  /** External ingestion provider (e.g. "pexels"), if synced. */
+  source_provider?: string | null;
+  /** True when the uploaded file already carried a social media watermark. */
+  has_external_watermark?: boolean | null;
 };
 
 export type FullVideoComment = {
@@ -1172,6 +1176,7 @@ const OPTIONAL_COLUMNS = [
   "is_paid",
   "price_cents",
   "is_mature",
+  "has_external_watermark",
 ] as const;
 
 type PgError = { message?: string; details?: string; hint?: string; code?: string } | null;
@@ -1229,6 +1234,8 @@ export type CreateFullVideoInput = {
   priceCents?: number | null;
   /** Mark this video 18+. Omitted/false leaves it safe for everyone. */
   isMature?: boolean;
+  /** True when upload detection found a TikTok/Instagram/YouTube watermark. */
+  hasExternalWatermark?: boolean;
 };
 
 export async function createFullVideo(input: CreateFullVideoInput): Promise<FullVideo> {
@@ -1255,6 +1262,7 @@ export async function createFullVideo(input: CreateFullVideoInput): Promise<Full
 
   // Same rule for 18+: only write the column when the creator opted in.
   if (input.isMature) payload["is_mature"] = true;
+  if (input.hasExternalWatermark) payload["has_external_watermark"] = true;
 
   // Retry without any column this database doesn't have yet, so posting still
   // works before the migrations are run.

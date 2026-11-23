@@ -4,6 +4,7 @@ import { requestOfflineSync } from "./offlineEvents";
 import { reportExplicitMedia, screenContent } from "./autoBans";
 import { inspectMedia } from "./nsfw";
 import { paidColumns } from "./paidVideos";
+import { detectExternalWatermark } from "./smartWatermark";
 
 export type Video = {
   id: string;
@@ -52,6 +53,12 @@ export type Video = {
   tiktok_id?: string | null;
   /** Creator handle the clip belongs to, without the leading "@". */
   tiktok_author?: string | null;
+  /** External ingestion provider (e.g. "pexels"), when synced from another source. */
+  source_provider?: string | null;
+  /** Original source page URL for imported clips. */
+  source_url?: string | null;
+  /** True when the uploaded file already carried a social media watermark. */
+  has_external_watermark?: boolean | null;
 };
 
 /** Minimal sound shape embedded in feed rows. */
@@ -443,11 +450,18 @@ export async function uploadVideo(
   // The upload is the 1080p rendition. Lower qualities reuse it until the
   // transcode-video Edge Function exists, so the selector works today.
   const renditions = isVideo ? await createQualityVersions(STORAGE_PREFIX + path) : null;
-  // Paid videos add two columns. If this database hasn't run the paid-videos
-  // migration yet, retry without them rather than failing the whole upload.
-  const paidRow = {
+  const externalWatermark = await detectExternalWatermark({
+    blob: file,
+    filename: file.name,
+  }).catch(() => ({ detected: false }));
+
+  // Paid videos / mature / smart watermark flags add optional columns. If this
+  // database hasn't run a migration yet, drop missing optional columns rather
+  // than failing the upload.
+  const paidRow: Record<string, unknown> = {
     ...paidColumns(paid?.isPaid ?? false, paid?.priceCents ?? null),
     ...(mature ? { is_mature: true } : {}),
+    ...(externalWatermark.detected ? { has_external_watermark: true } : {}),
   };
   const insertVideo = (extra: Record<string, unknown>) =>
     supabase
@@ -470,8 +484,25 @@ export async function uploadVideo(
       .single();
 
   let { data, error } = await insertVideo(paidRow);
-  if (error && /is_paid|price_cents|is_mature/i.test(`${error.message ?? ""} ${error.details ?? ""}`)) {
-    ({ data, error } = await insertVideo({}));
+  if (
+    error &&
+    /has_external_watermark/i.test(`${error.message ?? ""} ${error.details ?? ""}`) &&
+    "has_external_watermark" in paidRow
+  ) {
+    const rest = { ...paidRow };
+    delete rest["has_external_watermark"];
+    ({ data, error } = await insertVideo(rest));
+  }
+  if (
+    error &&
+    /is_paid|price_cents|is_mature/i.test(`${error.message ?? ""} ${error.details ?? ""}`)
+  ) {
+    ({ data, error } = await insertVideo(
+      externalWatermark.detected ? { has_external_watermark: true } : {},
+    ));
+    if (error && /has_external_watermark/i.test(`${error.message ?? ""} ${error.details ?? ""}`)) {
+      ({ data, error } = await insertVideo({}));
+    }
   }
   if (error) throw error;
   const id = (data as { id?: string } | null)?.id ?? null;
@@ -788,15 +819,28 @@ export async function replaceVideoFile(
   if (patch.username !== undefined) base.username = patch.username;
   if (patch.sound_id !== undefined) base.sound_id = patch.sound_id;
 
-  const write = (extra: PaidEditColumns) =>
+  const externalWatermark = await detectExternalWatermark({
+    blob: file,
+    filename: file.name,
+  }).catch(() => ({ detected: false }));
+
+  const write = (extra: Record<string, unknown>) =>
     supabase
       .from("videos")
       .update({ ...base, ...extra })
       .eq("id", video.id)
       .eq("user_id", user.id);
 
-  const paid = paidEditColumns(patch);
+  const paid: Record<string, unknown> = {
+    ...paidEditColumns(patch),
+    has_external_watermark: externalWatermark.detected,
+  };
   let { error } = await write(paid);
+  if (error && /has_external_watermark/i.test(`${error.message ?? ""} ${error.details ?? ""}`)) {
+    const rest = { ...paid };
+    delete rest["has_external_watermark"];
+    ({ error } = await write(rest));
+  }
   if (error && /is_paid|price_cents/i.test(`${error.message ?? ""} ${error.details ?? ""}`)) {
     ({ error } = await write({}));
   }

@@ -49,6 +49,20 @@ const BUILD_ID =
   process.env["GITHUB_SHA"]?.slice(0, 12) ||
   `${Date.now().toString(36)}`;
 
+function loadServerEnv() {
+  return {
+    name: "coolerup:server-dotenv",
+    configResolved(config: { mode: string; root: string }) {
+      const fileEnv = loadEnv(config.mode, config.root, "");
+      for (const [k, v] of Object.entries(fileEnv)) {
+        if (!k.startsWith("VITE_") && v && !process.env[k]) {
+          process.env[k] = v;
+        }
+      }
+    },
+  };
+}
+
 export default defineConfig({
   tanstackStart: {
     // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
@@ -56,7 +70,7 @@ export default defineConfig({
     server: { entry: "server" },
   },
   vite: {
-    plugins: [warnOnMissingSupabaseEnv()],
+    plugins: [loadServerEnv(), warnOnMissingSupabaseEnv()],
     define: {
       __APP_BUILD__: JSON.stringify(BUILD_ID),
     },

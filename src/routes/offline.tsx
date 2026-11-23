@@ -97,11 +97,19 @@ function OfflinePage() {
         toast.error("Couldn't find saved video", { id: t });
         return;
       }
-      // Watermark is mandatory on every export, with no way to skip it.
+      // Coolerup's moving watermark is mandatory for original Coolerup videos;
+      // Smart Watermark leaves already-watermarked external uploads untouched.
       const file = await prepareWatermarkedFile({
         blob: saved.blob,
         username: saved.video?.username,
         filename: `coolerup-${id}.mp4`,
+        source: {
+          hasExternalWatermark: saved.video?.has_external_watermark,
+          isTikTok: saved.video?.is_tiktok,
+          sourceProvider: saved.video?.source_provider,
+          sourceUrl: saved.video?.source_url,
+          videoUrl: saved.video?.video_url,
+        },
         onProgress: ({ percent, stage }) => toast.loading(`${stage}… ${percent}%`, { id: t }),
       });
       saveFileToDisk(file);
@@ -144,11 +152,19 @@ function OfflinePage() {
   const handleFullDownload = async (item: SavedFullVideo) => {
     const t = toast.loading("Preparing download…");
     try {
-      // Watermark is mandatory on every export, with no way to skip it.
+      // Coolerup's moving watermark is mandatory for original Coolerup videos;
+      // Smart Watermark leaves already-watermarked external uploads untouched.
       const file = await prepareWatermarkedFile({
         blob: item.blob,
         username: item.video?.username,
         filename: `coolerup-${item.id}.mp4`,
+        source: {
+          hasExternalWatermark: item.video?.has_external_watermark,
+          isTikTok: item.video?.is_tiktok,
+          isYouTube: item.video?.is_youtube,
+          sourceProvider: item.video?.source_provider,
+          videoUrl: item.video?.video_url,
+        },
         onProgress: ({ percent, stage }) => toast.loading(`${stage}… ${percent}%`, { id: t }),
       });
       saveFileToDisk(file);

@@ -29,6 +29,7 @@ import {
   compressionHint,
   shouldCompress,
 } from "@/lib/videoCompression";
+import { detectExternalWatermark } from "@/lib/smartWatermark";
 
 export const Route = createFileRoute("/upload-full")({
   head: () => ({
@@ -131,6 +132,8 @@ function UploadFullPage() {
   /** Storage path reserved when the file was picked, so the row can point at it. */
   const videoPathRef = useRef<string>("");
   const [videoPath, setVideoPath] = useState("");
+  /** Smart Watermark detection promise on the un-compressed original upload file. */
+  const externalWatermarkRef = useRef<Promise<boolean> | null>(null);
 
   // Release object URLs when they are replaced or the page unmounts.
   useEffect(
@@ -237,6 +240,12 @@ function UploadFullPage() {
     setCompStage("");
     setCompressing(false);
     setSourceFile(next);
+    externalWatermarkRef.current = detectExternalWatermark({
+      blob: next,
+      filename: next.name,
+    })
+      .then((res) => res.detected)
+      .catch(() => false);
     try {
       const meta = await probeVideo(next);
       if (flow !== flowRef.current) return;
@@ -366,6 +375,9 @@ function UploadFullPage() {
       // video is visible in the grid and playable from local disk within a
       // second, while the bytes keep moving in the background.
       setStage("saving");
+      const hasExternalWatermark = externalWatermarkRef.current
+        ? await externalWatermarkRef.current.catch(() => false)
+        : false;
       const created = await createFullVideo({
         userId: auth.user.id,
         username: auth.handle ?? auth.name ?? "coolerup",
@@ -384,6 +396,7 @@ function UploadFullPage() {
         isPaid,
         priceCents,
         isMature,
+        hasExternalWatermark,
       });
 
       // Let the watch page read straight off the user's disk until the real

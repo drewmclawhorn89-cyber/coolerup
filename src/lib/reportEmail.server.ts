@@ -833,6 +833,35 @@ export async function adminListReportsServer(limit = 150): Promise<SerializedRep
   }));
 }
 
+/**
+ * Keep a copy of the row in `deleted_content` before removing it, so a manual
+ * delete from Admin > Reports can be undone by the restore that runs on app
+ * load. Best effort: if the archive table isn't there yet we still delete.
+ */
+async function archiveThenDelete(
+  admin: ReturnType<typeof dbAdmin>,
+  table: string,
+  id: string,
+  actor: string,
+  reason: string,
+): Promise<void> {
+  try {
+    const { data } = await admin.from(table).select("*").eq("id", id).maybeSingle();
+    if (data) {
+      await admin.from("deleted_content").insert({
+        table_name: table,
+        row_id: id,
+        row_data: data as never,
+        deleted_by: actor,
+        reason,
+      });
+    }
+  } catch {
+    // Archive is optional; never block the delete on it.
+  }
+  await admin.from(table).delete().eq("id", id);
+}
+
 export async function adminDeletePostServer(adminUserId: string, reportId: string) {
   const check = await verifyAdminUser(adminUserId);
   if (!check.ok) return { ok: false, error: "Admins only" };
@@ -855,12 +884,14 @@ export async function adminDeletePostServer(adminUserId: string, reportId: strin
   const markerCommentId =
     commentId ?? detailsText.match(/\[comment:([0-9a-f-]{36})\]/i)?.[1] ?? null;
 
+  const deleteReason = String(row["reason"] ?? "Reported post removed by admin");
+
   if (markerCommentId) {
-    await admin.from("comments").delete().eq("id", markerCommentId);
-    await admin.from("full_video_comments").delete().eq("id", markerCommentId);
+    await archiveThenDelete(admin, "comments", markerCommentId, check.handle, deleteReason);
+    await archiveThenDelete(admin, "full_video_comments", markerCommentId, check.handle, deleteReason);
   } else if (videoId) {
-    await admin.from("videos").delete().eq("id", videoId);
-    await admin.from("full_videos").delete().eq("id", videoId);
+    await archiveThenDelete(admin, "videos", videoId, check.handle, deleteReason);
+    await archiveThenDelete(admin, "full_videos", videoId, check.handle, deleteReason);
   } else {
     return { ok: false, error: "No post or comment attached to this report" };
   }

@@ -23,6 +23,7 @@ import { YouTubePlayer } from "@/components/YouTubePlayer";
 import { EditFullVideoDialog } from "@/components/EditFullVideoDialog";
 import { FullVideoShareMenu } from "@/components/FullVideoShareMenu";
 import { ReportButton } from "@/components/ReportButton";
+import { captureVideoScreenshot, resolveSafeHttpUrl } from "@/lib/reportScreenshot";
 import { FullVideoCard } from "@/components/FullVideoCard";
 import { PaidVideoGate } from "@/components/PaidVideoGate";
 import { useVideoOwnership } from "@/lib/paidVideos";
@@ -83,6 +84,7 @@ function WatchPage() {
   const { id } = useParams({ from: "/watch/$id" });
   const auth = useAuth();
   const navigate = useNavigate();
+  const playerWrapRef = useRef<HTMLDivElement>(null);
 
   const [video, setVideo] = useState<FullVideo | null>(null);
   const [related, setRelated] = useState<FullVideo[]>([]);
@@ -550,7 +552,7 @@ function WatchPage() {
 
       <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_360px] lg:gap-6">
         <div className="min-w-0">
-          <div className="relative">
+          <div ref={playerWrapRef} className="relative">
             {matureLocked ? (
               <div className="relative mx-3 mt-2 aspect-video overflow-hidden rounded-xl bg-black text-center sm:mx-0">
                 {poster && (
@@ -883,7 +885,21 @@ function WatchPage() {
               <ReportButton
                 username={video.username}
                 videoId={video.id}
-                target="video"
+                target="full_video"
+                targetUrl={typeof window !== "undefined" ? window.location.href : null}
+                targetText={video.title}
+                thumbnailUrl={
+                  resolveSafeHttpUrl(poster) ??
+                  resolveSafeHttpUrl(video.thumbnail_url) ??
+                  (video.is_youtube && video.youtube_id
+                    ? `https://i.ytimg.com/vi/${encodeURIComponent(video.youtube_id)}/hqdefault.jpg`
+                    : null)
+                }
+                getScreenshot={() =>
+                  captureVideoScreenshot(
+                    playerWrapRef.current?.querySelector<HTMLVideoElement>("video") ?? null,
+                  )
+                }
                 label="Report"
                 className="flex items-center gap-1.5 rounded-full bg-secondary px-3 py-2 text-sm font-semibold text-secondary-foreground transition-colors hover:text-[#FE2C55]"
                 iconClassName="h-4 w-4"
@@ -1042,6 +1058,7 @@ function WatchPage() {
                     <li key={c.id}>
                       <CommentRow
                         comment={c}
+                        videoId={video.id}
                         onReply={() => setReplyTo(c)}
                         onLike={() => void likeComment(c)}
                       />
@@ -1053,6 +1070,7 @@ function WatchPage() {
                           <div key={r.id} className="mt-3 pl-10">
                             <CommentRow
                               comment={r}
+                              videoId={video.id}
                               onReply={() => setReplyTo(r)}
                               onLike={() => void likeComment(r)}
                             />
@@ -1107,10 +1125,12 @@ function WatchPage() {
 /** One comment or reply, with a like toggle and a reply affordance. */
 function CommentRow({
   comment,
+  videoId,
   onReply,
   onLike,
 }: {
   comment: FullVideoComment;
+  videoId: string;
   onReply: () => void;
   onLike: () => void;
 }) {
@@ -1164,6 +1184,18 @@ function CommentRow({
           >
             <CornerDownRight className="h-3.5 w-3.5" /> Reply
           </button>
+
+          <ReportButton
+            username={comment.username}
+            videoId={videoId}
+            commentId={comment.id}
+            target="comment"
+            targetUrl={typeof window !== "undefined" ? window.location.href : null}
+            targetText={comment.body?.trim() || (comment.gif_url ? "[GIF comment]" : null)}
+            thumbnailUrl={comment.gif_url}
+            className="flex items-center gap-1 text-[12px] font-semibold text-muted-foreground hover:text-[#FE2C55]"
+            label="Report"
+          />
         </div>
       </div>
     </div>

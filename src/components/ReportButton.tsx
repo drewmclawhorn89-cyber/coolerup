@@ -2,35 +2,30 @@ import { useState } from "react";
 import { Flag, X } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
-import { reportContent, type ReportReason } from "@/lib/moderation";
+import {
+  REPORT_REASONS,
+  reportContent,
+  type ReportReason,
+  type ReportTargetType,
+} from "@/lib/moderation";
 import { Button } from "@/components/ui/button";
-
-const REASONS = [
-  ["sexual", "Sexual / explicit"],
-  ["harassment", "Bullying / harassment"],
-  ["hate", "Hate speech"],
-  ["violence", "Threats / violence"],
-  ["spam", "Spam / scam"],
-  ["minor", "Involves a minor"],
-  ["other", "Something else"],
-] as const;
-
-type ReasonId = (typeof REASONS)[number][0];
 
 /**
  * One report button for everything.
  *
- * Drop it on a video, a comment or a profile. It writes to the same `reports`
- * table the /admin screen already reads, so a report filed from any surface
- * shows up in one queue. Comment and profile reports carry a `[comment:<id>]`
- * / `[profile]` marker in `details` so the reviewer knows what they are looking
- * at even though the table only has a video column.
+ * Drop it on a video, a comment or a profile. It writes to the `reports`
+ * table for Admin > Reports and triggers an instant server-side email to
+ * moderation.
  */
 export function ReportButton({
   username,
   videoId,
   commentId,
   target = "video",
+  targetUrl,
+  targetText,
+  thumbnailUrl,
+  getScreenshot,
   className = "",
   label,
   iconClassName = "h-3.5 w-3.5",
@@ -38,14 +33,18 @@ export function ReportButton({
   username: string;
   videoId?: string | null;
   commentId?: string | null;
-  target?: "video" | "comment" | "profile";
+  target?: ReportTargetType;
+  targetUrl?: string | null;
+  targetText?: string | null;
+  thumbnailUrl?: string | null;
+  getScreenshot?: () => string | null;
   className?: string;
   label?: string;
   iconClassName?: string;
 }) {
   const auth = useAuth();
   const [open, setOpen] = useState(false);
-  const [reason, setReason] = useState<ReasonId | null>(null);
+  const [reason, setReason] = useState<ReportReason | null>(null);
   const [details, setDetails] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -58,7 +57,7 @@ export function ReportButton({
   };
 
   const submit = async () => {
-    if (!auth.user || !auth.handle) return;
+    if (!auth.user) return;
     if (!reason) return;
     setBusy(true);
 
@@ -68,14 +67,25 @@ export function ReportButton({
         : target === "profile"
           ? "[profile] "
           : "";
+    const trimmedDetails = details.trim();
+    const resolvedUrl = targetUrl ?? (typeof window !== "undefined" ? window.location.href : null);
+    const screenshotDataUrl = getScreenshot ? getScreenshot() : null;
 
-    // Go through the report_content RPC (not a raw insert) so the Safety Bot
-    // can evaluate the 5-reports-plus-agreement auto-hide rule.
+    // Go through reportContent (RPC + instant server email).
     const res = await reportContent(
       videoId ?? null,
       username,
-      reason as ReportReason,
-      `${marker}${details.trim()}`.slice(0, 1000) || undefined,
+      reason,
+      trimmedDetails ? `${marker}${trimmedDetails}`.slice(0, 1000) : marker.trim() || undefined,
+      {
+        targetType: target,
+        commentId: commentId ?? null,
+        targetUrl: resolvedUrl,
+        targetText: targetText ?? null,
+        thumbnailUrl: thumbnailUrl ?? null,
+        screenshotDataUrl,
+        reporterHandle: auth.handle ?? null,
+      },
     );
 
     setBusy(false);
@@ -89,7 +99,7 @@ export function ReportButton({
     } else if (res.duplicate) {
       toast.success("You already reported this — thanks.");
     } else {
-      toast.success("Report sent. We review within 24 hours.");
+      toast.success("Report sent. Thank you for helping keep Coolerup safe.");
     }
     setOpen(false);
     setReason(null);
@@ -120,12 +130,12 @@ export function ReportButton({
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-sm rounded-t-3xl border border-white/10 bg-black p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] text-white sm:rounded-3xl"
+            className="w-full max-w-sm rounded-t-3xl border border-white/15 bg-black p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] text-white sm:rounded-3xl"
           >
             <div className="mb-4 flex items-center justify-between">
               <div>
-                <h2 className="text-base font-bold">Report @{username}</h2>
-                <p className="text-xs text-white/50">
+                <h2 className="text-base font-bold text-white">Report @{username}</h2>
+                <p className="text-xs text-white/60">
                   {target === "comment"
                     ? "Reporting a comment"
                     : target === "profile"
@@ -136,7 +146,7 @@ export function ReportButton({
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                className="rounded-full p-1.5 text-white/50 hover:bg-white/10 hover:text-white"
+                className="rounded-full p-1.5 text-white/60 hover:bg-white/10 hover:text-white"
                 aria-label="Close"
               >
                 <X className="h-4 w-4" />
@@ -144,21 +154,24 @@ export function ReportButton({
             </div>
 
             <div className="space-y-1.5">
-              {REASONS.map(([id, text]) => (
+              {REPORT_REASONS.map((item) => (
                 <button
-                  key={id}
+                  key={item.id}
                   type="button"
-                  onClick={() => setReason(id)}
-                  className="flex w-full items-center justify-between rounded-lg border px-3 py-2.5 text-left text-sm transition-colors"
+                  onClick={() => setReason(item.id)}
+                  className="flex w-full items-center justify-between rounded-lg border px-3 py-2.5 text-left text-sm text-white transition-colors"
                   style={{
-                    borderColor: reason === id ? "#FE2C55" : "rgba(255,255,255,0.12)",
-                    backgroundColor: reason === id ? "rgba(254,44,85,0.12)" : "transparent",
+                    borderColor: reason === item.id ? "#FE2C55" : "rgba(255,255,255,0.14)",
+                    backgroundColor: reason === item.id ? "rgba(254,44,85,0.14)" : "#000000",
                   }}
                 >
-                  <span>{text}</span>
-                  {reason === id && (
+                  <span>
+                    <span className="block font-semibold text-white">{item.label}</span>
+                    <span className="block text-xs text-white/60">{item.hint}</span>
+                  </span>
+                  {reason === item.id && (
                     <span
-                      className="h-2 w-2 rounded-full"
+                      className="h-2.5 w-2.5 shrink-0 rounded-full"
                       style={{ backgroundColor: "#FE2C55" }}
                     />
                   )}
@@ -169,10 +182,10 @@ export function ReportButton({
             <textarea
               value={details}
               onChange={(e) => setDetails(e.target.value)}
-              placeholder="Anything else we should know? (optional)"
-              maxLength={500}
-              rows={2}
-              className="mt-3 w-full resize-none rounded-lg border border-white/12 bg-white/[0.04] px-3 py-2 text-sm text-white placeholder:text-white/35 focus:outline-none"
+              placeholder="Add details (optional)"
+              maxLength={1000}
+              rows={3}
+              className="mt-3 w-full resize-none rounded-lg border border-white/15 bg-black px-3 py-2 text-sm text-white placeholder:text-white/40 focus:border-[#FE2C55] focus:outline-none"
             />
 
             <Button

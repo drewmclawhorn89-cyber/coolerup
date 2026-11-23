@@ -841,6 +841,9 @@ function Profile() {
               <ReportButton
                 username={username}
                 target="profile"
+                targetUrl={typeof window !== "undefined" ? window.location.href : null}
+                targetText={profile?.bio?.trim() || profile?.display_name?.trim() || `@${username}`}
+                thumbnailUrl={avatar}
                 className="rounded-full border border-border p-2 text-muted-foreground transition-colors hover:text-[#FE2C55]"
                 iconClassName="h-4 w-4"
               />

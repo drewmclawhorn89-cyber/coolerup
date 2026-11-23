@@ -31,15 +31,19 @@ import {
 import { usdFromCents } from "@/lib/coins";
 import { venmoStatusLabel } from "@/lib/venmo";
 import { PayoutsPanel } from "@/components/PayoutsPanel";
+import { AlertTriangle, ExternalLink, Mail } from "lucide-react";
 import {
-  REPORT_REASONS,
   adminBan,
+  adminBanReportedUser,
   adminBans,
+  adminDeleteReportedPost,
   adminDismissReport,
   adminModerationLog,
   adminReports,
   adminUnban,
+  adminWarnReportedUser,
   amIAdmin,
+  reasonDisplayLabel,
   type AdminBan,
   type AdminReport,
   type ModerationLogRow,
@@ -92,7 +96,14 @@ type Tab =
   | "ageverify"
   | "update";
 
-const reasonLabel = (id: string) => REPORT_REASONS.find((r) => r.id === id)?.label ?? id;
+const reasonLabel = (id: string) => reasonDisplayLabel(id);
+
+const targetTypeLabel = (kind: string | null | undefined) => {
+  if (kind === "full_video") return "Full Video";
+  if (kind === "comment") return "Comment";
+  if (kind === "profile") return "Profile";
+  return "Video";
+};
 
 const when = (iso: string) =>
   new Date(iso).toLocaleString(undefined, {
@@ -396,130 +407,179 @@ function AdminPage() {
       </div>
 
       {tab === "reports" && (
-        <section className="space-y-3">
+        <section className="space-y-3 rounded-2xl bg-black p-1 text-white">
           {reports.length === 0 && <Empty text="No reports yet. Nice." />}
-          {reports.map((r) => (
-            <article key={r.id} className="rounded-xl border border-border bg-card p-3">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="flex flex-wrap items-center gap-2 text-sm font-semibold">
-                    <Flag className="h-4 w-4 text-destructive" />
-                    {reasonLabel(r.reason)}
-                    <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                      {r.status}
-                    </span>
-                    {r.action_taken && (
-                      <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[11px] font-medium text-primary">
-                        {r.action_taken}
+          {reports.map((r) => {
+            const hasTargetPost = Boolean(
+              r.video_id ||
+              r.comment_id ||
+              (r.details && /\[comment:[0-9a-f-]{36}\]/i.test(r.details)),
+            );
+            const targetLink =
+              r.target_url ||
+              (r.target_type === "full_video" && r.video_id
+                ? `/watch/${r.video_id}`
+                : r.video_id
+                  ? `/v/${r.video_id}`
+                  : r.reported_username
+                    ? `/u/${r.reported_username}`
+                    : null);
+            return (
+              <article
+                key={r.id}
+                className="rounded-xl border border-white/15 bg-black p-4 text-white"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="flex flex-wrap items-center gap-2 text-sm font-semibold text-white">
+                      <Flag className="h-4 w-4 text-[#FE2C55]" />
+                      {reasonLabel(r.reason)}
+                      <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-white/80">
+                        {targetTypeLabel(r.target_type)}
                       </span>
-                    )}
-                  </p>
-                  <p className="mt-1 text-sm">
-                    <span className="text-muted-foreground">reported</span>{" "}
-                    <Link
-                      to="/u/$username"
-                      params={{ username: r.reported_username }}
-                      className="font-semibold hover:text-primary"
-                    >
-                      @{r.reported_username}
-                    </Link>{" "}
-                    <span className="text-muted-foreground">by</span> @{r.reporter_username}
-                  </p>
-                  {r.details && (
-                    <p className="mt-1 line-clamp-3 text-sm text-muted-foreground">“{r.details}”</p>
-                  )}
-                  <p className="mt-1 text-[11px] text-muted-foreground">{when(r.created_at)}</p>
-                </div>
-              </div>
+                      <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-white/75">
+                        {r.status}
+                      </span>
+                      {r.action_taken && (
+                        <span className="rounded-full bg-[#FE2C55]/20 px-2 py-0.5 text-[11px] font-medium text-[#FE2C55]">
+                          {r.action_taken}
+                        </span>
+                      )}
+                      {r.email_sent && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/20 px-2 py-0.5 text-[11px] font-medium text-emerald-300">
+                          <Mail className="h-3 w-3" /> Emailed
+                        </span>
+                      )}
+                    </p>
 
-              <div className="mt-3 flex flex-wrap gap-2">
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  disabled={busy === `24-${r.id}`}
-                  onClick={() =>
-                    void run(
-                      `24-${r.id}`,
-                      () =>
-                        adminBan(
-                          r.reported_username,
-                          24,
-                          false,
-                          `Report: ${reasonLabel(r.reason)}`,
-                        ),
-                      `@${r.reported_username} banned for 24h`,
-                    )
-                  }
-                >
-                  <Clock className="h-3.5 w-3.5" /> Ban 24h
-                </Button>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  disabled={busy === `7-${r.id}`}
-                  onClick={() =>
-                    void run(
-                      `7-${r.id}`,
-                      () =>
-                        adminBan(
-                          r.reported_username,
-                          168,
-                          false,
-                          `Report: ${reasonLabel(r.reason)}`,
-                        ),
-                      `@${r.reported_username} banned for 7 days`,
-                    )
-                  }
-                >
-                  <Clock className="h-3.5 w-3.5" /> Ban 7d
-                </Button>
-                <Button
-                  size="sm"
-                  variant="destructive"
-                  disabled={busy === `perm-${r.id}`}
-                  onClick={() =>
-                    void run(
-                      `perm-${r.id}`,
-                      () =>
-                        adminBan(
-                          r.reported_username,
-                          null,
-                          true,
-                          `Report: ${reasonLabel(r.reason)}`,
-                        ),
-                      `@${r.reported_username} permanently banned`,
-                    )
-                  }
-                >
-                  <Ban className="h-3.5 w-3.5" /> Permanent
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  disabled={busy === `unban-${r.id}`}
-                  onClick={() =>
-                    void run(
-                      `unban-${r.id}`,
-                      () => adminUnban(r.reported_username),
-                      `@${r.reported_username} unbanned`,
-                    )
-                  }
-                >
-                  <Undo2 className="h-3.5 w-3.5" /> Unban
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  disabled={busy === `dismiss-${r.id}`}
-                  onClick={() =>
-                    void run(`dismiss-${r.id}`, () => adminDismissReport(r.id), "Report dismissed")
-                  }
-                >
-                  <Trash2 className="h-3.5 w-3.5" /> Dismiss
-                </Button>
-              </div>
-            </article>
-          ))}
+                    <p className="mt-1.5 text-sm text-white">
+                      <span className="text-white/60">Reported user:</span>{" "}
+                      <Link
+                        to="/u/$username"
+                        params={{ username: r.reported_username }}
+                        className="font-semibold text-white underline-offset-2 hover:text-[#FE2C55] hover:underline"
+                      >
+                        @{r.reported_username}
+                      </Link>{" "}
+                      <span className="text-white/60">· Reported by</span>{" "}
+                      <Link
+                        to="/u/$username"
+                        params={{ username: r.reporter_username }}
+                        className="font-semibold text-white underline-offset-2 hover:underline"
+                      >
+                        @{r.reporter_username}
+                      </Link>
+                    </p>
+
+                    {r.target_text && (
+                      <p className="mt-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white/90">
+                        {r.target_text}
+                      </p>
+                    )}
+
+                    {r.details && (
+                      <p className="mt-1.5 line-clamp-3 text-sm text-white/70">“{r.details}”</p>
+                    )}
+
+                    <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-white/55">
+                      <span>{when(r.created_at)}</span>
+                      {targetLink && (
+                        <a
+                          href={targetLink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 font-medium text-sky-400 hover:underline"
+                        >
+                          <ExternalLink className="h-3 w-3" /> Open reported content
+                        </a>
+                      )}
+                    </div>
+                  </div>
+
+                  {r.thumbnail_url && (
+                    <img
+                      src={r.thumbnail_url}
+                      alt="Reported thumbnail"
+                      className="h-20 w-20 shrink-0 rounded-lg border border-white/15 object-cover"
+                    />
+                  )}
+                </div>
+
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="gap-1.5 border border-white/15 bg-white/10 text-white hover:bg-white/20"
+                    disabled={!hasTargetPost || busy === `del-${r.id}`}
+                    onClick={() =>
+                      void run(
+                        `del-${r.id}`,
+                        () => adminDeleteReportedPost(r.id),
+                        "Reported post deleted",
+                      )
+                    }
+                  >
+                    <Trash2 className="h-3.5 w-3.5" /> Delete Post
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="gap-1.5 border border-amber-400/30 bg-amber-500/15 text-amber-200 hover:bg-amber-500/25"
+                    disabled={busy === `warn-${r.id}`}
+                    onClick={() =>
+                      void run(
+                        `warn-${r.id}`,
+                        () =>
+                          adminWarnReportedUser(
+                            r.id,
+                            `Moderation warning (${reasonLabel(r.reason)})`,
+                          ),
+                        `@${r.reported_username} warned`,
+                      )
+                    }
+                  >
+                    <AlertTriangle className="h-3.5 w-3.5" /> Warn User
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    className="gap-1.5 bg-[#FE2C55] text-white hover:bg-[#e9274d]"
+                    disabled={busy === `ban-${r.id}`}
+                    onClick={() =>
+                      void run(
+                        `ban-${r.id}`,
+                        () =>
+                          adminBanReportedUser(
+                            r.id,
+                            null,
+                            true,
+                            `Report: ${reasonLabel(r.reason)}`,
+                          ),
+                        `@${r.reported_username} banned`,
+                      )
+                    }
+                  >
+                    <Ban className="h-3.5 w-3.5" /> Ban User
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="gap-1.5 border border-white/15 bg-black text-white/80 hover:bg-white/10 hover:text-white"
+                    disabled={busy === `dismiss-${r.id}`}
+                    onClick={() =>
+                      void run(
+                        `dismiss-${r.id}`,
+                        () => adminDismissReport(r.id),
+                        "Report dismissed",
+                      )
+                    }
+                  >
+                    <X className="h-3.5 w-3.5" /> Dismiss Report
+                  </Button>
+                </div>
+              </article>
+            );
+          })}
         </section>
       )}
 
@@ -745,8 +805,7 @@ function AdminPage() {
           </div>
           {botLogs.length === 0 && <Empty text="The Safety Bot has not taken any action yet." />}
           {botLogs.map((l) => {
-            const kindLabel =
-              VIOLATION_LABEL[l.kind as ViolationKind] ?? l.kind ?? "Rule break";
+            const kindLabel = VIOLATION_LABEL[l.kind as ViolationKind] ?? l.kind ?? "Rule break";
             const active =
               l.is_permanent ||
               (l.expires_at ? new Date(l.expires_at).getTime() > Date.now() : false);

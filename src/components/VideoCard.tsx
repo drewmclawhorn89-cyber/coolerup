@@ -47,6 +47,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { REPORT_REASONS, checkIfBanned, reportContent, type ReportReason } from "@/lib/moderation";
+import { captureVideoScreenshot, resolveSafeHttpUrl } from "@/lib/reportScreenshot";
 import { resolveAvatarUrl } from "./EditProfileDialog";
 import { notifyUser, profileIdForHandle } from "@/lib/notify";
 import {
@@ -293,7 +294,24 @@ function VideoCardImpl({
     }
     setSubmittingReport(true);
     try {
-      const result = await reportContent(video.id, video.username, reportReason, reportDetails);
+      const origin = typeof window !== "undefined" ? window.location.origin : "";
+      const captionSummary = parseCaption(currentVideo.caption).text.trim() || null;
+      const isPhotoPost =
+        isImageUrl(currentVideo.video_url) ||
+        /\.(jpe?g|png|webp|gif|avif)$/i.test(currentVideo.video_url);
+      const screenshotDataUrl = !isPhotoPost ? captureVideoScreenshot(ref.current) : null;
+      const thumbUrl = isPhotoPost
+        ? (resolveSafeHttpUrl(src) ?? resolveSafeHttpUrl(currentVideo.video_url))
+        : null;
+
+      const result = await reportContent(video.id, video.username, reportReason, reportDetails, {
+        targetType: "video",
+        targetUrl: origin ? `${origin}/v/${video.id}` : null,
+        targetText: captionSummary,
+        thumbnailUrl: thumbUrl,
+        screenshotDataUrl,
+        reporterHandle: auth.handle ?? null,
+      });
       if (!result.ok) {
         toast.error(result.error || "Couldn't send report");
         return;
@@ -304,12 +322,22 @@ function VideoCardImpl({
       if (result.duplicate) {
         toast.success("You already reported this - thanks");
       } else {
-        toast.success("Report sent. Thanks for keeping coolerup safe");
+        toast.success("Report sent. Thanks for keeping Coolerup safe");
       }
     } finally {
       setSubmittingReport(false);
     }
-  }, [auth, reportDetails, reportReason, submittingReport, video.id, video.username]);
+  }, [
+    auth,
+    currentVideo.caption,
+    currentVideo.video_url,
+    reportDetails,
+    reportReason,
+    src,
+    submittingReport,
+    video.id,
+    video.username,
+  ]);
 
   // Read prefs once per mount instead of on every render.
   const net = useNetwork();
@@ -1564,12 +1592,11 @@ function VideoCardImpl({
           }
         }}
       >
-        <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-md">
+        <DialogContent className="max-h-[85dvh] overflow-y-auto border-white/15 bg-black text-white sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Report this video</DialogTitle>
-            <DialogDescription>
-              Tell us what's wrong with @{video.username}'s video. Reports are anonymous - they
-              never see who reported them.
+            <DialogTitle className="text-white">Report this video</DialogTitle>
+            <DialogDescription className="text-white/65">
+              Tell us what&apos;s wrong with @{video.username}&apos;s video.
             </DialogDescription>
           </DialogHeader>
 
@@ -1579,26 +1606,22 @@ function VideoCardImpl({
                 key={r.id}
                 type="button"
                 onClick={() => setReportReason(r.id)}
-                className={`flex w-full items-start justify-between gap-3 rounded-lg border px-3 py-2.5 text-left transition ${
+                className={`flex w-full items-start justify-between gap-3 rounded-lg border px-3 py-2.5 text-left text-white transition ${
                   reportReason === r.id
-                    ? "border-primary bg-primary/10"
-                    : "border-border hover:border-foreground/30 hover:bg-accent"
+                    ? "border-[#FE2C55] bg-[#FE2C55]/15"
+                    : "border-white/15 bg-black hover:border-white/30"
                 }`}
               >
                 <span className="min-w-0">
-                  <span className="block text-sm font-semibold">{r.label}</span>
-                  <span className="block text-xs text-muted-foreground">{r.hint}</span>
+                  <span className="block text-sm font-semibold text-white">{r.label}</span>
+                  <span className="block text-xs text-white/60">{r.hint}</span>
                 </span>
                 <span
                   className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${
-                    reportReason === r.id
-                      ? "border-primary bg-primary"
-                      : "border-muted-foreground/50"
+                    reportReason === r.id ? "border-[#FE2C55] bg-[#FE2C55]" : "border-white/40"
                   }`}
                 >
-                  {reportReason === r.id && (
-                    <span className="h-1.5 w-1.5 rounded-full bg-primary-foreground" />
-                  )}
+                  {reportReason === r.id && <span className="h-1.5 w-1.5 rounded-full bg-white" />}
                 </span>
               </button>
             ))}
@@ -1609,24 +1632,24 @@ function VideoCardImpl({
             onChange={(e) => setReportDetails(e.target.value.slice(0, 1000))}
             rows={3}
             placeholder="Add details (optional)"
-            className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
+            className="w-full resize-none rounded-lg border border-white/15 bg-black px-3 py-2 text-sm text-white placeholder:text-white/40 outline-none focus:border-[#FE2C55]"
           />
 
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-[11px] leading-tight text-muted-foreground">
-              Enough reports in a short window and the account is restricted automatically.
-            </p>
-            <div className="flex shrink-0 gap-2">
-              <Button variant="ghost" onClick={() => setShowReport(false)}>
-                Cancel
-              </Button>
-              <Button
-                onClick={() => void submitReport()}
-                disabled={!reportReason || submittingReport}
-              >
-                {submittingReport ? "Sending..." : "Submit"}
-              </Button>
-            </div>
+          <div className="flex items-center justify-end gap-2">
+            <Button
+              variant="ghost"
+              className="text-white/80 hover:bg-white/10 hover:text-white"
+              onClick={() => setShowReport(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              className="bg-[#FE2C55] text-white hover:bg-[#e9274d]"
+              onClick={() => void submitReport()}
+              disabled={!reportReason || submittingReport}
+            >
+              {submittingReport ? "Sending..." : "Submit"}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

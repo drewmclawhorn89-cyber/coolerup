@@ -440,6 +440,11 @@ function CommentRow({
             videoId={videoId}
             commentId={c.id}
             target="comment"
+            targetUrl={
+              typeof window !== "undefined" ? `${window.location.origin}/v/${videoId}` : null
+            }
+            targetText={c.body?.trim() || (c.gif_url ? "[GIF comment]" : null)}
+            thumbnailUrl={c.gif_url}
             className="flex items-center gap-1 text-xs font-semibold text-muted-foreground hover:text-[#FE2C55]"
             label="Report"
           />

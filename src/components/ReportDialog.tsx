@@ -2,84 +2,108 @@ import { useState } from "react";
 import { X } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
-import { reportContent, type ReportReason } from "@/lib/moderation";
+import {
+  REPORT_REASONS,
+  reportContent,
+  type ReportReason,
+  type ReportTargetType,
+} from "@/lib/moderation";
 import { Button } from "@/components/ui/button";
-
-const REASONS = [
-  ["spam", "Spam"],
-  ["nudity", "Nudity / Sexual"],
-  ["harassment", "Harassment / Bullying"],
-  ["hate", "Hate speech"],
-  ["violence", "Violence"],
-  ["scam", "Scam"],
-  ["minor", "Involves a minor"],
-  ["other", "Other"],
-] as const;
 
 export function ReportDialog({
   username,
   videoId,
+  commentId,
+  target = "video",
+  targetUrl,
+  targetText,
+  thumbnailUrl,
   onClose,
 }: {
   username: string;
   videoId?: string;
+  commentId?: string;
+  target?: ReportTargetType;
+  targetUrl?: string | null;
+  targetText?: string | null;
+  thumbnailUrl?: string | null;
   onClose: () => void;
 }) {
   const auth = useAuth();
-  const [reason, setReason] = useState<(typeof REASONS)[number][0] | null>(null);
+  const [reason, setReason] = useState<ReportReason | null>(null);
   const [details, setDetails] = useState("");
   const [busy, setBusy] = useState(false);
 
   const submit = async () => {
-    if (!auth.user || !auth.handle) return auth.signIn();
+    if (!auth.user) return auth.signIn();
     if (!reason) return;
     setBusy(true);
-    // RPC path so the Safety Bot can auto-hide on 5+ reports + agreement.
     const res = await reportContent(
       videoId ?? null,
       username,
-      reason as ReportReason,
+      reason,
       details.trim().slice(0, 1000) || undefined,
+      {
+        targetType: target,
+        commentId: commentId ?? null,
+        targetUrl: targetUrl ?? (typeof window !== "undefined" ? window.location.href : null),
+        targetText: targetText ?? null,
+        thumbnailUrl: thumbnailUrl ?? null,
+        reporterHandle: auth.handle ?? null,
+      },
     );
     setBusy(false);
     if (!res.ok) return toast.error(res.error ?? "Couldn't send report");
     toast.success(
       res.hidden
         ? "Report sent — video hidden pending owner review"
-        : "Report sent, we review in 24h",
+        : "Report sent. Thank you for keeping Coolerup safe.",
     );
     onClose();
   };
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex items-end justify-center bg-overlay p-0 sm:items-center sm:p-4"
+      className="fixed inset-0 z-[60] flex items-end justify-center bg-black/80 p-0 backdrop-blur-sm sm:items-center sm:p-4"
       onClick={onClose}
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-sm rounded-t-3xl border bg-card p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] sm:rounded-3xl"
+        className="w-full max-w-sm rounded-t-3xl border border-white/15 bg-black p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] text-white sm:rounded-3xl"
       >
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="font-display text-lg">Report @{username}</h2>
-          <button onClick={onClose} aria-label="Close">
+          <h2 className="font-display text-lg text-white">Report @{username}</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="rounded-full p-1 text-white/60 hover:bg-white/10 hover:text-white"
+          >
             <X className="h-5 w-5" />
           </button>
         </div>
         {!auth.user ? (
-          <Button onClick={auth.signIn} className="w-full rounded-full">
+          <Button onClick={auth.signIn} className="w-full rounded-full bg-[#FE2C55] text-white">
             Sign in to report
           </Button>
         ) : (
           <>
-            <div className="grid grid-cols-2 gap-2">
-              {REASONS.map(([id, label]) => (
+            <div className="space-y-1.5">
+              {REPORT_REASONS.map((item) => (
                 <button
-                  key={id}
-                  onClick={() => setReason(id)}
-                  className={`rounded-full border px-3 py-2 text-sm font-bold transition ${reason === id ? "border-primary bg-primary/10 text-primary" : "hover:bg-secondary"}`}
+                  key={item.id}
+                  type="button"
+                  onClick={() => setReason(item.id)}
+                  className={`flex w-full items-center justify-between rounded-lg border px-3 py-2.5 text-left text-sm transition ${
+                    reason === item.id
+                      ? "border-[#FE2C55] bg-[#FE2C55]/15 text-white"
+                      : "border-white/15 bg-black text-white hover:border-white/30"
+                  }`}
                 >
-                  {label}
+                  <span>
+                    <span className="block font-bold">{item.label}</span>
+                    <span className="block text-xs text-white/60">{item.hint}</span>
+                  </span>
                 </button>
               ))}
             </div>
@@ -87,15 +111,15 @@ export function ReportDialog({
               value={details}
               onChange={(e) => setDetails(e.target.value)}
               maxLength={1000}
-              placeholder="Anything else? (optional)"
-              className="mt-3 h-20 w-full resize-none rounded-2xl bg-secondary p-3 text-sm outline-none"
+              placeholder="Add details (optional)"
+              className="mt-3 h-20 w-full resize-none rounded-xl border border-white/15 bg-black p-3 text-sm text-white placeholder:text-white/40 outline-none focus:border-[#FE2C55]"
             />
             <Button
               disabled={!reason || busy}
               onClick={submit}
-              className="mt-3 w-full rounded-full"
+              className="mt-3 w-full rounded-full bg-[#FE2C55] text-white hover:bg-[#e9274d]"
             >
-              Send report
+              {busy ? "Sending..." : "Submit report"}
             </Button>
           </>
         )}

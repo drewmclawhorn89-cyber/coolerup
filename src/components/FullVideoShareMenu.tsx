@@ -68,8 +68,7 @@ export function FullVideoShareMenu({
       const ext = downloadExtension(src, blob);
       const filename = `${video.id}.${ext}`;
 
-      // Watermark is mandatory — no flag can turn it off. A failure throws and
-      // the download is cancelled rather than shipping a clean copy.
+      // Smart detection preserves existing stamps; clean videos must be marked.
       const file = await prepareWatermarkedFile({
         blob,
         username: video.username,

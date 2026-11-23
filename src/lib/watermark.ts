@@ -1,7 +1,8 @@
 /**
- * Forced watermarking for every Coolerup export.
+ * Smart watermarking for Coolerup exports.
  *
- * Every video or photo that leaves the app — a download, a share-sheet file, a
+ * Videos with detected existing watermarks retain their original bytes.
+ * Every other video or photo that leaves the app — a download, a share-sheet file, a
  * "save to camera roll" — is re-encoded here with the Coolerup logo and the
  * creator's `@username` burned in. On videos the mark moves clockwise every
  * 3 seconds (top-left → top-right → bottom-right → bottom-left → repeat) with a
@@ -9,10 +10,10 @@
  *
  * There is deliberately **no** flag, prop, setting or query parameter that can
  * turn this off. `prepareWatermarkedFile` is the only exported way to turn a
- * media blob into a downloadable file, and it always watermarks. If the mark
+ * media blob into a downloadable file, and it checks video pixels first. If the mark
  * cannot be applied (no ffmpeg, out of memory, unsupported codec) it throws
  * `WatermarkError` and the caller must abort the download. Handing back an
- * unwatermarked file is never an option — a failed watermark is a failed
+ * unwatermarked clean file is never an option — a failed watermark is a failed
  * download, not a clean one.
  *
  * The watermark is drawn as a transparent PNG at export time (logo + handle)
@@ -22,6 +23,7 @@
  */
 
 import { loadFfmpeg, type FfmpegLike } from "./videoCompression";
+import { detectExistingVideoWatermark } from "./existingWatermark";
 
 /** Opacity of the burned-in mark. Semi-transparent, but always legible. */
 export const WATERMARK_ALPHA = 0.62;
@@ -99,7 +101,7 @@ export function watermarkCornerAtTime(timeSeconds: number): WatermarkCorner {
   const safeTime = Number.isFinite(timeSeconds) && timeSeconds > 0 ? timeSeconds : 0;
   const slot =
     Math.floor(safeTime / WATERMARK_MOVE_INTERVAL_SECONDS) % WATERMARK_CORNER_SEQUENCE.length;
-  return WATERMARK_CORNER_SEQUENCE[slot]!;
+  return WATERMARK_CORNER_SEQUENCE[slot] ?? "top-left";
 }
 
 /**
@@ -784,9 +786,9 @@ export function watermarkedMimeType(image: boolean): string {
 /**
  * The one function every download / share-file path calls.
  *
- * Returns a `File` that is guaranteed to carry the watermark. There is no
- * parameter to skip it. If the mark fails, this rejects and the caller must
- * surface an error instead of handing the user the original bytes.
+ * Preserves detected existing video marks byte-for-byte; otherwise applies the
+ * mandatory Coolerup mark. No caller-controlled bypass. Detection/encoding
+ * failures reject instead of allowing an unchecked original download.
  */
 export async function prepareWatermarkedFile(options: {
   blob: Blob;
@@ -795,6 +797,17 @@ export async function prepareWatermarkedFile(options: {
   onProgress?: (progress: WatermarkProgress) => void;
 }): Promise<File> {
   const { blob, username, filename, onProgress } = options;
+  if (!blob || blob.size === 0) throw new WatermarkError("Nothing to watermark");
+  if (!isImageBlob(blob, filename)) {
+    try {
+      if (await detectExistingVideoWatermark(blob, onProgress)) {
+        onProgress?.({ percent: 100, stage: "Done" });
+        return new File([blob], filename, { type: blob.type, lastModified: Date.now() });
+      }
+    } catch (cause) {
+      throw new WatermarkError("Could not check the video's existing watermark", { cause });
+    }
+  }
   const watermarked = await watermarkMediaBlob(blob, username, { filename, onProgress });
 
   const image = isImageBlob(blob, filename);

@@ -109,9 +109,7 @@ export function ShareMenu({
       const ext = downloadExtension(src, blob);
       const filename = `${video.id}.${ext}`;
 
-      // The watermark is mandatory and cannot be skipped. If it fails we throw
-      // and the catch below aborts the download rather than handing out a
-      // clean copy.
+      // Smart detection preserves existing stamps; clean videos must be marked.
       const file = await prepareWatermarkedFile({
         blob,
         username: video.poster_username ?? video.username,

@@ -219,11 +219,11 @@ async function probeVideo(blob: Blob): Promise<VideoMeta> {
 }
 
 /**
- * Burn the watermark into every frame of `blob` and return a new MP4.
- *
- * Always throws `WatermarkError` on failure — never returns the input.
+ * ffmpeg path: highest quality, but needs a ~31 MB wasm engine and enough
+ * memory to decode and re-encode the whole clip. This is the preferred path
+ * and the one that runs on most desktop browsers.
  */
-export async function watermarkVideoBlob(
+async function watermarkVideoWithFfmpeg(
   blob: Blob,
   username: string | null | undefined,
   onProgress?: (progress: WatermarkProgress) => void,
@@ -314,6 +314,208 @@ export async function watermarkVideoBlob(
     } catch {
       /* cleanup is best-effort */
     }
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Fallback: canvas + MediaRecorder (no wasm, works on phones)                 */
+/* -------------------------------------------------------------------------- */
+
+/** Longest side of the recorded canvas. Keeps memory sane on phones. */
+const RECORDER_MAX_SIDE = 1280;
+
+/** Candidate container/codec strings, best first. */
+const RECORDER_MIMES = [
+  "video/mp4;codecs=avc1.42E01E",
+  "video/mp4",
+  "video/webm;codecs=vp9",
+  "video/webm;codecs=vp8",
+  "video/webm",
+];
+
+/** First recording format this browser will actually produce. */
+export function pickRecorderMime(): string | null {
+  if (typeof MediaRecorder === "undefined") return null;
+  for (const mime of RECORDER_MIMES) {
+    try {
+      if (MediaRecorder.isTypeSupported(mime)) return mime;
+    } catch {
+      /* keep looking */
+    }
+  }
+  return null;
+}
+
+/**
+ * Second path: play the video into a canvas with the watermark drawn on top and
+ * record the result with `MediaRecorder`.
+ *
+ * This needs no wasm download and no full-file decode, so it works on phones
+ * and low-memory machines where the ffmpeg path dies. It re-encodes in real
+ * time, so a 30 s clip takes about 30 s.
+ */
+async function watermarkVideoWithRecorder(
+  blob: Blob,
+  username: string | null | undefined,
+  onProgress?: (progress: WatermarkProgress) => void,
+): Promise<Blob> {
+  if (typeof document === "undefined" || typeof MediaRecorder === "undefined") {
+    throw new WatermarkError("This browser cannot re-encode video");
+  }
+  const mime = pickRecorderMime();
+  if (!mime) throw new WatermarkError("This browser cannot record video");
+
+  const { width, height } = await probeVideo(blob);
+  const scale = Math.min(1, RECORDER_MAX_SIDE / Math.max(width, height));
+  const outWidth = Math.max(2, Math.round(width * scale));
+  const outHeight = Math.max(2, Math.round(height * scale));
+
+  onProgress?.({ percent: 5, stage: "Building watermark" });
+  const png = await buildWatermarkPng(outWidth, outHeight, username);
+  const markUrl = URL.createObjectURL(
+    new Blob([png as unknown as BlobPart], { type: "image/png" }),
+  );
+  const srcUrl = URL.createObjectURL(blob);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = outWidth;
+  canvas.height = outHeight;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    URL.revokeObjectURL(markUrl);
+    URL.revokeObjectURL(srcUrl);
+    throw new WatermarkError("Canvas 2D is unavailable");
+  }
+
+  const video = document.createElement("video");
+  video.src = srcUrl;
+  video.muted = true;
+  video.playsInline = true;
+  video.preload = "auto";
+
+  let raf = 0;
+  try {
+    const mark = new Image();
+    mark.src = markUrl;
+    await mark.decode().catch(() => {
+      throw new WatermarkError("Could not render the watermark");
+    });
+
+    await new Promise<void>((resolve, reject) => {
+      video.addEventListener("loadeddata", () => resolve(), { once: true });
+      video.addEventListener(
+        "error",
+        () => reject(new WatermarkError("Could not read this video")),
+        { once: true },
+      );
+      setTimeout(() => reject(new WatermarkError("Could not read this video")), 20_000);
+    });
+
+    // Carry the original audio across when the browser exposes it.
+    const stream = canvas.captureStream(30);
+    const captured = (
+      video as HTMLVideoElement & { captureStream?: () => MediaStream }
+    ).captureStream?.();
+    captured?.getAudioTracks().forEach((track) => stream.addTrack(track));
+
+    const chunks: BlobPart[] = [];
+    const recorder = new MediaRecorder(stream, { mimeType: mime });
+    recorder.ondataavailable = (event) => {
+      if (event.data && event.data.size > 0) chunks.push(event.data);
+    };
+
+    const finished = new Promise<void>((resolve, reject) => {
+      recorder.onstop = () => resolve();
+      recorder.onerror = () => reject(new WatermarkError("Recording the video failed"));
+    });
+
+    const margin = Math.max(6, Math.round(Math.min(outWidth, outHeight) * WATERMARK_MARGIN_RATIO));
+    const draw = () => {
+      if (video.ended || video.paused) return;
+      ctx.drawImage(video, 0, 0, outWidth, outHeight);
+      ctx.drawImage(mark, outWidth - mark.width - margin, outHeight - mark.height - margin);
+      const duration = Number.isFinite(video.duration) ? video.duration : 0;
+      if (duration > 0) {
+        onProgress?.({
+          percent: Math.min(95, Math.max(10, Math.round((video.currentTime / duration) * 90))),
+          stage: "Watermarking",
+        });
+      }
+      raf = requestAnimationFrame(draw);
+    };
+
+    recorder.start(250);
+    await video.play();
+    draw();
+
+    await new Promise<void>((resolve) => {
+      video.addEventListener("ended", () => resolve(), { once: true });
+      // A stalled or silent-ended element must not hang the download.
+      const guard = setInterval(() => {
+        if (video.ended) {
+          clearInterval(guard);
+          resolve();
+        }
+      }, 500);
+      setTimeout(() => {
+        clearInterval(guard);
+        resolve();
+      }, 15 * 60_000);
+    });
+
+    cancelAnimationFrame(raf);
+    raf = 0;
+    if (recorder.state !== "inactive") recorder.stop();
+    await finished;
+
+    if (chunks.length === 0) throw new WatermarkError("The watermarked video came back empty");
+    onProgress?.({ percent: 100, stage: "Done" });
+    const container = mime.split(";")[0] ?? "video/webm";
+    return new Blob(chunks, { type: container });
+  } finally {
+    if (raf) cancelAnimationFrame(raf);
+    try {
+      video.pause();
+    } catch {
+      /* already stopped */
+    }
+    video.removeAttribute("src");
+    video.load();
+    URL.revokeObjectURL(srcUrl);
+    URL.revokeObjectURL(markUrl);
+  }
+}
+
+/**
+ * Watermark a video, trying the high-quality ffmpeg path first and falling back
+ * to the in-browser recorder when that engine cannot run.
+ *
+ * Both paths burn the same mark into the same corner. If both fail this throws
+ * `WatermarkError` and the caller must abort the download — returning the
+ * original bytes is never an option.
+ */
+export async function watermarkVideoBlob(
+  blob: Blob,
+  username: string | null | undefined,
+  onProgress?: (progress: WatermarkProgress) => void,
+): Promise<Blob> {
+  let ffmpegError: unknown = null;
+  try {
+    return await watermarkVideoWithFfmpeg(blob, username, onProgress);
+  } catch (err) {
+    ffmpegError = err;
+  }
+
+  onProgress?.({ percent: 8, stage: "Trying a different encoder" });
+  try {
+    return await watermarkVideoWithRecorder(blob, username, onProgress);
+  } catch (err) {
+    const first = watermarkCause(ffmpegError);
+    const second = watermarkCause(err);
+    throw new WatermarkError(
+      `The watermark could not be applied to this video${first || second ? ` (${[first, second].filter(Boolean).join("; ")})` : ""}`,
+      { cause: err },
+    );
   }
 }
 
@@ -415,6 +617,15 @@ export function watermarkedOutputName(filename: string, image: boolean): string 
   return `${base || "coolerup"}${image ? ".png" : ".mp4"}`;
 }
 
+/** Extension matching what the encoder actually produced. */
+export function watermarkedExtension(blob: Blob, image: boolean): string {
+  if (image) return "png";
+  const type = (blob.type || "").toLowerCase();
+  if (type.includes("webm")) return "webm";
+  if (type.includes("quicktime")) return "mov";
+  return "mp4";
+}
+
 /** Output MIME type for a watermarked export. */
 export function watermarkedMimeType(image: boolean): string {
   return image ? "image/png" : "video/mp4";
@@ -437,10 +648,15 @@ export async function prepareWatermarkedFile(options: {
   const watermarked = await watermarkMediaBlob(blob, username, { filename, onProgress });
 
   const image = isImageBlob(blob, filename);
-  return new File([watermarked as unknown as BlobPart], watermarkedOutputName(filename, image), {
-    type: watermarkedMimeType(image),
-    lastModified: Date.now(),
-  });
+  const base = filename.replace(/\.[^.]+$/, "") || "coolerup";
+  return new File(
+    [watermarked as unknown as BlobPart],
+    `${base}.${watermarkedExtension(watermarked, image)}`,
+    {
+      type: watermarked.type || watermarkedMimeType(image),
+      lastModified: Date.now(),
+    },
+  );
 }
 
 /** Save a watermarked file to disk. */

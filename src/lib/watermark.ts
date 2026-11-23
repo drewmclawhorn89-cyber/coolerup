@@ -3,8 +3,9 @@
  *
  * Every video or photo that leaves the app — a download, a share-sheet file, a
  * "save to camera roll" — is re-encoded here with the Coolerup logo and the
- * creator's `@username` burned into the bottom-right corner for the entire
- * duration of the clip.
+ * creator's `@username` burned in. On videos the mark moves clockwise every
+ * 3 seconds (top-left → top-right → bottom-right → bottom-left → repeat) with a
+ * smooth fade across each transition so it never pops or covers the middle.
  *
  * There is deliberately **no** flag, prop, setting or query parameter that can
  * turn this off. `prepareWatermarkedFile` is the only exported way to turn a
@@ -15,8 +16,9 @@
  * download, not a clean one.
  *
  * The watermark is drawn as a transparent PNG at export time (logo + handle)
- * and composited with ffmpeg's `overlay` filter, so no font files or drawtext
- * configuration are needed and the result is identical on every platform.
+ * and composited with ffmpeg's `overlay` filter (or canvas + `MediaRecorder`
+ * fallback), so no font files or drawtext configuration are needed and the
+ * result is identical on every platform.
  */
 
 import { loadFfmpeg, type FfmpegLike } from "./videoCompression";
@@ -24,8 +26,30 @@ import { loadFfmpeg, type FfmpegLike } from "./videoCompression";
 /** Opacity of the burned-in mark. Semi-transparent, but always legible. */
 export const WATERMARK_ALPHA = 0.62;
 
-/** Margin from the right/bottom edge, as a fraction of the video's short side. */
+/** Margin from the frame edges, as a fraction of the video's short side. */
 export const WATERMARK_MARGIN_RATIO = 0.035;
+
+/** Seconds the watermark stays in each corner before moving. */
+export const WATERMARK_MOVE_INTERVAL_SECONDS = 3;
+
+/** Duration (in seconds) of each fade-out / fade-in when moving corners. */
+export const WATERMARK_FADE_SECONDS = 0.35;
+
+/** Brief zero-opacity bridge around every 3s corner switch so frame boundaries never pop. */
+export const WATERMARK_CORNER_HOLD_ZERO_SECONDS = 0.05;
+
+/** Frame rate of the looped overlay stream used for smooth ffmpeg fade transitions. */
+export const WATERMARK_FFMPEG_FPS = 15;
+
+/** Exact corner rotation order: top-left → top-right → bottom-right → bottom-left → repeat. */
+export type WatermarkCorner = "top-left" | "top-right" | "bottom-right" | "bottom-left";
+
+export const WATERMARK_CORNER_SEQUENCE: readonly WatermarkCorner[] = [
+  "top-left",
+  "top-right",
+  "bottom-right",
+  "bottom-left",
+];
 
 /** Coolerup logo shipped in `public/`. */
 export const WATERMARK_LOGO_SRC = "/icon-192-coolerup.png";
@@ -64,6 +88,96 @@ export function isImageBlob(blob: Blob, filename?: string): boolean {
   if (blob.type.startsWith("image/")) return true;
   if (blob.type.startsWith("video/")) return false;
   return /\.(png|jpe?g|webp|gif|avif|heic)$/i.test(filename ?? "");
+}
+
+/* -------------------------------------------------------------------------- */
+/* Moving corner & fade schedule                                              */
+/* -------------------------------------------------------------------------- */
+
+/** Which corner the watermark occupies at `timeSeconds` (cycles every 3 s). */
+export function watermarkCornerAtTime(timeSeconds: number): WatermarkCorner {
+  const safeTime = Number.isFinite(timeSeconds) && timeSeconds > 0 ? timeSeconds : 0;
+  const slot =
+    Math.floor(safeTime / WATERMARK_MOVE_INTERVAL_SECONDS) % WATERMARK_CORNER_SEQUENCE.length;
+  return WATERMARK_CORNER_SEQUENCE[slot]!;
+}
+
+/**
+ * Relative opacity multiplier (`0..1`) at `timeSeconds`, multiplied on top of
+ * `WATERMARK_ALPHA`. Starts fully visible at `t = 0`, then smoothly fades out
+ * before every 3-second boundary and smoothly fades back in after switching corners.
+ */
+export function watermarkOpacityAtTime(timeSeconds: number): number {
+  const safeTime = Number.isFinite(timeSeconds) && timeSeconds > 0 ? timeSeconds : 0;
+  const interval = WATERMARK_MOVE_INTERVAL_SECONDS;
+  const fade = WATERMARK_FADE_SECONDS;
+  const holdZero = WATERMARK_CORNER_HOLD_ZERO_SECONDS;
+  const fadeInEnd = holdZero + fade;
+  const fadeOutStart = interval - holdZero - fade;
+  const fadeOutEnd = interval - holdZero;
+
+  if (safeTime < fadeInEnd) return 1;
+
+  const slotTime = safeTime % interval;
+  if (slotTime < holdZero) return 0;
+  if (slotTime < fadeInEnd) return (slotTime - holdZero) / fade;
+  if (slotTime < fadeOutStart) return 1;
+  if (slotTime < fadeOutEnd) return (fadeOutEnd - slotTime) / fade;
+  return 0;
+}
+
+export type WatermarkPlacement = {
+  corner: WatermarkCorner;
+  x: number;
+  y: number;
+  opacity: number;
+};
+
+/** Compute corner coordinates and fade opacity at `timeSeconds`, bounded safely inside the corners. */
+export function watermarkPlacementAtTime(params: {
+  timeSeconds: number;
+  frameWidth: number;
+  frameHeight: number;
+  markWidth: number;
+  markHeight: number;
+  margin: number;
+}): WatermarkPlacement {
+  const { timeSeconds, frameWidth, frameHeight, markWidth, markHeight, margin } = params;
+  const corner = watermarkCornerAtTime(timeSeconds);
+  const opacity = watermarkOpacityAtTime(timeSeconds);
+
+  const leftX = Math.max(0, Math.min(margin, frameWidth - markWidth));
+  const rightX = Math.max(0, frameWidth - markWidth - margin);
+  const topY = Math.max(0, Math.min(margin, frameHeight - markHeight));
+  const bottomY = Math.max(0, frameHeight - markHeight - margin);
+
+  switch (corner) {
+    case "top-left":
+      return { corner, x: leftX, y: topY, opacity };
+    case "top-right":
+      return { corner, x: rightX, y: topY, opacity };
+    case "bottom-right":
+      return { corner, x: rightX, y: bottomY, opacity };
+    case "bottom-left":
+      return { corner, x: leftX, y: bottomY, opacity };
+  }
+}
+
+/** FFmpeg `-filter_complex` graph matching `watermarkPlacementAtTime` for video exports. */
+export function buildMovingWatermarkFilterGraph(margin: number): string {
+  const m = Math.max(0, Math.round(margin));
+  const interval = WATERMARK_MOVE_INTERVAL_SECONDS;
+  const fade = WATERMARK_FADE_SECONDS;
+  const holdZero = WATERMARK_CORNER_HOLD_ZERO_SECONDS;
+  const fadeInEnd = Number((holdZero + fade).toFixed(4));
+  const fadeOutStart = Number((interval - holdZero - fade).toFixed(4));
+  const fadeOutEnd = Number((interval - holdZero).toFixed(4));
+
+  const alphaExpr = `alpha(X,Y)*(if(lt(T,${fadeInEnd}),1,if(lt(mod(T,${interval}),${holdZero}),0,if(lt(mod(T,${interval}),${fadeInEnd}),(mod(T,${interval})-${holdZero})/${fade},if(lt(mod(T,${interval}),${fadeOutStart}),1,if(lt(mod(T,${interval}),${fadeOutEnd}),(${fadeOutEnd}-mod(T,${interval}))/${fade},0))))))`;
+  const xExpr = `if(eq(mod(floor(t/${interval}),4),0)+eq(mod(floor(t/${interval}),4),3),max(0,min(${m},main_w-overlay_w)),max(0,main_w-overlay_w-${m}))`;
+  const yExpr = `if(lt(mod(floor(t/${interval}),4),2),max(0,min(${m},main_h-overlay_h)),max(0,main_h-overlay_h-${m}))`;
+
+  return `[1:v]format=rgba,geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='${alphaExpr}'[wm];[0:v][wm]overlay=x='${xExpr}':y='${yExpr}':format=auto:shortest=1[wmout]`;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -113,25 +227,44 @@ export async function buildWatermarkPng(
   const height = Math.max(2, Math.round(videoHeight) || 1280);
 
   // Everything scales off the short side so a portrait clip and a landscape
-  // clip get the same visual weight.
+  // clip get the same visual weight, while guaranteeing the mark stays small
+  // inside a corner and never reaches the middle of the frame.
   const shortSide = Math.min(width, height);
+  const margin = Math.max(6, Math.round(shortSide * WATERMARK_MARGIN_RATIO));
   const markSize = Math.max(14, Math.round(shortSide * 0.075));
   const gap = Math.max(3, Math.round(markSize * 0.22));
-  const fontSize = Math.max(11, Math.round(markSize * 0.62));
-  const handle = watermarkHandle(username);
+  let fontSize = Math.max(11, Math.round(markSize * 0.62));
+  let handle = watermarkHandle(username);
 
-  const font = `600 ${fontSize}px ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif`;
+  const fontFor = (size: number) =>
+    `600 ${size}px ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif`;
 
   // Measure on a scratch context first so the canvas is exactly as wide as the
   // mark needs to be — a full-frame PNG would bloat MEMFS for no reason.
   const scratch = document.createElement("canvas");
   const measureCtx = scratch.getContext("2d");
   if (!measureCtx) throw new WatermarkError("Canvas 2D is unavailable");
-  measureCtx.font = font;
-  const textWidth = Math.ceil(measureCtx.measureText(handle).width);
 
   const pad = Math.max(2, Math.round(markSize * 0.12));
-  const artWidth = pad * 2 + markSize + gap + textWidth;
+  const maxArtWidth = Math.max(48, Math.floor(width * 0.44) - margin);
+
+  measureCtx.font = fontFor(fontSize);
+  let textWidth = Math.ceil(measureCtx.measureText(handle).width);
+
+  const fixedWidth = pad * 2 + markSize + gap;
+  if (fixedWidth + textWidth > maxArtWidth && textWidth > 0) {
+    const availableText = Math.max(16, maxArtWidth - fixedWidth);
+    fontSize = Math.max(9, Math.floor(fontSize * (availableText / textWidth)));
+    measureCtx.font = fontFor(fontSize);
+    textWidth = Math.ceil(measureCtx.measureText(handle).width);
+    while (textWidth > availableText && handle.length > 2) {
+      handle = `${handle.slice(0, -2)}…`;
+      textWidth = Math.ceil(measureCtx.measureText(handle).width);
+    }
+  }
+
+  const font = fontFor(fontSize);
+  const artWidth = fixedWidth + textWidth;
   const artHeight = pad * 2 + markSize;
 
   const canvas = document.createElement("canvas");
@@ -260,12 +393,16 @@ async function watermarkVideoWithFfmpeg(
     const code = await ffmpeg.exec([
       "-i",
       inName,
+      "-loop",
+      "1",
+      "-framerate",
+      String(WATERMARK_FFMPEG_FPS),
       "-i",
       pngName,
       "-filter_complex",
-      `[0:v][1:v]overlay=main_w-overlay_w-${margin}:main_h-overlay_h-${margin}:format=auto`,
+      buildMovingWatermarkFilterGraph(margin),
       "-map",
-      "0:v:0",
+      "[wmout]",
       "-map",
       "0:a?",
       "-c:v",
@@ -433,7 +570,20 @@ async function watermarkVideoWithRecorder(
     const draw = () => {
       if (video.ended || video.paused) return;
       ctx.drawImage(video, 0, 0, outWidth, outHeight);
-      ctx.drawImage(mark, outWidth - mark.width - margin, outHeight - mark.height - margin);
+      const { x, y, opacity } = watermarkPlacementAtTime({
+        timeSeconds: video.currentTime,
+        frameWidth: outWidth,
+        frameHeight: outHeight,
+        markWidth: mark.width,
+        markHeight: mark.height,
+        margin,
+      });
+      if (opacity > 0) {
+        ctx.save();
+        ctx.globalAlpha = opacity;
+        ctx.drawImage(mark, x, y);
+        ctx.restore();
+      }
       const duration = Number.isFinite(video.duration) ? video.duration : 0;
       if (duration > 0) {
         onProgress?.({

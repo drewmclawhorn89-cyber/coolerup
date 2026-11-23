@@ -14,6 +14,54 @@ export type Database = {
   }
   public: {
     Tables: {
+      age_verifications: {
+        Row: {
+          country: string | null
+          created_at: string
+          document_path: string | null
+          document_type: string | null
+          id_date_of_birth: string | null
+          rejection_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          selfie_path: string | null
+          status: string
+          submitted_at: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          country?: string | null
+          created_at?: string
+          document_path?: string | null
+          document_type?: string | null
+          id_date_of_birth?: string | null
+          rejection_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          selfie_path?: string | null
+          status?: string
+          submitted_at?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          country?: string | null
+          created_at?: string
+          document_path?: string | null
+          document_type?: string | null
+          id_date_of_birth?: string | null
+          rejection_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          selfie_path?: string | null
+          status?: string
+          submitted_at?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       app_settings: {
         Row: {
           id: number
@@ -747,6 +795,7 @@ export type Database = {
           description?: string
           duration?: number
           id?: string
+          is_mature?: boolean
           is_paid?: boolean
           is_youtube?: boolean
           price_cents?: number | null
@@ -2332,185 +2381,6 @@ export type Database = {
           },
         ]
       }
-      age_verifications: {
-        Row: {
-          user_id: string
-          status: string
-          document_type: string | null
-          document_path: string | null
-          selfie_path: string | null
-          country: string | null
-          id_date_of_birth: string | null
-          submitted_at: string
-          reviewed_at: string | null
-          reviewed_by: string | null
-          rejection_reason: string | null
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          user_id: string
-          status?: string
-          document_type?: string | null
-          document_path?: string | null
-          selfie_path?: string | null
-          country?: string | null
-          id_date_of_birth?: string | null
-          submitted_at?: string
-          reviewed_at?: string | null
-          reviewed_by?: string | null
-          rejection_reason?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          user_id?: string
-          status?: string
-          document_type?: string | null
-          document_path?: string | null
-          selfie_path?: string | null
-          country?: string | null
-          id_date_of_birth?: string | null
-          submitted_at?: string
-          reviewed_at?: string | null
-          reviewed_by?: string | null
-          rejection_reason?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "age_verifications_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: true
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      tiktok_accounts: {
-        Row: {
-          user_id: string
-          open_id: string
-          union_id: string | null
-          username: string
-          display_name: string | null
-          avatar_url: string | null
-          follower_count: number
-          following_count: number
-          likes_count: number
-          video_count: number
-          scope: string | null
-          access_token: string
-          refresh_token: string
-          access_expires_at: string
-          refresh_expires_at: string | null
-          last_synced_at: string | null
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          user_id: string
-          open_id: string
-          union_id?: string | null
-          username: string
-          display_name?: string | null
-          avatar_url?: string | null
-          follower_count?: number
-          following_count?: number
-          likes_count?: number
-          video_count?: number
-          scope?: string | null
-          access_token: string
-          refresh_token: string
-          access_expires_at: string
-          refresh_expires_at?: string | null
-          last_synced_at?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          user_id?: string
-          open_id?: string
-          union_id?: string | null
-          username?: string
-          display_name?: string | null
-          avatar_url?: string | null
-          follower_count?: number
-          following_count?: number
-          likes_count?: number
-          video_count?: number
-          scope?: string | null
-          access_token?: string
-          refresh_token?: string
-          access_expires_at?: string
-          refresh_expires_at?: string | null
-          last_synced_at?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      tiktok_imports: {
-        Row: {
-          user_id: string
-          tiktok_id: string
-          video_id: string | null
-          imported_at: string
-        }
-        Insert: {
-          user_id: string
-          tiktok_id: string
-          video_id?: string | null
-          imported_at?: string
-        }
-        Update: {
-          user_id?: string
-          tiktok_id?: string
-          video_id?: string | null
-          imported_at?: string
-        }
-        Relationships: []
-      }
-      tiktok_publishes: {
-        Row: {
-          id: string
-          user_id: string
-          video_id: string | null
-          tiktok_publish_id: string | null
-          status: string
-          mode: string
-          caption: string | null
-          error: string | null
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          video_id?: string | null
-          tiktok_publish_id?: string | null
-          status?: string
-          mode?: string
-          caption?: string | null
-          error?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          user_id?: string
-          video_id?: string | null
-          tiktok_publish_id?: string | null
-          status?: string
-          mode?: string
-          caption?: string | null
-          error?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
       tiktok_sources: {
         Row: {
           added_by: string | null
@@ -3122,9 +2992,28 @@ export type Database = {
         }
         Returns: Json
       }
+      account_is_banned: { Args: { _uid: string }; Returns: boolean }
       add_live_mod: {
         Args: { p_live_id: string; p_user_id: string }
         Returns: number
+      }
+      admin_age_verifications: {
+        Args: { _status?: string }
+        Returns: {
+          country: string
+          display_name: string
+          document_path: string
+          document_type: string
+          id_date_of_birth: string
+          profile_birthday: string
+          rejection_reason: string
+          reviewed_at: string
+          selfie_path: string
+          status: string
+          submitted_at: string
+          user_id: string
+          username: string
+        }[]
       }
       admin_ban: {
         Args: {
@@ -3278,6 +3167,10 @@ export type Database = {
           video_id: string
         }[]
       }
+      admin_review_age_verification: {
+        Args: { _approve: boolean; _reason?: string; _user_id: string }
+        Returns: Json
+      }
       admin_review_coin_venmo_order: {
         Args: { _action: string; _note?: string; _order_id: string }
         Returns: Json
@@ -3288,7 +3181,6 @@ export type Database = {
         Args: { _active: boolean; _code: string }
         Returns: Json
       }
-      account_is_banned: { Args: { _uid: string }; Returns: boolean }
       admin_unban: { Args: { _username: string }; Returns: Json }
       admin_unhide_video: { Args: { _video_id: string }; Returns: Json }
       am_i_admin: { Args: never; Returns: boolean }
@@ -3371,6 +3263,7 @@ export type Database = {
         }
         Returns: Json
       }
+      handle_is_banned: { Args: { _username: string }; Returns: boolean }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -3378,7 +3271,6 @@ export type Database = {
         }
         Returns: boolean
       }
-      handle_is_banned: { Args: { _username: string }; Returns: boolean }
       identity_hash: { Args: { _value: string }; Returns: string }
       increment_full_video_views: {
         Args: { video_id: string }
@@ -3414,6 +3306,17 @@ export type Database = {
       mute_live_user: {
         Args: { p_live_id: string; p_minutes?: number; p_user_id: string }
         Returns: string
+      }
+      my_age_verification: {
+        Args: never
+        Returns: {
+          country: string
+          document_type: string
+          rejection_reason: string
+          reviewed_at: string
+          status: string
+          submitted_at: string
+        }[]
       }
       my_ban_status: {
         Args: never
@@ -3464,65 +3367,6 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
-      }
-      my_age_verification: {
-        Args: never
-        Returns: {
-          status: string
-          document_type: string | null
-          country: string | null
-          submitted_at: string
-          reviewed_at: string | null
-          rejection_reason: string | null
-        }[]
-      }
-      submit_age_verification: {
-        Args: {
-          _document_type: string
-          _document_path: string
-          _selfie_path: string
-          _country?: string | null
-          _id_date_of_birth?: string | null
-        }
-        Returns: string
-      }
-      admin_age_verifications: {
-        Args: { _status?: string }
-        Returns: {
-          user_id: string
-          username: string | null
-          display_name: string | null
-          status: string
-          document_type: string | null
-          document_path: string | null
-          selfie_path: string | null
-          country: string | null
-          id_date_of_birth: string | null
-          profile_birthday: string | null
-          submitted_at: string | null
-          reviewed_at: string | null
-          rejection_reason: string | null
-        }[]
-      }
-      admin_review_age_verification: {
-        Args: { _user_id: string; _approve: boolean; _reason?: string | null }
-        Returns: Json
-      }
-      my_tiktok_account: {
-        Args: never
-        Returns: {
-          open_id: string
-          username: string
-          display_name: string | null
-          avatar_url: string | null
-          follower_count: number
-          following_count: number
-          likes_count: number
-          video_count: number
-          scope: string | null
-          connected_at: string
-          last_synced_at: string | null
-        }[]
       }
       my_purchased_videos: {
         Args: { p_limit?: number }
@@ -3655,6 +3499,16 @@ export type Database = {
       show_trgm: { Args: { "": string }; Returns: string[] }
       sound_title_for_video: {
         Args: { _caption: string; _username: string }
+        Returns: string
+      }
+      submit_age_verification: {
+        Args: {
+          _country?: string
+          _document_path: string
+          _document_type: string
+          _id_date_of_birth?: string
+          _selfie_path: string
+        }
         Returns: string
       }
       submit_coin_venmo_payment: {

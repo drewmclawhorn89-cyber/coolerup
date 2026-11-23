@@ -16,6 +16,7 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { offlinePlan, useOfflineUnlocked } from "@/lib/subscriptions";
 import { toast } from "sonner";
+import { prepareWatermarkedFile, saveFileToDisk, WatermarkError } from "@/lib/watermark";
 
 export const Route = createFileRoute("/offline")({
   head: () => ({ meta: [{ title: "Offline videos — Coolerup" }] }),
@@ -69,9 +70,14 @@ function OfflinePage() {
         toast.error("Couldn't find saved video");
         return;
       }
+      // Play in the in-app player rather than opening the raw blob in a new tab
+      // — a blob tab exposes the browser's own "save video" button, which would
+      // hand out a copy without the watermark.
       const url = URL.createObjectURL(saved.blob);
-      window.open(url, "_blank", "noopener");
-      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      setPlaying({
+        url,
+        title: parseCaption(saved.video?.caption ?? "").text || `@${saved.video?.username ?? ""}`,
+      });
     } catch (e) {
       console.error(e);
       toast.error("Couldn't open saved video");
@@ -79,24 +85,30 @@ function OfflinePage() {
   };
 
   const handleDownload = async (id: string) => {
+    const t = toast.loading("Preparing download…");
     try {
       const saved = await getSaved(id);
       if (!saved?.blob) {
-        toast.error("Couldn't find saved video");
+        toast.error("Couldn't find saved video", { id: t });
         return;
       }
-      const url = URL.createObjectURL(saved.blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `coolerup-${id}.mp4`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
-      toast.success("Download started");
+      // Watermark is mandatory on every export, with no way to skip it.
+      const file = await prepareWatermarkedFile({
+        blob: saved.blob,
+        username: saved.video?.username,
+        filename: `coolerup-${id}.mp4`,
+        onProgress: ({ percent, stage }) => toast.loading(`${stage}… ${percent}%`, { id: t }),
+      });
+      saveFileToDisk(file);
+      toast.success("Download started", { id: t });
     } catch (e) {
       console.error(e);
-      toast.error("Couldn't download saved video");
+      toast.error(
+        e instanceof WatermarkError
+          ? "Couldn't watermark this video, so the download was cancelled."
+          : "Couldn't download saved video",
+        { id: t },
+      );
     }
   };
 
@@ -125,19 +137,25 @@ function OfflinePage() {
   };
 
   const handleFullDownload = async (item: SavedFullVideo) => {
+    const t = toast.loading("Preparing download…");
     try {
-      const url = URL.createObjectURL(item.blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `coolerup-${item.id}.mp4`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
-      toast.success("Download started");
+      // Watermark is mandatory on every export, with no way to skip it.
+      const file = await prepareWatermarkedFile({
+        blob: item.blob,
+        username: item.video?.username,
+        filename: `coolerup-${item.id}.mp4`,
+        onProgress: ({ percent, stage }) => toast.loading(`${stage}… ${percent}%`, { id: t }),
+      });
+      saveFileToDisk(file);
+      toast.success("Download started", { id: t });
     } catch (e) {
       console.error(e);
-      toast.error("Couldn't download saved video");
+      toast.error(
+        e instanceof WatermarkError
+          ? "Couldn't watermark this video, so the download was cancelled."
+          : "Couldn't download saved video",
+        { id: t },
+      );
     }
   };
 

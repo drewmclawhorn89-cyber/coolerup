@@ -143,7 +143,7 @@ export function ShareMenu({
       console.error("Download failed:", watermarkCause(err) || err);
       toast.error(
         err instanceof WatermarkError
-          ? "Couldn't watermark this video, so the download was cancelled."
+          ? `Couldn't watermark this video, so the download was cancelled.${watermarkCause(err) ? ` (${watermarkCause(err)})` : ""}`
           : "Couldn't download this video. Try again.",
         { id: t },
       );

@@ -110,7 +110,7 @@ function OfflinePage() {
       console.error("Download failed:", watermarkCause(e) || e);
       toast.error(
         e instanceof WatermarkError
-          ? "Couldn't watermark this video, so the download was cancelled."
+          ? `Couldn't watermark this video, so the download was cancelled.${watermarkCause(e) ? ` (${watermarkCause(e)})` : ""}`
           : "Couldn't download saved video",
         { id: t },
       );
@@ -157,7 +157,7 @@ function OfflinePage() {
       console.error("Download failed:", watermarkCause(e) || e);
       toast.error(
         e instanceof WatermarkError
-          ? "Couldn't watermark this video, so the download was cancelled."
+          ? `Couldn't watermark this video, so the download was cancelled.${watermarkCause(e) ? ` (${watermarkCause(e)})` : ""}`
           : "Couldn't download saved video",
         { id: t },
       );

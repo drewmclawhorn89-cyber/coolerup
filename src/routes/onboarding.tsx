@@ -16,8 +16,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { reportExplicitMedia } from "@/lib/autoBans";
-import { inspectMedia } from "@/lib/nsfw";
 
 export const Route = createFileRoute("/onboarding")({
   head: () => ({
@@ -155,17 +153,6 @@ function OnboardingPage() {
     try {
       let avatarUrl: string | undefined;
       if (photo) {
-        // The avatar is pixels, not text. Screen the image before it is stored.
-        const verdict = await inspectMedia(photo);
-        if (verdict?.explicit) {
-          await reportExplicitMedia({
-            userId: auth.user.id,
-            username,
-            source: "photo",
-            score: verdict.score,
-          });
-          return;
-        }
         const ext = photo.name.split(".").pop() || "jpg";
         const path = `${auth.user.id}/avatar.${ext}`;
         const { error: uploadError } = await supabase.storage

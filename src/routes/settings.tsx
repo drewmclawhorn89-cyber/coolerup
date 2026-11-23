@@ -1433,23 +1433,6 @@ function Settings() {
         </div>
       </div>
 
-      {/* Moderation self-check: answers "why isn't the auto-ban working?" */}
-      <Link
-        to="/moderation-check"
-        className="flex items-center justify-between rounded-2xl border bg-card p-4"
-      >
-        <div className="flex items-center gap-3">
-          <ShieldCheck className="h-4 w-4 text-primary" />
-          <div>
-            <p className="font-semibold">Moderation check</p>
-            <p className="text-sm text-muted-foreground">
-              See whether auto-bans are actually installed on this device.
-            </p>
-          </div>
-        </div>
-        <ChevronRight className="h-4 w-4 text-muted-foreground" />
-      </Link>
-
       <Suspense fallback={<PanelSkeleton />}>
         <MoreSettings />
       </Suspense>

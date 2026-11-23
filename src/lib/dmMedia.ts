@@ -1,7 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import { reportExplicitMedia, screenBeforeWrite } from "@/lib/autoBans";
 import { resolveMediaUrl } from "@/lib/media";
-import { inspectMedia } from "@/lib/nsfw";
 import { detectExternalWatermark } from "@/lib/smartWatermark";
 import { untypedDb } from "@/lib/untypedDb";
 import {
@@ -491,22 +489,6 @@ export async function uploadDmMediaFile(params: {
     );
   }
 
-  // On-device NSFW check consistent with feed uploads.
-  try {
-    const verdict = await inspectMedia(file);
-    if (verdict?.explicit) {
-      await reportExplicitMedia({
-        userId,
-        username,
-        source: isVid ? "video" : "photo",
-        score: verdict.score,
-      }).catch(() => {});
-      throw new Error("Blocked: explicit photos or videos are not allowed.");
-    }
-  } catch (err) {
-    if (err instanceof Error && err.message.startsWith("Blocked:")) throw err;
-  }
-
   const wmResult = isVid
     ? await detectExternalWatermark({ blob: file, filename: file.name }).catch(() => null)
     : null;
@@ -624,17 +606,6 @@ export async function sendDirectMessage(params: {
           perm.reason ||
           `@${targetProfile.handle} only accepts pics and videos from mutual followers.`,
       };
-    }
-  }
-
-  if (text) {
-    const blocked = await screenBeforeWrite({
-      userId: params.fromId,
-      username: fromHandle,
-      text,
-    });
-    if (blocked) {
-      return { ok: false, error: "Message blocked by safety filter." };
     }
   }
 

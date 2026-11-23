@@ -51,7 +51,16 @@ export type CoolerupVideoChoice = {
   likes_count?: number;
 };
 
-export const DM_MEDIA_BUCKET = "dm-media";
+/**
+ * DM pics and videos go to `direct-messages` when that bucket exists.
+ * If it does not (a project that never provisioned it), we fall back to the
+ * `videos` bucket under a `dm/` folder — that bucket already works for posting.
+ * No other bucket name is ever used.
+ */
+export const DM_MEDIA_BUCKET = "direct-messages";
+export const DM_FALLBACK_BUCKET = "videos";
+const DM_FOLDER = "dm";
+/** Legacy values written by the old private `dm-media` bucket. */
 const DM_MEDIA_PREFIX = "dm-media:";
 const ALLOW_MESSAGES_FROM_EVERYONE_KEY = "allowMessagesFromEveryone";
 const OPENED_ONCE_LOCAL_KEY = "coolerup:dm-opened-once:v1";
@@ -475,7 +484,7 @@ export async function uploadDmMediaFile(params: {
   mediaType: "image" | "video";
   hasExternalWatermark: boolean;
 }> {
-  const { userId, username, file } = params;
+  const { file } = params;
   const isImg = isImageMediaFile(file);
   const isVid = isVideoMediaFile(file);
   if (!isImg && !isVid) {
@@ -501,51 +510,84 @@ export async function uploadDmMediaFile(params: {
       ?.toLowerCase()
       .replace(/[^a-z0-9]/g, "") || "";
   const ext = rawExt || (isImg ? "jpg" : "mp4");
-  const uniqueId =
-    typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
-      ? crypto.randomUUID()
-      : `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  const path = `${userId}/${uniqueId}.${ext}`;
+  const baseName =
+    file.name
+      .replace(/\.[^.]+$/, "")
+      .replace(/[^a-zA-Z0-9_-]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 60) || (isImg ? "photo" : "video");
+  const path = `${DM_FOLDER}/${Date.now()}_${baseName}.${ext}`;
 
-  const { error: dmBucketErr } = await supabase.storage.from(DM_MEDIA_BUCKET).upload(path, file, {
-    contentType: file.type || (isImg ? "image/jpeg" : "video/mp4"),
-    upsert: false,
-  });
+  const contentType = file.type || (isImg ? "image/jpeg" : "video/mp4");
 
-  if (!dmBucketErr) {
-    return {
-      url: `${DM_MEDIA_PREFIX}${path}`,
-      mediaType: isImg ? "image" : "video",
-      hasExternalWatermark,
-    };
+  console.log(`Trying bucket: ${DM_MEDIA_BUCKET}`);
+  console.log(`File size: ${file.size}`);
+
+  let bucket = DM_MEDIA_BUCKET;
+  let uploadError = await uploadToBucket(bucket, path, file, contentType);
+
+  if (uploadError && isMissingBucketError(uploadError)) {
+    console.log(`Bucket "${DM_MEDIA_BUCKET}" not found — falling back to "${DM_FALLBACK_BUCKET}"`);
+    console.log(`Trying bucket: ${DM_FALLBACK_BUCKET}`);
+    bucket = DM_FALLBACK_BUCKET;
+    uploadError = await uploadToBucket(bucket, path, file, contentType);
   }
 
-  // Clean fallback to `videos` bucket if `dm-media` hasn't been provisioned yet.
-  const fallbackPath = `dm/${path}`;
-  const { error: videosErr } = await supabase.storage.from("videos").upload(fallbackPath, file, {
-    contentType: file.type || (isImg ? "image/jpeg" : "video/mp4"),
-    upsert: false,
-  });
-
-  if (videosErr) {
-    throw new Error(dmBucketErr.message || videosErr.message || "Could not upload media.");
+  if (uploadError) {
+    // Surface the real Supabase error instead of a generic message.
+    throw new Error(
+      `Upload to "${bucket}" failed: ${uploadError.message}` +
+        (uploadError.name ? ` (${uploadError.name})` : ""),
+    );
   }
+
+  const { data: publicData } = supabase.storage.from(bucket).getPublicUrl(path);
+  const publicUrl = publicData?.publicUrl || "";
+  console.log(`Uploaded to bucket: ${bucket} → ${publicUrl}`);
 
   return {
-    url: `storage:${fallbackPath}`,
+    url: publicUrl,
     mediaType: isImg ? "image" : "video",
     hasExternalWatermark,
   };
 }
 
+type StorageErrorLike = { message: string; name?: string };
+
+/** True when the error means the bucket itself is missing, not a bad file. */
+function isMissingBucketError(err: StorageErrorLike): boolean {
+  const msg = (err.message || "").toLowerCase();
+  return (
+    msg.includes("bucket not found") ||
+    msg.includes("bucket does not exist") ||
+    (msg.includes("not found") && msg.includes("bucket"))
+  );
+}
+
+async function uploadToBucket(
+  bucket: string,
+  path: string,
+  file: File,
+  contentType: string,
+): Promise<StorageErrorLike | null> {
+  const { error } = await supabase.storage.from(bucket).upload(path, file, {
+    contentType,
+    upsert: false,
+  });
+  if (!error) return null;
+  console.error(`Upload to "${bucket}" failed:`, error);
+  return { message: error.message || "Unknown storage error", name: error.name };
+}
+
 export async function resolveDmMediaUrl(rawUrl: string | null | undefined): Promise<string> {
   if (!rawUrl) return "";
+  // Legacy rows from the old private `dm-media` bucket still need signing.
   if (rawUrl.startsWith(DM_MEDIA_PREFIX)) {
     const path = rawUrl.slice(DM_MEDIA_PREFIX.length);
     const hit = signedDmUrlCache.get(path);
     if (hit && hit.expiresAt > Date.now()) return hit.url;
     const { data, error } = await supabase.storage
-      .from(DM_MEDIA_BUCKET)
+      .from("dm-media")
       .createSignedUrl(path, 3600);
     if (error || !data?.signedUrl) return "";
     signedDmUrlCache.set(path, {
@@ -554,6 +596,8 @@ export async function resolveDmMediaUrl(rawUrl: string | null | undefined): Prom
     });
     return data.signedUrl;
   }
+  // New uploads store a public URL for `direct-messages`; return it as-is.
+  if (rawUrl.includes("/object/public/direct-messages/")) return rawUrl;
   return resolveMediaUrl(rawUrl);
 }
 

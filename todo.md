@@ -1,23 +1,28 @@
-# Real-ID 18+ Gate (short form fix + ID verification)
+# Forced watermark on every Coolerup export
 
-## Data / backend
-- [x] Migration `20261222000000_age_verification.sql` (table, RLS lockdown, private bucket, 4 RPCs)
-- [x] `src/lib/ageVerification.ts` client (status hook, upload, submit, signed URL)
-- [x] `src/lib/matureVideos.ts` requires `age_verifications.status = 'approved'`
-- [x] Add `age_verifications` + 4 RPCs to `src/integrations/supabase/types.ts`
+## Build the watermark engine
+- [x] Create `src/lib/watermark.ts` — always-on helper, no disable flag
+- [x] Draw logo + `@username` as a transparent PNG (bottom right, semi-transparent)
+- [x] Burn it into every video frame with ffmpeg `overlay` (reuses lazy loader)
+- [x] Canvas path for still images
+- [x] Fail closed: throw `WatermarkError`, never return the clean blob
 
-## UI
-- [x] `AgeVerificationDialog.tsx`
-- [x] VideoCard: gate `togglePlay`, lock TikTok iframe, overlay with "Verify my ID"
-- [x] watch.$id: same ID gate + overlay
-- [x] Settings: "Verify your ID for 18+ videos" row with live status
-- [x] Admin: ID Checks tab (view docs, approve/reject)
-
-## Feed correctness
-- [x] `src/lib/loop.ts`: add `is_mature` to LEGACY_COLUMNS + fallback regex
+## Route every export through it
+- [x] `ShareMenu.tsx` download (short form)
+- [x] `ShareMenu.tsx` share-sheet file
+- [x] `FullVideoShareMenu.tsx` download (long form)
+- [x] `FullVideoShareMenu.tsx` share-sheet file
+- [x] `offline.tsx` short-video download
+- [x] `offline.tsx` full-video download
+- [x] `offline.tsx` view no longer opens a raw blob tab
+- [x] Leave the JSON data export in `MoreSettings.tsx` untouched
 
 ## Verify
-- [x] Update `src/test/mature-videos.test.ts` for new signature/reasons
-- [x] New tests for ageVerification + VideoCard gating
-- [x] `npx tsc --noEmit`, `npm run build`, `npx vitest run` (938/938)
-- [x] Branch, commit, push, PR #334, merged (05db337)
+- [x] `npx tsc --noEmit` clean
+- [x] `npm run build` clean
+- [x] `npx vitest run` — 960/960 passing (22 new)
+- [x] eslint clean on changed files
+
+## Ship
+- [ ] Branch, commit, push
+- [ ] Open PR and merge

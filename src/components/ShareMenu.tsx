@@ -8,6 +8,12 @@ import { formatBytes, getSaved, removeOffline, saveOffline } from "@/lib/offline
 import { useOfflineUnlocked } from "@/lib/subscriptions";
 import { OfflinePaywallDialog } from "@/components/OfflinePaywallDialog";
 import { EditVideoDialog } from "@/components/EditVideoDialog";
+import {
+  downloadExtension,
+  prepareWatermarkedFile,
+  saveFileToDisk,
+  WatermarkError,
+} from "@/lib/watermark";
 
 export function ShareMenu({
   video,
@@ -99,17 +105,18 @@ export function ShareMenu({
       const resp = await fetch(src);
       if (!resp.ok) throw new Error("Network response was not ok");
       const blob = await resp.blob();
-      const extMatch = (video.video_url || "").match(/\.([a-z0-9]{2,4})(?:[?#]|$)/i);
-      const ext =
-        extMatch?.[1] ??
-        (blob.type.includes("webm")
-          ? "webm"
-          : blob.type.startsWith("image/")
-            ? blob.type.split("/")[1]
-            : "mp4");
+      const ext = downloadExtension(src, blob);
       const filename = `${video.id}.${ext}`;
-      const type = blob.type || `video/${ext}`;
-      const file = new File([blob], filename, { type });
+
+      // The watermark is mandatory and cannot be skipped. If it fails we throw
+      // and the catch below aborts the download rather than handing out a
+      // clean copy.
+      const file = await prepareWatermarkedFile({
+        blob,
+        username: video.poster_username ?? video.username,
+        filename,
+        onProgress: ({ percent, stage }) => toast.loading(`${stage}… ${percent}%`, { id: t }),
+      });
 
       // On phones, the share sheet is the way to save to the camera roll / Files.
       const isTouch =
@@ -128,19 +135,17 @@ export function ShareMenu({
         }
       }
 
-      const href = URL.createObjectURL(file);
-      const a = document.createElement("a");
-      a.href = href;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(href), 10000);
+      saveFileToDisk(file);
       toast.success("Download started", { id: t });
       onShared();
     } catch (err) {
       console.error(err);
-      toast.error("Couldn't download this video. Try again.", { id: t });
+      toast.error(
+        err instanceof WatermarkError
+          ? "Couldn't watermark this video, so the download was cancelled."
+          : "Couldn't download this video. Try again.",
+        { id: t },
+      );
     }
   };
 

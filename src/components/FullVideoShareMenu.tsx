@@ -4,6 +4,12 @@ import { formatBytes } from "@/lib/offline";
 import { useFullVideoOffline } from "@/lib/useFullVideoOffline";
 import { resolveFullVideoUrl, type FullVideo } from "@/lib/fullVideos";
 import { OfflinePaywallDialog } from "@/components/OfflinePaywallDialog";
+import {
+  downloadExtension,
+  prepareWatermarkedFile,
+  saveFileToDisk,
+  WatermarkError,
+} from "@/lib/watermark";
 
 /**
  * Share sheet for long-form videos (the /videos tab and the watch page).
@@ -58,10 +64,17 @@ export function FullVideoShareMenu({
       const resp = await fetch(src);
       if (!resp.ok) throw new Error("Network response was not ok");
       const blob = await resp.blob();
-      const extMatch = (video.video_url || "").match(/\.([a-z0-9]{2,4})(?:[?#]|$)/i);
-      const ext = extMatch?.[1] ?? (blob.type.includes("webm") ? "webm" : "mp4");
+      const ext = downloadExtension(src, blob);
       const filename = `${video.id}.${ext}`;
-      const file = new File([blob], filename, { type: blob.type || `video/${ext}` });
+
+      // Watermark is mandatory — no flag can turn it off. A failure throws and
+      // the download is cancelled rather than shipping a clean copy.
+      const file = await prepareWatermarkedFile({
+        blob,
+        username: video.username,
+        filename,
+        onProgress: ({ percent, stage }) => toast.loading(`${stage}… ${percent}%`, { id: t }),
+      });
 
       // On phones the share sheet is the way to save to the camera roll / Files.
       const isTouch =
@@ -80,19 +93,17 @@ export function FullVideoShareMenu({
         }
       }
 
-      const href = URL.createObjectURL(file);
-      const a = document.createElement("a");
-      a.href = href;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(href), 10000);
+      saveFileToDisk(file);
       toast.success("Download started", { id: t });
       onShared?.();
     } catch (err) {
       console.error(err);
-      toast.error("Couldn't download this video. Try again.", { id: t });
+      toast.error(
+        err instanceof WatermarkError
+          ? "Couldn't watermark this video, so the download was cancelled."
+          : "Couldn't download this video. Try again.",
+        { id: t },
+      );
     }
   };
 

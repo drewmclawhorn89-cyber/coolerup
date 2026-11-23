@@ -20,6 +20,7 @@ import {
   X,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { BANNED_TEXT, useIsBanned } from "@/lib/safety";
 import {
   EditProfileDialog,
   LINK_FIELDS,
@@ -277,6 +278,8 @@ function PaidShelf({
 
 function Profile() {
   const { username } = Route.useParams();
+  // A banned account keeps no public profile: no grid, no counts, no videos.
+  const banned = useIsBanned(username);
   const auth = useAuth();
   // Red/green ring instead of the usual pink gradient, Nov 15 2026 -> Jan 1 2027.
   const christmas = useChristmasMode();
@@ -714,6 +717,25 @@ function Profile() {
     obs.observe(el);
     return () => obs.disconnect();
   }, [hasMore, tab, loadingMore, loadMore, total]);
+
+  if (banned && !isOwn) {
+    return (
+      <div className="min-h-dvh bg-background">
+        <div className="mx-auto max-w-4xl px-4 pt-4">
+          <Link to="/" className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+            <ArrowLeft className="h-4 w-4" /> Home
+          </Link>
+          <div className="flex flex-col items-center gap-3 py-24 text-center">
+            <Lock className="h-10 w-10 text-muted-foreground" />
+            <h1 className="text-xl font-semibold text-foreground">{BANNED_TEXT}</h1>
+            <p className="max-w-sm text-sm text-muted-foreground">
+              @{username} can&apos;t be shown on Coolerup right now.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-dvh bg-background">

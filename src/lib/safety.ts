@@ -37,6 +37,57 @@ export function useIsBanned(username?: string | null) {
 
 const BLOCK_EVENT = "loop-blocks-changed";
 
+/** Normalise a handle so "@Cooler" and "cooler" compare equal. */
+export function normaliseHandle(username?: string | null): string {
+  return (username ?? "").trim().replace(/^@+/, "").toLowerCase();
+}
+
+let bannedHandlesPromise: Promise<Set<string>> | null = null;
+
+/**
+ * All handles with an active ban, lowercased and without the leading "@".
+ * Cached for the session so the feed doesn't refetch it on every render.
+ * Failures are not cached, so a transient error retries on the next call.
+ */
+export function loadBannedHandles(force = false): Promise<Set<string>> {
+  if (!bannedHandlesPromise || force) {
+    const request = Promise.resolve(supabase.rpc("banned_handles")).then(({ data, error }) => {
+      if (error) throw error;
+      return new Set((data ?? []).map((handle) => normaliseHandle(handle)));
+    });
+    bannedHandlesPromise = request.catch((error) => {
+      bannedHandlesPromise = null;
+      throw error;
+    });
+  }
+  return bannedHandlesPromise;
+}
+
+/** True when this author is currently banned, so their content must be hidden. */
+export function isBannedAuthor(banned: Set<string>, username?: string | null): boolean {
+  const handle = normaliseHandle(username);
+  return handle.length > 0 && banned.has(handle);
+}
+
+/** Set of banned handles for client-side filtering. Empty until the lookup resolves. */
+export function useBannedHandles(): Set<string> {
+  const [banned, setBanned] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    let alive = true;
+    loadBannedHandles()
+      .then((handles) => {
+        if (alive) setBanned(handles);
+      })
+      .catch(() => {
+        // RLS already hides banned authors; leave the set empty on failure.
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+  return banned;
+}
+
 export function useBlocked() {
   const auth = useAuth();
   const [blocked, setBlocked] = useState<Set<string>>(new Set());

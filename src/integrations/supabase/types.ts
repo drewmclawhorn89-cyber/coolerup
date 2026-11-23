@@ -3288,6 +3288,7 @@ export type Database = {
         Args: { _active: boolean; _code: string }
         Returns: Json
       }
+      account_is_banned: { Args: { _uid: string }; Returns: boolean }
       admin_unban: { Args: { _username: string }; Returns: Json }
       admin_unhide_video: { Args: { _video_id: string }; Returns: Json }
       am_i_admin: { Args: never; Returns: boolean }
@@ -3350,6 +3351,7 @@ export type Database = {
           reason: string
         }[]
       }
+      banned_handles: { Args: never; Returns: string[] }
       can_notify: { Args: { _target: string }; Returns: boolean }
       check_creator_fund: { Args: { p_user_id?: string }; Returns: Json }
       check_identity_ban: {
@@ -3376,6 +3378,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      handle_is_banned: { Args: { _username: string }; Returns: boolean }
       identity_hash: { Args: { _value: string }; Returns: string }
       increment_full_video_views: {
         Args: { video_id: string }

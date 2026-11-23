@@ -8,7 +8,7 @@ import { resolveSupabaseUrl } from "@/integrations/supabase/project";
  */
 export const OWNER_REPORT_EMAIL = "coolerup47@gmail.com";
 
-export type ReportTargetKind = "video" | "full_video" | "comment" | "profile";
+export type ReportTargetKind = "video" | "full_video" | "comment" | "profile" | "message";
 
 export type ProcessReportEmailInput = {
   reporterUserId: string;
@@ -72,6 +72,7 @@ const TARGET_LABELS: Record<ReportTargetKind, string> = {
   full_video: "Full Video",
   comment: "Comment",
   profile: "Profile",
+  message: "Direct Message",
 };
 
 function dbAdmin(): SupabaseClient {

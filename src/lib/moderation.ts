@@ -264,7 +264,7 @@ export function reasonDisplayLabel(id: string | null | undefined): string {
   return EXTRA_REASON_LABELS[key] ?? id;
 }
 
-export type ReportTargetType = "video" | "full_video" | "comment" | "profile";
+export type ReportTargetType = "video" | "full_video" | "comment" | "profile" | "message";
 
 export type ReportContext = {
   targetType?: ReportTargetType | undefined;

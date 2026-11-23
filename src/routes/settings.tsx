@@ -29,6 +29,11 @@ import { PanelSkeleton } from "@/components/Skeletons";
 import { setLowDataMode, useLowDataMode } from "@/lib/network";
 import { useCompressedThumbnail } from "@/lib/thumbnailCache";
 import {
+  fetchAllowMessagesFromEveryone,
+  readAllowMessagesFromEveryoneLocal,
+  syncAllowMessagesFromEveryone,
+} from "@/lib/dmMedia";
+import {
   backgroundPlayPlan,
   hasBackgroundPlayAccess,
   offlinePlan,
@@ -222,6 +227,19 @@ function Settings() {
       return true;
     }
   });
+  const [allowMessagesFromEveryone, setAllowMessagesFromEveryone] = useState(() =>
+    readAllowMessagesFromEveryoneLocal(),
+  );
+  useEffect(() => {
+    if (!auth.user?.id) return;
+    let active = true;
+    void fetchAllowMessagesFromEveryone(auth.user.id).then((enabled) => {
+      if (active) setAllowMessagesFromEveryone(enabled);
+    });
+    return () => {
+      active = false;
+    };
+  }, [auth.user?.id]);
   const [showOnline, setShowOnline] = useShowOnlineSetting();
   // 18+ feed visibility. ON by default; OFF hides every mature video.
   const [showMature, setShowMature] = useState(() => readBool(SHOW_MATURE_PREF, true));
@@ -1038,6 +1056,50 @@ function Settings() {
                 style={{
                   backgroundColor: allowDM ? "black" : "white",
                   transform: allowDM ? "translateX(20px)" : "translateX(0)",
+                }}
+              />
+            </button>
+          </div>
+          <div
+            className="flex justify-between items-center py-3 border-t"
+            style={{ borderColor: "#333" }}
+          >
+            <div className="pr-3">
+              <div className="font-medium text-" style={{ color: "white" }}>
+                Allow messages from everyone
+              </div>
+              <div className="text-xs" style={{ color: "#9ca3af" }}>
+                Let anyone send pics &amp; videos in Messages (off = mutual followers only)
+              </div>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={allowMessagesFromEveryone}
+              aria-label="Allow messages from everyone"
+              onClick={() => {
+                const v = !allowMessagesFromEveryone;
+                setAllowMessagesFromEveryone(v);
+                void syncAllowMessagesFromEveryone(auth.user?.id, v).then((res) => {
+                  if (!res.ok) {
+                    toast.error(res.error ?? "Couldn't update message privacy setting");
+                    return;
+                  }
+                  toast.success(
+                    v
+                      ? "Allow messages from everyone: ON"
+                      : "Pics & videos restricted to mutual followers",
+                  );
+                });
+              }}
+              className="h-7 w-12 shrink-0 rounded-full p-1"
+              style={{ backgroundColor: allowMessagesFromEveryone ? "white" : "#333" }}
+            >
+              <div
+                className="h-5 w-5 rounded-full transition"
+                style={{
+                  backgroundColor: allowMessagesFromEveryone ? "black" : "white",
+                  transform: allowMessagesFromEveryone ? "translateX(20px)" : "translateX(0)",
                 }}
               />
             </button>

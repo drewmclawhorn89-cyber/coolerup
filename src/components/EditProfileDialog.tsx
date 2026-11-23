@@ -9,8 +9,6 @@ import { Switch } from "@/components/ui/switch";
 import { Camera, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { errorText } from "@/lib/uploadErrors";
-import { reportExplicitMedia, screenProfile } from "@/lib/autoBans";
-import { inspectMedia } from "@/lib/nsfw";
 
 export const LINK_FIELDS = [
   { key: "tiktok", label: "TikTok", placeholder: "https://tiktok.com/@you" },
@@ -115,19 +113,6 @@ export function EditProfileDialog({
     try {
       let avatarUrl = auth.profile.avatar_url;
       if (photo) {
-        // Profile pictures are pixels, not text: screen the image itself before
-        // it reaches storage. A naked avatar is an instant permanent ban.
-        const verdict = await inspectMedia(photo);
-        if (verdict?.explicit) {
-          await reportExplicitMedia({
-            userId: auth.user.id,
-            username: auth.handle ?? "",
-            source: "photo",
-            score: verdict.score,
-          });
-          setSaving(false);
-          return;
-        }
         const ext = photo.name.split(".").pop() || "jpg";
         const path = `${auth.user.id}/avatar.${ext}`;
         const { error: upErr } = await supabase.storage
@@ -148,16 +133,6 @@ export function EditProfileDialog({
         .eq("id", auth.user.id);
       if (error) throw error;
       refreshProfile();
-      // Name + bio go through the Safety Bot (text, passwords/PII and
-      // fake-account impersonation); the avatar was screened above.
-      if (auth.user) {
-        void screenProfile({
-          userId: auth.user.id,
-          username: auth.handle ?? "",
-          displayName: name.trim(),
-          bio: bio.trim(),
-        });
-      }
       toast.success("Profile updated");
       onOpenChange(false);
     } catch (e) {

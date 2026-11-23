@@ -19,7 +19,6 @@ import { Route as GroupsRouteImport } from './routes/groups'
 import { Route as LiveRouteImport } from './routes/live'
 import { Route as MakeGifRouteImport } from './routes/make-gif'
 import { Route as MessagesRouteImport } from './routes/messages'
-import { Route as ModerationCheckRouteImport } from './routes/moderation-check'
 import { Route as MusicRouteImport } from './routes/music'
 import { Route as OfflineRouteImport } from './routes/offline'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
@@ -113,11 +112,6 @@ const MakeGifRoute = MakeGifRouteImport.update({
 const MessagesRoute = MessagesRouteImport.update({
   id: '/messages',
   path: '/messages',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ModerationCheckRoute = ModerationCheckRouteImport.update({
-  id: '/moderation-check',
-  path: '/moderation-check',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MusicRoute = MusicRouteImport.update({
@@ -352,7 +346,6 @@ export interface FileRoutesByFullPath {
   '/live': typeof LiveRouteWithChildren
   '/make-gif': typeof MakeGifRoute
   '/messages': typeof MessagesRoute
-  '/moderation-check': typeof ModerationCheckRoute
   '/music': typeof MusicRoute
   '/offline': typeof OfflineRoute
   '/onboarding': typeof OnboardingRoute
@@ -407,7 +400,6 @@ export interface FileRoutesByTo {
   '/live': typeof LiveRouteWithChildren
   '/make-gif': typeof MakeGifRoute
   '/messages': typeof MessagesRoute
-  '/moderation-check': typeof ModerationCheckRoute
   '/music': typeof MusicRoute
   '/offline': typeof OfflineRoute
   '/onboarding': typeof OnboardingRoute
@@ -465,7 +457,6 @@ export interface FileRoutesById {
   '/live': typeof LiveRouteWithChildren
   '/make-gif': typeof MakeGifRoute
   '/messages': typeof MessagesRoute
-  '/moderation-check': typeof ModerationCheckRoute
   '/music': typeof MusicRoute
   '/offline': typeof OfflineRoute
   '/onboarding': typeof OnboardingRoute
@@ -524,7 +515,6 @@ export interface FileRouteTypes {
     | '/live'
     | '/make-gif'
     | '/messages'
-    | '/moderation-check'
     | '/music'
     | '/offline'
     | '/onboarding'
@@ -579,7 +569,6 @@ export interface FileRouteTypes {
     | '/live'
     | '/make-gif'
     | '/messages'
-    | '/moderation-check'
     | '/music'
     | '/offline'
     | '/onboarding'
@@ -636,7 +625,6 @@ export interface FileRouteTypes {
     | '/live'
     | '/make-gif'
     | '/messages'
-    | '/moderation-check'
     | '/music'
     | '/offline'
     | '/onboarding'
@@ -694,7 +682,6 @@ export interface RootRouteChildren {
   LiveRoute: typeof LiveRouteWithChildren
   MakeGifRoute: typeof MakeGifRoute
   MessagesRoute: typeof MessagesRoute
-  ModerationCheckRoute: typeof ModerationCheckRoute
   MusicRoute: typeof MusicRoute
   OfflineRoute: typeof OfflineRoute
   OnboardingRoute: typeof OnboardingRoute
@@ -805,13 +792,6 @@ declare module '@tanstack/react-router' {
       path: '/messages'
       fullPath: '/messages'
       preLoaderRoute: typeof MessagesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/moderation-check': {
-      id: '/moderation-check'
-      path: '/moderation-check'
-      fullPath: '/moderation-check'
-      preLoaderRoute: typeof ModerationCheckRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/music': {
@@ -1174,7 +1154,6 @@ const rootRouteChildren: RootRouteChildren = {
   LiveRoute: LiveRouteWithChildren,
   MakeGifRoute: MakeGifRoute,
   MessagesRoute: MessagesRoute,
-  ModerationCheckRoute: ModerationCheckRoute,
   MusicRoute: MusicRoute,
   OfflineRoute: OfflineRoute,
   OnboardingRoute: OnboardingRoute,

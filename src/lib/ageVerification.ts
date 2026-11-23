@@ -220,8 +220,8 @@ export async function submitAgeVerification(input: {
     _document_type: input.documentType,
     _document_path: documentPath,
     _selfie_path: selfiePath,
-    _country: input.country ?? null,
-    _id_date_of_birth: input.idDateOfBirth ?? null,
+    ...(input.country != null ? { _country: input.country } : {}),
+    ...(input.idDateOfBirth != null ? { _id_date_of_birth: input.idDateOfBirth } : {}),
   });
   if (error) {
     await supabase.storage.from(AGE_VERIFY_BUCKET).remove([documentPath, selfiePath]);

@@ -83,6 +83,7 @@ export const Route = createFileRoute("/settings")({
       { title: "Settings — Coolerup" },
       { name: "description", content: "Manage your Coolerup profile and account settings." },
       { property: "og:title", content: "Settings — Coolerup" },
+      { property: "og:description", content: "Manage your Coolerup profile and account settings." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
@@ -99,7 +100,10 @@ function Settings() {
   // Background play is a VIP perk; the toggle only moves for entitled plans.
   const backgroundPlay = useBackgroundPlay();
   const backgroundUnlocked = hasBackgroundPlayAccess(auth.handle);
-  const mediaSessionReady = isMediaSessionSupported();
+  const [mediaSessionReady, setMediaSessionReady] = useState(false);
+  useEffect(() => {
+    setMediaSessionReady(isMediaSessionSupported());
+  }, []);
   // Offline Mode is paid-only: a live, active subscription on any paid tier.
   const subscription = useSubscription(auth.handle);
   const offlineUnlocked = useOfflineUnlocked(auth.handle);

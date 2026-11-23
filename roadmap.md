@@ -1,4 +1,5 @@
 # Roadmap
+- [x] Fix preview type errors in TikTok linking and age verification, then verify app loading.
 - [ ] Add YouTube links to Videos with embedded playback and verify saving.
 - [ ] Review the three currently flagged public comment-like and live-mute read policies (access decision required).
 - [x] Offline viewing: save/remove in Share menu, Saved tab, offline banner

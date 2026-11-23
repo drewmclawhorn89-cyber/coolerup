@@ -16,6 +16,9 @@
  */
 import { createHash, randomBytes, createCipheriv, createDecipheriv } from "node:crypto";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { withTikTokSchema } from "@/lib/tiktokDatabase";
+
+const tiktokDatabase = withTikTokSchema(supabaseAdmin);
 
 export const TIKTOK_AUTHORIZE_URL = "https://www.tiktok.com/v2/auth/authorize/";
 const TIKTOK_TOKEN_URL = "https://open.tiktokapis.com/v2/oauth/token/";
@@ -192,7 +195,7 @@ export type LinkedAccount = {
 
 /** Reads the caller's own linked row. Service role, so RLS does not apply. */
 export async function getLinkedAccount(userId: string): Promise<LinkedAccount | null> {
-  const { data, error } = await supabaseAdmin
+  const { data, error } = await tiktokDatabase
     .from("tiktok_accounts")
     .select(
       "user_id, open_id, username, display_name, avatar_url, follower_count, access_token, refresh_token, access_expires_at",
@@ -221,7 +224,7 @@ export async function freshAccessToken(userId: string): Promise<{ token: string;
   if (!refreshed) return null;
 
   const now = Date.now();
-  await supabaseAdmin
+  await tiktokDatabase
     .from("tiktok_accounts")
     .update({
       access_token: refreshed.access_token,
@@ -281,7 +284,7 @@ export async function saveLinkedAccount(
   info: TikTokUserInfo,
 ): Promise<void> {
   const now = Date.now();
-  await supabaseAdmin.from("tiktok_accounts").upsert(
+  await tiktokDatabase.from("tiktok_accounts").upsert(
     {
       user_id: userId,
       open_id: tokens.open_id,
@@ -309,7 +312,7 @@ export async function saveLinkedAccount(
 }
 
 export async function unlinkAccount(userId: string): Promise<void> {
-  await supabaseAdmin.from("tiktok_accounts").delete().eq("user_id", userId);
+  await tiktokDatabase.from("tiktok_accounts").delete().eq("user_id", userId);
 }
 
 // ---------------------------------------------------------------------------

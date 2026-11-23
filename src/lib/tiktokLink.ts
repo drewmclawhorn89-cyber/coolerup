@@ -11,6 +11,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { tiktokCanonicalUrl, tiktokCreatorUrl } from "@/lib/tiktok";
+import { withTikTokSchema } from "@/lib/tiktokDatabase";
+
+const tiktokDatabase = withTikTokSchema(supabase);
 
 export type LinkedTikTok = {
   openId: string;
@@ -54,7 +57,7 @@ async function postJson<T>(path: string, body?: unknown): Promise<T> {
 
 /** Reads the caller's linked account through the token-free RPC. */
 export async function fetchLinkedTikTok(): Promise<LinkedTikTok | null> {
-  const { data, error } = await supabase.rpc("my_tiktok_account");
+  const { data, error } = await tiktokDatabase.rpc("my_tiktok_account");
   if (error) throw error;
   const row = (data ?? [])[0];
   if (!row) return null;
@@ -256,7 +259,7 @@ export async function importTikTokVideo(input: {
     .single();
   if (error) throw error;
 
-  await supabase
+  await tiktokDatabase
     .from("tiktok_imports")
     .upsert(
       { user_id: userId, tiktok_id: video.id, video_id: data.id },
@@ -268,7 +271,7 @@ export async function importTikTokVideo(input: {
 
 /** Which of the user's own TikTok ids are already in Coolerup. */
 export async function importedTikTokIds(): Promise<Set<string>> {
-  const { data, error } = await supabase.from("tiktok_imports").select("tiktok_id");
+  const { data, error } = await tiktokDatabase.from("tiktok_imports").select("tiktok_id");
   if (error) return new Set();
   return new Set((data ?? []).map((r) => r.tiktok_id));
 }

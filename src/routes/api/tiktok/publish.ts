@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { callerFromRequest, jsonError, jsonOk } from "@/lib/tiktokLinkAuth.server";
 import { freshAccessToken, publishVideo, tiktokCaption } from "@/lib/tiktokLink.server";
+import { withTikTokSchema } from "@/lib/tiktokDatabase";
 
 /**
  * Posts one of the caller's Coolerup videos to their linked TikTok account.
@@ -53,7 +54,7 @@ export const Route = createFileRoute("/api/tiktok/publish")({
           privacyLevel: body.privacyLevel,
         });
 
-        await supabaseAdmin.from("tiktok_publishes").insert({
+        await withTikTokSchema(supabaseAdmin).from("tiktok_publishes").insert({
           user_id: caller.userId,
           video_id: video.id,
           tiktok_publish_id: result.publishId ?? null,

@@ -4,6 +4,7 @@ import { resolveSupabaseUrl } from "@/integrations/supabase/project";
 import { requestOfflineSync } from "./offlineEvents";
 import { untypedDb } from "@/lib/untypedDb";
 import { screenBeforeWrite } from "@/lib/autoBans";
+import { isBannedAuthor, loadBannedHandles } from "@/lib/safety";
 
 /**
  * Long-form ("YouTube style") videos.
@@ -17,6 +18,22 @@ import { screenBeforeWrite } from "@/lib/autoBans";
  * go through a loosely typed handle — same approach as lib/groups.ts.
  */
 const db = untypedDb;
+
+/**
+ * Drop anything by a banned author. RLS already refuses these rows; this is the
+ * belt-and-braces pass for lists that were fetched before the ban landed.
+ */
+async function withoutBannedAuthors(rows: FullVideo[]): Promise<FullVideo[]> {
+  if (rows.length === 0) return rows;
+  let banned: Set<string>;
+  try {
+    banned = await loadBannedHandles();
+  } catch {
+    return rows;
+  }
+  if (banned.size === 0) return rows;
+  return rows.filter((row) => !isBannedAuthor(banned, row.username));
+}
 
 /** Hard cap for a full-length upload: 60 minutes, like YouTube's default. */
 export const MAX_FULL_VIDEO_SECONDS = 60 * 60;
@@ -239,13 +256,14 @@ export async function listFullVideos(opts: ListOptions = {}): Promise<FullVideo[
   if (missingStatusColumn(error)) ({ data, error } = await build(false));
 
   if (error) throw error;
-  return (data ?? []) as FullVideo[];
+  return withoutBannedAuthors((data ?? []) as FullVideo[]);
 }
 
 export async function getFullVideo(id: string): Promise<FullVideo | null> {
   const { data, error } = await db.from("full_videos").select("*").eq("id", id).maybeSingle();
   if (error) throw error;
-  return (data ?? null) as FullVideo | null;
+  const [video] = await withoutBannedAuthors(data ? [data as FullVideo] : []);
+  return video ?? null;
 }
 
 /**
@@ -258,7 +276,7 @@ export async function listFullVideosByIds(ids: string[]): Promise<FullVideo[]> {
   if (unique.length === 0) return [];
   const { data, error } = await db.from("full_videos").select("*").in("id", unique);
   if (error) throw error;
-  return (data ?? []) as FullVideo[];
+  return withoutBannedAuthors((data ?? []) as FullVideo[]);
 }
 
 /** Related videos for the "Up Next" rail: same category first, then recent. */
@@ -279,7 +297,7 @@ export async function listRelatedVideos(video: FullVideo, limit = 12): Promise<F
   if (missingStatusColumn(error)) ({ data, error } = await build(false));
   if (error) throw error;
 
-  const rows = (data ?? []) as FullVideo[];
+  const rows = await withoutBannedAuthors((data ?? []) as FullVideo[]);
   // Same-category matches float to the top, keeping recency within each group.
   return [...rows]
     .sort((a, b) => {

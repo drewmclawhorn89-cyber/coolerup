@@ -15,6 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { parseCaption, type Video } from "@/lib/loop";
 import type { Sound } from "@/lib/sounds";
 import type { LiveHost } from "@/lib/liveDirectory";
+import { isBannedAuthor, loadBannedHandles } from "@/lib/safety";
 
 export type SearchTab = "top" | "videos" | "users" | "sounds" | "hashtags" | "live";
 
@@ -140,6 +141,15 @@ export function filterLiveHosts(hosts: LiveHost[], raw: string): LiveHost[] {
 /*  Queries                                                                   */
 /* -------------------------------------------------------------------------- */
 
+/** Banned handles, or an empty set if the lookup fails (RLS still covers the rows). */
+async function bannedHandles(): Promise<Set<string>> {
+  try {
+    return await loadBannedHandles();
+  } catch {
+    return new Set<string>();
+  }
+}
+
 const VIDEO_COLUMNS =
   "id, username, caption, video_url, likes_count, comments_count, shares_count, created_at, sound_id";
 
@@ -156,7 +166,10 @@ export async function searchVideos(raw: string, limit = 48): Promise<Video[]> {
     .order("created_at", { ascending: false })
     .limit(Math.max(1, Math.min(100, limit)));
   if (error) return [];
-  return (data ?? []) as unknown as Video[];
+  const banned = await bannedHandles();
+  return ((data ?? []) as unknown as Video[]).filter(
+    (video) => !isBannedAuthor(banned, video.username),
+  );
 }
 
 /** Profiles whose username, handle or display name match. */
@@ -169,7 +182,8 @@ export async function searchUsers(raw: string, limit = 30): Promise<SearchUser[]
     .or(`username.ilike.%${term}%,handle.ilike.%${term}%,display_name.ilike.%${term}%`)
     .limit(Math.max(1, Math.min(50, limit)));
   if (error) return [];
-  return (data ?? []) as SearchUser[];
+  const banned = await bannedHandles();
+  return ((data ?? []) as SearchUser[]).filter((user) => !isBannedAuthor(banned, user.handle));
 }
 
 /** Sounds whose title or creator matches. */
@@ -208,7 +222,8 @@ export async function suggestedUsers(limit = 6): Promise<SearchUser[]> {
     .order("created_at", { ascending: false })
     .limit(Math.max(1, Math.min(20, limit)));
   if (error) return [];
-  return (data ?? []) as SearchUser[];
+  const banned = await bannedHandles();
+  return ((data ?? []) as SearchUser[]).filter((user) => !isBannedAuthor(banned, user.handle));
 }
 
 /** One call for the Top tab: everything at once, in parallel. */

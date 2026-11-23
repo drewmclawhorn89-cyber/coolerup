@@ -1,28 +1,26 @@
-# Forced watermark on every Coolerup export
+# Banned accounts hide their videos everywhere
 
-## Build the watermark engine
-- [x] Create `src/lib/watermark.ts` — always-on helper, no disable flag
-- [x] Draw logo + `@username` as a transparent PNG (bottom right, semi-transparent)
-- [x] Burn it into every video frame with ffmpeg `overlay` (reuses lazy loader)
-- [x] Canvas path for still images
-- [x] Fail closed: throw `WatermarkError`, never return the clean blob
+## Data layer (migration)
+- [x] `account_is_banned(uid)` / `handle_is_banned(handle)` / `banned_handles()` RPCs
+- [x] RESTRICTIVE select policies on `videos` and `full_videos`
+- [x] Trigger mirrors bans into `videos.hidden` (`hidden_reason = 'Author banned'`)
+- [x] Unban restores only ban-hidden rows
+- [x] Backfill existing bans
 
-## Route every export through it
-- [x] `ShareMenu.tsx` download (short form)
-- [x] `ShareMenu.tsx` share-sheet file
-- [x] `FullVideoShareMenu.tsx` download (long form)
-- [x] `FullVideoShareMenu.tsx` share-sheet file
-- [x] `offline.tsx` short-video download
-- [x] `offline.tsx` full-video download
-- [x] `offline.tsx` view no longer opens a raw blob tab
-- [x] Leave the JSON data export in `MoreSettings.tsx` untouched
+## Client safety net
+- [x] `useBannedHandles()` hook in `src/lib/safety.ts` (cached `banned_handles` RPC)
+- [x] Feed `shown` filter in `src/routes/index.tsx` drops banned authors
+- [x] `searchVideos` + `searchUsers` drop banned handles in `src/lib/search.ts`
+- [x] Profile page shows `BANNED_TEXT` for a banned handle
+- [x] `fullVideos.ts` list/related/get filter banned authors
 
 ## Verify
 - [x] `npx tsc --noEmit` clean
 - [x] `npm run build` clean
-- [x] `npx vitest run` — 960/960 passing (22 new)
+- [x] `npx vitest run` — 960/960 baseline stays green, new tests pass
 - [x] eslint clean on changed files
 
 ## Ship
 - [x] Branch, commit, push
-- [x] Open PR #335 and merge (`7314e7f`)
+- [x] Open PR and merge
+- [x] Hand the SQL to the user for the Supabase SQL editor

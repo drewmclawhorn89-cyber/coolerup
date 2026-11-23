@@ -77,7 +77,7 @@ import {
 import { listSaved, onOfflineChange } from "@/lib/offline";
 import { readFeedCache, writeFeedCache } from "@/lib/feed-cache";
 import { feedPageSize, isLiteMode, useNetwork } from "@/lib/network";
-import { useBlocked } from "@/lib/safety";
+import { isBannedAuthor, useBannedHandles, useBlocked } from "@/lib/safety";
 import { fetchRepostAttribution, REPOST_EVENT } from "@/lib/reposts";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
@@ -396,6 +396,8 @@ function Index() {
 
   // Moderation: videos the user tapped "Not interested" on, plus blocked authors.
   const { blocked } = useBlocked();
+  // Banned accounts lose their whole catalogue, even from a stale cached page.
+  const bannedHandles = useBannedHandles();
   const [notInterested, setNotInterested] = useState<Set<string>>(() => new Set());
 
   // Apply deep links (?tab=..., ?feed=...) and dismissed challenge state after hydration.
@@ -784,6 +786,8 @@ function Index() {
     // "Not interested" and blocked authors never come back in this browser.
     if (notInterested.size > 0) list = list.filter((v) => !notInterested.has(v.id));
     if (blocked.size > 0) list = list.filter((v) => !blocked.has(v.username));
+    if (bannedHandles.size > 0)
+      list = list.filter((v) => !isBannedAuthor(bannedHandles, v.username));
     // Settings > Privacy > "Show 18+ Videos". OFF hides every mature video
     // from every feed tab, including saved and following.
     if (!readBool(SHOW_MATURE_PREF, true)) list = list.filter((v) => !v.is_mature);
@@ -820,6 +824,7 @@ function Index() {
     repostedFeed,
     notInterested,
     blocked,
+    bannedHandles,
   ]);
 
   // Who reposted what — one batched query per feed page. The label names a

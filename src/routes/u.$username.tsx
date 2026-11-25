@@ -957,7 +957,9 @@ function Profile() {
               />
             </div>
           )}
-          {profile?.bio && <p className="max-w-md text-sm text-muted-foreground">{profile.bio}</p>}
+          {profile?.bio && (
+            <p className="max-w-md text-sm text-muted-foreground">{profile.bio}</p>
+          )}
           {profile?.links && Object.keys(profile.links).length > 0 && (
             <div className="flex flex-wrap justify-center gap-2">
               {LINK_FIELDS.filter(

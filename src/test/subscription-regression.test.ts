@@ -25,11 +25,14 @@ const { getSubscription, planUnlocksOffline, requestPayment, confirmPayment, can
   await import("@/lib/subscriptions");
 const { setCachedAccountSubscription } = await import("@/lib/accountSubscriptions");
 
-const H = "regression-tester";
+const H = "drewmclawhorn3";
 
-beforeEach(() => {
-  localStorage.clear();
-});
+/** Seed the server-backed grant cache the way `refreshLifetime` would. */
+function serverRow(grant: Record<string, unknown>) {
+  localStorage.setItem(`lifetime:${H}`, JSON.stringify(grant));
+}
+
+beforeEach(() => localStorage.clear());
 
 describe("an account row does not freeze the subscription screen", () => {
   const accountRow = (
@@ -93,14 +96,7 @@ describe("an account row does not freeze the subscription screen", () => {
   it("never lets an account row outrank a lifetime grant", () => {
     localStorage.setItem(
       `lifetime:${H}`,
-      JSON.stringify({
-        plan: "all",
-        status: "active",
-        isLifetime: true,
-        grantedBy: "drewmclawhorn3",
-        grantedAt: null,
-        revokedAt: null,
-      }),
+      JSON.stringify({ plan: "all", status: "active", isLifetime: true }),
     );
     accountRow("plus");
 

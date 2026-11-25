@@ -13,8 +13,8 @@ for (const key of ["VITE_SUPABASE_URL", "VITE_SUPABASE_PUBLISHABLE_KEY"]) {
 delete process.env["SUPABASE_URL"];
 delete process.env["SUPABASE_PUBLISHABLE_KEY"];
 
+// The subscription cache is in memory now, so reset it between tests.
 beforeEach(() => {
-  localStorage.clear();
   clearAccountSubscriptionCache();
 });
 

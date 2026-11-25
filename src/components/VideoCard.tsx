@@ -1152,7 +1152,7 @@ function VideoCardImpl({
                     if (Math.abs(a.currentTime - target) > 0.45) a.currentTime = target;
                   }
                 }}
-                className={`absolute inset-0 h-full w-full cursor-pointer object-cover ${full ? "md:object-contain" : ""} ${matureLocked ? "scale-110 blur-2xl" : ""}`}
+                className={`h-full w-full cursor-pointer ${full ? "object-contain" : "object-cover"} ${matureLocked ? "scale-110 blur-2xl" : ""}`}
               />
             )}
 
@@ -1357,7 +1357,7 @@ function VideoCardImpl({
                     🎄
                   </span>
                 ) : (
-                  <Heart className="heart-pop h-28 w-28 fill-[#FE2C55] text-[#FE2C55] drop-shadow-[0_0_24px_rgba(255,45,85,0.8)]" />
+                  <Heart className="heart-pop h-28 w-28 fill-primary text-primary drop-shadow-[0_0_24px_rgba(255,45,85,0.8)]" />
                 )}
               </div>
             )}
@@ -1416,7 +1416,7 @@ function VideoCardImpl({
               </div>
             </div>
             {!isImage && (
-              <div onClick={seek} className="video-progress absolute inset-x-0 bottom-0 h-3 cursor-pointer">
+              <div onClick={seek} className="absolute inset-x-0 bottom-0 h-3 cursor-pointer">
                 <div className="absolute inset-x-0 bottom-0 h-1 bg-foreground/20">
                   <div ref={progressRef} className="h-full bg-primary" style={{ width: "0%" }} />
                 </div>
@@ -1424,7 +1424,7 @@ function VideoCardImpl({
             )}
             {/* Quality badge — only when the user picked a quality by hand. */}
             {!isImage && qualitySource.badge && (
-              <span className="video-quality pointer-events-none absolute bottom-3 right-3 z-20 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-bold leading-tight text-white backdrop-blur">
+              <span className="pointer-events-none absolute bottom-3 right-3 z-20 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-bold leading-tight text-white backdrop-blur">
                 {qualitySource.badge}
               </span>
             )}
@@ -1435,7 +1435,7 @@ function VideoCardImpl({
             <p className="text-sm text-muted-foreground">{captionText}</p>
           </div>
         </div>
-        <div className="video-actions absolute bottom-14 right-1.5 z-20 flex flex-col items-center gap-3.5 md:static md:mb-10 md:gap-3.5">
+        <div className="absolute bottom-14 right-1.5 z-20 flex flex-col items-center gap-3.5 md:static md:mb-10 md:gap-3.5">
           {/* Avatar + follow badge — TikTok pins the + onto the avatar's chin. */}
           <div className="flex flex-col items-center">
             <Link
@@ -1476,16 +1476,35 @@ function VideoCardImpl({
             label={formatCount(Math.max(likes ?? 0, liked ? 1 : 0))}
             onClick={handleLikeClick}
             pressed={liked}
-            activeClass="text-[#FE2C55]"
+            activeClass={christmas ? "christmas-heart" : "text-[#fe2c55]"}
             onPointerDown={startLikePress}
             onPointerUp={cancelLikePress}
             onPointerLeave={cancelLikePress}
             onPointerCancel={cancelLikePress}
             onContextMenu={(e) => e.preventDefault()}
           >
-            <Heart
-              className={`h-7 w-7 drop-shadow-lg ${liked ? "fill-[#FE2C55] text-[#FE2C55]" : "text-white"} ${liked && burst ? "heart-pop-btn" : ""}`}
-            />
+            {christmas && liked ? (
+              <span
+                className={`christmas-tree-pop text-[26px] leading-none drop-shadow-lg ${
+                  burst ? "heart-pop-btn" : ""
+                }`}
+                aria-hidden
+              >
+                🎄
+              </span>
+            ) : (
+              <Heart
+                className={`h-7 w-7 drop-shadow-lg ${
+                  liked
+                    ? christmas
+                      ? "fill-[#2ecc55] text-[#2ecc55]"
+                      : "fill-[#fe2c55] text-[#fe2c55]"
+                    : christmas
+                      ? "christmas-heart"
+                      : "text-white"
+                } ${liked && burst ? "heart-pop-btn" : ""}`}
+              />
+            )}
           </RailButton>
 
           {/* COMMENT */}

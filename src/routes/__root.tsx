@@ -249,9 +249,7 @@ function RootShell({ children }: { children: ReactNode }) {
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: COOLERUP_JSON_LD }} />
       </head>
       <body>
-        <div id="root">
-          <div className="app-route-viewport">{children}</div>
-        </div>
+        {children}
         <Scripts />
       </body>
     </html>
@@ -301,6 +299,9 @@ function RootComponent() {
 
   useEffect(() => {
     applyPrefs();
+    const mq = window.matchMedia?.("(prefers-color-scheme: light)");
+    mq?.addEventListener?.("change", applyPrefs);
+    return () => mq?.removeEventListener?.("change", applyPrefs);
   }, []);
 
   // Cache the app shell and static assets so Coolerup still opens on weak or
@@ -328,25 +329,25 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <CallProvider>
-          <OnboardingGate />
-          {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-          {/* UpdateGate sits outermost: when a deploy is in progress, or a newer
+          <CallProvider>
+            <OnboardingGate />
+            {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+            {/* UpdateGate sits outermost: when a deploy is in progress, or a newer
               build has shipped, it unmounts the entire app — BanGate included. */}
-          <UpdateGate>
-            <BanGate>
-              <Outlet />
-            </BanGate>
-          </UpdateGate>
-          <CallOverlay />
-          <WellbeingWatcher />
-          <OnlineStatusWatcher />
-          <OfflineAutoDownloadWatcher />
-          <PushRegistrar />
-          {/* Creator fund: celebrates the $1 first-follower reward exactly once. */}
-          <FollowerRewardWatcher />
-          <EarningsWatcher />
-        </CallProvider>
+            <UpdateGate>
+              <BanGate>
+                <Outlet />
+              </BanGate>
+            </UpdateGate>
+            <CallOverlay />
+            <WellbeingWatcher />
+            <OnlineStatusWatcher />
+            <OfflineAutoDownloadWatcher />
+            <PushRegistrar />
+            {/* Creator fund: celebrates the $1 first-follower reward exactly once. */}
+            <FollowerRewardWatcher />
+            <EarningsWatcher />
+          </CallProvider>
         <PhoneAuthDialog />
         <OnboardingRequiredDialog />
         <Toaster theme="dark" position="top-center" />
@@ -357,7 +358,6 @@ function RootComponent() {
         <MiniPlayer />
         <UseSoundHandler />
         <SubscriptionSync />
-        <LovableBadgeGuard />
       </AuthProvider>
     </QueryClientProvider>
   );

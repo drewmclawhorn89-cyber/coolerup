@@ -700,15 +700,19 @@
 }
 
 /* ---------------------------------------------------------------------------
-   Lovable "Edit with Lovable" badge removal.
-   Lovable injects this badge at runtime on some hosts. It is never part of the
-   product UI, so hide it on every page and every screen size. The selectors are
-   intentionally narrow: only the badge element, its class, and links that point
-   at lovable. No other button or link is affected.
+   Lovable "Edit with Lovable" badge removal fallback.
+   LovableBadgeGuard deletes the entire badge DOM node, wrapper, and X close
+   button on load and via MutationObserver; these selectors ensure zero flash
+   for the entire container and close button before hydration finishes.
    --------------------------------------------------------------------------- */
 [data-lovable-badge],
+[data-lovable-badge-close],
+#lovable-badge,
+#lovable-badge-close,
+#lovable-badge-wrapper,
 .lovable-badge,
-a[href*="lovable"] {
+[id*="lovable-badge"],
+[class*="lovable-badge"] {
   display: none !important;
   visibility: hidden !important;
   opacity: 0 !important;

@@ -9,6 +9,7 @@ import {
   LogOut,
   Music,
   Pencil,
+  RefreshCw,
   ShieldCheck,
   UserRound,
 } from "lucide-react";
@@ -37,6 +38,7 @@ import {
   backgroundPlayPlan,
   hasBackgroundPlayAccess,
   offlinePlan,
+  restoreSubscription,
   useOfflineUnlocked,
   useSubscription,
 } from "@/lib/subscriptions";
@@ -127,6 +129,29 @@ function Settings() {
   // Subscriptions used to be its own top tab; it now opens from inside Settings.
   const { subscriptions: openSubscriptions } = Route.useSearch();
   const [showSubscriptions, setShowSubscriptions] = useState(Boolean(openSubscriptions));
+  const [restoringSubscription, setRestoringSubscription] = useState(false);
+
+  /** Re-fetch the plan from `public.user_subscriptions` for this account. */
+  const handleRestoreSubscription = async () => {
+    if (!auth.handle) {
+      toast.error("Sign in to restore a subscription");
+      return;
+    }
+    setRestoringSubscription(true);
+    try {
+      const restored = await restoreSubscription(auth.handle);
+      if (restored) {
+        toast.success(`Subscription restored: ${restored.planId.toUpperCase()}`);
+      } else {
+        toast.message("No subscription found on this account");
+      }
+    } catch {
+      toast.error("Couldn't reach the server. Try again.");
+    } finally {
+      setRestoringSubscription(false);
+    }
+  };
+
   const savePhone = () => {
     const trimmed = phone.trim();
     const normalized = trimmed ? normalizePhone(trimmed) : "";
@@ -695,6 +720,21 @@ function Settings() {
           </span>
           <ChevronRight className="h-4 w-4 text-muted-foreground" />
         </button>
+        <button
+          type="button"
+          onClick={() => void handleRestoreSubscription()}
+          disabled={restoringSubscription}
+          className="mt-2 flex w-full items-center justify-between rounded-md border bg-background px-4 py-3 text-left text-sm font-medium transition-colors hover:bg-accent disabled:opacity-60"
+        >
+          <span className="flex items-center gap-2">
+            <RefreshCw className={`h-4 w-4 ${restoringSubscription ? "animate-spin" : ""}`} />
+            {restoringSubscription ? "Restoring\u2026" : "Restore Subscription"}
+          </span>
+          <span className="text-xs text-muted-foreground">From your account</span>
+        </button>
+        <p className="mt-2 text-xs text-muted-foreground">
+          Your plan is saved to your account. Sign in on any phone and it loads automatically.
+        </p>
       </div>
 
       {/* Username editor */}

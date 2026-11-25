@@ -15,6 +15,7 @@ import {
   offlineLockReason,
   planInForce,
 } from "@/lib/subscriptions";
+import { setCachedAccountSubscription } from "@/lib/accountSubscriptions";
 
 /**
  * Every plan carries its own one-hour free trial. These tests pin the length,
@@ -233,16 +234,12 @@ describe("the trial unlocks offline mode", () => {
   });
 
   it("keeps a paid Plus plan unlocked for offline video after the trial", () => {
-    localStorage.setItem(
-      `subscription:${H}`,
-      JSON.stringify({
-        planId: "plus",
-        status: "active",
-        startedAt: new Date().toISOString(),
-        paidAt: new Date().toISOString(),
-        paymentMethod: null,
-      }),
-    );
+    // The plan lives on the account, not the device.
+    setCachedAccountSubscription(H, {
+      planId: "plus",
+      status: "active",
+      startedAt: new Date().toISOString(),
+    });
     expect(hasOfflineAccess(H)).toBe(true);
     expect(offlineLockReason(H)).toBeNull();
   });

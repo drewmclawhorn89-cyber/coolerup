@@ -17,6 +17,7 @@ import {
   planIncludesMusicOffline,
   planIncludesOffline,
 } from "@/lib/plans";
+import { setCachedAccountSubscription } from "@/lib/accountSubscriptions";
 
 /**
  * Offline *video* downloads ship with every paid tier (Plus, Pro and VIP);
@@ -201,18 +202,12 @@ describe("hasOfflineAccess", () => {
     expect(offlineLockReason(H)).toBe("no-plan");
   });
 
-  it("is locked on a legacy trial record", () => {
-    localStorage.setItem(
-      `subscription:${H}`,
-      JSON.stringify({
-        planId: "pro",
-        status: "trial",
-        startedAt: new Date().toISOString(),
-        trialEndsAt: new Date(Date.now() + 5 * 86400000).toISOString(),
-        paidAt: null,
-        paymentMethod: CARD,
-      }),
-    );
+  it("is locked on a cancelled account row", () => {
+    setCachedAccountSubscription(H, {
+      planId: "pro",
+      status: "cancelled",
+      startedAt: new Date().toISOString(),
+    });
     expect(hasOfflineAccess(H)).toBe(false);
     expect(offlineLockReason(H)).toBe("expired");
   });

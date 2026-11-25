@@ -62,6 +62,7 @@ import {
 import { useCompressedThumbnail } from "@/lib/thumbnailCache";
 import { isLiteMode, useNetwork } from "@/lib/network";
 import { preloadModeFor } from "@/lib/feedPaging";
+import { planById, useSubscription } from "@/lib/subscriptions";
 import { FeedLoadingSpinner } from "@/components/FeedLoadingSpinner";
 import { ListRowSkeleton, VideoGridSkeleton } from "@/components/Skeletons";
 
@@ -350,6 +351,9 @@ function Profile() {
 
   const equipped = useEquipped(username);
   const isOwn = !!auth.handle && auth.handle === username;
+  // The owner's plan is read from the account, so it follows them to a new
+  // phone. Other viewers see nothing here.
+  const mySubscription = useSubscription(isOwn ? auth.handle : null);
   /** Paid shelves are private: they only ever load for your own profile. */
   const myPaid = useMyPaidVideos(isOwn ? (profile?.id ?? null) : null);
   const purchased = usePurchasedVideos(isOwn ? (auth.user?.id ?? null) : null);
@@ -904,6 +908,16 @@ function Profile() {
             <p className="flex flex-wrap items-center justify-center gap-1.5 text-sm text-muted-foreground">
               <span>@{username}</span>
             </p>
+            {isOwn && mySubscription?.status === "active" && (
+              <p className="mt-1 flex justify-center">
+                <span className="rounded-full border border-border bg-secondary/60 px-2 py-0.5 text-xs font-medium">
+                  {mySubscription.isLifetime
+                    ? "Lifetime"
+                    : (planById(mySubscription.planId)?.label ?? mySubscription.planId)}{" "}
+                  plan
+                </span>
+              </p>
+            )}
             {profilePresence.visible && !profilePresence.isOnline && (
               <div className="mt-0.5 flex justify-center">
                 <OnlineStatusSubtitle status={profilePresence} />

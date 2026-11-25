@@ -94,7 +94,7 @@ export const PLANS: Plan[] = [
  */
 export const LIFETIME_PLAN: Plan = {
   id: "all",
-  label: "All Access",
+  label: "Lifetime All Access",
   emoji: "\u{1F451}",
   price: 0,
   perks: [
@@ -103,6 +103,8 @@ export const LIFETIME_PLAN: Plan = {
     "Offline music downloads",
     "Background play",
     "Beta features",
+    "1,000 coins",
+    "Never expires",
   ],
   offline: true,
   musicOffline: true,

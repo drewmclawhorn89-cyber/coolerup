@@ -251,10 +251,8 @@ describe("automatic downloads", () => {
 });
 
 describe("a paid plan stored on the account", () => {
-  const store = (
-    planId: string,
-    status: "active" | "pending" | "cancelled" | "expired" | "trialing",
-  ) => setCachedAccountSubscription(H, { planId, status, startedAt: new Date().toISOString() });
+  const store = (planId: string, status: "active" | "pending" | "cancelled" | "expired" | "trialing") =>
+    setCachedAccountSubscription(H, { planId, status, startedAt: new Date().toISOString() });
 
   it("unlocks offline for a Pro row that is not a lifetime grant", () => {
     // The bug: only `is_lifetime` rows were honoured, so a real Pro
@@ -277,14 +275,7 @@ describe("a paid plan stored on the account", () => {
   it("still unlocks the lifetime all-access grant", () => {
     localStorage.setItem(
       `lifetime:${H}`,
-      JSON.stringify({
-        plan: "all",
-        status: "active",
-        isLifetime: true,
-        grantedBy: "drewmclawhorn3",
-        grantedAt: null,
-        revokedAt: null,
-      }),
+      JSON.stringify({ plan: "all", status: "active", isLifetime: true }),
     );
     expect(planUnlocksOffline(H)).toBe(true);
     expect(getSubscription(H)?.isLifetime).toBe(true);

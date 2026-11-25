@@ -1,11 +1,18 @@
 import { useEffect } from "react";
 
 import { useAuth } from "@/hooks/useAuth";
-import { clearAccountSubscriptionCache, loadAccountSubscription } from "@/lib/accountSubscriptions";
-import { refreshLifetime } from "@/lib/subscription";
+import {
+  clearAccountSubscriptionCache,
+  loadAccountSubscription,
+} from "@/lib/accountSubscriptions";
 
 /**
- * Keeps the cached account subscription in step with the signed-in user.
+ * Keeps the in-memory subscription cache in step with the signed-in account.
+ *
+ * On login (or app start with a session) it fetches
+ * `public.user_subscriptions` for the auth user id, so a plan bought on another
+ * phone appears here automatically. On logout it wipes the cache so nothing
+ * from the previous account is shown.
  */
 export function SubscriptionSync() {
   const auth = useAuth();
@@ -18,9 +25,6 @@ export function SubscriptionSync() {
       return;
     }
     void loadAccountSubscription(userId, handle);
-    if (handle) {
-      void refreshLifetime(handle);
-    }
   }, [userId, handle]);
 
   return null;

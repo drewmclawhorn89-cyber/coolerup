@@ -72,9 +72,6 @@ const ShareMenu = lazy(() => import("./ShareMenu").then((m) => ({ default: m.Sha
 const ChristmasGiftSheet = lazy(() =>
   import("./ChristmasGiftSheet").then((m) => ({ default: m.ChristmasGiftSheet })),
 );
-const AgeVerificationDialog = lazy(() =>
-  import("./AgeVerificationDialog").then((m) => ({ default: m.AgeVerificationDialog })),
-);
 
 /** Cache resolved avatar URLs per handle so feed scrolling doesn't refetch. */
 const avatarCache = new Map<string, string | null>();
@@ -197,7 +194,6 @@ function VideoCardImpl({
   // blocked outright. No camera or face scan is involved.
   const matureGate = useMatureGate(video);
   const [matureUnlocked, setMatureUnlocked] = useState(false);
-  const [ageDialogOpen, setAgeDialogOpen] = useState(false);
   const matureLocked = matureGate.mature && (!matureUnlocked || !matureGate.allowed);
   const [rawAuthorAvatar, setRawAuthorAvatar] = useState<string | null>(null);
   const authorAvatar = useCompressedThumbnail(rawAuthorAvatar, { maxDim: 120 });
@@ -769,7 +765,6 @@ function VideoCardImpl({
     // A locked 18+ video never plays from a tap. Tapping it offers the ID
     // check instead, so the lock can't be bypassed by tapping the frame.
     if (matureLocked) {
-      if (matureGate.needsVerification) setAgeDialogOpen(true);
       return;
     }
     const el = ref.current;
@@ -1180,7 +1175,7 @@ function VideoCardImpl({
                 {matureGate.allowed ? (
                   <>
                     <p className="max-w-xs text-xs" style={{ color: "rgba(255,255,255,0.75)" }}>
-                      This video is for adults. Your ID is verified.
+                      This video is for adults. Your account birthday is 18 or older.
                     </p>
                     <button
                       type="button"
@@ -1193,23 +1188,6 @@ function VideoCardImpl({
                       style={{ backgroundColor: "#fff", color: "#000" }}
                     >
                       Watch 18+ video
-                    </button>
-                  </>
-                ) : matureGate.needsVerification ? (
-                  <>
-                    <p className="max-w-xs text-sm font-semibold" style={{ color: "#fff" }}>
-                      {matureGate.blockedMessage}
-                    </p>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setAgeDialogOpen(true);
-                      }}
-                      className="rounded-full px-5 py-2 text-sm font-bold"
-                      style={{ backgroundColor: "#FE2C55", color: "#fff" }}
-                    >
-                      Verify my ID
                     </button>
                   </>
                 ) : matureGate.needsBirthday ? (
@@ -1232,16 +1210,6 @@ function VideoCardImpl({
                   </p>
                 )}
               </div>
-            )}
-
-            {ageDialogOpen && (
-              <Suspense fallback={<PanelSkeleton />}>
-                <AgeVerificationDialog
-                  open={ageDialogOpen}
-                  onOpenChange={setAgeDialogOpen}
-                  onSubmitted={() => setAgeDialogOpen(false)}
-                />
-              </Suspense>
             )}
 
             {isPaid && !paidOwned && (
@@ -1416,7 +1384,10 @@ function VideoCardImpl({
               </div>
             </div>
             {!isImage && (
-              <div onClick={seek} className="video-progress absolute inset-x-0 bottom-0 h-3 cursor-pointer">
+              <div
+                onClick={seek}
+                className="video-progress absolute inset-x-0 bottom-0 h-3 cursor-pointer"
+              >
                 <div className="absolute inset-x-0 bottom-0 h-1 bg-foreground/20">
                   <div ref={progressRef} className="h-full bg-primary" style={{ width: "0%" }} />
                 </div>

@@ -68,7 +68,7 @@ const prefEnabled = (): boolean => readBool(BACKGROUND_PLAY_KEY, true);
  * subscription on every mount/focus, and a stale copy must never hand out a
  * perk the server has taken away.
  */
-let entitled = false;
+let entitled = true;
 
 /** True when the current plan unlocks background play (VIP or lifetime). */
 export const isBackgroundPlayEntitled = (): boolean => entitled;

@@ -44,6 +44,7 @@ import { Route as GroupsGroupIdRouteImport } from './routes/groups.$groupId'
 import { Route as LiveDashboardRouteImport } from './routes/live.dashboard'
 import { Route as SoundSoundIdRouteImport } from './routes/sound.$soundId'
 import { Route as UUsernameRouteImport } from './routes/u.$username'
+import { Route as VIdRouteImport } from './routes/v.$id'
 import { Route as WatchIndexRouteImport } from './routes/watch.index'
 import { Route as WatchIdRouteImport } from './routes/watch.$id'
 import { Route as ApiBrowserProxyRouteImport } from './routes/api/browser/proxy'
@@ -239,6 +240,11 @@ const UUsernameRoute = UUsernameRouteImport.update({
   path: '/u/$username',
   getParentRoute: () => rootRouteImport,
 } as any)
+const VIdRoute = VIdRouteImport.update({
+  id: '/v/$id',
+  path: '/v/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const WatchIndexRoute = WatchIndexRouteImport.update({
   id: '/watch/',
   path: '/watch/',
@@ -369,6 +375,7 @@ export interface FileRoutesByFullPath {
   '/live/dashboard': typeof LiveDashboardRoute
   '/sound/$soundId': typeof SoundSoundIdRoute
   '/u/$username': typeof UUsernameRoute
+  '/v/$id': typeof VIdRoute
   '/watch/$id': typeof WatchIdRoute
   '/browser/': typeof BrowserIndexRoute
   '/groups/': typeof GroupsIndexRoute
@@ -423,6 +430,7 @@ export interface FileRoutesByTo {
   '/live/dashboard': typeof LiveDashboardRoute
   '/sound/$soundId': typeof SoundSoundIdRoute
   '/u/$username': typeof UUsernameRoute
+  '/v/$id': typeof VIdRoute
   '/watch/$id': typeof WatchIdRoute
   '/browser': typeof BrowserIndexRoute
   '/groups': typeof GroupsIndexRoute
@@ -480,6 +488,7 @@ export interface FileRoutesById {
   '/live/dashboard': typeof LiveDashboardRoute
   '/sound/$soundId': typeof SoundSoundIdRoute
   '/u/$username': typeof UUsernameRoute
+  '/v/$id': typeof VIdRoute
   '/watch/$id': typeof WatchIdRoute
   '/browser/': typeof BrowserIndexRoute
   '/groups/': typeof GroupsIndexRoute
@@ -538,6 +547,7 @@ export interface FileRouteTypes {
     | '/live/dashboard'
     | '/sound/$soundId'
     | '/u/$username'
+    | '/v/$id'
     | '/watch/$id'
     | '/browser/'
     | '/groups/'
@@ -592,6 +602,7 @@ export interface FileRouteTypes {
     | '/live/dashboard'
     | '/sound/$soundId'
     | '/u/$username'
+    | '/v/$id'
     | '/watch/$id'
     | '/browser'
     | '/groups'
@@ -648,6 +659,7 @@ export interface FileRouteTypes {
     | '/live/dashboard'
     | '/sound/$soundId'
     | '/u/$username'
+    | '/v/$id'
     | '/watch/$id'
     | '/browser/'
     | '/groups/'
@@ -701,6 +713,7 @@ export interface RootRouteChildren {
   CoinsRechargeRoute: typeof CoinsRechargeRoute
   SoundSoundIdRoute: typeof SoundSoundIdRoute
   UUsernameRoute: typeof UUsernameRoute
+  VIdRoute: typeof VIdRoute
   WatchIdRoute: typeof WatchIdRoute
   WatchIndexRoute: typeof WatchIndexRoute
   ApiBrowserProxyRoute: typeof ApiBrowserProxyRoute
@@ -969,6 +982,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof UUsernameRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/v/$id': {
+      id: '/v/$id'
+      path: '/v/$id'
+      fullPath: '/v/$id'
+      preLoaderRoute: typeof VIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/watch/': {
       id: '/watch/'
       path: '/watch'
@@ -1173,6 +1193,7 @@ const rootRouteChildren: RootRouteChildren = {
   CoinsRechargeRoute: CoinsRechargeRoute,
   SoundSoundIdRoute: SoundSoundIdRoute,
   UUsernameRoute: UUsernameRoute,
+  VIdRoute: VIdRoute,
   WatchIdRoute: WatchIdRoute,
   WatchIndexRoute: WatchIndexRoute,
   ApiBrowserProxyRoute: ApiBrowserProxyRoute,

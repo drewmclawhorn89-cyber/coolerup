@@ -154,12 +154,13 @@ describe("every export path routes through the watermark", () => {
   it("the share-sheet file is the watermarked file", () => {
     for (const path of ["src/components/ShareMenu.tsx", "src/components/FullVideoShareMenu.tsx"]) {
       const src = read(path);
-      const shareIdx = src.indexOf("navigator.share({ files: [file] })");
-      const watermarkIdx = src.indexOf("prepareWatermarkedFile");
-      expect(shareIdx).toBeGreaterThan(-1);
-      expect(watermarkIdx).toBeGreaterThan(-1);
-      // The file handed to the share sheet is created after the watermark runs.
-      expect(watermarkIdx).toBeLessThan(shareIdx);
+      // The first tap must finish Smart Watermark before exposing the Save
+      // action. Only that prepared file can reach the second tap's share sheet.
+      expect(src).toMatch(
+        /const file = await prepareWatermarkedFile\([\s\S]*?setReadyFile\(file\)/,
+      );
+      expect(src).toContain("await navigator.share({ files: [readyFile] })");
+      expect(src).not.toMatch(/setReadyFile\((?!file\)|null\))/);
     }
   });
 

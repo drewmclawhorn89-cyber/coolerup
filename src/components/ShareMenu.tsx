@@ -1,12 +1,10 @@
 import { useEffect, useState } from "react";
-import { Check, Download, Flag, Gauge, Link2, Lock, Pencil, Share2, Trash2, X } from "lucide-react";
+import { Check, Download, Flag, Gauge, Link2, Pencil, Share2, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { deleteVideo, resolveVideoUrl, type Video } from "@/lib/loop";
 import { formatBytes, getSaved, removeOffline, saveOffline } from "@/lib/offline";
-import { useOfflineUnlocked } from "@/lib/subscriptions";
-import { OfflinePaywallDialog } from "@/components/OfflinePaywallDialog";
 import { EditVideoDialog } from "@/components/EditVideoDialog";
 import {
   downloadExtension,
@@ -49,10 +47,7 @@ export function ShareMenu({
   const [savedSize, setSavedSize] = useState<number | null>(null);
   const [progress, setProgress] = useState<number | null>(null);
   const auth = useAuth();
-  const [paywallOpen, setPaywallOpen] = useState(false);
   const [editing, setEditing] = useState(false);
-  // Offline mode is a paid feature — no trial, no downloads without a plan.
-  const offlineUnlocked = useOfflineUnlocked(auth.handle);
   const isOwner = !!auth.user && !!auth.handle && auth.handle === video.username;
   const url = typeof window !== "undefined" ? `${window.location.origin}/v/${video.id}` : "";
 
@@ -63,11 +58,6 @@ export function ShareMenu({
   }, [video.id]);
 
   const save = async () => {
-    // Paid subscribers only — nothing is downloaded for anyone else.
-    if (!offlineUnlocked) {
-      setPaywallOpen(true);
-      return;
-    }
     setProgress(0);
     try {
       const size = await saveOffline(video, setProgress);
@@ -98,7 +88,20 @@ export function ShareMenu({
     }
   };
 
+  const [readyFile, setReadyFile] = useState<File | null>(null);
   const download = async () => {
+    // iOS requires a fresh tap after the asynchronous watermark encoding.
+    if (readyFile) {
+      try {
+        await navigator.share({ files: [readyFile] });
+        setReadyFile(null);
+        onShared?.();
+      } catch (error) {
+        if (!(error instanceof Error && error.name === "AbortError"))
+          toast.error("Couldn’t open the share sheet. Tap Save to try again.");
+      }
+      return;
+    }
     const t = toast.loading("Preparing download…");
     try {
       const src = await resolveVideoUrl(video.video_url);
@@ -117,21 +120,10 @@ export function ShareMenu({
         onProgress: ({ percent, stage }) => toast.loading(`${stage}… ${percent}%`, { id: t }),
       });
 
-      // On phones, the share sheet is the way to save to the camera roll / Files.
-      const isTouch =
-        typeof navigator !== "undefined" && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-      if (isTouch && navigator.canShare?.({ files: [file] })) {
-        try {
-          await navigator.share({ files: [file] });
-          toast.success("Saved", { id: t });
-          onShared();
-          return;
-        } catch (e) {
-          if (e instanceof Error && e.name === "AbortError") {
-            toast.dismiss(t);
-            return;
-          }
-        }
+      if (navigator.canShare?.({ files: [file] })) {
+        setReadyFile(file);
+        toast.success("Ready. Tap Save to open the share sheet.", { id: t });
+        return;
       }
 
       saveFileToDisk(file);
@@ -213,11 +205,15 @@ export function ShareMenu({
             <span className="text-xs text-zinc-300">Copy link</span>
           </button>
 
-          <button className="flex flex-col items-center gap-2" onClick={download}>
+          <button
+            className="flex flex-col items-center gap-2"
+            aria-label={readyFile ? "Save to Photos or share" : "Download"}
+            onClick={download}
+          >
             <div className="w-14 h-14 rounded-full bg-zinc-800 flex items-center justify-center">
               <Download size={22} />
             </div>
-            <span className="text-xs text-zinc-300">Download</span>
+            <span className="text-xs text-zinc-300">{readyFile ? "Save…" : "Download"}</span>
           </button>
 
           <button
@@ -232,24 +228,12 @@ export function ShareMenu({
             }}
           >
             <div
-              className={`w-14 h-14 rounded-full flex items-center justify-center ${
-                offlineUnlocked || savedSize ? "bg-zinc-800" : "bg-zinc-800/60"
-              }`}
+              className={`w-14 h-14 rounded-full flex items-center justify-center ${"bg-zinc-800"}`}
             >
-              {savedSize ? (
-                <Trash2 size={22} />
-              ) : offlineUnlocked ? (
-                <Check size={22} />
-              ) : (
-                <Lock size={22} />
-              )}
+              {savedSize ? <Trash2 size={22} /> : <Check size={22} />}
             </div>
             <span className="text-xs text-zinc-300">
-              {savedSize
-                ? `Remove (${formatBytes(savedSize)})`
-                : offlineUnlocked
-                  ? "Save offline"
-                  : "Offline · Paid"}
+              {savedSize ? `Remove (${formatBytes(savedSize)})` : "Save offline"}
             </span>
           </button>
 
@@ -298,8 +282,6 @@ export function ShareMenu({
 
         <div className="text-xs text-zinc-500 text-center pt-2">{url}</div>
       </div>
-
-      <OfflinePaywallDialog open={paywallOpen} onClose={() => setPaywallOpen(false)} />
 
       {/* Stop clicks inside the editor from reaching the sheet's backdrop
           handler, which would unmount the editor mid-edit. */}

@@ -34,7 +34,6 @@ import { LiveNowList } from "@/components/LiveNowList";
 import { useLiveDirectory, type LiveHost } from "@/lib/liveDirectory";
 import { OnboardingBanner, useOnboardingGuard } from "@/components/OnboardingBanner";
 import { isChristmasCountdownVisible, useChristmasMode } from "@/lib/christmas";
-import { useChristmasCodesSeason } from "@/lib/christmas-codes";
 import { matchesKeyword, readBool } from "@/lib/prefs";
 import { SHOW_MATURE_PREF } from "@/lib/matureVideos";
 // Heavy, interaction-only surfaces are split out so the initial feed bundle stays small.
@@ -44,17 +43,11 @@ const UploadDialog = lazy(() =>
 const ShopPanel = lazy(() =>
   import("@/components/ShopPanel").then((m) => ({ default: m.ShopPanel })),
 );
-const SubscriptionsPanel = lazy(() =>
-  import("@/components/SubscriptionsPanel").then((m) => ({ default: m.SubscriptionsPanel })),
-);
 const Marketplace = lazy(() =>
   import("@/components/Marketplace").then((m) => ({ default: m.Marketplace })),
 );
 const GroupsPanel = lazy(() =>
   import("@/components/GroupsPanel").then((m) => ({ default: m.GroupsPanel })),
-);
-const ChristmasCodesPanel = lazy(() =>
-  import("@/components/ChristmasCodesPanel").then((m) => ({ default: m.ChristmasCodesPanel })),
 );
 const LiveStreamDialog = lazy(() =>
   import("@/components/LiveStreamDialog").then((m) => ({ default: m.LiveStreamDialog })),
@@ -103,6 +96,10 @@ import {
 } from "@/lib/inboxNotifications";
 
 export const Route = createFileRoute("/")({
+  validateSearch: (input: Record<string, unknown>): { sharedVideo?: string } =>
+    typeof input["sharedVideo"] === "string" && /^[a-f0-9-]{36}$/i.test(input["sharedVideo"])
+      ? { sharedVideo: input["sharedVideo"] }
+      : {},
   head: () => ({
     meta: [
       { title: "Coolerup — Short Videos, Full Songs & Browser by Drew McLawhorn" },
@@ -138,10 +135,8 @@ export const Route = createFileRoute("/")({
   component: Index,
 });
 
-type Tab =
-  "foryou" | "explore" | "following" | "liked" | "saved" | "inbox" | "shop" | "subscriptions";
-type FeedTab =
-  "home" | "following" | "foryou" | "explore" | "marketplace" | "groups" | "live" | "codes";
+type Tab = "foryou" | "explore" | "following" | "liked" | "saved" | "inbox" | "shop";
+type FeedTab = "home" | "following" | "foryou" | "explore" | "marketplace" | "groups" | "live";
 type NotificationFilter = "all" | "unread";
 
 // One entry in the home-menu "top tabs" strip.
@@ -280,7 +275,9 @@ function TopTabs({ className = "", ctx }: { className?: string; ctx: TopTabsCtx 
             onClick={item.onClick}
             aria-current={item.active ? "page" : undefined}
             className={`flex shrink-0 items-center gap-1 whitespace-nowrap border-b-2 pb-0.5 text-[13px] ${
-              item.active ? "border-white font-bold text-white" : "border-transparent text-white"
+              item.active
+                ? "border-[var(--account-accent)] font-bold text-white"
+                : "border-transparent text-white"
             }`}
           >
             {item.icon}
@@ -299,7 +296,7 @@ function TopTabs({ className = "", ctx }: { className?: string; ctx: TopTabsCtx 
       </button>
       {/* Search + profile ride along on the right of the bar on phones so they
           never overlap the tabs (they used to float on top of them). */}
-      <div className="ml-1 flex shrink-0 items-center gap-1 md:hidden">
+      <div className="ml-1 flex shrink-0 items-center gap-1">
         <button
           type="button"
           aria-label="Search videos"
@@ -349,10 +346,30 @@ const HEADERS: Record<Tab, [string, string]> = {
   saved: ["Offline", "Watch anytime, even without a connection"],
   inbox: ["Inbox", "All your notifications"],
   shop: ["Shop", "Unlock tops and names"],
-  subscriptions: ["Subscriptions", "Paid plans and perks"],
 };
 
 function Index() {
+  const { sharedVideo } = Route.useSearch();
+  const [sharedPost, setSharedPost] = useState<Video | null>(null);
+  useEffect(() => {
+    let active = true;
+    setSharedPost(null);
+    if (!sharedVideo) return;
+    void supabase
+      .from("videos")
+      .select("*")
+      .eq("id", sharedVideo)
+      .eq("hidden", false)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (!active) return;
+        if (error || !data) toast.error("This shared video is unavailable.");
+        else setSharedPost(data);
+      });
+    return () => {
+      active = false;
+    };
+  }, [sharedVideo]);
   const auth = useAuth();
   const navigate = useNavigate();
   const me = auth.handle;
@@ -369,7 +386,6 @@ function Index() {
   const christmas = useChristmasMode();
   // The "Codes" tab is seasonal: on Nov 15 - Jan 1, off the rest of the year.
   // It re-appears by itself every Christmas with no deploy and no flag.
-  const codesSeason = useChristmasCodesSeason();
   // Pre-launch banner: only until Nov 15 2026, then it hides itself for good.
   // `!christmas` makes the wrapper disappear the moment the update goes live,
   // even if this component hasn't re-rendered for another reason.
@@ -417,7 +433,7 @@ function Index() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const wantedTab = params.get("tab");
-    if (wantedTab === "subscriptions" || wantedTab === "shop") setTab(wantedTab);
+    if (wantedTab === "shop") setTab(wantedTab);
 
     const wantedFeed = params.get("feed");
     if (
@@ -973,10 +989,18 @@ function Index() {
     notificationFilter === "unread" ? notifications.filter((n) => !n.read) : notifications;
 
   const offlineMode = !online || (error && saved.length > 0);
-  const activeTab = offlineMode ? "saved" : tab;
+  const activeTab = offlineMode && saved.length > 0 ? "saved" : tab;
 
   const shown = useMemo(() => {
     let list = activeTab === "saved" ? saved : (videos ?? []);
+    if (
+      activeTab === "foryou" &&
+      feedTab === "foryou" &&
+      sharedPost?.id === sharedVideo &&
+      sharedPost
+    ) {
+      list = [sharedPost, ...list.filter((v) => v.id !== sharedPost.id)];
+    }
     const q = query.trim().toLowerCase();
     if (q)
       list = list.filter(
@@ -1015,6 +1039,8 @@ function Index() {
     return list;
   }, [
     videos,
+    sharedPost,
+    sharedVideo,
     saved,
     query,
     activeTab,
@@ -1076,7 +1102,7 @@ function Index() {
   // screen (feed, inbox, shop, subscriptions, offline) and at every breakpoint.
   const showTopTabs = true;
   const topTab =
-    activeTab === "shop" || activeTab === "subscriptions"
+    activeTab === "shop"
       ? activeTab
       : activeTab === "following" || activeTab === "explore"
         ? activeTab
@@ -1087,16 +1113,6 @@ function Index() {
     setFeedTab(t);
     setTab(t === "following" || t === "explore" ? t : "foryou");
   };
-
-  // If the season ends (or the tab is opened out of season via a stale link)
-  // while "codes" is selected, fall back to the normal feed instead of showing
-  // a tab that no longer exists in the bar.
-  useEffect(() => {
-    if (!codesSeason && feedTab === "codes") {
-      setFeedTab("foryou");
-      setTab("foryou");
-    }
-  }, [codesSeason, feedTab]);
 
   // One shared top tab bar (Home | Following | For You | Videos | Music | Browser | Marketplace | Groups | LIVE | Codes | Explore | Shop).
   // It renders on every screen and at every breakpoint, scrolls smoothly with touch/wheel,
@@ -1159,17 +1175,6 @@ function Index() {
       onClick: () => pickFeedTab("live"),
       active: topTab === "live",
     },
-    ...(codesSeason
-      ? [
-          {
-            key: "codes",
-            label: "Codes",
-            icon: <Gift className="size-3.5" />,
-            onClick: () => pickFeedTab("codes"),
-            active: topTab === "codes",
-          },
-        ]
-      : []),
     {
       key: "explore",
       label: "Explore",
@@ -1201,8 +1206,7 @@ function Index() {
     "relative z-30 flex shrink-0 items-center gap-1 border-b border-white/10 bg-black px-2 pb-2 pt-2 md:gap-2 md:px-4";
   // On phones the tabs float over the video; desktop keeps the solid bar in flow.
   const topTabsOverlayClass =
-    "absolute inset-x-0 top-0 z-30 flex items-center gap-1 bg-gradient-to-b from-black/80 via-black/40 to-transparent px-2 pb-3 " +
-    "md:static md:border-b md:border-white/10 md:bg-black md:bg-none md:gap-2 md:px-4 md:pb-2 md:pt-2 " +
+    "absolute inset-x-0 top-0 z-30 flex items-center gap-1 bg-transparent px-2 pb-3 " +
     (christmas ? "pt-[1.15rem]" : "pt-2");
 
   const [title, sub] = query
@@ -1365,7 +1369,7 @@ function Index() {
 
       <main className="home-main relative flex w-full min-w-0 flex-1 flex-col">
         <div className="home-leading-content shrink-0 empty:hidden">
-          {offlineMode && (
+          {online && offlineMode && (
             <div className="flex shrink-0 items-center gap-2 bg-primary/10 px-4 py-2 text-sm font-bold text-primary md:px-10">
               <WifiOff className="h-4 w-4" /> You're offline — watching saved videos
             </div>
@@ -1444,13 +1448,6 @@ function Index() {
               />
             </div>
           </div>
-        ) : feedTab === "codes" ? (
-          <div className="relative flex min-h-0 flex-1 flex-col bg-black">
-            <TopTabs className={topTabsStaticClass} ctx={topTabsCtx} />
-            <Suspense fallback={<PanelSkeleton />}>
-              <ChristmasCodesPanel handle={me} onSignIn={auth.signIn} />
-            </Suspense>
-          </div>
         ) : activeTab === "foryou" && feedTab === "marketplace" && !offlineMode ? (
           <div className="relative flex min-h-0 flex-1 flex-col">
             <TopTabs className={topTabsStaticClass} ctx={topTabsCtx} />
@@ -1458,19 +1455,13 @@ function Index() {
               <Marketplace />
             </Suspense>
           </div>
-        ) : activeTab === "shop" || activeTab === "subscriptions" ? (
+        ) : activeTab === "shop" ? (
           <div className="flex min-h-0 flex-1 flex-col">
             <TopTabs className={topTabsStaticClass} ctx={topTabsCtx} />
             <div className="min-h-0 flex-1 overflow-y-auto">
-              {activeTab === "subscriptions" ? (
-                <Suspense fallback={<PanelSkeleton />}>
-                  <SubscriptionsPanel handle={me} onSignIn={auth.signIn} />
-                </Suspense>
-              ) : (
-                <Suspense fallback={<PanelSkeleton />}>
-                  <ShopPanel handle={me} posts={myPostCount} />
-                </Suspense>
-              )}
+              <Suspense fallback={<PanelSkeleton />}>
+                <ShopPanel handle={me} posts={myPostCount} />
+              </Suspense>
             </div>
           </div>
         ) : activeTab === "foryou" && feedTab === "groups" && !offlineMode ? (
@@ -1555,7 +1546,7 @@ function Index() {
         ) : (
           <>
             <header
-              className={`shrink-0 px-4 pb-2 pt-[calc(env(safe-area-inset-top)+5.75rem)] md:px-10 md:pb-2 md:pt-6 ${showTopTabs ? "hidden md:block" : ""}`}
+              className={`shrink-0 px-4 pb-2 pt-[calc(env(safe-area-inset-top)+5.75rem)] md:px-10 md:pb-2 md:pt-6 ${showTopTabs ? "hidden" : ""}`}
             >
               <h2 className="break-words font-display text-base md:text-3xl">{title}</h2>
               <p className="hidden text-sm text-muted-foreground md:block">{sub}</p>

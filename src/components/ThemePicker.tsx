@@ -1,9 +1,11 @@
 export function ThemePicker({
   theme,
   changeTheme,
+  disabled = false,
 }: {
   theme: string;
   changeTheme: (id: string) => void;
+  disabled?: boolean;
 }) {
   const themes = [
     { id: "light", label: "Light", color: "#ffffff" },
@@ -21,6 +23,7 @@ export function ThemePicker({
       {themes.map((t) => (
         <button
           key={t.id}
+          disabled={disabled}
           type="button"
           onClick={() => changeTheme(t.id)}
           aria-pressed={theme === t.id}
@@ -35,6 +38,11 @@ export function ThemePicker({
             className="size-4 rounded-full border border-white/30"
             style={{ backgroundColor: t.color }}
           />
+          {theme === t.id && (
+            <span aria-hidden="true" style={{ color: "var(--account-accent)" }}>
+              ✓
+            </span>
+          )}
           {t.label}
         </button>
       ))}

@@ -1,4 +1,3 @@
-import { requireOfflineEntitlement } from "@/lib/offlineEntitlement";
 import { soundAudioUrl, isYouTubeSound, type Sound } from "./sounds";
 
 /**
@@ -187,7 +186,6 @@ export async function saveSongOffline(
   sound: Sound,
   onProgress?: (pct: number) => void,
 ): Promise<number> {
-  await requireOfflineEntitlement("music");
   const blocked = downloadBlockedReason(sound);
   if (blocked) throw new Error(downloadBlockedMessage(blocked));
 

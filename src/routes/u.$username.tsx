@@ -61,6 +61,8 @@ import {
 } from "@/lib/paidVideos";
 import { useCompressedThumbnail } from "@/lib/thumbnailCache";
 import { isLiteMode, useNetwork } from "@/lib/network";
+import { preloadModeFor } from "@/lib/feedPaging";
+import { FeedLoadingSpinner } from "@/components/FeedLoadingSpinner";
 import { ListRowSkeleton, VideoGridSkeleton } from "@/components/Skeletons";
 
 const FOLLOW_PAGE_SIZE = 10;
@@ -1076,11 +1078,7 @@ function Profile() {
           </p>
         )}
         {hasMore[tab] && <div ref={sentinel} className="h-10" />}
-        {loadingMore && shownVideos !== null && (
-          <div className="py-3">
-            <ListRowSkeleton count={2} />
-          </div>
-        )}
+        {loadingMore && shownVideos !== null && <FeedLoadingSpinner />}
 
         {isOwn && (
           <div className="mt-5 space-y-3 px-1">
@@ -1174,12 +1172,7 @@ function Profile() {
             }}
           >
             {shownVideos.map((v, i) => {
-              const preloadMode =
-                i === viewerActiveIndex
-                  ? "active"
-                  : !lite && i === viewerActiveIndex + 1
-                    ? "next"
-                    : "idle";
+              const preloadMode = preloadModeFor(i, viewerActiveIndex, { lite });
               return (
                 <div key={v.id} className="h-dvh snap-start snap-always">
                   <VideoCard

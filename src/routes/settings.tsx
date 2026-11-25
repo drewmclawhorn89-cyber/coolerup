@@ -5,6 +5,7 @@ import {
   ChevronRight,
   CreditCard,
   Gem,
+  Loader2,
   Lock,
   LogOut,
   Music,
@@ -39,8 +40,9 @@ import {
   hasBackgroundPlayAccess,
   offlinePlan,
   restoreSubscription,
+  subscriptionDisplayName,
   useOfflineUnlocked,
-  useSubscription,
+  useSubscriptionState,
 } from "@/lib/subscriptions";
 import { OfflinePaywallDialog } from "@/components/OfflinePaywallDialog";
 import {
@@ -121,7 +123,10 @@ function Settings() {
     setMediaSessionReady(isMediaSessionSupported());
   }, []);
   // Offline Mode is paid-only: a live, active subscription on any paid tier.
-  const subscription = useSubscription(auth.handle);
+  const { subscription, loading: subscriptionLoading } = useSubscriptionState(
+    auth.handle,
+    auth.user?.id,
+  );
   const offlineUnlocked = useOfflineUnlocked(auth.handle);
   const offlinePrice = offlinePlan().price;
   const offlineMode = useOfflineMode();
@@ -131,19 +136,22 @@ function Settings() {
   const [showSubscriptions, setShowSubscriptions] = useState(Boolean(openSubscriptions));
   const [restoringSubscription, setRestoringSubscription] = useState(false);
 
-  /** Re-fetch the plan from `public.user_subscriptions` for this account. */
+  /** Re-fetch the plan from Supabase (`user_subscriptions`) for current user_id. */
   const handleRestoreSubscription = async () => {
-    if (!auth.handle) {
+    if (!auth.user?.id && !auth.handle) {
       toast.error("Sign in to restore a subscription");
       return;
     }
     setRestoringSubscription(true);
     try {
-      const restored = await restoreSubscription(auth.handle);
-      if (restored) {
-        toast.success(`Subscription restored: ${restored.planId.toUpperCase()}`);
+      const restored = await restoreSubscription(auth.handle, auth.user?.id);
+      if (restored && restored.status === "active") {
+        toast.success(`Restored: ${subscriptionDisplayName(restored)}`);
+        window.setTimeout(() => {
+          window.location.reload();
+        }, 400);
       } else {
-        toast.message("No subscription found on this account");
+        toast.message("No paid plan found for this account");
       }
     } catch {
       toast.error("Couldn't reach the server. Try again.");
@@ -580,19 +588,19 @@ function Settings() {
   // Subscriptions screen, opened from the Settings list.
   if (showSubscriptions) {
     return (
-      <div className="mx-auto max-w-xl pb-10">
+      <div className="mx-auto min-h-dvh max-w-xl bg-black pb-10 text-white">
         <div className="flex items-center gap-3 px-4 pt-6">
           <button
             onClick={() => setShowSubscriptions(false)}
             aria-label="Back to settings"
-            className="text-muted-foreground hover:text-foreground"
+            className="text-white/70 hover:text-white"
           >
             <ArrowLeft className="h-5 w-5" />
           </button>
-          <h1 className="font-display text-2xl">Subscriptions</h1>
+          <h1 className="font-display text-2xl text-white">Subscriptions</h1>
         </div>
         <Suspense fallback={<PanelSkeleton />}>
-          <SubscriptionsPanel handle={auth.handle} onSignIn={auth.signIn} />
+          <SubscriptionsPanel handle={auth.handle} userId={auth.user?.id} onSignIn={auth.signIn} />
         </Suspense>
       </div>
     );
@@ -699,40 +707,57 @@ function Settings() {
       </div>
 
       {/* Subscriptions (moved here from the top tab row) */}
-      <div className="rounded-2xl border bg-card p-4">
-        <h2 className="font-semibold">Subscriptions</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Manage your plan, payment method, and billing.
-        </p>
-        <button
-          onClick={() => setShowSubscriptions(true)}
-          className="mt-3 flex w-full items-center justify-between rounded-md border bg-background px-4 py-3 text-left text-sm font-medium transition-colors hover:bg-accent"
-        >
-          <span className="flex items-center gap-2">
-            <CreditCard className="h-4 w-4" />
-            {subscription?.status === "active"
-              ? "Your subscription is active"
-              : subscription?.status === "pending"
-                ? "Payment pending"
-                : subscription?.status === "expired"
-                  ? "Subscription expired — renew"
-                  : "View plans"}
-          </span>
-          <ChevronRight className="h-4 w-4 text-muted-foreground" />
-        </button>
+      <div className="rounded-2xl border border-white/15 bg-black p-4 text-white">
+        <h2 className="font-semibold text-white">Subscriptions</h2>
+        <p className="mt-1 text-sm text-white/70">Manage your plan, payment method, and billing.</p>
+        {subscriptionLoading ? (
+          <div
+            className="mt-3 flex w-full items-center justify-between rounded-md border border-white/15 bg-black px-4 py-3 text-sm font-medium text-white"
+            role="status"
+            aria-live="polite"
+          >
+            <span className="flex items-center gap-2">
+              <Loader2 className="h-4 w-4 animate-spin text-white" />
+              Loading your plan…
+            </span>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setShowSubscriptions(true)}
+            className="mt-3 flex w-full items-center justify-between rounded-md border border-white/15 bg-black px-4 py-3 text-left text-sm font-medium text-white transition-colors hover:bg-white/10"
+          >
+            <span className="flex items-center gap-2">
+              <CreditCard className="h-4 w-4 text-white" />
+              {subscription?.status === "active"
+                ? `Active: ${subscriptionDisplayName(subscription)}`
+                : subscription?.status === "pending"
+                  ? `Payment pending: ${subscriptionDisplayName(subscription)}`
+                  : subscription?.status === "expired"
+                    ? "Subscription expired — View plans"
+                    : "View plans"}
+            </span>
+            <span className="flex items-center gap-1 text-xs text-white/70">
+              View plans
+              <ChevronRight className="h-4 w-4 text-white/70" />
+            </span>
+          </button>
+        )}
         <button
           type="button"
           onClick={() => void handleRestoreSubscription()}
           disabled={restoringSubscription}
-          className="mt-2 flex w-full items-center justify-between rounded-md border bg-background px-4 py-3 text-left text-sm font-medium transition-colors hover:bg-accent disabled:opacity-60"
+          className="mt-2 flex w-full items-center justify-between rounded-md border border-white/15 bg-black px-4 py-3 text-left text-sm font-medium text-white transition-colors hover:bg-white/10 disabled:opacity-60"
         >
           <span className="flex items-center gap-2">
-            <RefreshCw className={`h-4 w-4 ${restoringSubscription ? "animate-spin" : ""}`} />
+            <RefreshCw
+              className={`h-4 w-4 text-white ${restoringSubscription ? "animate-spin" : ""}`}
+            />
             {restoringSubscription ? "Restoring\u2026" : "Restore Subscription"}
           </span>
-          <span className="text-xs text-muted-foreground">From your account</span>
+          <span className="text-xs text-white/70">From your account</span>
         </button>
-        <p className="mt-2 text-xs text-muted-foreground">
+        <p className="mt-2 text-xs text-white/70">
           Your plan is saved to your account. Sign in on any phone and it loads automatically.
         </p>
       </div>

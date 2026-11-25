@@ -2,38 +2,50 @@ import { useEffect, useState } from "react";
 
 import {
   PLANS,
+  backgroundPlayPlan,
+  fetchPlansFromDb,
+  getPlans,
+  musicOfflinePlan,
+  offlinePlan,
   planById,
   planIncludesBackgroundPlay,
   planIncludesMusicOffline,
   planIncludesOffline,
-  backgroundPlayPlan,
-  musicOfflinePlan,
-  offlinePlan,
   type Plan,
 } from "@/lib/plans";
 import { activeTrial, hasUsedTrial, isTrialActive } from "@/lib/trial";
 import {
   ACCOUNT_SUBSCRIPTION_EVENT,
-  cancelAccountSubscriptionForHandle,
   cachedAccountSubscription,
+  cachedAccountSubscriptionForUser,
+  cancelAccountSubscriptionForHandle,
   clearCachedAccountSubscription,
+  currentAccountUserId,
+  isAccountSubscriptionLoading,
+  loadAccountSubscription,
   persistAccountSubscriptionForHandle,
   refreshAccountSubscription,
+  saveAccountSubscription,
   setCachedAccountSubscription,
   type AccountSubscriptionInput,
   type AccountSubscriptionRow,
+  type AccountSubscriptionStatus,
 } from "@/lib/accountSubscriptions";
 import {
   LIFETIME_EVENT,
   cachedLifetime,
   isLifetimeActive,
   isLifetimeRevoked,
+  isOwnerHandle,
+  lifetimePlanLabel,
   refreshLifetime,
 } from "@/lib/subscription";
 
 export type { Plan };
 export {
   PLANS,
+  fetchPlansFromDb,
+  getPlans,
   planById,
   planIncludesBackgroundPlay,
   planIncludesMusicOffline,
@@ -177,6 +189,7 @@ export function toPaymentMethod(input: CardInput): PaymentMethod {
 
 /** "Visa •••• 4242" / "Google Pay •••• 1234" */
 export function maskCard(pm: PaymentMethod): string {
+  if (pm.provider === "venmo") return "Venmo";
   const brand = pm.provider === "googlepay" ? "Google Pay" : brandLabel(pm.brand);
   return pm.last4 && pm.last4 !== "0000" ? `${brand} •••• ${pm.last4}` : brand;
 }
@@ -194,15 +207,61 @@ export function providerLabel(pm: PaymentMethod): string {
   return "Card";
 }
 
+function paymentMethodFromLabel(
+  rawLabel: string | null | undefined,
+  addedAt: string,
+): PaymentMethod | null {
+  const label = (rawLabel ?? "").trim();
+  if (!label || label.startsWith("Code:")) return null;
+  const lower = label.toLowerCase();
+  const last4Match = label.match(/(\d{4})$/);
+  const last4 = last4Match?.[1] ?? "0000";
+  if (lower.startsWith("google pay")) {
+    return {
+      provider: "googlepay",
+      brand: "card",
+      last4,
+      expMonth: 0,
+      expYear: 0,
+      holder: "Google Pay",
+      addedAt,
+    };
+  }
+  if (lower.startsWith("venmo")) {
+    return {
+      provider: "venmo",
+      brand: "card",
+      last4: "0000",
+      expMonth: 0,
+      expYear: 0,
+      holder: "Venmo",
+      addedAt,
+    };
+  }
+  const brand: CardBrand = lower.includes("visa")
+    ? "visa"
+    : lower.includes("mastercard")
+      ? "mastercard"
+      : lower.includes("american express") || lower.includes("amex")
+        ? "amex"
+        : lower.includes("discover")
+          ? "discover"
+          : "card";
+  return {
+    provider: "card",
+    brand,
+    last4,
+    expMonth: 0,
+    expYear: 0,
+    holder: label,
+    addedAt,
+  };
+}
+
 /* -------------------------------------------------------------------------- */
 /*  Subscription record                                                       */
 /* -------------------------------------------------------------------------- */
 
-/**
- * `expired` also covers the old `trial` status. Trials are no longer stored on
- * the subscription record — they live in `@/lib/trial` as a separate one-hour
- * grant — so any record still sitting on `trial` is treated as ended.
- */
 export type SubStatus = "pending" | "active" | "expired";
 
 export type Subscription = {
@@ -210,9 +269,9 @@ export type Subscription = {
   status: SubStatus;
   /** when the plan was first requested */
   startedAt: string;
-  /** set once the owner confirms the Venmo payment */
+  /** set once confirmed */
   paidAt: string | null;
-  /** card on file, used to renew the plan */
+  /** card/wallet on file */
   paymentMethod: PaymentMethod | null;
   /** Where the plan came from. Missing means a normal paid subscription. */
   source?: "payment" | "code";
@@ -220,24 +279,17 @@ export type Subscription = {
   code?: string | null;
   /** End of the current paid or redeemed period (ISO). */
   currentPeriodEnd?: string | null;
-  /**
-   * True for an owner-granted lifetime plan. Such a plan never expires, so
-   * `currentPeriodEnd` is always null and must never be consulted.
-   */
+  /** True for an owner-granted lifetime plan. */
   isLifetime?: boolean;
   /** Who granted it - shown as "Given by @drewmclawhorn3". */
   grantedBy?: string | null;
 };
 
-/** Fired whenever the stored subscription changes, so the UI can re-render. */
+/** Fired whenever the subscription cache changes, so the UI can re-render. */
 export const SUBSCRIPTION_EVENT = "subscription-change";
 const EVT = SUBSCRIPTION_EVENT;
 
-/**
- * Payment methods are session-only. They are never written to localStorage,
- * cookies or any other device store; the subscription itself lives on the
- * account in `public.user_subscriptions`.
- */
+/** Session-only parsed payment method objects; safe display label lives in Supabase. */
 const paymentMethods = new Map<string, PaymentMethod>();
 
 /** Code strings are kept in memory so the "active via code" line can render. */
@@ -247,58 +299,73 @@ function planLabel(planId: string): string {
   return planById(planId)?.label ?? planId;
 }
 
+export function subscriptionDisplayName(sub?: Subscription | null): string {
+  if (!sub) return "Free";
+  if (sub.isLifetime) return lifetimePlanLabel(sub.planId);
+  return planLabel(sub.planId);
+}
+
 function toAccountInput(sub: Subscription): AccountSubscriptionInput {
   return {
     planId: sub.planId,
     planName: planLabel(sub.planId),
-    status:
-      sub.status === "active" ? "active" : sub.status === "pending" ? "pending" : "expired",
+    status: sub.status === "active" ? "active" : sub.status === "pending" ? "pending" : "expired",
     startedAt: sub.startedAt,
     expiresAt: sub.currentPeriodEnd ?? null,
+    paymentMethod: sub.paymentMethod
+      ? maskCard(sub.paymentMethod)
+      : sub.source === "code" && sub.code
+        ? `Code: ${sub.code}`
+        : null,
     autoRenew: sub.status === "active" && sub.source !== "code",
   };
 }
 
 /** Turn an account row into the shape the rest of the app already understands. */
 function fromAccountRow(row: AccountSubscriptionRow): Subscription {
+  const rowStatus = row.plan_status ?? row.status;
   const status: SubStatus =
-    row.status === "active" || row.status === "trialing"
+    rowStatus === "active" || rowStatus === "trialing"
       ? "active"
-      : row.status === "pending"
+      : rowStatus === "pending"
         ? "pending"
         : "expired";
-  // A row with an expiry date came from a fixed-length code grant; paid plans
-  // renew monthly and keep `expires_at` null.
-  const isCode = Boolean(row.expires_at);
+  const isCode = row.payment_method
+    ? row.payment_method.startsWith("Code:")
+    : Boolean(row.expires_at);
+  const code =
+    row.payment_method && row.payment_method.startsWith("Code:")
+      ? row.payment_method.slice("Code:".length).trim()
+      : (codeGrants.get(row.plan_id) ?? null);
   return {
     planId: row.plan_id,
     status,
     isLifetime: false,
     startedAt: row.started_at,
     paidAt: status === "active" ? row.started_at : null,
-    paymentMethod: null,
+    paymentMethod: paymentMethodFromLabel(row.payment_method, row.updated_at),
     source: isCode ? "code" : "payment",
-    code: codeGrants.get(row.plan_id) ?? null,
+    code,
     currentPeriodEnd: row.expires_at,
   };
 }
 
 /**
- * The subscription in force for this handle.
+ * The subscription in force for this handle (and/or userId).
  *
- * The account row is the source of truth. A lifetime grant still outranks
- * everything, and a revoked lifetime grant drops the user straight to the
- * paywall. There is no device fallback: signing in on a new phone hydrates
- * this cache from Supabase, so the plan follows the account.
+ * The Supabase account row is the source of truth. Lifetime grants outrank
+ * purchasable tiers, and owner @drewmclawhorn3 always keeps their plan.
+ * Zero device/localStorage fallback is ever consulted.
  */
-export function getSubscription(handle?: string | null): Subscription | null {
-  if (!handle || typeof window === "undefined") return null;
+export function getSubscription(
+  handle?: string | null,
+  userId?: string | null,
+): Subscription | null {
+  if ((!handle && !userId) || typeof window === "undefined") return null;
 
-  const lifetime = cachedLifetime(handle);
-  if (isLifetimeRevoked(lifetime)) return null;
+  const lifetime = handle ? cachedLifetime(handle) : null;
+  if (!isOwnerHandle(handle) && isLifetimeRevoked(lifetime)) return null;
 
-  // A real lifetime grant outranks everything: it never expires and cannot be
-  // bought again.
   if (lifetime && isLifetimeActive(lifetime)) {
     return {
       planId: lifetime.plan,
@@ -314,11 +381,15 @@ export function getSubscription(handle?: string | null): Subscription | null {
     };
   }
 
-  const row = cachedAccountSubscription(handle);
+  const row =
+    (userId ? cachedAccountSubscriptionForUser(userId) : null) ??
+    (handle ? cachedAccountSubscription(handle) : null);
   if (!row) return null;
 
   const sub = fromAccountRow(row);
-  sub.paymentMethod = paymentMethods.get(handle) ?? null;
+  if (handle && !sub.paymentMethod) {
+    sub.paymentMethod = paymentMethods.get(handle) ?? null;
+  }
   return sub;
 }
 
@@ -328,8 +399,8 @@ export function hasPaymentMethod(handle?: string | null): boolean {
 }
 
 /**
- * Update the in-memory cache immediately, so the UI reacts on the same tick,
- * then persist the change to the account in the background.
+ * Updates in-memory cache immediately and triggers a background DB persist.
+ * Use `saveSubscriptionToAccount` when callers need to await confirmation.
  */
 function write(handle: string, sub: Subscription | null) {
   if (sub) {
@@ -337,11 +408,94 @@ function write(handle: string, sub: Subscription | null) {
     if (sub.code) codeGrants.set(sub.planId, sub.code);
     const input = toAccountInput(sub);
     setCachedAccountSubscription(handle, input);
-    void persistAccountSubscriptionForHandle(handle, input);
+    void persistAccountSubscriptionForHandle(handle, input).catch(() => {
+      // Background sync for synchronous unit helpers; interactive purchases await `saveSubscriptionToAccount`.
+    });
   } else {
     clearCachedAccountSubscription(handle);
   }
-  window.dispatchEvent(new Event(EVT));
+  if (typeof window !== "undefined") window.dispatchEvent(new Event(EVT));
+}
+
+/**
+ * Saves or updates the single subscription row for `user_id` in Supabase.
+ * Awaits the real database write and throws if saving fails.
+ */
+export async function saveSubscriptionToAccount(params: {
+  userId?: string | null | undefined;
+  handle: string;
+  planId: string;
+  status: AccountSubscriptionStatus;
+  paymentMethod?: PaymentMethod | string | null | undefined;
+  startedAt?: string | undefined;
+  expiresAt?: string | null | undefined;
+  source?: "payment" | "code" | undefined;
+  code?: string | null | undefined;
+}): Promise<Subscription> {
+  const userId = params.userId || (await currentAccountUserId());
+  if (!userId) {
+    throw new Error("Sign in to save your subscription to your account.");
+  }
+
+  const now = new Date();
+  const startedAt = params.startedAt ?? now.toISOString();
+  const nextMonth = new Date(now);
+  nextMonth.setMonth(nextMonth.getMonth() + 1);
+  const expiresAt =
+    params.expiresAt !== undefined
+      ? params.expiresAt
+      : params.status === "active"
+        ? nextMonth.toISOString()
+        : null;
+
+  let pmObj: PaymentMethod | null = null;
+  let pmLabel: string | null = null;
+  if (typeof params.paymentMethod === "string") {
+    pmLabel = params.paymentMethod;
+    pmObj = paymentMethodFromLabel(pmLabel, now.toISOString());
+  } else if (params.paymentMethod) {
+    pmObj = params.paymentMethod;
+    pmLabel = maskCard(params.paymentMethod);
+  } else if (params.source === "code" && params.code) {
+    pmLabel = `Code: ${params.code}`;
+  }
+
+  if (pmObj) paymentMethods.set(params.handle, pmObj);
+  if (params.code) codeGrants.set(params.planId, params.code);
+
+  const row = await saveAccountSubscription(userId, {
+    planId: params.planId,
+    planName: planLabel(params.planId),
+    status: params.status,
+    startedAt,
+    expiresAt,
+    paymentMethod: pmLabel,
+    autoRenew: params.status === "active" && params.source !== "code",
+  });
+
+  await loadAccountSubscription(userId, params.handle);
+  if (typeof window !== "undefined") window.dispatchEvent(new Event(EVT));
+
+  const hydrated = getSubscription(params.handle, userId);
+  if (hydrated) return hydrated;
+  if (row) return fromAccountRow(row);
+  throw new Error("Could not verify saved subscription.");
+}
+
+/** Cancels the account subscription row in Supabase (`plan_status = 'cancelled'`). */
+export async function cancelSubscriptionOnAccount(params: {
+  userId?: string | null | undefined;
+  handle: string;
+  planId?: string | undefined;
+}): Promise<void> {
+  const existing = getSubscription(params.handle, params.userId);
+  const targetPlanId = params.planId ?? existing?.planId;
+  paymentMethods.delete(params.handle);
+  if (targetPlanId) codeGrants.delete(targetPlanId);
+  clearCachedAccountSubscription(params.handle);
+  if (typeof window !== "undefined") window.dispatchEvent(new Event(EVT));
+  await cancelAccountSubscriptionForHandle(params.handle, targetPlanId, params.userId);
+  if (typeof window !== "undefined") window.dispatchEvent(new Event(EVT));
 }
 
 /** Update the card on an existing subscription. */
@@ -349,16 +503,14 @@ export function updatePaymentMethod(handle: string, pm: PaymentMethod) {
   paymentMethods.set(handle, pm);
   const existing = getSubscription(handle);
   if (!existing) {
-    window.dispatchEvent(new Event(EVT));
+    if (typeof window !== "undefined") window.dispatchEvent(new Event(EVT));
     return;
   }
   write(handle, { ...existing, paymentMethod: pm });
 }
 
 /**
- * Payments go through Venmo, which does not report back to the app, so the plan
- * sits at "pending" until the owner confirms the payment and flips it to
- * "active" with `confirmPayment`.
+ * Mark a plan pending until payment clears (Venmo / offline helper).
  */
 export function requestPayment(handle: string, planId: string) {
   const existing = getSubscription(handle);
@@ -372,7 +524,7 @@ export function requestPayment(handle: string, planId: string) {
   });
 }
 
-/** Owner confirms the Venmo payment landed. */
+/** Mark the current pending subscription active. */
 export function confirmPayment(handle: string) {
   const existing = getSubscription(handle);
   if (!existing) return;
@@ -388,11 +540,6 @@ export function confirmPayment(handle: string) {
 
 /**
  * Grant a plan from a redeemed subscription code.
- *
- * Codes are fixed-length (1, 3 or 12 months). If the user already has a live
- * code subscription, the new months stack on top of the current end date \u2014
- * exactly how a Netflix gift card extends an existing balance. Otherwise the
- * period starts now.
  */
 export function applyCodeSubscription(
   handle: string,
@@ -428,8 +575,7 @@ export function applyCodeSubscription(
 }
 
 /**
- * Cancel the plan on the account. The row stays for history but is marked
- * cancelled, and the on-screen subscription is cleared immediately.
+ * Cancel the plan on the account.
  */
 export function cancelSubscription(handle: string) {
   const existing = getSubscription(handle);
@@ -437,9 +583,14 @@ export function cancelSubscription(handle: string) {
   paymentMethods.delete(handle);
   if (planId) codeGrants.delete(planId);
   clearCachedAccountSubscription(handle);
-  window.dispatchEvent(new Event(EVT));
-  if (planId) void cancelAccountSubscriptionForHandle(handle, planId);
+  if (typeof window !== "undefined") window.dispatchEvent(new Event(EVT));
+  if (planId) {
+    void cancelAccountSubscriptionForHandle(handle, planId).catch(() => {
+      // Ignored in synchronous unit helpers.
+    });
+  }
 }
+
 /** True when the plan is giving them perks right now. */
 export function isActive(sub: Subscription | null): boolean {
   return sub?.status === "active";
@@ -449,40 +600,21 @@ export function isActive(sub: Subscription | null): boolean {
 /*  Offline mode access                                                       */
 /* -------------------------------------------------------------------------- */
 
-/**
- * The plan whose perks are live right now.
- *
- * A paid, active subscription wins; otherwise a running free hour supplies the
- * plan. Returns null when neither is in force.
- */
 export function planInForce(handle?: string | null): string | null {
   const sub = getSubscription(handle);
   if (isActive(sub)) return sub?.planId ?? null;
   return activeTrial(handle)?.planId ?? null;
 }
 
-/** True when this plan's perks are live — paid for, or inside its free hour. */
 export function hasPlanAccess(handle: string | null | undefined, planId: string): boolean {
   const inForce = planInForce(handle);
-  // A lifetime "all" grant satisfies every plan, including ones added later.
   return inForce === planId || inForce === "all";
 }
 
-/** True while this plan's free hour is running. */
 export function isTrialing(handle?: string | null, planId?: string | null): boolean {
   return isTrialActive(handle, planId);
 }
 
-/**
- * Offline *video* downloads are included on every paid tier (Plus, Pro and
- * VIP), with a one-hour free trial.
- *
- * Access requires a live subscription *and* a plan that includes the feature,
- * or a running free hour on a plan that includes it. Free accounts do not get
- * offline mode; a `pending` or `expired` subscription does not count either:
- * the plan has to be paid and active for the offline library to unlock.
- * Offline *music* is gated separately at VIP — see `hasMusicOfflineAccess`.
- */
 export function hasOfflineAccess(handle?: string | null): boolean {
   const trial = activeTrial(handle);
   if (trial && planIncludesOffline(trial.planId)) return true;
@@ -491,13 +623,6 @@ export function hasOfflineAccess(handle?: string | null): boolean {
   return planIncludesOffline(sub?.planId);
 }
 
-/**
- * Offline *music* downloads are a VIP-and-up perk, with a one-hour free trial.
- *
- * Pro keeps offline video downloads, but music is gated at VIP. A running free
- * hour on VIP (or the lifetime "all access" grant) unlocks it; Pro and Plus do
- * not. The same paid-and-active rule as `hasOfflineAccess` applies.
- */
 export function hasMusicOfflineAccess(handle?: string | null): boolean {
   const trial = activeTrial(handle);
   if (trial && planIncludesMusicOffline(trial.planId)) return true;
@@ -506,14 +631,6 @@ export function hasMusicOfflineAccess(handle?: string | null): boolean {
   return planIncludesMusicOffline(sub?.planId);
 }
 
-/**
- * Background play is a VIP-and-up perk, with a one-hour free trial.
- *
- * Pro keeps offline video downloads, but audio that keeps running once the app
- * is hidden is gated at VIP. A running free hour on VIP (or the lifetime "all
- * access" grant) unlocks it; Plus and Pro do not. The same paid-and-active rule
- * as `hasOfflineAccess` applies, so a pending or expired plan stays locked.
- */
 export function hasBackgroundPlayAccess(handle?: string | null): boolean {
   const trial = activeTrial(handle);
   if (trial && planIncludesBackgroundPlay(trial.planId)) return true;
@@ -522,35 +639,24 @@ export function hasBackgroundPlayAccess(handle?: string | null): boolean {
   return planIncludesBackgroundPlay(sub?.planId);
 }
 
-/** True when the plan alone unlocks background play, ignoring any trial. */
 export function planUnlocksBackgroundPlay(handle?: string | null): boolean {
   const sub = getSubscription(handle);
   if (!isActive(sub)) return false;
   return planIncludesBackgroundPlay(sub?.planId);
 }
 
-/** True when the plan alone unlocks offline music, ignoring any trial. */
 export function planUnlocksMusicOffline(handle?: string | null): boolean {
   const sub = getSubscription(handle);
   if (!isActive(sub)) return false;
   return planIncludesMusicOffline(sub?.planId);
 }
 
-/** True when the plan alone unlocks offline mode, ignoring any trial. */
 export function planUnlocksOffline(handle?: string | null): boolean {
   const sub = getSubscription(handle);
   if (!isActive(sub)) return false;
   return planIncludesOffline(sub?.planId);
 }
 
-/**
- * Reactive `planUnlocksOffline`.
- *
- * Reads the plan on the first render, then re-reads whenever the local record
- * changes, the server-side grant changes, or the window regains focus. It also
- * asks the server once on mount, so a plan applied in the database unlocks the
- * offline surfaces without a reload.
- */
 export function useOfflineUnlocked(handle?: string | null): boolean {
   const [unlocked, setUnlocked] = useState(() => planUnlocksOffline(handle));
 
@@ -561,7 +667,6 @@ export function useOfflineUnlocked(handle?: string | null): boolean {
     window.addEventListener(ACCOUNT_SUBSCRIPTION_EVENT, sync);
     window.addEventListener(LIFETIME_EVENT, sync);
     window.addEventListener("focus", sync);
-    // Pull the account's plan from Supabase, then re-render from the cache.
     void refreshAccountSubscription(handle).then(sync);
     void refreshLifetime(handle).then(sync);
     return () => {
@@ -583,43 +688,38 @@ export function offlineLockReason(handle?: string | null): OfflineLockReason | n
   if (hasOfflineAccess(handle)) return null;
   if (!handle) return "signed-out";
   const sub = getSubscription(handle);
-  // The offline prompt starts a trial of the cheapest offline plan, but a
-  // viewer may have trialed a higher tier instead, so check every plan that
-  // includes offline video before deciding they never had an hour.
   if (!sub) {
-    const usedAnyOfflineTrial = PLANS.filter((p) => p.offline).some((p) =>
-      hasUsedTrial(handle, p.id),
-    );
+    const usedAnyOfflineTrial = getPlans()
+      .filter((p) => p.offline)
+      .some((p) => hasUsedTrial(handle, p.id));
     return usedAnyOfflineTrial ? "trial-ended" : "no-plan";
   }
   if (sub.status === "expired" || sub.status === "pending") return "expired";
   return "plan-lacks-offline";
 }
 
-/** Why offline *music* is locked, so the Music tab can say something useful. */
 export function musicOfflineLockReason(handle?: string | null): OfflineLockReason | null {
   if (hasMusicOfflineAccess(handle)) return null;
   if (!handle) return "signed-out";
   const sub = getSubscription(handle);
   if (!sub) {
-    const usedAnyMusicTrial = PLANS.filter((p) => p.musicOffline).some((p) =>
-      hasUsedTrial(handle, p.id),
-    );
+    const usedAnyMusicTrial = getPlans()
+      .filter((p) => p.musicOffline)
+      .some((p) => hasUsedTrial(handle, p.id));
     return usedAnyMusicTrial ? "trial-ended" : "no-plan";
   }
   if (sub.status === "expired" || sub.status === "pending") return "expired";
   return "plan-lacks-offline";
 }
 
-/** Why background play is locked, so the Music tab can say something useful. */
 export function backgroundPlayLockReason(handle?: string | null): OfflineLockReason | null {
   if (hasBackgroundPlayAccess(handle)) return null;
   if (!handle) return "signed-out";
   const sub = getSubscription(handle);
   if (!sub) {
-    const usedAnyBackgroundTrial = PLANS.filter((p) => p.backgroundPlay).some((p) =>
-      hasUsedTrial(handle, p.id),
-    );
+    const usedAnyBackgroundTrial = getPlans()
+      .filter((p) => p.backgroundPlay)
+      .some((p) => hasUsedTrial(handle, p.id));
     return usedAnyBackgroundTrial ? "trial-ended" : "no-plan";
   }
   if (sub.status === "expired" || sub.status === "pending") return "expired";
@@ -627,44 +727,73 @@ export function backgroundPlayLockReason(handle?: string | null): OfflineLockRea
 }
 
 /**
- * Reactive subscription for this handle.
+ * Reactive subscription + loading state for this account.
  *
- * Seeds from the in-memory cache so the first paint is instant, then hydrates
- * from `public.user_subscriptions` on mount and on focus. There is no device
- * fallback: a fresh phone gets the plan from the account.
+ * When a user is signed in, `loading` stays true until Supabase has returned
+ * their account subscription so the UI shows a spinner instead of flashing "Free".
  */
-export function useSubscription(handle?: string | null) {
-  const [sub, setSub] = useState<Subscription | null>(() => getSubscription(handle));
+export function useSubscriptionState(
+  handle?: string | null,
+  userId?: string | null,
+): { subscription: Subscription | null; loading: boolean } {
+  const [sub, setSub] = useState<Subscription | null>(() => getSubscription(handle, userId));
+  const [loading, setLoading] = useState<boolean>(() =>
+    Boolean(userId && isAccountSubscriptionLoading(handle, userId) && !isOwnerHandle(handle)),
+  );
 
   useEffect(() => {
-    const sync = () => setSub(getSubscription(handle));
+    let alive = true;
+    const sync = () => {
+      if (!alive) return;
+      setSub(getSubscription(handle, userId));
+      setLoading(
+        Boolean(userId && isAccountSubscriptionLoading(handle, userId) && !isOwnerHandle(handle)),
+      );
+    };
     sync();
     window.addEventListener(EVT, sync);
     window.addEventListener(ACCOUNT_SUBSCRIPTION_EVENT, sync);
     window.addEventListener(LIFETIME_EVENT, sync);
-    // Re-check on focus so a plan bought, cancelled or restored elsewhere
-    // updates mid-session.
     window.addEventListener("focus", sync);
-    // Ask Supabase for the account's plan, then re-render from the cache.
-    void refreshAccountSubscription(handle).then(sync);
-    void refreshLifetime(handle).then(sync);
+
+    if (userId || handle) {
+      Promise.all([refreshAccountSubscription(handle, userId), refreshLifetime(handle)]).finally(
+        sync,
+      );
+    }
+
     return () => {
+      alive = false;
       window.removeEventListener(EVT, sync);
       window.removeEventListener(ACCOUNT_SUBSCRIPTION_EVENT, sync);
       window.removeEventListener(LIFETIME_EVENT, sync);
       window.removeEventListener("focus", sync);
     };
-  }, [handle]);
+  }, [handle, userId]);
 
-  return sub;
+  return { subscription: sub, loading };
 }
 
 /**
- * Force a fresh read of the account's subscription. Used by the
- * "Restore Subscription" button in Settings.
+ * Reactive subscription for this handle (and optional userId).
  */
-export async function restoreSubscription(handle?: string | null): Promise<Subscription | null> {
-  await refreshAccountSubscription(handle);
-  window.dispatchEvent(new Event(EVT));
-  return getSubscription(handle);
+export function useSubscription(handle?: string | null, userId?: string | null) {
+  return useSubscriptionState(handle, userId).subscription;
+}
+
+/**
+ * Force a fresh read of the account's subscription from Supabase by user_id.
+ * Returns null when the account has no active/paid plan (never invents a plan).
+ */
+export async function restoreSubscription(
+  handle?: string | null,
+  userId?: string | null,
+): Promise<Subscription | null> {
+  if (!handle && !userId) return null;
+  if (handle) clearCachedAccountSubscription(handle);
+  await Promise.all([refreshAccountSubscription(handle, userId), refreshLifetime(handle)]);
+  if (typeof window !== "undefined") window.dispatchEvent(new Event(EVT));
+  const restored = getSubscription(handle, userId);
+  if (!restored || restored.status !== "active") return null;
+  return restored;
 }

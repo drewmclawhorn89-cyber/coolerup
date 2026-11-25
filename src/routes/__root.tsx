@@ -246,6 +246,7 @@ function RootShell({ children }: { children: ReactNode }) {
     <html lang="en">
       <head>
         <HeadContent />
+        <style>{"html,body,#root{background:#000000!important;background-color:#000000!important;color-scheme:dark}"}</style>
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: COOLERUP_JSON_LD }} />
       </head>
       <body>

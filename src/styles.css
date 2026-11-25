@@ -2,6 +2,21 @@
 @source "../src";
 @import "tw-animate-css";
 
+/* Unlayered: safe areas and outer surfaces cannot inherit a selected theme. */
+html, body, #root {
+  background: #000000 !important;
+  background-color: #000000 !important;
+  color-scheme: dark;
+}
+
+:root { --theme-detail: #ff2d55; }
+:root[data-app-theme="blue"] { --theme-detail: #2563eb; }
+:root[data-app-theme="red"] { --theme-detail: #dc2626; }
+:root[data-app-theme="pink"] { --theme-detail: #ec4899; }
+:root[data-app-theme="green"] { --theme-detail: #16a34a; }
+:root[data-app-theme="purple"] { --theme-detail: #9333ea; }
+:root[data-app-theme="christmas"] { --theme-detail: #16a34a; }
+
 @custom-variant dark (&:is(.dark *));
 
 /*
@@ -19,6 +34,7 @@
  */
 
 @theme inline {
+  --color-theme-detail: var(--theme-detail);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -136,7 +152,7 @@
   --sidebar-ring: oklch(0.551 0.027 264.364);
 }
 
-:root {
+:root, .dark {
   --background: oklch(0 0 0);
   --foreground: oklch(0.98 0 0);
   --card: oklch(0.16 0 0);

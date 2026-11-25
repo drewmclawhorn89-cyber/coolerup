@@ -698,3 +698,19 @@
     opacity: 0;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Lovable "Edit with Lovable" badge removal.
+   Lovable injects this badge at runtime on some hosts. It is never part of the
+   product UI, so hide it on every page and every screen size. The selectors are
+   intentionally narrow: only the badge element, its class, and links that point
+   at lovable. No other button or link is affected.
+   --------------------------------------------------------------------------- */
+[data-lovable-badge],
+.lovable-badge,
+a[href*="lovable"] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}

@@ -33,6 +33,7 @@ import { applyPrefs } from "../lib/prefs";
 import { AuthProvider, useAuth } from "../hooks/useAuth";
 import { resolveSupabaseUrl } from "../integrations/supabase/project";
 import { SnowEffect } from "../components/SnowEffect";
+import { LovableBadgeGuard } from "../components/LovableBadgeGuard";
 import { MiniPlayer } from "../components/MiniPlayer";
 import { USE_SOUND_EVENT, type PlayerTrack } from "../lib/songPlayer";
 import type { Sound } from "../lib/sounds";

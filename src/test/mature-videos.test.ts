@@ -8,16 +8,13 @@ import {
   SHOW_MATURE_PREF,
   isAdultBirthday,
   isMatureVideo,
-  matureBlockMessage,
   matureWatchState,
 } from "@/lib/matureVideos";
 
 /**
- * 18+ videos are opt-in at post time and gated at watch time by BOTH the Date
- * of Birth on the account and a moderator-approved government ID. A typed
- * birthday alone is self-reported, so it must never unlock adult content.
- * These tests pin the exact rules so a future refactor cannot quietly unlock
- * mature content.
+ * 18+ videos are opt-in at post time and gated at watch time by the Date of
+ * Birth already on the account. These tests pin the exact rules so a future
+ * refactor cannot quietly unlock mature content for under-18 accounts.
  */
 
 const TODAY = new Date("2026-11-22T12:00:00");
@@ -38,69 +35,25 @@ describe("isAdultBirthday", () => {
   it("treats a missing or malformed birthday as not verified", () => {
     expect(isAdultBirthday(null, TODAY)).toBe(false);
     expect(isAdultBirthday("", TODAY)).toBe(false);
+    expect(isAdultBirthday("2001-02-30", TODAY)).toBe(false);
     expect(isAdultBirthday("not-a-date", TODAY)).toBe(false);
   });
 });
 
 describe("matureWatchState", () => {
-  it("allows an adult whose ID is approved", () => {
-    expect(matureWatchState("1990-01-01", TODAY, "approved")).toEqual({
-      allowed: true,
-      reason: "ok",
-    });
+  it("allows an adult", () => {
+    expect(matureWatchState("1990-01-01", TODAY)).toEqual({ allowed: true, reason: "ok" });
   });
 
-  it("blocks an adult who has not uploaded an ID yet", () => {
-    expect(matureWatchState("1990-01-01", TODAY, "none")).toEqual({
-      allowed: false,
-      reason: "unverified",
-    });
-  });
-
-  it("blocks an adult whose ID is still being reviewed", () => {
-    expect(matureWatchState("1990-01-01", TODAY, "pending")).toEqual({
-      allowed: false,
-      reason: "pending",
-    });
-  });
-
-  it("blocks an adult whose ID was rejected", () => {
-    expect(matureWatchState("1990-01-01", TODAY, "rejected")).toEqual({
-      allowed: false,
-      reason: "rejected",
-    });
-  });
-
-  it("defaults to unverified when no status is passed", () => {
-    expect(matureWatchState("1990-01-01", TODAY).reason).toBe("unverified");
-  });
-
-  it("reports underage with the exact block message, even with an approved ID", () => {
-    const state = matureWatchState("2012-01-01", TODAY, "approved");
+  it("reports underage with the exact block message", () => {
+    const state = matureWatchState("2012-01-01", TODAY);
     expect(state.allowed).toBe(false);
     expect(state.reason).toBe("underage");
     expect(MATURE_BLOCKED_MESSAGE).toBe("You must be 18+ to watch this video");
   });
 
   it("asks for a birthday when the account has none", () => {
-    expect(matureWatchState(null, TODAY, "approved")).toEqual({
-      allowed: false,
-      reason: "no-dob",
-    });
-  });
-});
-
-describe("matureBlockMessage", () => {
-  it("returns null only when the viewer is allowed", () => {
-    expect(matureBlockMessage("ok")).toBeNull();
-  });
-
-  it("gives a distinct next step for every block reason", () => {
-    expect(matureBlockMessage("no-dob")).toMatch(/date of birth/i);
-    expect(matureBlockMessage("underage")).toBe(MATURE_BLOCKED_MESSAGE);
-    expect(matureBlockMessage("unverified")).toMatch(/verify your id/i);
-    expect(matureBlockMessage("pending")).toMatch(/reviewed/i);
-    expect(matureBlockMessage("rejected")).toMatch(/rejected/i);
+    expect(matureWatchState(null, TODAY)).toEqual({ allowed: false, reason: "no-dob" });
   });
 });
 
@@ -197,9 +150,9 @@ describe("posting wiring", () => {
 describe("feed + watch wiring", () => {
   const card = readFileSync(resolve(process.cwd(), "src/components/VideoCard.tsx"), "utf8");
   const watch = readFileSync(resolve(process.cwd(), "src/routes/watch.$id.tsx"), "utf8");
+  const loop = readFileSync(resolve(process.cwd(), "src/lib/loop.ts"), "utf8");
   const feed = readFileSync(resolve(process.cwd(), "src/routes/index.tsx"), "utf8");
   const settings = readFileSync(resolve(process.cwd(), "src/routes/settings.tsx"), "utf8");
-  const loop = readFileSync(resolve(process.cwd(), "src/lib/loop.ts"), "utf8");
 
   it("blurs the feed thumbnail and shows the label + lock", () => {
     expect(card).toContain("blur-2xl");
@@ -225,13 +178,6 @@ describe("feed + watch wiring", () => {
     expect(card).toContain("shouldLoad && !matureLocked");
   });
 
-  it("offers the real-ID check from the lock overlay", () => {
-    expect(card).toContain("Verify my ID");
-    expect(card).toContain("AgeVerificationDialog");
-    expect(watch).toContain("Verify my ID");
-    expect(watch).toContain("AgeVerificationDialog");
-  });
-
   it("hides every 18+ video when Show 18+ Videos is off", () => {
     expect(feed).toContain("SHOW_MATURE_PREF");
     expect(feed).toContain("!v.is_mature");
@@ -244,11 +190,6 @@ describe("feed + watch wiring", () => {
     expect(settings).toContain("text-white");
   });
 
-  it("has a Settings row that opens the ID check", () => {
-    expect(settings).toContain("Verify your ID for 18+ videos");
-    expect(settings).toContain("AgeVerificationDialog");
-  });
-
   it("keeps is_mature in the legacy feed fallback so rows stay gated", () => {
     expect(loop).toContain("LEGACY_COLUMNS");
     const legacy = loop.slice(loop.indexOf("const LEGACY_COLUMNS"));
@@ -256,11 +197,11 @@ describe("feed + watch wiring", () => {
     expect(loop).toMatch(/is_tiktok\|tiktok_id\|tiktok_author\|is_paid\|price_cents\|is_mature/);
   });
 
-  it("never uses a camera or face scan in the gate", () => {
+  it("uses DOB only — no face scan or camera in the gate", () => {
     const lib = readFileSync(resolve(process.cwd(), "src/lib/matureVideos.ts"), "utf8");
     expect(lib).toContain("ageFromBirthday");
     const code = lib.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
-    expect(code).not.toMatch(/\b(camera|face|facial|webcam|biometric)\b/i);
+    expect(code).not.toMatch(/\b(camera|face|facial|selfie|webcam|biometric)\b/i);
     expect(SHOW_MATURE_PREF).toBe("show-mature");
     expect(MATURE_LABEL).toBe("18+ Mature");
   });

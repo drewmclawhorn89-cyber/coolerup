@@ -11,7 +11,6 @@ import {
   saveOffline,
 } from "@/lib/offline";
 import { isOfflineModeOn } from "@/lib/offlineMode";
-import { planUnlocksOffline } from "@/lib/subscriptions";
 import { untypedDb } from "@/lib/untypedDb";
 
 export { OFFLINE_SYNC_EVENT, requestOfflineSync } from "@/lib/offlineEvents";
@@ -76,7 +75,7 @@ function isDownloadableShort(video: Video): boolean {
 /**
  * Bring the offline library up to date with the user's likes and saves.
  *
- * Only runs for a paid, active plan with Offline Mode switched ON. It never
+ * Only runs for a signed-in viewer with Offline Mode switched ON. It never
  * deletes anything: videos that no longer fit, are YouTube-only, or are still
  * uploading are skipped. Downloads stop at `MAX_OFFLINE_VIDEOS`.
  */
@@ -87,7 +86,7 @@ export async function syncOfflineLibrary(
 ): Promise<OfflineSyncResult> {
   const empty: OfflineSyncResult = { downloaded: 0, skipped: 0, total: 0, capped: false };
   if (!userId || !handle) return empty;
-  if (!planUnlocksOffline(handle)) return empty;
+
   if (!isOfflineModeOn()) return empty;
   if (typeof navigator !== "undefined" && !navigator.onLine) return empty;
 

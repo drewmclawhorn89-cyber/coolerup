@@ -15,6 +15,7 @@ delete process.env["SUPABASE_PUBLISHABLE_KEY"];
 
 // The subscription cache is in memory now, so reset it between tests.
 beforeEach(() => {
+  localStorage.clear();
   clearAccountSubscriptionCache();
 });
 

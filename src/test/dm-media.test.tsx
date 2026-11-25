@@ -138,8 +138,8 @@ describe("DM pics & videos privacy, View Once, viewer, and actions", () => {
       data: { id: "user-2", handle: "stranger", allow_messages_from_everyone: false },
       error: null,
     };
-    // alice follows stranger, but stranger does NOT follow alice back -> not mutual
-    mocks.followsQueue = [{ data: { id: "f1" } }, { data: null }];
+    // The sender does not follow this recipient.
+    mocks.followsQueue = [{ data: null }];
 
     const perm = await checkDmMediaPermission({
       myUserId: "user-1",
@@ -148,17 +148,17 @@ describe("DM pics & videos privacy, View Once, viewer, and actions", () => {
     });
 
     expect(perm.allowed).toBe(false);
-    expect(perm.isMutual).toBe(false);
+    expect(perm.isFollower).toBe(false);
     expect(perm.allowEveryone).toBe(false);
-    expect(perm.reason).toContain("follow each other");
+    expect(perm.reason).toContain("Follow @stranger");
   });
 
-  it("allows pics/videos between mutual followers even when allow_messages_from_everyone is OFF", async () => {
+  it("allows pics/videos from a follower even when allow_messages_from_everyone is OFF", async () => {
     mocks.profilesResult = {
       data: { id: "user-2", handle: "bob", allow_messages_from_everyone: false },
       error: null,
     };
-    mocks.followsQueue = [{ data: { id: "f1" } }, { data: { id: "f2" } }];
+    mocks.followsQueue = [{ data: { id: "f1" } }];
 
     const perm = await checkDmMediaPermission({
       myUserId: "user-1",
@@ -167,7 +167,7 @@ describe("DM pics & videos privacy, View Once, viewer, and actions", () => {
     });
 
     expect(perm.allowed).toBe(true);
-    expect(perm.isMutual).toBe(true);
+    expect(perm.isFollower).toBe(true);
   });
 
   it("allows pics/videos from non-mutual users when allow_messages_from_everyone is ON", async () => {
@@ -226,7 +226,7 @@ describe("DM pics & videos privacy, View Once, viewer, and actions", () => {
         onToggleViewOnce={onToggleViewOnce}
         permission={{
           allowed: true,
-          isMutual: true,
+          isFollower: true,
           allowEveryone: false,
           recipientId: "user-2",
           recipientHandle: "bob",

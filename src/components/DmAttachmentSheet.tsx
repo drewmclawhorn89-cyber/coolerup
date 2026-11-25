@@ -52,7 +52,7 @@ export function DmAttachmentSheet({
     if (mediaBlocked) {
       toast.error(
         permission?.reason ||
-          "Only mutual followers can send pics & videos unless this user has 'Allow messages from everyone' on in Settings.",
+          "Only followers can send messages unless this user has 'Allow messages from everyone' on in Settings.",
       );
       return;
     }

@@ -106,9 +106,9 @@ describe("admin review wiring", () => {
     expect(panel).toContain("Reject");
   });
 
-  it("is reachable from the admin tab strip", () => {
-    expect(admin).toContain('"ageverify"');
-    expect(admin).toContain("ID Checks");
-    expect(admin).toContain("AgeVerificationAdminPanel");
+  it("is absent from the admin tab strip", () => {
+    expect(admin).not.toContain('"ageverify"');
+    expect(admin).not.toContain("ID Checks");
+    expect(admin).not.toContain("AgeVerificationAdminPanel");
   });
 });

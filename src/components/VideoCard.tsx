@@ -72,9 +72,6 @@ const ShareMenu = lazy(() => import("./ShareMenu").then((m) => ({ default: m.Sha
 const ChristmasGiftSheet = lazy(() =>
   import("./ChristmasGiftSheet").then((m) => ({ default: m.ChristmasGiftSheet })),
 );
-const AgeVerificationDialog = lazy(() =>
-  import("./AgeVerificationDialog").then((m) => ({ default: m.AgeVerificationDialog })),
-);
 
 /** Cache resolved avatar URLs per handle so feed scrolling doesn't refetch. */
 const avatarCache = new Map<string, string | null>();
@@ -197,7 +194,6 @@ function VideoCardImpl({
   // blocked outright. No camera or face scan is involved.
   const matureGate = useMatureGate(video);
   const [matureUnlocked, setMatureUnlocked] = useState(false);
-  const [ageDialogOpen, setAgeDialogOpen] = useState(false);
   const matureLocked = matureGate.mature && (!matureUnlocked || !matureGate.allowed);
   const [rawAuthorAvatar, setRawAuthorAvatar] = useState<string | null>(null);
   const authorAvatar = useCompressedThumbnail(rawAuthorAvatar, { maxDim: 120 });
@@ -769,7 +765,6 @@ function VideoCardImpl({
     // A locked 18+ video never plays from a tap. Tapping it offers the ID
     // check instead, so the lock can't be bypassed by tapping the frame.
     if (matureLocked) {
-      if (matureGate.needsVerification) setAgeDialogOpen(true);
       return;
     }
     const el = ref.current;
@@ -1152,7 +1147,7 @@ function VideoCardImpl({
                     if (Math.abs(a.currentTime - target) > 0.45) a.currentTime = target;
                   }
                 }}
-                className={`h-full w-full cursor-pointer ${full ? "object-contain" : "object-cover"} ${matureLocked ? "scale-110 blur-2xl" : ""}`}
+                className={`absolute inset-0 h-full w-full cursor-pointer object-cover ${full ? "md:object-contain" : ""} ${matureLocked ? "scale-110 blur-2xl" : ""}`}
               />
             )}
 
@@ -1180,7 +1175,7 @@ function VideoCardImpl({
                 {matureGate.allowed ? (
                   <>
                     <p className="max-w-xs text-xs" style={{ color: "rgba(255,255,255,0.75)" }}>
-                      This video is for adults. Your ID is verified.
+                      This video is for adults. Your account birthday is 18 or older.
                     </p>
                     <button
                       type="button"
@@ -1193,23 +1188,6 @@ function VideoCardImpl({
                       style={{ backgroundColor: "#fff", color: "#000" }}
                     >
                       Watch 18+ video
-                    </button>
-                  </>
-                ) : matureGate.needsVerification ? (
-                  <>
-                    <p className="max-w-xs text-sm font-semibold" style={{ color: "#fff" }}>
-                      {matureGate.blockedMessage}
-                    </p>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setAgeDialogOpen(true);
-                      }}
-                      className="rounded-full px-5 py-2 text-sm font-bold"
-                      style={{ backgroundColor: "#FE2C55", color: "#fff" }}
-                    >
-                      Verify my ID
                     </button>
                   </>
                 ) : matureGate.needsBirthday ? (
@@ -1232,16 +1210,6 @@ function VideoCardImpl({
                   </p>
                 )}
               </div>
-            )}
-
-            {ageDialogOpen && (
-              <Suspense fallback={<PanelSkeleton />}>
-                <AgeVerificationDialog
-                  open={ageDialogOpen}
-                  onOpenChange={setAgeDialogOpen}
-                  onSubmitted={() => setAgeDialogOpen(false)}
-                />
-              </Suspense>
             )}
 
             {isPaid && !paidOwned && (
@@ -1357,7 +1325,7 @@ function VideoCardImpl({
                     🎄
                   </span>
                 ) : (
-                  <Heart className="heart-pop h-28 w-28 fill-primary text-primary drop-shadow-[0_0_24px_rgba(255,45,85,0.8)]" />
+                  <Heart className="heart-pop h-28 w-28 fill-[#FE2C55] text-[#FE2C55] drop-shadow-[0_0_24px_rgba(255,45,85,0.8)]" />
                 )}
               </div>
             )}
@@ -1416,7 +1384,10 @@ function VideoCardImpl({
               </div>
             </div>
             {!isImage && (
-              <div onClick={seek} className="absolute inset-x-0 bottom-0 h-3 cursor-pointer">
+              <div
+                onClick={seek}
+                className="video-progress absolute inset-x-0 bottom-0 h-3 cursor-pointer"
+              >
                 <div className="absolute inset-x-0 bottom-0 h-1 bg-foreground/20">
                   <div ref={progressRef} className="h-full bg-primary" style={{ width: "0%" }} />
                 </div>
@@ -1424,7 +1395,7 @@ function VideoCardImpl({
             )}
             {/* Quality badge — only when the user picked a quality by hand. */}
             {!isImage && qualitySource.badge && (
-              <span className="pointer-events-none absolute bottom-3 right-3 z-20 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-bold leading-tight text-white backdrop-blur">
+              <span className="video-quality pointer-events-none absolute bottom-3 right-3 z-20 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-bold leading-tight text-white backdrop-blur">
                 {qualitySource.badge}
               </span>
             )}
@@ -1435,7 +1406,7 @@ function VideoCardImpl({
             <p className="text-sm text-muted-foreground">{captionText}</p>
           </div>
         </div>
-        <div className="absolute bottom-14 right-1.5 z-20 flex flex-col items-center gap-3.5 md:static md:mb-10 md:gap-3.5">
+        <div className="video-actions absolute bottom-14 right-1.5 z-20 flex flex-col items-center gap-3.5 md:static md:mb-10 md:gap-3.5">
           {/* Avatar + follow badge — TikTok pins the + onto the avatar's chin. */}
           <div className="flex flex-col items-center">
             <Link
@@ -1476,35 +1447,16 @@ function VideoCardImpl({
             label={formatCount(Math.max(likes ?? 0, liked ? 1 : 0))}
             onClick={handleLikeClick}
             pressed={liked}
-            activeClass={christmas ? "christmas-heart" : "text-[#fe2c55]"}
+            activeClass="text-[#FE2C55]"
             onPointerDown={startLikePress}
             onPointerUp={cancelLikePress}
             onPointerLeave={cancelLikePress}
             onPointerCancel={cancelLikePress}
             onContextMenu={(e) => e.preventDefault()}
           >
-            {christmas && liked ? (
-              <span
-                className={`christmas-tree-pop text-[26px] leading-none drop-shadow-lg ${
-                  burst ? "heart-pop-btn" : ""
-                }`}
-                aria-hidden
-              >
-                🎄
-              </span>
-            ) : (
-              <Heart
-                className={`h-7 w-7 drop-shadow-lg ${
-                  liked
-                    ? christmas
-                      ? "fill-[#2ecc55] text-[#2ecc55]"
-                      : "fill-[#fe2c55] text-[#fe2c55]"
-                    : christmas
-                      ? "christmas-heart"
-                      : "text-white"
-                } ${liked && burst ? "heart-pop-btn" : ""}`}
-              />
-            )}
+            <Heart
+              className={`h-7 w-7 drop-shadow-lg ${liked ? "fill-[#FE2C55] text-[#FE2C55]" : "text-white"} ${liked && burst ? "heart-pop-btn" : ""}`}
+            />
           </RailButton>
 
           {/* COMMENT */}

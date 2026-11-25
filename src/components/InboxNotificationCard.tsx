@@ -129,7 +129,9 @@ export function InboxNotificationCard({
         </p>
       </div>
 
-      {!notification.read && <div className="h-2 w-2 shrink-0 rounded-full bg-primary" />}
+      {!notification.read && (
+        <div className="h-2 w-2 shrink-0 rounded-full bg-[var(--account-accent)]" />
+      )}
 
       {showVideoThumb &&
         (video ? (

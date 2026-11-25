@@ -1,34 +1,19 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { useAuth } from "@/hooks/useAuth";
 import {
   getSavedFullVideo,
   onOfflineChange,
   removeFullVideoOffline,
   saveFullVideoOffline,
 } from "@/lib/offline";
-import { useOfflineUnlocked } from "@/lib/subscriptions";
 import type { FullVideo } from "@/lib/fullVideos";
 
-/**
- * Shared offline state for one long-form video.
- *
- * Every surface that offers "download for offline" (the card badge, the share
- * sheet, the watch-page action row) goes through this hook so the saved size,
- * in-flight progress and the paid-subscriber gate all behave identically.
- *
- * Offline mode is a paid feature. When the viewer has no active paid plan the
- * hook never downloads anything: `toggle()` flips `paywallOpen` so the caller
- * can show the "Offline Mode is for Paid Subscribers" dialog.
- */
+/** Shared download state for a long-form video. */
 export function useFullVideoOffline(video: Pick<FullVideo, "id"> & Partial<FullVideo>) {
-  const auth = useAuth();
   const [savedSize, setSavedSize] = useState<number | null>(null);
   const [progress, setProgress] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
-  const [paywallOpen, setPaywallOpen] = useState(false);
 
-  const offlineUnlocked = useOfflineUnlocked(auth.handle);
   const isSaved = savedSize !== null;
 
   useEffect(() => {
@@ -49,8 +34,6 @@ export function useFullVideoOffline(video: Pick<FullVideo, "id"> & Partial<FullV
       off();
     };
   }, [video.id]);
-
-  const closePaywall = useCallback(() => setPaywallOpen(false), []);
 
   /** Save when not saved, remove when saved. Returns true when state changed. */
   const toggle = useCallback(async (): Promise<boolean> => {
@@ -77,12 +60,6 @@ export function useFullVideoOffline(video: Pick<FullVideo, "id"> & Partial<FullV
       }
     }
 
-    // Paid subscribers only — nothing is downloaded for anyone else.
-    if (!offlineUnlocked) {
-      setPaywallOpen(true);
-      return false;
-    }
-
     setBusy(true);
     try {
       setProgress(0);
@@ -98,18 +75,13 @@ export function useFullVideoOffline(video: Pick<FullVideo, "id"> & Partial<FullV
       setProgress(null);
       setBusy(false);
     }
-  }, [busy, progress, savedSize, offlineUnlocked, video]);
+  }, [busy, progress, savedSize, video]);
 
   return {
     savedSize,
     progress,
     busy,
     isSaved,
-    /** True only when the viewer has an active paid plan. */
-    offlineUnlocked,
-    /** True when the paid-subscriber dialog should be shown. */
-    paywallOpen,
-    closePaywall,
     toggle,
   };
 }

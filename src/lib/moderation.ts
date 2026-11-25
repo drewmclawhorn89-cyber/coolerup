@@ -1,11 +1,211 @@
 import { supabase } from "@/integrations/supabase/client";
 
-/**
- * Community guidelines copy shown in the app.
- *
- * Coolerup no longer runs an automated word or media filter. These are the
- * rules people agree to, and reports are reviewed by the owner.
- */
+/** Words and phrases that block a comment or message. Admins can add more via muted words. */
+export const BANNED_WORDS = [
+  // profanity
+  "fuck",
+  "fucker",
+  "fucking",
+  "fucked",
+  "motherfucker",
+  "mf",
+  "fck",
+  "fuk",
+  "fking",
+  "shit",
+  "shitty",
+  "bullshit",
+  "bitch",
+  "bitches",
+  "biatch",
+  "bastard",
+  "asshole",
+  "arsehole",
+  "dickhead",
+  "dick",
+  "cock",
+  "cocksucker",
+  "prick",
+  "pussy",
+  "cunt",
+  "twat",
+  "wanker",
+  "douche",
+  "douchebag",
+  "jackass",
+  "dumbass",
+  "piss",
+  "pissed",
+  "bollocks",
+  "slut",
+  "slutty",
+  "whore",
+  "hoe",
+  "skank",
+  "thot",
+  // sexual
+  "porn",
+  "porno",
+  "pornhub",
+  "xxx",
+  "nude",
+  "nudes",
+  "naked",
+  "sex",
+  "sexting",
+  "blowjob",
+  "handjob",
+  "rimjob",
+  "cum",
+  "cumshot",
+  "jizz",
+  "orgasm",
+  "masturbate",
+  "masturbating",
+  "dildo",
+  "vibrator",
+  "boobs",
+  "tits",
+  "titties",
+  "nipples",
+  "anal",
+  "horny",
+  "milf",
+  "hentai",
+  "onlyfans",
+  "camgirl",
+  "escort",
+  "hooker",
+  "stripper",
+  "fetish",
+  "bdsm",
+  "erection",
+  "boner",
+  "penis",
+  "vagina",
+  "genitals",
+  "deepthroat",
+  "gangbang",
+  "threesome",
+  "nsfw",
+  // slurs and hate
+  "nigger",
+  "nigga",
+  "niggas",
+  "negro",
+  "chink",
+  "gook",
+  "spic",
+  "wetback",
+  "kike",
+  "beaner",
+  "coon",
+  "jigaboo",
+  "raghead",
+  "towelhead",
+  "paki",
+  "faggot",
+  "fag",
+  "dyke",
+  "tranny",
+  "retard",
+  "retarded",
+  "spaz",
+  "cripple",
+  "nazi",
+  "heil hitler",
+  "white power",
+  "kkk",
+  // harassment and violence
+  "kys",
+  "kill yourself",
+  "go die",
+  "neck yourself",
+  "hang yourself",
+  "i will kill you",
+  "rape",
+  "rapist",
+  "molest",
+  "pedo",
+  "pedophile",
+  "loli",
+  "shoot up",
+  "bomb threat",
+  // scams and spam
+  "free money",
+  "send nudes",
+  "cashapp me",
+  "dm for promo",
+  "crypto giveaway",
+  "double your money",
+  "click my link",
+  "buy followers",
+  "free followers",
+  "sugar daddy",
+  "telegram me",
+];
+
+let extra: string[] = [];
+let loaded = false;
+async function loadMutedWords() {
+  if (loaded) return;
+  loaded = true;
+  const { data } = await supabase.from("muted_words").select("word");
+  extra = (data ?? []).map((r) => r.word.toLowerCase());
+}
+
+const normalize = (t: string) =>
+  ` ${t
+    .toLowerCase()
+    .replace(/[0@]/g, "o")
+    .replace(/[1!|]/g, "i")
+    .replace(/3/g, "e")
+    .replace(/[4]/g, "a")
+    .replace(/[5$]/g, "s")
+    .replace(/[^a-z\s]/g, " ")
+    .replace(/\s+/g, " ")} `;
+
+export function containsBannedWord(text: string) {
+  const t = normalize(text);
+  return [...BANNED_WORDS, ...extra].some((w) => t.includes(` ${w} `));
+}
+
+const SENT_KEY = "loop-sent";
+type Sent = { t: number; text: string };
+const recent = (): Sent[] => {
+  try {
+    const all = JSON.parse(localStorage.getItem(SENT_KEY) || "[]") as Sent[];
+    return all.filter((s) => Date.now() - s.t < 60_000);
+  } catch {
+    return [];
+  }
+};
+
+/** True when the same text was already sent 4 times in the last minute (this would be the 5th). */
+export function isSpam(text: string) {
+  const t = text.trim().toLowerCase();
+  return recent().filter((s) => s.text === t).length >= 4;
+}
+
+export function isRateLimited() {
+  return recent().length >= 10;
+}
+
+export function recordSent(text: string) {
+  localStorage.setItem(
+    SENT_KEY,
+    JSON.stringify([...recent(), { t: Date.now(), text: text.trim().toLowerCase() }]),
+  );
+}
+
+/** Returns an error to show, or null if the text may be sent. */
+export async function checkOutgoing(text: string): Promise<string | null> {
+  await loadMutedWords().catch(() => {});
+  if (containsBannedWord(text) || isSpam(text)) return "Message blocked by safety filter";
+  if (isRateLimited()) return "Slow down — you can send 10 messages a minute";
+  return null;
+}
+
 export const RULES = [
   ["No nudity or sexual content", "Keep it clothed. No porn, sexual acts, or sexual solicitation."],
   [
@@ -22,12 +222,18 @@ export const RULES = [
 ] as const;
 
 /* -------------------------------------------------------------------------- */
-/*  Reports                                                                   */
+/*  Auto moderation                                                           */
 /*                                                                            */
-/*  Reports are manual only. They are written to the `reports` table for      */
-/*  Admin > Reports and immediately emailed to the owner. They never hide     */
-/*  content, warn anyone, or ban anyone automatically. The owner reviews      */
-/*  every report by hand.                                                     */
+/*  POLICY CHANGED: the 3-strike ladder is now automatic. `auto_moderate()`   */
+/*  in supabase/migrations/20261217000000_auto_bans.sql owns the escalation:  */
+/*                                                                            */
+/*    strike 1 -> warning popup + the post/comment is removed                 */
+/*    strike 2 -> warning popup + removal + 24 hour mute                      */
+/*    strike 3 -> warning popup + permanent ban (account, device, email,      */
+/*                phone), enforced app-wide by BanGate                        */
+/*                                                                            */
+/*  Client-side detection lives in src/lib/autoBans.ts. This file still       */
+/*  holds the word lists, the report queue and the manual admin tools.        */
 /* -------------------------------------------------------------------------- */
 
 /** Report categories requested for Coolerup. Note: `harassment` maps cleanly to the existing DB constraint for Bullying. */
@@ -76,6 +282,8 @@ export type ModerationResult = {
   action?: string | null | undefined;
   expires_at?: string | null | undefined;
   duplicate?: boolean | undefined;
+  /** True when 5+ reports + Safety Bot agreement auto-hid the video. */
+  hidden?: boolean | undefined;
   report_count?: number | undefined;
   emailSent?: boolean | undefined;
   error?: string | undefined;
@@ -86,7 +294,7 @@ const unwrap = <T>(data: unknown): T | null => {
   return (data ?? null) as T | null;
 };
 
-/** True when this handle is currently banned (manual admin ban). */
+/** True when this handle is currently banned (24h / 7d / permanent). */
 export async function checkIfBanned(username: string): Promise<boolean> {
   const handle = username.replace(/^@+/, "").trim();
   if (!handle) return false;
@@ -97,6 +305,19 @@ export async function checkIfBanned(username: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+/** Same word list the database seeds into `banned_words`. */
+export function hasBannedWords(text: string | null | undefined): boolean {
+  if (!text) return false;
+  return containsBannedWord(text);
+}
+
+/** Words that tripped the filter, for the "why was this hidden" copy. */
+export function bannedWordsIn(text: string | null | undefined): string[] {
+  if (!text) return [];
+  const t = normalize(text);
+  return [...BANNED_WORDS, ...extra].filter((w) => t.includes(` ${w} `));
 }
 
 async function getFirebaseTokenIfPresent(): Promise<string | null> {
@@ -171,9 +392,6 @@ async function dispatchInstantReportEmail(params: {
 /**
  * Report a video, comment, or profile. Inserts the report into Supabase and
  * immediately emails the moderation alert to the app owner server-side.
- *
- * This is the only moderation path left: reports are recorded and emailed,
- * never auto-hidden, auto-warned, or auto-banned.
  */
 export async function reportContent(
   videoId: string | null,
@@ -232,12 +450,26 @@ export async function reportContent(
       action: (row["action"] as string | undefined) ?? null,
       expires_at: (row["expires_at"] as string | undefined) ?? null,
       duplicate,
+      hidden: Boolean(row["hidden"]),
       report_count: (row["report_count"] as number | undefined) ?? undefined,
       emailSent,
       error: (row["error"] as string | undefined) ?? undefined,
     };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Could not send report" };
+  }
+}
+
+/** True when this handle is currently muted (comment spam). */
+export async function isMuted(username: string): Promise<boolean> {
+  const handle = username.replace(/^@+/, "").trim();
+  if (!handle) return false;
+  try {
+    const { data, error } = await supabase.rpc("is_muted", { _username: handle });
+    if (error) return false;
+    return Boolean(data);
+  } catch {
+    return false;
   }
 }
 
@@ -250,29 +482,6 @@ export async function amIAdmin(): Promise<boolean> {
     return Boolean(data);
   } catch {
     return false;
-  }
-}
-
-export async function amIOwner(): Promise<boolean> {
-  try {
-    const { data, error } = await supabase.rpc("is_owner");
-    if (error) return false;
-    return data === true;
-  } catch {
-    return false;
-  }
-}
-
-export async function ownerUnban(
-  username: string,
-): Promise<{ ok: boolean; error?: string | undefined }> {
-  try {
-    const { data, error } = await supabase.rpc("owner_unban", { p_username: username });
-    if (error) return { ok: false, error: error.message };
-    const row = (data ?? {}) as { ok?: boolean; error?: string };
-    return { ok: Boolean(row.ok), error: row.error };
-  } catch (e) {
-    return { ok: false, error: String(e) };
   }
 }
 
@@ -412,6 +621,31 @@ export async function adminDeleteReportedPost(reportId: string): Promise<Moderat
   try {
     const { adminModerateReportAction } = await import("@/lib/reports.functions");
     return await adminModerateReportAction({ data: { action: "delete_post", reportId } });
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : error.message };
+  }
+}
+
+export async function adminWarnReportedUser(
+  reportId: string,
+  reason?: string,
+): Promise<ModerationResult> {
+  const { data, error } = await supabase.rpc(
+    "admin_warn_user" as never,
+    {
+      _report_id: reportId,
+      _reason: reason ?? null,
+    } as never,
+  );
+  if (!error) {
+    const row = unwrap<Record<string, unknown>>(data) ?? {};
+    return { ok: Boolean(row["ok"]), error: row["error"] as string | undefined };
+  }
+  try {
+    const { adminModerateReportAction } = await import("@/lib/reports.functions");
+    return await adminModerateReportAction({
+      data: { action: "warn_user", reportId, reason },
+    });
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : error.message };
   }

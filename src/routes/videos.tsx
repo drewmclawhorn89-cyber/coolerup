@@ -5,8 +5,8 @@ import { Button } from "@/components/ui/button";
 import { useYouTubeDurations, withYouTubeDurations } from "@/lib/useYouTubeDurations";
 import { FullVideoCard } from "@/components/FullVideoCard";
 import { FullVideoGridSkeleton } from "@/components/Skeletons";
-import { FeedLoadingSpinner } from "@/components/FeedLoadingSpinner";
 import { useAuth } from "@/hooks/useAuth";
+import { useOfflineUnlocked } from "@/lib/subscriptions";
 import { FULL_VIDEO_CATEGORIES, listFullVideos, type FullVideo } from "@/lib/fullVideos";
 import { showMatureVideos } from "@/lib/matureVideos";
 import type { Video } from "@/lib/loop";
@@ -29,6 +29,9 @@ const AddYouTubeModal = lazy(() =>
 );
 const EditFullVideoDialog = lazy(() =>
   import("@/components/EditFullVideoDialog").then((m) => ({ default: m.EditFullVideoDialog })),
+);
+const OfflinePaywallDialog = lazy(() =>
+  import("@/components/OfflinePaywallDialog").then((m) => ({ default: m.OfflinePaywallDialog })),
 );
 
 /**
@@ -58,6 +61,8 @@ export const Route = createFileRoute("/videos")({
 
 function VideosPage() {
   const auth = useAuth();
+  // Offline Mode is paid-only: a live, active subscription on any paid tier.
+  const offlineUnlocked = useOfflineUnlocked(auth.handle);
   const online = useIsOnline();
   const navigate = useNavigate();
 
@@ -78,6 +83,7 @@ function VideosPage() {
   const [savedLoading, setSavedLoading] = useState(false);
   /** Local blob URL currently playing from the offline shelf. */
   const [offlinePlaying, setOfflinePlaying] = useState<{ url: string; title: string } | null>(null);
+  const [showOfflinePaywall, setShowOfflinePaywall] = useState(false);
   /** Bytes used by downloads, shown as a meter above the offline shelf. */
   const [usage, setUsage] = useState<OfflineUsage | null>(null);
   const [clearing, setClearing] = useState(false);
@@ -171,8 +177,8 @@ function VideosPage() {
   // When the connection drops, land on the Offline shelf so the user sees the
   // videos that still play. Coming back online leaves the tab where it is.
   useEffect(() => {
-    if (!online) setOfflineOnly(true);
-  }, [online]);
+    if (!online && offlineUnlocked) setOfflineOnly(true);
+  }, [online, offlineUnlocked]);
 
   // Revoke the local blob URL when the player closes or the page unmounts.
   useEffect(
@@ -341,10 +347,19 @@ function VideosPage() {
           <button
             type="button"
             onClick={() => {
+              // Paid subscribers only; free accounts get the subscribe popup.
+              if (!offlineUnlocked) {
+                setShowOfflinePaywall(true);
+                return;
+              }
               setOfflineOnly((v) => !v);
             }}
             aria-pressed={offlineOnly}
-            title={"Show videos downloaded for offline viewing"}
+            title={
+              offlineUnlocked
+                ? "Show videos downloaded for offline viewing"
+                : "Offline Mode is for Paid Subscribers"
+            }
             className={`flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-3 py-1.5 text-[13px] font-medium transition ${
               offlineOnly
                 ? "bg-emerald-600 text-white"
@@ -357,7 +372,7 @@ function VideosPage() {
         </div>
       </div>
 
-      {!online && (
+      {!online && offlineUnlocked && (
         <div className="mt-3 flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
           <WifiOff className="h-4 w-4 shrink-0" />
           You're offline. Showing videos downloaded for offline viewing.
@@ -380,9 +395,9 @@ function VideosPage() {
             <WifiOff className="h-8 w-8 text-muted-foreground" />
             <p className="mt-3 text-base font-semibold">Nothing saved offline yet</p>
             <p className="mt-1 max-w-xs text-sm text-muted-foreground">
-              {
-                "Turn on Offline Mode in Settings and like or save videos — they download automatically."
-              }
+              {offlineUnlocked
+                ? "Turn on Offline Mode in Settings and like or save videos — they download automatically."
+                : "Offline Mode is for Paid Subscribers. Subscribe to download videos and watch them without a connection."}
             </p>
             <button
               type="button"
@@ -520,7 +535,21 @@ function VideosPage() {
           {/* Scroll target: the next page loads as this comes into view. */}
           <div ref={sentinelRef} aria-hidden className="h-px w-full" />
 
-          {loadingMore && <FeedLoadingSpinner />}
+          {loadingMore && (
+            <div className="w-full py-2">
+              <FullVideoGridSkeleton count={2} />
+            </div>
+          )}
+
+          {hasMore && !loadingMore && (
+            <button
+              type="button"
+              onClick={() => void loadMore()}
+              className="rounded-full bg-secondary px-4 py-2 text-sm font-semibold text-secondary-foreground hover:bg-accent"
+            >
+              Load more
+            </button>
+          )}
 
           {!hasMore && (
             <p className="py-2 text-[13px] text-muted-foreground">That's everything for now.</p>
@@ -557,6 +586,14 @@ function VideosPage() {
             onClose={() => setEditing(null)}
             onSaved={(next) => setVideos((prev) => prev.map((v) => (v.id === next.id ? next : v)))}
             onDeleted={(id) => setVideos((prev) => prev.filter((v) => v.id !== id))}
+          />
+        </Suspense>
+      )}
+      {showOfflinePaywall && (
+        <Suspense fallback={null}>
+          <OfflinePaywallDialog
+            open={showOfflinePaywall}
+            onClose={() => setShowOfflinePaywall(false)}
           />
         </Suspense>
       )}

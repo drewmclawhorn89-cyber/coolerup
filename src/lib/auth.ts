@@ -24,6 +24,9 @@ export const RESERVED_USERNAMES = new Set([
   "coolerup",
   "admin",
   "support",
+  // Real system accounts (see migration 0029). The Safety Bot owns this handle
+  // in public.profiles, so claiming it would also fail the unique index.
+  "coolerup_safety",
   "safety",
   "moderator",
 ]);
@@ -97,14 +100,6 @@ export function ageFromBirthday(birthday: string, today: Date = new Date()): num
   const parts = birthday.split("-").map(Number);
   if (parts.length !== 3 || parts.some((n) => !Number.isFinite(n))) return -1;
   const [y, m, d] = parts as [number, number, number];
-  const date = new Date(Date.UTC(y, m - 1, d));
-  if (
-    !/^\d{4}-\d{2}-\d{2}$/.test(birthday) ||
-    date.getUTCFullYear() !== y ||
-    date.getUTCMonth() !== m - 1 ||
-    date.getUTCDate() !== d
-  )
-    return -1;
   let age = today.getFullYear() - y;
   const beforeBirthday =
     today.getMonth() + 1 < m || (today.getMonth() + 1 === m && today.getDate() < d);

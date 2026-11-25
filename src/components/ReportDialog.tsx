@@ -54,7 +54,11 @@ export function ReportDialog({
     );
     setBusy(false);
     if (!res.ok) return toast.error(res.error ?? "Couldn't send report");
-    toast.success("Report sent. Thank you for keeping Coolerup safe.");
+    toast.success(
+      res.hidden
+        ? "Report sent — video hidden pending owner review"
+        : "Report sent. Thank you for keeping Coolerup safe.",
+    );
     onClose();
   };
 

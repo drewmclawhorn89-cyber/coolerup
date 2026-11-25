@@ -1,10 +1,8 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowLeft, Film, Loader2, Play, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
-import { FeedLoadingSpinner } from "@/components/FeedLoadingSpinner";
-import { FEED_BATCH_SIZE, hasMoreToShow, nextVisibleCount } from "@/lib/feedPaging";
 import {
   Dialog,
   DialogContent,
@@ -177,44 +175,6 @@ export function WatchHistoryPage() {
   const [clearing, setClearing] = useState(false);
   const [replayItem, setReplayItem] = useState<WatchHistoryItem | null>(null);
 
-  // Watch History reveals 10 items at a time and loads the next 10 when the
-  // viewer reaches the bottom. The rows are already on the account, so this
-  // only grows the visible window instead of dumping everything at once.
-  const [visibleCount, setVisibleCount] = useState(FEED_BATCH_SIZE);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const sentinelRef = useRef<HTMLDivElement | null>(null);
-  const loadTimerRef = useRef<number | null>(null);
-  const visibleItems = items.slice(0, visibleCount);
-  const canLoadMore = hasMoreToShow(visibleCount, items.length);
-
-  useEffect(() => {
-    if (!canLoadMore) return;
-    const el = sentinelRef.current;
-    if (!el || typeof IntersectionObserver === "undefined") return;
-    const io = new IntersectionObserver(
-      (entries) => {
-        if (!entries.some((e) => e.isIntersecting)) return;
-        setLoadingMore(true);
-        if (loadTimerRef.current !== null) return;
-        loadTimerRef.current = window.setTimeout(() => {
-          loadTimerRef.current = null;
-          setVisibleCount((cur) => nextVisibleCount(cur, items.length));
-          setLoadingMore(false);
-        }, 200);
-      },
-      { rootMargin: "200px 0px" },
-    );
-    io.observe(el);
-    return () => io.disconnect();
-  }, [canLoadMore, items.length, visibleCount]);
-
-  useEffect(
-    () => () => {
-      if (loadTimerRef.current !== null) window.clearTimeout(loadTimerRef.current);
-    },
-    [],
-  );
-
   const handleToggleSave = () => {
     const next = !saveEnabled;
     setSaveEnabled(next);
@@ -345,7 +305,7 @@ export function WatchHistoryPage() {
             </div>
           ) : (
             <ul className="space-y-3">
-              {visibleItems.map((item) => (
+              {items.map((item) => (
                 <li
                   key={item.id}
                   className="flex items-center gap-3 rounded-xl border border-white/10 bg-zinc-950 p-2.5 transition hover:border-white/25"
@@ -388,9 +348,6 @@ export function WatchHistoryPage() {
               ))}
             </ul>
           )}
-
-          {canLoadMore && <div ref={sentinelRef} aria-hidden className="h-8 w-full" />}
-          {loadingMore && <FeedLoadingSpinner />}
         </div>
       </div>
 

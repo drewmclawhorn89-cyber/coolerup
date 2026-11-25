@@ -13,17 +13,6 @@ import {
 } from "@/lib/plans";
 import { activeTrial, hasUsedTrial, isTrialActive } from "@/lib/trial";
 import {
-  ACCOUNT_SUBSCRIPTION_EVENT,
-  cancelAccountSubscriptionForHandle,
-  cachedAccountSubscription,
-  clearCachedAccountSubscription,
-  persistAccountSubscriptionForHandle,
-  refreshAccountSubscription,
-  setCachedAccountSubscription,
-  type AccountSubscriptionInput,
-  type AccountSubscriptionRow,
-} from "@/lib/accountSubscriptions";
-import {
   LIFETIME_EVENT,
   cachedLifetime,
   isLifetimeActive,
@@ -229,67 +218,101 @@ export type Subscription = {
   grantedBy?: string | null;
 };
 
+const key = (handle: string) => `subscription:${handle}`;
+
+/**
+ * Remembers the plan a user cancelled on this device.
+ *
+ * A plan that lives in `public.subscriptions` cannot be deleted by the client
+ * (the table has no write policy), so without this marker the server row would
+ * resurrect the plan the moment the local record was cleared. It stores the
+ * plan id that was cancelled; buying again clears it.
+ */
+const cancelKey = (handle: string) => `subscription-canceled:${handle}`;
+
+function cancelledPlan(handle: string): string | null {
+  try {
+    return localStorage.getItem(cancelKey(handle));
+  } catch {
+    return null;
+  }
+}
+
 /** Fired whenever the stored subscription changes, so the UI can re-render. */
 export const SUBSCRIPTION_EVENT = "subscription-change";
 const EVT = SUBSCRIPTION_EVENT;
 
 /**
- * Payment methods are session-only. They are never written to localStorage,
- * cookies or any other device store; the subscription itself lives on the
- * account in `public.user_subscriptions`.
+ * Old versions stored a bare string ("pro" or "pending:pro"). Turn anything we
+ * find into the current shape so existing users don't lose their plan.
  */
-const paymentMethods = new Map<string, PaymentMethod>();
-
-/** Code strings are kept in memory so the "active via code" line can render. */
-const codeGrants = new Map<string, string>();
-
-function planLabel(planId: string): string {
-  return planById(planId)?.label ?? planId;
-}
-
-function toAccountInput(sub: Subscription): AccountSubscriptionInput {
+function migrate(raw: string): Subscription | null {
+  if (!raw) return null;
+  if (raw.startsWith("{")) {
+    try {
+      const parsed = JSON.parse(raw) as Subscription & { trialEndsAt?: string };
+      return normalize(parsed);
+    } catch {
+      return null;
+    }
+  }
+  const now = new Date();
+  if (raw.startsWith("pending:")) {
+    return {
+      planId: raw.slice(8),
+      status: "pending",
+      startedAt: now.toISOString(),
+      paidAt: null,
+      paymentMethod: null,
+    };
+  }
+  // Legacy "active" plan with no dates.
   return {
-    planId: sub.planId,
-    planName: planLabel(sub.planId),
-    status:
-      sub.status === "active" ? "active" : sub.status === "pending" ? "pending" : "expired",
-    startedAt: sub.startedAt,
-    expiresAt: sub.currentPeriodEnd ?? null,
-    autoRenew: sub.status === "active" && sub.source !== "code",
+    planId: raw,
+    status: "active",
+    startedAt: now.toISOString(),
+    paidAt: now.toISOString(),
+    paymentMethod: null,
   };
 }
 
-/** Turn an account row into the shape the rest of the app already understands. */
-function fromAccountRow(row: AccountSubscriptionRow): Subscription {
-  const status: SubStatus =
-    row.status === "active" || row.status === "trialing"
-      ? "active"
-      : row.status === "pending"
-        ? "pending"
-        : "expired";
-  // A row with an expiry date came from a fixed-length code grant; paid plans
-  // renew monthly and keep `expires_at` null.
-  const isCode = Boolean(row.expires_at);
+/**
+ * Drops fields we no longer use and retires the old `trial` status, so a plan
+ * only ever reads as pending, active or expired.
+ */
+function normalize(sub: Subscription & { trialEndsAt?: string; status?: string }): Subscription {
+  // A code redemption is a fixed-length grant, so it expires on its own even if
+  // nobody touches the record. Paid plans keep the existing pending/active
+  // behaviour.
+  const codeEnded =
+    sub.source === "code" &&
+    Boolean(sub.currentPeriodEnd) &&
+    new Date(sub.currentPeriodEnd as string).getTime() <= Date.now();
+  const status: SubStatus = codeEnded
+    ? "expired"
+    : sub.status === "active" || sub.status === "pending"
+      ? sub.status
+      : "expired";
   return {
-    planId: row.plan_id,
+    planId: sub.planId,
     status,
-    isLifetime: false,
-    startedAt: row.started_at,
-    paidAt: status === "active" ? row.started_at : null,
-    paymentMethod: null,
-    source: isCode ? "code" : "payment",
-    code: codeGrants.get(row.plan_id) ?? null,
-    currentPeriodEnd: row.expires_at,
+    startedAt: sub.startedAt,
+    paidAt: sub.paidAt ?? null,
+    paymentMethod: sub.paymentMethod ?? null,
+    source: sub.source === "code" ? "code" : "payment",
+    code: sub.code ?? null,
+    currentPeriodEnd: sub.currentPeriodEnd ?? null,
   };
 }
 
 /**
  * The subscription in force for this handle.
  *
- * The account row is the source of truth. A lifetime grant still outranks
- * everything, and a revoked lifetime grant drops the user straight to the
- * paywall. There is no device fallback: signing in on a new phone hydrates
- * this cache from Supabase, so the plan follows the account.
+ * A lifetime grant outranks everything: it is read from the server-backed cache
+ * first, and while it is active it is returned as-is with no expiry, so it still
+ * works in ten years. A *revoked* grant returns null instead of falling back to
+ * localStorage, which is what drops the user back to the paywall immediately
+ * rather than letting an old paid plan or code linger.
  */
 export function getSubscription(handle?: string | null): Subscription | null {
   if (!handle || typeof window === "undefined") return null;
@@ -297,8 +320,11 @@ export function getSubscription(handle?: string | null): Subscription | null {
   const lifetime = cachedLifetime(handle);
   if (isLifetimeRevoked(lifetime)) return null;
 
-  // A real lifetime grant outranks everything: it never expires and cannot be
-  // bought again.
+  const raw = localStorage.getItem(key(handle));
+  const local = raw ? migrate(raw) : null;
+
+  // A real lifetime grant outranks everything, including a local record: it
+  // never expires and cannot be bought again.
   if (lifetime && isLifetimeActive(lifetime)) {
     return {
       planId: lifetime.plan,
@@ -314,12 +340,35 @@ export function getSubscription(handle?: string | null): Subscription | null {
     };
   }
 
-  const row = cachedAccountSubscription(handle);
-  if (!row) return null;
+  // The device's own record wins while it is live. That record is the user's
+  // most recent action - a purchase, a plan switch or a code redemption - and
+  // letting the server row outrank it made "Cancel" and "Change plan" silently
+  // do nothing, which read as the whole subscription screen being broken.
+  if (local && local.status !== "expired") return local;
 
-  const sub = fromAccountRow(row);
-  sub.paymentMethod = paymentMethods.get(handle) ?? null;
-  return sub;
+  // No live local plan. A row in `public.subscriptions` can still supply one
+  // (an owner comp, a card charged outside the app), which is what unlocks the
+  // perks of a real Plus/Pro/VIP subscriber whose plan lives server-side. A
+  // plan the user cancelled here stays cancelled until they buy again.
+  if (lifetime && lifetime.status === "active" && planById(lifetime.plan)) {
+    if (cancelledPlan(handle) === lifetime.plan) return local;
+    return {
+      planId: lifetime.plan,
+      status: "active",
+      startedAt: lifetime.grantedAt ?? new Date().toISOString(),
+      paidAt: lifetime.grantedAt ?? null,
+      paymentMethod: null,
+      source: "payment",
+      code: null,
+      // A server-side monthly plan has no client-known renewal date, so it
+      // stays active until the row changes.
+      currentPeriodEnd: null,
+      isLifetime: false,
+      grantedBy: lifetime.grantedBy,
+    };
+  }
+
+  return local;
 }
 
 /** True when there is a usable card on file. */
@@ -327,31 +376,21 @@ export function hasPaymentMethod(handle?: string | null): boolean {
   return Boolean(getSubscription(handle)?.paymentMethod);
 }
 
-/**
- * Update the in-memory cache immediately, so the UI reacts on the same tick,
- * then persist the change to the account in the background.
- */
 function write(handle: string, sub: Subscription | null) {
   if (sub) {
-    if (sub.paymentMethod) paymentMethods.set(handle, sub.paymentMethod);
-    if (sub.code) codeGrants.set(sub.planId, sub.code);
-    const input = toAccountInput(sub);
-    setCachedAccountSubscription(handle, input);
-    void persistAccountSubscriptionForHandle(handle, input);
+    localStorage.setItem(key(handle), JSON.stringify(sub));
+    // A new plan supersedes any cancellation the user made earlier.
+    localStorage.removeItem(cancelKey(handle));
   } else {
-    clearCachedAccountSubscription(handle);
+    localStorage.removeItem(key(handle));
   }
   window.dispatchEvent(new Event(EVT));
 }
 
 /** Update the card on an existing subscription. */
 export function updatePaymentMethod(handle: string, pm: PaymentMethod) {
-  paymentMethods.set(handle, pm);
   const existing = getSubscription(handle);
-  if (!existing) {
-    window.dispatchEvent(new Event(EVT));
-    return;
-  }
+  if (!existing) return;
   write(handle, { ...existing, paymentMethod: pm });
 }
 
@@ -390,7 +429,7 @@ export function confirmPayment(handle: string) {
  * Grant a plan from a redeemed subscription code.
  *
  * Codes are fixed-length (1, 3 or 12 months). If the user already has a live
- * code subscription, the new months stack on top of the current end date \u2014
+ * code subscription, the new months stack on top of the current end date —
  * exactly how a Netflix gift card extends an existing balance. Otherwise the
  * period starts now.
  */
@@ -427,19 +466,21 @@ export function applyCodeSubscription(
   return getSubscription(handle) as Subscription;
 }
 
-/**
- * Cancel the plan on the account. The row stays for history but is marked
- * cancelled, and the on-screen subscription is cleared immediately.
- */
 export function cancelSubscription(handle: string) {
+  // Remember which plan was cancelled so a server row cannot bring it back on
+  // the next refresh. The client cannot delete the row itself - the table has
+  // no write policy - so this marker is what makes Cancel stick.
   const existing = getSubscription(handle);
-  const planId = existing?.planId;
-  paymentMethods.delete(handle);
-  if (planId) codeGrants.delete(planId);
-  clearCachedAccountSubscription(handle);
-  window.dispatchEvent(new Event(EVT));
-  if (planId) void cancelAccountSubscriptionForHandle(handle, planId);
+  if (existing?.planId) {
+    try {
+      localStorage.setItem(cancelKey(handle), existing.planId);
+    } catch {
+      // Ignore storage quota errors in private browsing.
+    }
+  }
+  write(handle, null);
 }
+
 /** True when the plan is giving them perks right now. */
 export function isActive(sub: Subscription | null): boolean {
   return sub?.status === "active";
@@ -558,15 +599,11 @@ export function useOfflineUnlocked(handle?: string | null): boolean {
     const sync = () => setUnlocked(planUnlocksOffline(handle));
     sync();
     window.addEventListener(EVT, sync);
-    window.addEventListener(ACCOUNT_SUBSCRIPTION_EVENT, sync);
     window.addEventListener(LIFETIME_EVENT, sync);
     window.addEventListener("focus", sync);
-    // Pull the account's plan from Supabase, then re-render from the cache.
-    void refreshAccountSubscription(handle).then(sync);
     void refreshLifetime(handle).then(sync);
     return () => {
       window.removeEventListener(EVT, sync);
-      window.removeEventListener(ACCOUNT_SUBSCRIPTION_EVENT, sync);
       window.removeEventListener(LIFETIME_EVENT, sync);
       window.removeEventListener("focus", sync);
     };
@@ -626,45 +663,23 @@ export function backgroundPlayLockReason(handle?: string | null): OfflineLockRea
   return "plan-lacks-offline";
 }
 
-/**
- * Reactive subscription for this handle.
- *
- * Seeds from the in-memory cache so the first paint is instant, then hydrates
- * from `public.user_subscriptions` on mount and on focus. There is no device
- * fallback: a fresh phone gets the plan from the account.
- */
 export function useSubscription(handle?: string | null) {
-  const [sub, setSub] = useState<Subscription | null>(() => getSubscription(handle));
-
+  const [sub, setSub] = useState<Subscription | null>(null);
   useEffect(() => {
     const sync = () => setSub(getSubscription(handle));
     sync();
     window.addEventListener(EVT, sync);
-    window.addEventListener(ACCOUNT_SUBSCRIPTION_EVENT, sync);
     window.addEventListener(LIFETIME_EVENT, sync);
-    // Re-check on focus so a plan bought, cancelled or restored elsewhere
-    // updates mid-session.
+    // Re-check on focus so a plan cancelled - or a lifetime grant revoked -
+    // elsewhere updates mid-session.
     window.addEventListener("focus", sync);
-    // Ask Supabase for the account's plan, then re-render from the cache.
-    void refreshAccountSubscription(handle).then(sync);
-    void refreshLifetime(handle).then(sync);
+    // Ask the server whether a lifetime grant exists, then re-render from cache.
+    void refreshLifetime(handle);
     return () => {
       window.removeEventListener(EVT, sync);
-      window.removeEventListener(ACCOUNT_SUBSCRIPTION_EVENT, sync);
       window.removeEventListener(LIFETIME_EVENT, sync);
       window.removeEventListener("focus", sync);
     };
   }, [handle]);
-
   return sub;
-}
-
-/**
- * Force a fresh read of the account's subscription. Used by the
- * "Restore Subscription" button in Settings.
- */
-export async function restoreSubscription(handle?: string | null): Promise<Subscription | null> {
-  await refreshAccountSubscription(handle);
-  window.dispatchEvent(new Event(EVT));
-  return getSubscription(handle);
 }

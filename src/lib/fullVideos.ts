@@ -3,6 +3,7 @@ import { isValidPaidPriceCents } from "@/lib/paidVideos";
 import { resolveSupabaseUrl } from "@/integrations/supabase/project";
 import { requestOfflineSync } from "./offlineEvents";
 import { untypedDb } from "@/lib/untypedDb";
+import { screenBeforeWrite } from "@/lib/autoBans";
 import { isBannedAuthor, loadBannedHandles } from "@/lib/safety";
 
 /**
@@ -22,7 +23,7 @@ const db = untypedDb;
  * Drop anything by a banned author. RLS already refuses these rows; this is the
  * belt-and-braces pass for lists that were fetched before the ban landed.
  */
-async function withoutBannedAuthors<T extends { username: string }>(rows: T[]): Promise<T[]> {
+async function withoutBannedAuthors(rows: FullVideo[]): Promise<FullVideo[]> {
   if (rows.length === 0) return rows;
   let banned: Set<string>;
   try {
@@ -224,31 +225,21 @@ function missingStatusColumn(error: { message?: string; details?: string } | nul
   return text.includes("status") && (text.includes("does not exist") || text.includes("column"));
 }
 
-export function shuffleFullVideos<T>(rows: readonly T[]): T[] {
-  const copy = [...rows];
-  for (let i = copy.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [copy[i], copy[j]] = [copy[j]!, copy[i]!];
-  }
-  return copy;
-}
-
-// Shuffle lightweight IDs a window at a time. Fetch full rows for the current
-// page only, and keep the same permutation until the viewer refreshes.
-type Order = { key: string; ids: string[]; scanned: number; done: boolean };
-let currentOrder: Order | null = null;
-export function resetFullVideoOrder() {
-  currentOrder = null;
-}
-
+/**
+ * Grid query. Category "All" (or empty) means no category filter. Search runs
+ * across title, username and description with a single ilike OR clause.
+ */
 export async function listFullVideos(opts: ListOptions = {}): Promise<FullVideo[]> {
   const { category, search, limit = 10, offset = 0, viewerId } = opts;
-  const key = JSON.stringify([category, search, viewerId]);
-  if (!currentOrder || currentOrder.key !== key || offset === 0)
-    currentOrder = { key, ids: [], scanned: 0, done: false };
-  const order = currentOrder;
-  const build = (columns: string, hideInFlight: boolean) => {
-    let query = db.from("full_videos").select(columns);
+
+  const build = (hideInFlight: boolean) => {
+    let query = db
+      .from("full_videos")
+      .select("*")
+      .order("created_at", { ascending: false })
+      // Paged: only the rows this screenful needs ever cross the wire.
+      .range(offset, offset + limit - 1);
+
     if (hideInFlight) query = query.or(readyOrMine(viewerId));
     if (category && category !== "All") query = query.eq("category", category);
 
@@ -265,35 +256,11 @@ export async function listFullVideos(opts: ListOptions = {}): Promise<FullVideo[
     return query;
   };
 
-  const windowSize = 100;
-  while (!order.done && order.ids.length < offset + limit) {
-    const scan = (status: boolean) =>
-      build("id, username", status)
-        .order("created_at", { ascending: false })
-        .order("id")
-        .range(order.scanned, order.scanned + windowSize - 1);
-    let result = await scan(true);
-    if (missingStatusColumn(result.error)) result = await scan(false);
-    if (result.error) throw result.error;
-    const rows = (result.data ?? []) as unknown as Pick<FullVideo, "id" | "username">[];
-    const known = new Set(order.ids);
-    order.ids.push(
-      ...shuffleFullVideos(
-        (await withoutBannedAuthors(rows)).map((r) => r.id).filter((id) => !known.has(id)),
-      ),
-    );
-    order.scanned += rows.length;
-    order.done = rows.length < windowSize;
-  }
-  const ids = order.ids.slice(offset, offset + limit);
-  if (!ids.length) return [];
-  const page = (status: boolean) => build("*", status).in("id", ids);
-  let result = await page(true);
-  if (missingStatusColumn(result.error)) result = await page(false);
-  if (result.error) throw result.error;
-  const rows = await withoutBannedAuthors((result.data ?? []) as unknown as FullVideo[]);
-  const byId = new Map(rows.map((row) => [row.id, row]));
-  return ids.flatMap((id) => byId.get(id) ?? []);
+  let { data, error } = await build(true);
+  if (missingStatusColumn(error)) ({ data, error } = await build(false));
+
+  if (error) throw error;
+  return withoutBannedAuthors((data ?? []) as FullVideo[]);
 }
 
 export async function getFullVideo(id: string): Promise<FullVideo | null> {
@@ -498,6 +465,13 @@ export async function addComment(
   gifUrl?: string | null,
   gifCredit?: string | null,
 ): Promise<FullVideoComment> {
+  // Long-form comments live in their own table, which the ladder cannot delete
+  // from, so screen first and refuse the insert on a hit.
+  const blocked = await screenBeforeWrite({ userId, username, text: body });
+  if (blocked && blocked.strike > 0) {
+    throw new Error("That comment breaks Coolerup rules.");
+  }
+
   const { data, error } = await db
     .from("full_video_comments")
     .insert({

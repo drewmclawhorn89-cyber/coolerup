@@ -19,6 +19,7 @@ import { Route as GroupsRouteImport } from './routes/groups'
 import { Route as LiveRouteImport } from './routes/live'
 import { Route as MakeGifRouteImport } from './routes/make-gif'
 import { Route as MessagesRouteImport } from './routes/messages'
+import { Route as ModerationCheckRouteImport } from './routes/moderation-check'
 import { Route as MusicRouteImport } from './routes/music'
 import { Route as OfflineRouteImport } from './routes/offline'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
@@ -44,7 +45,6 @@ import { Route as GroupsGroupIdRouteImport } from './routes/groups.$groupId'
 import { Route as LiveDashboardRouteImport } from './routes/live.dashboard'
 import { Route as SoundSoundIdRouteImport } from './routes/sound.$soundId'
 import { Route as UUsernameRouteImport } from './routes/u.$username'
-import { Route as VIdRouteImport } from './routes/v.$id'
 import { Route as WatchIndexRouteImport } from './routes/watch.index'
 import { Route as WatchIdRouteImport } from './routes/watch.$id'
 import { Route as ApiBrowserProxyRouteImport } from './routes/api/browser/proxy'
@@ -113,6 +113,11 @@ const MakeGifRoute = MakeGifRouteImport.update({
 const MessagesRoute = MessagesRouteImport.update({
   id: '/messages',
   path: '/messages',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ModerationCheckRoute = ModerationCheckRouteImport.update({
+  id: '/moderation-check',
+  path: '/moderation-check',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MusicRoute = MusicRouteImport.update({
@@ -240,11 +245,6 @@ const UUsernameRoute = UUsernameRouteImport.update({
   path: '/u/$username',
   getParentRoute: () => rootRouteImport,
 } as any)
-const VIdRoute = VIdRouteImport.update({
-  id: '/v/$id',
-  path: '/v/$id',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const WatchIndexRoute = WatchIndexRouteImport.update({
   id: '/watch/',
   path: '/watch/',
@@ -352,6 +352,7 @@ export interface FileRoutesByFullPath {
   '/live': typeof LiveRouteWithChildren
   '/make-gif': typeof MakeGifRoute
   '/messages': typeof MessagesRoute
+  '/moderation-check': typeof ModerationCheckRoute
   '/music': typeof MusicRoute
   '/offline': typeof OfflineRoute
   '/onboarding': typeof OnboardingRoute
@@ -375,7 +376,6 @@ export interface FileRoutesByFullPath {
   '/live/dashboard': typeof LiveDashboardRoute
   '/sound/$soundId': typeof SoundSoundIdRoute
   '/u/$username': typeof UUsernameRoute
-  '/v/$id': typeof VIdRoute
   '/watch/$id': typeof WatchIdRoute
   '/browser/': typeof BrowserIndexRoute
   '/groups/': typeof GroupsIndexRoute
@@ -407,6 +407,7 @@ export interface FileRoutesByTo {
   '/live': typeof LiveRouteWithChildren
   '/make-gif': typeof MakeGifRoute
   '/messages': typeof MessagesRoute
+  '/moderation-check': typeof ModerationCheckRoute
   '/music': typeof MusicRoute
   '/offline': typeof OfflineRoute
   '/onboarding': typeof OnboardingRoute
@@ -430,7 +431,6 @@ export interface FileRoutesByTo {
   '/live/dashboard': typeof LiveDashboardRoute
   '/sound/$soundId': typeof SoundSoundIdRoute
   '/u/$username': typeof UUsernameRoute
-  '/v/$id': typeof VIdRoute
   '/watch/$id': typeof WatchIdRoute
   '/browser': typeof BrowserIndexRoute
   '/groups': typeof GroupsIndexRoute
@@ -465,6 +465,7 @@ export interface FileRoutesById {
   '/live': typeof LiveRouteWithChildren
   '/make-gif': typeof MakeGifRoute
   '/messages': typeof MessagesRoute
+  '/moderation-check': typeof ModerationCheckRoute
   '/music': typeof MusicRoute
   '/offline': typeof OfflineRoute
   '/onboarding': typeof OnboardingRoute
@@ -488,7 +489,6 @@ export interface FileRoutesById {
   '/live/dashboard': typeof LiveDashboardRoute
   '/sound/$soundId': typeof SoundSoundIdRoute
   '/u/$username': typeof UUsernameRoute
-  '/v/$id': typeof VIdRoute
   '/watch/$id': typeof WatchIdRoute
   '/browser/': typeof BrowserIndexRoute
   '/groups/': typeof GroupsIndexRoute
@@ -524,6 +524,7 @@ export interface FileRouteTypes {
     | '/live'
     | '/make-gif'
     | '/messages'
+    | '/moderation-check'
     | '/music'
     | '/offline'
     | '/onboarding'
@@ -547,7 +548,6 @@ export interface FileRouteTypes {
     | '/live/dashboard'
     | '/sound/$soundId'
     | '/u/$username'
-    | '/v/$id'
     | '/watch/$id'
     | '/browser/'
     | '/groups/'
@@ -579,6 +579,7 @@ export interface FileRouteTypes {
     | '/live'
     | '/make-gif'
     | '/messages'
+    | '/moderation-check'
     | '/music'
     | '/offline'
     | '/onboarding'
@@ -602,7 +603,6 @@ export interface FileRouteTypes {
     | '/live/dashboard'
     | '/sound/$soundId'
     | '/u/$username'
-    | '/v/$id'
     | '/watch/$id'
     | '/browser'
     | '/groups'
@@ -636,6 +636,7 @@ export interface FileRouteTypes {
     | '/live'
     | '/make-gif'
     | '/messages'
+    | '/moderation-check'
     | '/music'
     | '/offline'
     | '/onboarding'
@@ -659,7 +660,6 @@ export interface FileRouteTypes {
     | '/live/dashboard'
     | '/sound/$soundId'
     | '/u/$username'
-    | '/v/$id'
     | '/watch/$id'
     | '/browser/'
     | '/groups/'
@@ -694,6 +694,7 @@ export interface RootRouteChildren {
   LiveRoute: typeof LiveRouteWithChildren
   MakeGifRoute: typeof MakeGifRoute
   MessagesRoute: typeof MessagesRoute
+  ModerationCheckRoute: typeof ModerationCheckRoute
   MusicRoute: typeof MusicRoute
   OfflineRoute: typeof OfflineRoute
   OnboardingRoute: typeof OnboardingRoute
@@ -713,7 +714,6 @@ export interface RootRouteChildren {
   CoinsRechargeRoute: typeof CoinsRechargeRoute
   SoundSoundIdRoute: typeof SoundSoundIdRoute
   UUsernameRoute: typeof UUsernameRoute
-  VIdRoute: typeof VIdRoute
   WatchIdRoute: typeof WatchIdRoute
   WatchIndexRoute: typeof WatchIndexRoute
   ApiBrowserProxyRoute: typeof ApiBrowserProxyRoute
@@ -805,6 +805,13 @@ declare module '@tanstack/react-router' {
       path: '/messages'
       fullPath: '/messages'
       preLoaderRoute: typeof MessagesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/moderation-check': {
+      id: '/moderation-check'
+      path: '/moderation-check'
+      fullPath: '/moderation-check'
+      preLoaderRoute: typeof ModerationCheckRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/music': {
@@ -980,13 +987,6 @@ declare module '@tanstack/react-router' {
       path: '/u/$username'
       fullPath: '/u/$username'
       preLoaderRoute: typeof UUsernameRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/v/$id': {
-      id: '/v/$id'
-      path: '/v/$id'
-      fullPath: '/v/$id'
-      preLoaderRoute: typeof VIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/watch/': {
@@ -1174,6 +1174,7 @@ const rootRouteChildren: RootRouteChildren = {
   LiveRoute: LiveRouteWithChildren,
   MakeGifRoute: MakeGifRoute,
   MessagesRoute: MessagesRoute,
+  ModerationCheckRoute: ModerationCheckRoute,
   MusicRoute: MusicRoute,
   OfflineRoute: OfflineRoute,
   OnboardingRoute: OnboardingRoute,
@@ -1193,7 +1194,6 @@ const rootRouteChildren: RootRouteChildren = {
   CoinsRechargeRoute: CoinsRechargeRoute,
   SoundSoundIdRoute: SoundSoundIdRoute,
   UUsernameRoute: UUsernameRoute,
-  VIdRoute: VIdRoute,
   WatchIdRoute: WatchIdRoute,
   WatchIndexRoute: WatchIndexRoute,
   ApiBrowserProxyRoute: ApiBrowserProxyRoute,

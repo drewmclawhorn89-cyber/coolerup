@@ -57,7 +57,7 @@ export const adminModerateReportAction = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(
     (data: {
-      action: "delete_post" | "ban_user" | "dismiss";
+      action: "delete_post" | "warn_user" | "ban_user" | "dismiss";
       reportId: string;
       hours?: number | null | undefined;
       permanent?: boolean | undefined;
@@ -65,7 +65,7 @@ export const adminModerateReportAction = createServerFn({ method: "POST" })
     }) => data,
   )
   .handler(async ({ data, context }) => {
-    const { verifyAdminUser, adminDeletePostServer, adminBanForReportServer } =
+    const { verifyAdminUser, adminDeletePostServer, adminWarnUserServer, adminBanForReportServer } =
       await import("./reportEmail.server");
 
     const check = await verifyAdminUser(context.userId);
@@ -73,6 +73,9 @@ export const adminModerateReportAction = createServerFn({ method: "POST" })
 
     if (data.action === "delete_post") {
       return adminDeletePostServer(context.userId, data.reportId);
+    }
+    if (data.action === "warn_user") {
+      return adminWarnUserServer(context.userId, data.reportId, data.reason);
     }
     if (data.action === "ban_user") {
       return adminBanForReportServer(

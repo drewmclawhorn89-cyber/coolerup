@@ -1,9 +1,9 @@
-import { useState } from "react";
-import { Check, Copy, Download, Loader2, Share2, Trash2, WifiOff, X } from "lucide-react";
+import { Check, Copy, Download, Loader2, Lock, Share2, Trash2, WifiOff, X } from "lucide-react";
 import { toast } from "sonner";
 import { formatBytes } from "@/lib/offline";
 import { useFullVideoOffline } from "@/lib/useFullVideoOffline";
 import { resolveFullVideoUrl, type FullVideo } from "@/lib/fullVideos";
+import { OfflinePaywallDialog } from "@/components/OfflinePaywallDialog";
 import {
   downloadExtension,
   prepareWatermarkedFile,
@@ -27,7 +27,8 @@ export function FullVideoShareMenu({
   onClose: () => void;
   onShared?: () => void;
 }) {
-  const { savedSize, progress, isSaved, toggle } = useFullVideoOffline(video);
+  const { savedSize, progress, isSaved, offlineUnlocked, paywallOpen, closePaywall, toggle } =
+    useFullVideoOffline(video);
 
   const url = typeof window !== "undefined" ? `${window.location.origin}/watch/${video.id}` : "";
 
@@ -56,20 +57,7 @@ export function FullVideoShareMenu({
     }
   };
 
-  const [readyFile, setReadyFile] = useState<File | null>(null);
   const download = async () => {
-    // iOS requires a fresh tap after the asynchronous watermark encoding.
-    if (readyFile) {
-      try {
-        await navigator.share({ files: [readyFile] });
-        setReadyFile(null);
-        onShared?.();
-      } catch (error) {
-        if (!(error instanceof Error && error.name === "AbortError"))
-          toast.error("Couldn’t open the share sheet. Tap Save to try again.");
-      }
-      return;
-    }
     const t = toast.loading("Preparing download…");
     try {
       const src = await resolveFullVideoUrl(video.video_url);
@@ -88,10 +76,21 @@ export function FullVideoShareMenu({
         onProgress: ({ percent, stage }) => toast.loading(`${stage}… ${percent}%`, { id: t }),
       });
 
-      if (navigator.canShare?.({ files: [file] })) {
-        setReadyFile(file);
-        toast.success("Ready. Tap Save to open the share sheet.", { id: t });
-        return;
+      // On phones the share sheet is the way to save to the camera roll / Files.
+      const isTouch =
+        typeof navigator !== "undefined" && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      if (isTouch && navigator.canShare?.({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file] });
+          toast.success("Saved", { id: t });
+          onShared?.();
+          return;
+        } catch (e) {
+          if (e instanceof DOMException && e.name === "AbortError") {
+            toast.dismiss(t);
+            return;
+          }
+        }
       }
 
       saveFileToDisk(file);
@@ -113,7 +112,9 @@ export function FullVideoShareMenu({
       ? `Saving ${progress}%`
       : isSaved
         ? `Saved · ${formatBytes(savedSize ?? 0)}`
-        : "Offline mode";
+        : offlineUnlocked
+          ? "Offline mode"
+          : "Offline · Paid";
 
   return (
     <div
@@ -170,7 +171,7 @@ export function FullVideoShareMenu({
             <div className="flex h-14 w-14 items-center justify-center rounded-full bg-zinc-800 text-white">
               <Download size={22} />
             </div>
-            <span className="text-xs text-zinc-300">{readyFile ? "Save…" : "Download"}</span>
+            <span className="text-xs text-zinc-300">Download</span>
           </button>
 
           <button
@@ -183,15 +184,17 @@ export function FullVideoShareMenu({
           >
             <div
               className={`flex h-14 w-14 items-center justify-center rounded-full text-white ${
-                isSaved ? "bg-emerald-600" : "bg-zinc-800"
+                isSaved ? "bg-emerald-600" : !offlineUnlocked ? "bg-zinc-800/60" : "bg-zinc-800"
               }`}
             >
               {progress !== null ? (
                 <Loader2 size={22} className="animate-spin" />
               ) : isSaved ? (
                 <Check size={22} />
-              ) : (
+              ) : offlineUnlocked ? (
                 <WifiOff size={22} />
+              ) : (
+                <Lock size={22} />
               )}
             </div>
             <span className="max-w-[5rem] truncate text-xs text-zinc-300">{offlineLabel}</span>
@@ -217,6 +220,8 @@ export function FullVideoShareMenu({
 
         <div className="pt-2 text-center text-xs text-zinc-500">{url}</div>
       </div>
+
+      <OfflinePaywallDialog open={paywallOpen} onClose={closePaywall} />
     </div>
   );
 }

@@ -1,5 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
+import { reportExplicitMedia, screenBeforeWrite } from "@/lib/autoBans";
 import { resolveMediaUrl } from "@/lib/media";
+import { inspectMedia } from "@/lib/nsfw";
 import { detectExternalWatermark } from "@/lib/smartWatermark";
 import { untypedDb } from "@/lib/untypedDb";
 import {
@@ -34,7 +36,7 @@ export type DirectMessage = {
 
 export type DmMediaPermission = {
   allowed: boolean;
-  isFollower: boolean;
+  isMutual: boolean;
   allowEveryone: boolean;
   recipientId: string | null;
   recipientHandle: string;
@@ -51,16 +53,7 @@ export type CoolerupVideoChoice = {
   likes_count?: number;
 };
 
-/**
- * DM pics and videos go to `direct-messages` when that bucket exists.
- * If it does not (a project that never provisioned it), we fall back to the
- * `videos` bucket under a `dm/` folder — that bucket already works for posting.
- * No other bucket name is ever used.
- */
-export const DM_MEDIA_BUCKET = "direct-messages";
-export const DM_FALLBACK_BUCKET = "videos";
-const DM_FOLDER = "dm";
-/** Legacy values written by the old private `dm-media` bucket. */
+export const DM_MEDIA_BUCKET = "dm-media";
 const DM_MEDIA_PREFIX = "dm-media:";
 const ALLOW_MESSAGES_FROM_EVERYONE_KEY = "allowMessagesFromEveryone";
 const OPENED_ONCE_LOCAL_KEY = "coolerup:dm-opened-once:v1";
@@ -297,7 +290,7 @@ export async function fetchAllowMessagesFromEveryone(userId: string): Promise<bo
   try {
     const { data, error } = await untypedDb
       .from("profiles")
-      .select("allow_messages_from_everyone")
+      .select("*")
       .eq("id", userId)
       .maybeSingle();
     if (error || !data) return localVal;
@@ -330,7 +323,7 @@ export async function syncAllowMessagesFromEveryone(
     .from("profiles")
     .update({ allow_messages_from_everyone: enabled })
     .eq("id", userId);
-  if (error) {
+  if (error && !isMissingColumnOrSchemaError(error)) {
     return { ok: false, error: error.message };
   }
   return { ok: true };
@@ -338,7 +331,7 @@ export async function syncAllowMessagesFromEveryone(
 
 /**
  * Checks whether `myUserId` / `myHandle` is allowed to send pics or videos to `targetHandle`.
- * Rule: Followers are allowed, OR target user has "Allow messages from everyone" ON in Settings.
+ * Rule: Mutual followers are allowed, OR target user has "Allow messages from everyone" ON in Settings.
  */
 export async function checkDmMediaPermission(params: {
   myUserId: string | null | undefined;
@@ -350,7 +343,7 @@ export async function checkDmMediaPermission(params: {
   if (!target || !params.myUserId || !me) {
     return {
       allowed: false,
-      isFollower: false,
+      isMutual: false,
       allowEveryone: false,
       recipientId: null,
       recipientHandle: target,
@@ -358,10 +351,11 @@ export async function checkDmMediaPermission(params: {
     };
   }
 
-  // Request only columns visible to the signed-in sender.
+  // Use `select("*")` so an unmigrated `profiles` table without `allow_messages_from_everyone`
+  // never throws a 400 "column does not exist" error.
   const { data: rawProfile } = await untypedDb
     .from("profiles")
-    .select("id,handle,allow_messages_from_everyone")
+    .select("*")
     .ilike("handle", target)
     .maybeSingle();
 
@@ -374,7 +368,7 @@ export async function checkDmMediaPermission(params: {
   if (!profile?.id || !profile.handle) {
     return {
       allowed: false,
-      isFollower: false,
+      isMutual: false,
       allowEveryone: false,
       recipientId: null,
       recipientHandle: target,
@@ -392,7 +386,7 @@ export async function checkDmMediaPermission(params: {
   if (profile.id === params.myUserId) {
     return {
       allowed: true,
-      isFollower: true,
+      isMutual: true,
       allowEveryone,
       recipientId: profile.id,
       recipientHandle: profile.handle,
@@ -402,24 +396,35 @@ export async function checkDmMediaPermission(params: {
   if (allowEveryone) {
     return {
       allowed: true,
-      isFollower: false,
+      isMutual: false,
       allowEveryone: true,
       recipientId: profile.id,
       recipientHandle: profile.handle,
     };
   }
 
-  const { data: following } = await supabase
-    .from("follows")
-    .select("id")
-    .eq("follower_id", params.myUserId)
-    .eq("following_username", profile.handle)
-    .limit(1)
-    .maybeSingle();
-  if (following) {
+  const [{ data: iFollowRow }, { data: theyFollowRow }] = await Promise.all([
+    supabase
+      .from("follows")
+      .select("id")
+      .eq("follower_id", params.myUserId)
+      .ilike("following_username", profile.handle)
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from("follows")
+      .select("id")
+      .eq("follower_id", profile.id)
+      .ilike("following_username", me)
+      .limit(1)
+      .maybeSingle(),
+  ]);
+
+  const isMutual = Boolean(iFollowRow && theyFollowRow);
+  if (isMutual) {
     return {
       allowed: true,
-      isFollower: true,
+      isMutual: true,
       allowEveryone: false,
       recipientId: profile.id,
       recipientHandle: profile.handle,
@@ -428,11 +433,11 @@ export async function checkDmMediaPermission(params: {
 
   return {
     allowed: false,
-    isFollower: false,
+    isMutual: false,
     allowEveryone: false,
     recipientId: profile.id,
     recipientHandle: profile.handle,
-    reason: `Follow @${profile.handle} before messaging unless @${profile.handle} turns on "Allow messages from everyone" in Settings.`,
+    reason: `Pics & videos are only allowed between people who follow each other unless @${profile.handle} turns on "Allow messages from everyone" in Settings.`,
   };
 }
 
@@ -472,7 +477,7 @@ export async function uploadDmMediaFile(params: {
   mediaType: "image" | "video";
   hasExternalWatermark: boolean;
 }> {
-  const { file } = params;
+  const { userId, username, file } = params;
   const isImg = isImageMediaFile(file);
   const isVid = isVideoMediaFile(file);
   if (!isImg && !isVid) {
@@ -484,6 +489,22 @@ export async function uploadDmMediaFile(params: {
     throw new Error(
       isImg ? "Photo is too large (max 20 MB)." : "Video is too large for chat (max 100 MB).",
     );
+  }
+
+  // On-device NSFW check consistent with feed uploads.
+  try {
+    const verdict = await inspectMedia(file);
+    if (verdict?.explicit) {
+      await reportExplicitMedia({
+        userId,
+        username,
+        source: isVid ? "video" : "photo",
+        score: verdict.score,
+      }).catch(() => {});
+      throw new Error("Blocked: explicit photos or videos are not allowed.");
+    }
+  } catch (err) {
+    if (err instanceof Error && err.message.startsWith("Blocked:")) throw err;
   }
 
   const wmResult = isVid
@@ -498,83 +519,52 @@ export async function uploadDmMediaFile(params: {
       ?.toLowerCase()
       .replace(/[^a-z0-9]/g, "") || "";
   const ext = rawExt || (isImg ? "jpg" : "mp4");
-  const baseName =
-    file.name
-      .replace(/\.[^.]+$/, "")
-      .replace(/[^a-zA-Z0-9_-]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .slice(0, 60) || (isImg ? "photo" : "video");
-  const path = `${DM_FOLDER}/${Date.now()}_${baseName}.${ext}`;
+  const uniqueId =
+    typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const path = `${userId}/${uniqueId}.${ext}`;
 
-  const contentType = file.type || (isImg ? "image/jpeg" : "video/mp4");
+  const { error: dmBucketErr } = await supabase.storage.from(DM_MEDIA_BUCKET).upload(path, file, {
+    contentType: file.type || (isImg ? "image/jpeg" : "video/mp4"),
+    upsert: false,
+  });
 
-  console.log(`Trying bucket: ${DM_MEDIA_BUCKET}`);
-  console.log(`File size: ${file.size}`);
-
-  let bucket = DM_MEDIA_BUCKET;
-  let uploadError = await uploadToBucket(bucket, path, file, contentType);
-
-  if (uploadError && isMissingBucketError(uploadError)) {
-    console.log(`Bucket "${DM_MEDIA_BUCKET}" not found — falling back to "${DM_FALLBACK_BUCKET}"`);
-    console.log(`Trying bucket: ${DM_FALLBACK_BUCKET}`);
-    bucket = DM_FALLBACK_BUCKET;
-    uploadError = await uploadToBucket(bucket, path, file, contentType);
+  if (!dmBucketErr) {
+    return {
+      url: `${DM_MEDIA_PREFIX}${path}`,
+      mediaType: isImg ? "image" : "video",
+      hasExternalWatermark,
+    };
   }
 
-  if (uploadError) {
-    // Surface the real Supabase error instead of a generic message.
-    throw new Error(
-      `Upload to "${bucket}" failed: ${uploadError.message}` +
-        (uploadError.name ? ` (${uploadError.name})` : ""),
-    );
-  }
+  // Clean fallback to `videos` bucket if `dm-media` hasn't been provisioned yet.
+  const fallbackPath = `dm/${path}`;
+  const { error: videosErr } = await supabase.storage.from("videos").upload(fallbackPath, file, {
+    contentType: file.type || (isImg ? "image/jpeg" : "video/mp4"),
+    upsert: false,
+  });
 
-  const { data: publicData } = supabase.storage.from(bucket).getPublicUrl(path);
-  const publicUrl = publicData?.publicUrl || "";
-  console.log(`Uploaded to bucket: ${bucket} → ${publicUrl}`);
+  if (videosErr) {
+    throw new Error(dmBucketErr.message || videosErr.message || "Could not upload media.");
+  }
 
   return {
-    url: publicUrl,
+    url: `storage:${fallbackPath}`,
     mediaType: isImg ? "image" : "video",
     hasExternalWatermark,
   };
 }
 
-type StorageErrorLike = { message: string; name?: string };
-
-/** True when the error means the bucket itself is missing, not a bad file. */
-function isMissingBucketError(err: StorageErrorLike): boolean {
-  const msg = (err.message || "").toLowerCase();
-  return (
-    msg.includes("bucket not found") ||
-    msg.includes("bucket does not exist") ||
-    (msg.includes("not found") && msg.includes("bucket"))
-  );
-}
-
-async function uploadToBucket(
-  bucket: string,
-  path: string,
-  file: File,
-  contentType: string,
-): Promise<StorageErrorLike | null> {
-  const { error } = await supabase.storage.from(bucket).upload(path, file, {
-    contentType,
-    upsert: false,
-  });
-  if (!error) return null;
-  console.error(`Upload to "${bucket}" failed:`, error);
-  return { message: error.message || "Unknown storage error", name: error.name };
-}
-
 export async function resolveDmMediaUrl(rawUrl: string | null | undefined): Promise<string> {
   if (!rawUrl) return "";
-  // Legacy rows from the old private `dm-media` bucket still need signing.
   if (rawUrl.startsWith(DM_MEDIA_PREFIX)) {
     const path = rawUrl.slice(DM_MEDIA_PREFIX.length);
     const hit = signedDmUrlCache.get(path);
     if (hit && hit.expiresAt > Date.now()) return hit.url;
-    const { data, error } = await supabase.storage.from("dm-media").createSignedUrl(path, 3600);
+    const { data, error } = await supabase.storage
+      .from(DM_MEDIA_BUCKET)
+      .createSignedUrl(path, 3600);
     if (error || !data?.signedUrl) return "";
     signedDmUrlCache.set(path, {
       url: data.signedUrl,
@@ -582,8 +572,6 @@ export async function resolveDmMediaUrl(rawUrl: string | null | undefined): Prom
     });
     return data.signedUrl;
   }
-  // New uploads store a public URL for `direct-messages`; return it as-is.
-  if (rawUrl.includes("/object/public/direct-messages/")) return rawUrl;
   return resolveMediaUrl(rawUrl);
 }
 
@@ -622,8 +610,8 @@ export async function sendDirectMessage(params: {
     return { ok: false, error: `@${toHandle} hasn't joined Coolerup yet.` };
   }
 
-  // Check the same recipient rule for every message type.
-  {
+  // Block pics/videos between strangers unless recipient allows everyone in Settings.
+  if (params.mediaUrl) {
     const perm = await checkDmMediaPermission({
       myUserId: params.fromId,
       myHandle: fromHandle,
@@ -632,8 +620,21 @@ export async function sendDirectMessage(params: {
     if (!perm.allowed) {
       return {
         ok: false,
-        error: perm.reason || `@${targetProfile.handle} only accepts messages from followers.`,
+        error:
+          perm.reason ||
+          `@${targetProfile.handle} only accepts pics and videos from mutual followers.`,
       };
+    }
+  }
+
+  if (text) {
+    const blocked = await screenBeforeWrite({
+      userId: params.fromId,
+      username: fromHandle,
+      text,
+    });
+    if (blocked) {
+      return { ok: false, error: "Message blocked by safety filter." };
     }
   }
 

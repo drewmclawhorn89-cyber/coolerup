@@ -34,6 +34,7 @@ import { LiveNowList } from "@/components/LiveNowList";
 import { useLiveDirectory, type LiveHost } from "@/lib/liveDirectory";
 import { OnboardingBanner, useOnboardingGuard } from "@/components/OnboardingBanner";
 import { isChristmasCountdownVisible, useChristmasMode } from "@/lib/christmas";
+import { useChristmasCodesSeason } from "@/lib/christmas-codes";
 import { matchesKeyword, readBool } from "@/lib/prefs";
 import { SHOW_MATURE_PREF } from "@/lib/matureVideos";
 // Heavy, interaction-only surfaces are split out so the initial feed bundle stays small.
@@ -43,11 +44,17 @@ const UploadDialog = lazy(() =>
 const ShopPanel = lazy(() =>
   import("@/components/ShopPanel").then((m) => ({ default: m.ShopPanel })),
 );
+const SubscriptionsPanel = lazy(() =>
+  import("@/components/SubscriptionsPanel").then((m) => ({ default: m.SubscriptionsPanel })),
+);
 const Marketplace = lazy(() =>
   import("@/components/Marketplace").then((m) => ({ default: m.Marketplace })),
 );
 const GroupsPanel = lazy(() =>
   import("@/components/GroupsPanel").then((m) => ({ default: m.GroupsPanel })),
+);
+const ChristmasCodesPanel = lazy(() =>
+  import("@/components/ChristmasCodesPanel").then((m) => ({ default: m.ChristmasCodesPanel })),
 );
 const LiveStreamDialog = lazy(() =>
   import("@/components/LiveStreamDialog").then((m) => ({ default: m.LiveStreamDialog })),
@@ -70,8 +77,6 @@ import {
 import { listSaved, onOfflineChange } from "@/lib/offline";
 import { readFeedCache, writeFeedCache } from "@/lib/feed-cache";
 import { feedPageSize, isLiteMode, useLowDataMode, useNetwork } from "@/lib/network";
-import { preloadModeFor } from "@/lib/feedPaging";
-import { FeedLoadingSpinner } from "@/components/FeedLoadingSpinner";
 import { useCompressedThumbnail } from "@/lib/thumbnailCache";
 import {
   FeedSkeleton,
@@ -96,10 +101,6 @@ import {
 } from "@/lib/inboxNotifications";
 
 export const Route = createFileRoute("/")({
-  validateSearch: (input: Record<string, unknown>): { sharedVideo?: string } =>
-    typeof input["sharedVideo"] === "string" && /^[a-f0-9-]{36}$/i.test(input["sharedVideo"])
-      ? { sharedVideo: input["sharedVideo"] }
-      : {},
   head: () => ({
     meta: [
       { title: "Coolerup — Short Videos, Full Songs & Browser by Drew McLawhorn" },
@@ -135,8 +136,10 @@ export const Route = createFileRoute("/")({
   component: Index,
 });
 
-type Tab = "foryou" | "explore" | "following" | "liked" | "saved" | "inbox" | "shop";
-type FeedTab = "home" | "following" | "foryou" | "explore" | "marketplace" | "groups" | "live";
+type Tab =
+  "foryou" | "explore" | "following" | "liked" | "saved" | "inbox" | "shop" | "subscriptions";
+type FeedTab =
+  "home" | "following" | "foryou" | "explore" | "marketplace" | "groups" | "live" | "codes";
 type NotificationFilter = "all" | "unread";
 
 // One entry in the home-menu "top tabs" strip.
@@ -275,9 +278,7 @@ function TopTabs({ className = "", ctx }: { className?: string; ctx: TopTabsCtx 
             onClick={item.onClick}
             aria-current={item.active ? "page" : undefined}
             className={`flex shrink-0 items-center gap-1 whitespace-nowrap border-b-2 pb-0.5 text-[13px] ${
-              item.active
-                ? "border-[var(--account-accent)] font-bold text-white"
-                : "border-transparent text-white"
+              item.active ? "border-white font-bold text-white" : "border-transparent text-white/70"
             }`}
           >
             {item.icon}
@@ -296,7 +297,7 @@ function TopTabs({ className = "", ctx }: { className?: string; ctx: TopTabsCtx 
       </button>
       {/* Search + profile ride along on the right of the bar on phones so they
           never overlap the tabs (they used to float on top of them). */}
-      <div className="ml-1 flex shrink-0 items-center gap-1">
+      <div className="ml-1 flex shrink-0 items-center gap-1 md:hidden">
         <button
           type="button"
           aria-label="Search videos"
@@ -346,30 +347,10 @@ const HEADERS: Record<Tab, [string, string]> = {
   saved: ["Offline", "Watch anytime, even without a connection"],
   inbox: ["Inbox", "All your notifications"],
   shop: ["Shop", "Unlock tops and names"],
+  subscriptions: ["Subscriptions", "Paid plans and perks"],
 };
 
 function Index() {
-  const { sharedVideo } = Route.useSearch();
-  const [sharedPost, setSharedPost] = useState<Video | null>(null);
-  useEffect(() => {
-    let active = true;
-    setSharedPost(null);
-    if (!sharedVideo) return;
-    void supabase
-      .from("videos")
-      .select("*")
-      .eq("id", sharedVideo)
-      .eq("hidden", false)
-      .maybeSingle()
-      .then(({ data, error }) => {
-        if (!active) return;
-        if (error || !data) toast.error("This shared video is unavailable.");
-        else setSharedPost(data);
-      });
-    return () => {
-      active = false;
-    };
-  }, [sharedVideo]);
   const auth = useAuth();
   const navigate = useNavigate();
   const me = auth.handle;
@@ -386,6 +367,7 @@ function Index() {
   const christmas = useChristmasMode();
   // The "Codes" tab is seasonal: on Nov 15 - Jan 1, off the rest of the year.
   // It re-appears by itself every Christmas with no deploy and no flag.
+  const codesSeason = useChristmasCodesSeason();
   // Pre-launch banner: only until Nov 15 2026, then it hides itself for good.
   // `!christmas` makes the wrapper disappear the moment the update goes live,
   // even if this component hasn't re-rendered for another reason.
@@ -433,7 +415,7 @@ function Index() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const wantedTab = params.get("tab");
-    if (wantedTab === "shop") setTab(wantedTab);
+    if (wantedTab === "subscriptions" || wantedTab === "shop") setTab(wantedTab);
 
     const wantedFeed = params.get("feed");
     if (
@@ -989,18 +971,10 @@ function Index() {
     notificationFilter === "unread" ? notifications.filter((n) => !n.read) : notifications;
 
   const offlineMode = !online || (error && saved.length > 0);
-  const activeTab = offlineMode && saved.length > 0 ? "saved" : tab;
+  const activeTab = offlineMode ? "saved" : tab;
 
   const shown = useMemo(() => {
     let list = activeTab === "saved" ? saved : (videos ?? []);
-    if (
-      activeTab === "foryou" &&
-      feedTab === "foryou" &&
-      sharedPost?.id === sharedVideo &&
-      sharedPost
-    ) {
-      list = [sharedPost, ...list.filter((v) => v.id !== sharedPost.id)];
-    }
     const q = query.trim().toLowerCase();
     if (q)
       list = list.filter(
@@ -1039,8 +1013,6 @@ function Index() {
     return list;
   }, [
     videos,
-    sharedPost,
-    sharedVideo,
     saved,
     query,
     activeTab,
@@ -1102,7 +1074,7 @@ function Index() {
   // screen (feed, inbox, shop, subscriptions, offline) and at every breakpoint.
   const showTopTabs = true;
   const topTab =
-    activeTab === "shop"
+    activeTab === "shop" || activeTab === "subscriptions"
       ? activeTab
       : activeTab === "following" || activeTab === "explore"
         ? activeTab
@@ -1113,6 +1085,16 @@ function Index() {
     setFeedTab(t);
     setTab(t === "following" || t === "explore" ? t : "foryou");
   };
+
+  // If the season ends (or the tab is opened out of season via a stale link)
+  // while "codes" is selected, fall back to the normal feed instead of showing
+  // a tab that no longer exists in the bar.
+  useEffect(() => {
+    if (!codesSeason && feedTab === "codes") {
+      setFeedTab("foryou");
+      setTab("foryou");
+    }
+  }, [codesSeason, feedTab]);
 
   // One shared top tab bar (Home | Following | For You | Videos | Music | Browser | Marketplace | Groups | LIVE | Codes | Explore | Shop).
   // It renders on every screen and at every breakpoint, scrolls smoothly with touch/wheel,
@@ -1175,6 +1157,17 @@ function Index() {
       onClick: () => pickFeedTab("live"),
       active: topTab === "live",
     },
+    ...(codesSeason
+      ? [
+          {
+            key: "codes",
+            label: "Codes",
+            icon: <Gift className="size-3.5" />,
+            onClick: () => pickFeedTab("codes"),
+            active: topTab === "codes",
+          },
+        ]
+      : []),
     {
       key: "explore",
       label: "Explore",
@@ -1202,12 +1195,18 @@ function Index() {
     authAvatar: avatarThumb || auth.avatar,
   };
 
+  // The bar sits in normal flow at the top of the screen on every breakpoint so
+  // it never floats over the video (which made the tabs unreadable on phones).
+  // Solid background + border keeps it legible over any content.
+  const topTabsClass =
+    "relative z-30 flex shrink-0 items-center gap-1 border-b border-white/10 bg-black px-2 pb-2 " +
+    "md:gap-2 md:px-4 md:pb-2 md:pt-2 " +
+    (christmas
+      ? "pt-[calc(max(0.5rem,env(safe-area-inset-top))+0.65rem)]"
+      : "pt-[max(0.5rem,env(safe-area-inset-top))]");
+  // Non-feed screens (Inbox, Shop, Subscriptions) use the same solid bar.
   const topTabsStaticClass =
-    "relative z-30 flex shrink-0 items-center gap-1 border-b border-white/10 bg-black px-2 pb-2 pt-2 md:gap-2 md:px-4";
-  // On phones the tabs float over the video; desktop keeps the solid bar in flow.
-  const topTabsOverlayClass =
-    "absolute inset-x-0 top-0 z-30 flex items-center gap-1 bg-transparent px-2 pb-3 " +
-    (christmas ? "pt-[1.15rem]" : "pt-2");
+    "relative z-30 flex shrink-0 items-center gap-1 border-b border-white/10 bg-black px-2 pb-2 pt-[calc(env(safe-area-inset-top)+0.5rem)] md:gap-2 md:px-4 md:pb-2 md:pt-2";
 
   const [title, sub] = query
     ? [`Results for "${query}"`, `${shown.length} videos`]
@@ -1270,7 +1269,7 @@ function Index() {
   }, []);
 
   return (
-    <div className="home-shell flex overflow-hidden">
+    <div className="flex h-dvh overflow-hidden bg-background">
       <aside className="hidden w-72 shrink-0 flex-col gap-6 border-r bg-sidebar p-6 md:flex">
         <div>
           <h1 className="font-display text-4xl tracking-tight">
@@ -1367,70 +1366,68 @@ function Index() {
         )}
       </aside>
 
-      <main className="home-main relative flex w-full min-w-0 flex-1 flex-col">
-        <div className="home-leading-content shrink-0 empty:hidden">
-          {online && offlineMode && (
-            <div className="flex shrink-0 items-center gap-2 bg-primary/10 px-4 py-2 text-sm font-bold text-primary md:px-10">
-              <WifiOff className="h-4 w-4" /> You're offline — watching saved videos
-            </div>
-          )}
+      <main className="relative mx-auto flex h-[100dvh] w-full min-w-0 max-w-[430px] flex-1 flex-col bg-black md:h-auto md:max-w-none md:bg-transparent">
+        {offlineMode && (
+          <div className="flex shrink-0 items-center gap-2 bg-primary/10 px-4 py-2 text-sm font-bold text-primary md:px-10">
+            <WifiOff className="h-4 w-4" /> You're offline — watching saved videos
+          </div>
+        )}
 
-          {!offlineMode && lite && (
-            <div className="flex shrink-0 items-center gap-2 bg-secondary px-4 py-1.5 text-xs font-bold text-muted-foreground md:px-10">
-              <Wifi className="h-3.5 w-3.5" /> Lite mode — saving data on a slow connection
-            </div>
-          )}
+        {!offlineMode && lite && (
+          <div className="flex shrink-0 items-center gap-2 bg-secondary px-4 py-1.5 text-xs font-bold text-muted-foreground md:px-10">
+            <Wifi className="h-3.5 w-3.5" /> Lite mode — saving data on a slow connection
+          </div>
+        )}
 
-          {/* Yellow onboarding banner — never blocks watching or Lite mode. */}
-          {!offlineMode && <OnboardingBanner />}
+        {/* Yellow onboarding banner — never blocks watching or Lite mode. */}
+        {!offlineMode && <OnboardingBanner />}
 
-          {/* Countdown to the Christmas update — sits above the top tabs. */}
-          {!offlineMode && showCountdown && (
-            <div className="shrink-0 bg-red-600">
-              <ChristmasCountdown />
-            </div>
-          )}
+        {/* Countdown to the Christmas update — sits above the top tabs. */}
+        {!offlineMode && showCountdown && (
+          <div className="shrink-0 bg-red-600 pt-[env(safe-area-inset-top)]">
+            <ChristmasCountdown />
+          </div>
+        )}
 
-          {query.trim() && userResults.length > 0 && (
-            <div className="shrink-0 border-b bg-sidebar px-4 py-3 md:px-10">
-              <p className="mb-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                Users
-              </p>
-              <div className="flex flex-col gap-1">
-                {userResults.map((u) => (
-                  <Link
-                    key={u.id}
-                    to="/u/$username"
-                    params={{ username: u.handle! }}
-                    className="flex items-center gap-3 rounded-xl px-2 py-2 transition hover:bg-secondary"
-                  >
-                    <span className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-secondary font-bold uppercase">
-                      {u.avatar_url ? (
-                        <img
-                          src={u.avatar_url}
-                          alt={u.display_name || u.handle!}
-                          className="h-full w-full object-cover"
-                        />
-                      ) : (
-                        u.handle![0]
-                      )}
+        {query.trim() && userResults.length > 0 && (
+          <div className="shrink-0 border-b bg-sidebar px-4 py-3 md:px-10">
+            <p className="mb-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">
+              Users
+            </p>
+            <div className="flex flex-col gap-1">
+              {userResults.map((u) => (
+                <Link
+                  key={u.id}
+                  to="/u/$username"
+                  params={{ username: u.handle! }}
+                  className="flex items-center gap-3 rounded-xl px-2 py-2 transition hover:bg-secondary"
+                >
+                  <span className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-secondary font-bold uppercase">
+                    {u.avatar_url ? (
+                      <img
+                        src={u.avatar_url}
+                        alt={u.display_name || u.handle!}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      u.handle![0]
+                    )}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block truncate font-bold">{u.display_name || u.handle}</span>
+                    <span className="block truncate text-sm text-muted-foreground">
+                      @{u.handle}
                     </span>
-                    <span className="min-w-0">
-                      <span className="block truncate font-bold">{u.display_name || u.handle}</span>
-                      <span className="block truncate text-sm text-muted-foreground">
-                        @{u.handle}
-                      </span>
-                    </span>
-                  </Link>
-                ))}
-              </div>
+                  </span>
+                </Link>
+              ))}
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {onLiveTab ? (
           <div className="relative flex min-h-0 flex-1 flex-col bg-black">
-            <TopTabs className={topTabsStaticClass} ctx={topTabsCtx} />
+            <TopTabs className={topTabsClass} ctx={topTabsCtx} />
             <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto pt-2">
               <LiveNowList
                 hosts={liveHosts}
@@ -1448,25 +1445,38 @@ function Index() {
               />
             </div>
           </div>
+        ) : feedTab === "codes" ? (
+          <div className="relative flex min-h-0 flex-1 flex-col bg-black">
+            <TopTabs className={topTabsClass} ctx={topTabsCtx} />
+            <Suspense fallback={<PanelSkeleton />}>
+              <ChristmasCodesPanel handle={me} onSignIn={auth.signIn} />
+            </Suspense>
+          </div>
         ) : activeTab === "foryou" && feedTab === "marketplace" && !offlineMode ? (
           <div className="relative flex min-h-0 flex-1 flex-col">
-            <TopTabs className={topTabsStaticClass} ctx={topTabsCtx} />
+            <TopTabs className={topTabsClass} ctx={topTabsCtx} />
             <Suspense fallback={<PanelSkeleton />}>
               <Marketplace />
             </Suspense>
           </div>
-        ) : activeTab === "shop" ? (
+        ) : activeTab === "shop" || activeTab === "subscriptions" ? (
           <div className="flex min-h-0 flex-1 flex-col">
             <TopTabs className={topTabsStaticClass} ctx={topTabsCtx} />
             <div className="min-h-0 flex-1 overflow-y-auto">
-              <Suspense fallback={<PanelSkeleton />}>
-                <ShopPanel handle={me} posts={myPostCount} />
-              </Suspense>
+              {activeTab === "subscriptions" ? (
+                <Suspense fallback={<PanelSkeleton />}>
+                  <SubscriptionsPanel handle={me} onSignIn={auth.signIn} />
+                </Suspense>
+              ) : (
+                <Suspense fallback={<PanelSkeleton />}>
+                  <ShopPanel handle={me} posts={myPostCount} />
+                </Suspense>
+              )}
             </div>
           </div>
         ) : activeTab === "foryou" && feedTab === "groups" && !offlineMode ? (
           <div className="relative flex min-h-0 flex-1 flex-col bg-black">
-            <TopTabs className={topTabsStaticClass} ctx={topTabsCtx} />
+            <TopTabs className={topTabsClass} ctx={topTabsCtx} />
             <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto pt-2">
               <Suspense fallback={<PanelSkeleton />}>
                 <GroupsPanel />
@@ -1546,7 +1556,7 @@ function Index() {
         ) : (
           <>
             <header
-              className={`shrink-0 px-4 pb-2 pt-[calc(env(safe-area-inset-top)+5.75rem)] md:px-10 md:pb-2 md:pt-6 ${showTopTabs ? "hidden" : ""}`}
+              className={`shrink-0 px-4 pb-2 pt-[calc(env(safe-area-inset-top)+5.75rem)] md:px-10 md:pb-2 md:pt-6 ${showTopTabs ? "hidden md:block" : ""}`}
             >
               <h2 className="break-words font-display text-base md:text-3xl">{title}</h2>
               <p className="hidden text-sm text-muted-foreground md:block">{sub}</p>
@@ -1597,8 +1607,8 @@ function Index() {
                 </div>
               )}
 
-            <div className="home-video-feed relative flex min-h-0 flex-1 flex-col">
-              <TopTabs className={topTabsOverlayClass} ctx={topTabsCtx} />
+            <div className="relative flex min-h-0 flex-1 flex-col">
+              <TopTabs className={topTabsClass} ctx={topTabsCtx} />
               <div
                 ref={feedScrollRef}
                 onScroll={(e) => {
@@ -1610,7 +1620,7 @@ function Index() {
                   );
                   setActiveVideoIndex((prev) => (prev === idx ? prev : idx));
                 }}
-                className="home-video-feed-scroll no-scrollbar min-h-0 flex-1 snap-y snap-mandatory overflow-y-scroll overscroll-contain scroll-smooth"
+                className="no-scrollbar min-h-0 flex-1 snap-y snap-mandatory overflow-y-scroll overscroll-contain scroll-smooth"
               >
                 {error && !offlineMode && !(videos && videos.length > 0) && (
                   <Empty text="Couldn't load videos. Refresh to try again." />
@@ -1645,10 +1655,20 @@ function Index() {
                     onSavedChange={handleSavedChange}
                     repostedBy={repostBy.get(v.id) ?? v.reposted_by ?? null}
                     posterUsername={v.poster_username ?? v.username}
-                    preloadMode={preloadModeFor(idx, activeVideoIndex, { lite, lowData })}
+                    preloadMode={
+                      idx === activeVideoIndex
+                        ? "active"
+                        : !lite && !lowData && idx === activeVideoIndex + 1
+                          ? "next"
+                          : "idle"
+                    }
                   />
                 ))}
-                {loadingMore && shown.length > 0 && <FeedLoadingSpinner />}
+                {loadingMore && shown.length > 0 && (
+                  <div className="px-4 py-4">
+                    <ListRowSkeleton count={2} />
+                  </div>
+                )}
                 <div id="scroll-sentinel" className="h-10 w-full" />
               </div>
             </div>
@@ -1657,7 +1677,7 @@ function Index() {
 
         <nav
           aria-label="Phone navigation"
-          className="mobile-top-nav grid w-full shrink-0 grid-cols-5 place-items-center bg-black md:hidden"
+          className="mobile-top-nav grid shrink-0 grid-cols-5 place-items-center w-full gap-0 border-0 bg-black px-0 rounded-none md:hidden"
         >
           {NAV.filter((n) => n.id === "foryou" || n.id === "following").map(
             ({ id, label, icon: Icon }) => (
@@ -1669,7 +1689,9 @@ function Index() {
                   if (id === "foryou") setFeedTab("foryou");
                 }}
                 aria-current={activeTab === id ? "page" : undefined}
-                className="h-14 min-w-0 flex-col gap-1 rounded-none px-0 text-[9px] text-white aria-[current=page]:font-bold"
+                className={`h-14 min-w-0 flex-col gap-1 rounded-none px-0 text-[9px] ${
+                  activeTab === id ? "text-primary" : "text-muted-foreground"
+                }`}
               >
                 <Icon className="h-5 w-5" />
                 {label}
@@ -1692,7 +1714,9 @@ function Index() {
                 variant="ghost"
                 onClick={() => setTab(id)}
                 aria-current={activeTab === id ? "page" : undefined}
-                className="h-14 min-w-0 flex-col gap-1 rounded-none px-0 text-[9px] text-white aria-[current=page]:font-bold"
+                className={`h-14 min-w-0 flex-col gap-1 rounded-none px-0 text-[9px] ${
+                  activeTab === id ? "text-primary" : "text-muted-foreground"
+                }`}
               >
                 <Icon className="h-5 w-5" />
                 {label}
@@ -1704,7 +1728,7 @@ function Index() {
               to="/u/$username"
               params={{ username: auth.handle }}
               aria-label="Profile"
-              className="flex h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-none px-0 text-[9px] text-white [&_svg]:size-5"
+              className="flex h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-none px-0 text-[9px] text-muted-foreground [&_svg]:size-5"
             >
               <User />
               Profile
@@ -1714,7 +1738,7 @@ function Index() {
               variant="ghost"
               aria-label="Profile"
               onClick={() => auth.signIn()}
-              className="h-14 min-w-0 flex-col gap-1 rounded-none px-0 text-[9px] text-white [&_svg]:size-5"
+              className="h-14 min-w-0 flex-col gap-1 rounded-none px-0 text-[9px] text-muted-foreground [&_svg]:size-5"
             >
               <User />
               Profile

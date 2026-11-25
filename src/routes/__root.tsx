@@ -15,7 +15,6 @@ import { Suspense, lazy, useEffect, useState, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { pingTikTokSync } from "../lib/tiktokHeartbeat";
-import { restoreTakenDownContent } from "../lib/restoreContent";
 import { CallProvider } from "../lib/calls";
 import { CallOverlay } from "../components/CallOverlay";
 import { PhoneAuthDialog } from "../components/PhoneAuthDialog";
@@ -28,14 +27,12 @@ import { OfflineAutoDownloadWatcher } from "../components/OfflineAutoDownloadWat
 import { FollowerRewardWatcher } from "../components/FollowerRewardModal";
 import { EarningsWatcher } from "../components/WalletBalance";
 import { BanGate } from "../components/BanGate";
+import { WarningProvider } from "../components/WarningProvider";
 import { UpdateGate } from "../components/UpdateGate";
 import { applyPrefs } from "../lib/prefs";
 import { AuthProvider, useAuth } from "../hooks/useAuth";
 import { resolveSupabaseUrl } from "../integrations/supabase/project";
 import { SnowEffect } from "../components/SnowEffect";
-import { LovableBadgeGuard } from "../components/LovableBadgeGuard";
-import { AccountTheme } from "../components/AccountTheme";
-import { ConnectionGate } from "@/components/ConnectionGate";
 import { MiniPlayer } from "../components/MiniPlayer";
 import { USE_SOUND_EVENT, type PlayerTrack } from "../lib/songPlayer";
 import type { Sound } from "../lib/sounds";
@@ -250,9 +247,7 @@ function RootShell({ children }: { children: ReactNode }) {
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: COOLERUP_JSON_LD }} />
       </head>
       <body>
-        <div id="root">
-          <div className="app-route-viewport">{children}</div>
-        </div>
+        {children}
         <Scripts />
       </body>
     </html>
@@ -302,6 +297,9 @@ function RootComponent() {
 
   useEffect(() => {
     applyPrefs();
+    const mq = window.matchMedia?.("(prefers-color-scheme: light)");
+    mq?.addEventListener?.("change", applyPrefs);
+    return () => mq?.removeEventListener?.("change", applyPrefs);
   }, []);
 
   // Cache the app shell and static assets so Coolerup still opens on weak or
@@ -319,17 +317,10 @@ function RootComponent() {
     pingTikTokSync();
   }, []);
 
-  // Put back anything moderation took down (hidden videos, deleted comments
-  // and messages, banned or muted accounts). Runs once per session on load —
-  // there is no button for this anywhere in the UI.
-  useEffect(() => {
-    void restoreTakenDownContent();
-  }, []);
-
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <AccountTheme>
+        <WarningProvider>
           <CallProvider>
             <OnboardingGate />
             {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
@@ -337,9 +328,7 @@ function RootComponent() {
               build has shipped, it unmounts the entire app — BanGate included. */}
             <UpdateGate>
               <BanGate>
-                <ConnectionGate>
-                  <Outlet />
-                </ConnectionGate>
+                <Outlet />
               </BanGate>
             </UpdateGate>
             <CallOverlay />
@@ -351,7 +340,7 @@ function RootComponent() {
             <FollowerRewardWatcher />
             <EarningsWatcher />
           </CallProvider>
-        </AccountTheme>
+        </WarningProvider>
         <PhoneAuthDialog />
         <OnboardingRequiredDialog />
         <Toaster theme="dark" position="top-center" />
@@ -361,8 +350,6 @@ function RootComponent() {
             playing when you switch top tabs, lock the phone, or leave the app. */}
         <MiniPlayer />
         <UseSoundHandler />
-
-        <LovableBadgeGuard />
       </AuthProvider>
     </QueryClientProvider>
   );

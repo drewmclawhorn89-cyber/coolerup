@@ -3,7 +3,6 @@ import type { User } from "@supabase/supabase-js";
 import type { User as FirebaseUser } from "firebase/auth";
 import { supabase } from "@/integrations/supabase/client";
 import { onFirebasePhoneUserChange, signOutFirebasePhone } from "@/lib/firebase";
-import { clearAccountSubscriptionCache } from "@/lib/accountSubscriptions";
 import { toast } from "sonner";
 
 export type Profile = {
@@ -68,7 +67,7 @@ function mapFirebaseUserToSessionUser(fb: FirebaseUser): User {
     created_at: fb.metadata.creationTime
       ? new Date(fb.metadata.creationTime).toISOString()
       : new Date().toISOString(),
-    app_metadata: { firebaseSession: true, provider: "phone", providers: ["phone"] },
+    app_metadata: { provider: "phone", providers: ["phone"] },
     user_metadata: {
       phone_number: fb.phoneNumber ?? undefined,
       full_name: fb.displayName ?? undefined,
@@ -283,9 +282,6 @@ function useAuthState(): AuthValue {
     openAuthDialog();
   };
   const signOut = async () => {
-    // Clear the on-screen subscription immediately: the next account must not
-    // inherit the plan shown for this one.
-    clearAccountSubscriptionCache();
     await Promise.all([supabase.auth.signOut(), signOutFirebasePhone()]);
   };
 

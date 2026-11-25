@@ -6,6 +6,7 @@ import { soundAudioUrl, type Sound } from "@/lib/sounds";
 import type { LiveHost } from "@/lib/liveDirectory";
 import { useCompressedThumbnail } from "@/lib/thumbnailCache";
 import { ListRowSkeleton, SearchSkeleton } from "@/components/Skeletons";
+import { FeedLoadingSpinner } from "@/components/FeedLoadingSpinner";
 import {
   SEARCH_TABS,
   type SearchHashtag,
@@ -564,7 +565,7 @@ export function SearchResults({
         {!loading && hasMore && <div ref={sentinelRef} className="h-3 w-full" aria-hidden="true" />}
         {loadingMore && (
           <div className="py-3">
-            <ListRowSkeleton count={2} />
+            <FeedLoadingSpinner />
           </div>
         )}
       </div>

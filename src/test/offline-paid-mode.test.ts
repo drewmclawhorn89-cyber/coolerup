@@ -18,6 +18,10 @@ import {
   type PaymentMethod,
 } from "@/lib/subscriptions";
 import { startTrial } from "@/lib/trial";
+import {
+  clearAccountSubscriptionCache,
+  setCachedAccountSubscription,
+} from "@/lib/accountSubscriptions";
 
 /**
  * Offline Mode is a paid-subscriber feature: no free hour, no downloads for
@@ -254,15 +258,17 @@ describe("automatic downloads", () => {
   });
 });
 
-describe("a paid plan stored on the server", () => {
-  const cache = (grant: Record<string, unknown>) =>
-    localStorage.setItem(`lifetime:${H}`, JSON.stringify(grant));
+describe("a paid plan stored on the account", () => {
+  const store = (
+    planId: string,
+    status: "active" | "pending" | "cancelled" | "expired" | "trialing",
+  ) => setCachedAccountSubscription(H, { planId, status, startedAt: new Date().toISOString() });
 
   it("unlocks offline for a Pro row that is not a lifetime grant", () => {
     // The bug: only `is_lifetime` rows were honoured, so a real Pro
     // subscriber whose plan lived in `public.subscriptions` read as "no plan"
     // and saw the Plus upsell.
-    cache({ plan: "pro", status: "active", isLifetime: false });
+    store("pro", "active");
     expect(planUnlocksOffline(H)).toBe(true);
     expect(getSubscription(H)?.planId).toBe("pro");
     expect(getSubscription(H)?.isLifetime).toBe(false);
@@ -270,30 +276,40 @@ describe("a paid plan stored on the server", () => {
 
   it("unlocks offline for every paid tier", () => {
     for (const plan of ["plus", "pro", "vip"]) {
-      localStorage.clear();
-      cache({ plan, status: "active", isLifetime: false });
+      clearAccountSubscriptionCache();
+      store(plan, "active");
       expect(planUnlocksOffline(H)).toBe(true);
     }
   });
 
   it("still unlocks the lifetime all-access grant", () => {
-    cache({ plan: "all", status: "active", isLifetime: true });
+    localStorage.setItem(
+      `lifetime:${H}`,
+      JSON.stringify({
+        plan: "all",
+        status: "active",
+        isLifetime: true,
+        grantedBy: "drewmclawhorn3",
+        grantedAt: null,
+        revokedAt: null,
+      }),
+    );
     expect(planUnlocksOffline(H)).toBe(true);
     expect(getSubscription(H)?.isLifetime).toBe(true);
   });
 
-  it("does not unlock a pending or canceled server row", () => {
-    cache({ plan: "pro", status: "pending", isLifetime: false });
+  it("does not unlock a pending or cancelled account row", () => {
+    store("pro", "pending");
     expect(planUnlocksOffline(H)).toBe(false);
 
-    localStorage.clear();
-    cache({ plan: "pro", status: "canceled", isLifetime: false });
+    clearAccountSubscriptionCache();
+    store("pro", "cancelled");
     expect(planUnlocksOffline(H)).toBe(false);
-    expect(getSubscription(H)).toBeNull();
+    expect(getSubscription(H)?.status).toBe("expired");
   });
 
   it("does not unlock an unknown plan id", () => {
-    cache({ plan: "platinum", status: "active", isLifetime: false });
+    store("platinum", "active");
     expect(planUnlocksOffline(H)).toBe(false);
   });
 

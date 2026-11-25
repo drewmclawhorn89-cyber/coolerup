@@ -1,4 +1,6 @@
 import "@testing-library/jest-dom/vitest";
+import { beforeEach } from "vitest";
+import { clearAccountSubscriptionCache } from "@/lib/accountSubscriptions";
 
 // Tests must not depend on whatever credentials happen to sit in the developer's
 // .env: with real Supabase values present, `@supabase/auth-js` starts reading
@@ -10,6 +12,11 @@ for (const key of ["VITE_SUPABASE_URL", "VITE_SUPABASE_PUBLISHABLE_KEY"]) {
 }
 delete process.env["SUPABASE_URL"];
 delete process.env["SUPABASE_PUBLISHABLE_KEY"];
+
+beforeEach(() => {
+  localStorage.clear();
+  clearAccountSubscriptionCache();
+});
 
 Object.defineProperty(window, "scrollTo", {
   writable: true,

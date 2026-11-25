@@ -9,6 +9,7 @@ import {
   LogOut,
   Music,
   Pencil,
+  RefreshCw,
   ShieldCheck,
   UserRound,
 } from "lucide-react";
@@ -35,11 +36,15 @@ import {
 } from "@/lib/dmMedia";
 import {
   backgroundPlayPlan,
+  getSubscription,
   hasBackgroundPlayAccess,
   offlinePlan,
+  planById,
   useOfflineUnlocked,
   useSubscription,
 } from "@/lib/subscriptions";
+import { refreshAccountSubscription } from "@/lib/accountSubscriptions";
+import { lifetimePlanLabel, refreshLifetime } from "@/lib/subscription";
 import { OfflinePaywallDialog } from "@/components/OfflinePaywallDialog";
 import {
   MAX_OFFLINE_BYTES,
@@ -127,6 +132,33 @@ function Settings() {
   // Subscriptions used to be its own top tab; it now opens from inside Settings.
   const { subscriptions: openSubscriptions } = Route.useSearch();
   const [showSubscriptions, setShowSubscriptions] = useState(Boolean(openSubscriptions));
+  const [restoringSubscription, setRestoringSubscription] = useState(false);
+
+  /** Refresh cached subscription and lifetime status for the signed-in account. */
+  const handleRestoreSubscription = async () => {
+    if (!auth.handle) {
+      toast.error("Sign in to restore a subscription");
+      return;
+    }
+    setRestoringSubscription(true);
+    try {
+      await Promise.all([refreshAccountSubscription(auth.handle), refreshLifetime(auth.handle)]);
+      const current = getSubscription(auth.handle);
+      if (current && current.status === "active") {
+        const label = current.isLifetime
+          ? lifetimePlanLabel(current.planId)
+          : (planById(current.planId)?.label ?? current.planId);
+        toast.success(`Subscription synced: ${label}`);
+      } else {
+        toast.message("No active subscription found for this account");
+      }
+    } catch {
+      toast.error("Couldn't reach the server. Try again.");
+    } finally {
+      setRestoringSubscription(false);
+    }
+  };
+
   const savePhone = () => {
     const trimmed = phone.trim();
     const normalized = trimmed ? normalizePhone(trimmed) : "";
@@ -555,16 +587,16 @@ function Settings() {
   // Subscriptions screen, opened from the Settings list.
   if (showSubscriptions) {
     return (
-      <div className="mx-auto max-w-xl pb-10">
+      <div className="mx-auto min-h-dvh max-w-xl bg-black pb-10 text-white">
         <div className="flex items-center gap-3 px-4 pt-6">
           <button
             onClick={() => setShowSubscriptions(false)}
             aria-label="Back to settings"
-            className="text-muted-foreground hover:text-foreground"
+            className="text-white/70 hover:text-white"
           >
             <ArrowLeft className="h-5 w-5" />
           </button>
-          <h1 className="font-display text-2xl">Subscriptions</h1>
+          <h1 className="font-display text-2xl text-white">Subscriptions</h1>
         </div>
         <Suspense fallback={<PanelSkeleton />}>
           <SubscriptionsPanel handle={auth.handle} onSignIn={auth.signIn} />
@@ -674,27 +706,44 @@ function Settings() {
       </div>
 
       {/* Subscriptions (moved here from the top tab row) */}
-      <div className="rounded-2xl border bg-card p-4">
-        <h2 className="font-semibold">Subscriptions</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Manage your plan, payment method, and billing.
-        </p>
+      <div className="rounded-2xl border border-white/15 bg-black p-4 text-white">
+        <h2 className="font-semibold text-white">Subscriptions</h2>
+        <p className="mt-1 text-sm text-white/70">Manage your plan, payment method, and billing.</p>
         <button
+          type="button"
           onClick={() => setShowSubscriptions(true)}
-          className="mt-3 flex w-full items-center justify-between rounded-md border bg-background px-4 py-3 text-left text-sm font-medium transition-colors hover:bg-accent"
+          className="mt-3 flex w-full items-center justify-between rounded-md border border-white/15 bg-black px-4 py-3 text-left text-sm font-medium text-white transition-colors hover:bg-white/10"
         >
           <span className="flex items-center gap-2">
-            <CreditCard className="h-4 w-4" />
+            <CreditCard className="h-4 w-4 text-white" />
             {subscription?.status === "active"
-              ? "Your subscription is active"
+              ? subscription.isLifetime
+                ? lifetimePlanLabel(subscription.planId)
+                : (planById(subscription.planId)?.label ?? "Active")
               : subscription?.status === "pending"
                 ? "Payment pending"
-                : subscription?.status === "expired"
-                  ? "Subscription expired — renew"
-                  : "View plans"}
+                : "View plans"}
           </span>
-          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+          <ChevronRight className="h-4 w-4 text-white/70" />
         </button>
+        <button
+          type="button"
+          onClick={() => void handleRestoreSubscription()}
+          disabled={restoringSubscription}
+          className="mt-2 flex w-full items-center justify-between rounded-md border border-white/15 bg-black px-4 py-3 text-left text-sm font-medium text-white transition-colors hover:bg-white/10 disabled:opacity-60"
+        >
+          <span className="flex items-center gap-2">
+            <RefreshCw
+              className={`h-4 w-4 text-white ${restoringSubscription ? "animate-spin" : ""}`}
+            />
+            {restoringSubscription ? "Restoring\u2026" : "Restore Subscription"}
+          </span>
+          <span className="text-xs text-white/70">From your account</span>
+        </button>
+        <p className="mt-2 text-xs text-white/70">
+          Your plan is saved to your account. Tap Restore Subscription if you don&apos;t see it
+          after signing in on another device.
+        </p>
       </div>
 
       {/* Username editor */}
@@ -1432,23 +1481,6 @@ function Settings() {
           <ThemePicker theme={theme} changeTheme={changeTheme} />
         </div>
       </div>
-
-      {/* Moderation self-check: answers "why isn't the auto-ban working?" */}
-      <Link
-        to="/moderation-check"
-        className="flex items-center justify-between rounded-2xl border bg-card p-4"
-      >
-        <div className="flex items-center gap-3">
-          <ShieldCheck className="h-4 w-4 text-primary" />
-          <div>
-            <p className="font-semibold">Moderation check</p>
-            <p className="text-sm text-muted-foreground">
-              See whether auto-bans are actually installed on this device.
-            </p>
-          </div>
-        </div>
-        <ChevronRight className="h-4 w-4 text-muted-foreground" />
-      </Link>
 
       <Suspense fallback={<PanelSkeleton />}>
         <MoreSettings />

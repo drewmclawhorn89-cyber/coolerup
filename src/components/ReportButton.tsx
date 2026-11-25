@@ -94,9 +94,7 @@ export function ReportButton({
       toast.error(res.error ?? "Couldn't send report");
       return;
     }
-    if (res.hidden) {
-      toast.success("Report sent. This video is hidden pending owner review.");
-    } else if (res.duplicate) {
+    if (res.duplicate) {
       toast.success("You already reported this — thanks.");
     } else {
       toast.success("Report sent. Thank you for helping keep Coolerup safe.");

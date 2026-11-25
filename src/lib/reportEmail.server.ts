@@ -833,6 +833,35 @@ export async function adminListReportsServer(limit = 150): Promise<SerializedRep
   }));
 }
 
+/**
+ * Keep a copy of the row in `deleted_content` before removing it, so a manual
+ * delete from Admin > Reports can be undone by the restore that runs on app
+ * load. Best effort: if the archive table isn't there yet we still delete.
+ */
+async function archiveThenDelete(
+  admin: ReturnType<typeof dbAdmin>,
+  table: string,
+  id: string,
+  actor: string,
+  reason: string,
+): Promise<void> {
+  try {
+    const { data } = await admin.from(table).select("*").eq("id", id).maybeSingle();
+    if (data) {
+      await admin.from("deleted_content").insert({
+        table_name: table,
+        row_id: id,
+        row_data: data as never,
+        deleted_by: actor,
+        reason,
+      });
+    }
+  } catch {
+    // Archive is optional; never block the delete on it.
+  }
+  await admin.from(table).delete().eq("id", id);
+}
+
 export async function adminDeletePostServer(adminUserId: string, reportId: string) {
   const check = await verifyAdminUser(adminUserId);
   if (!check.ok) return { ok: false, error: "Admins only" };
@@ -855,12 +884,14 @@ export async function adminDeletePostServer(adminUserId: string, reportId: strin
   const markerCommentId =
     commentId ?? detailsText.match(/\[comment:([0-9a-f-]{36})\]/i)?.[1] ?? null;
 
+  const deleteReason = String(row["reason"] ?? "Reported post removed by admin");
+
   if (markerCommentId) {
-    await admin.from("comments").delete().eq("id", markerCommentId);
-    await admin.from("full_video_comments").delete().eq("id", markerCommentId);
+    await archiveThenDelete(admin, "comments", markerCommentId, check.handle, deleteReason);
+    await archiveThenDelete(admin, "full_video_comments", markerCommentId, check.handle, deleteReason);
   } else if (videoId) {
-    await admin.from("videos").delete().eq("id", videoId);
-    await admin.from("full_videos").delete().eq("id", videoId);
+    await archiveThenDelete(admin, "videos", videoId, check.handle, deleteReason);
+    await archiveThenDelete(admin, "full_videos", videoId, check.handle, deleteReason);
   } else {
     return { ok: false, error: "No post or comment attached to this report" };
   }
@@ -884,102 +915,6 @@ export async function adminDeletePostServer(adminUserId: string, reportId: strin
     });
   } catch {
     // ignore optional log columns
-  }
-
-  return { ok: true };
-}
-
-export async function adminWarnUserServer(
-  adminUserId: string,
-  reportId: string,
-  customReason?: string | null,
-) {
-  const check = await verifyAdminUser(adminUserId);
-  if (!check.ok) return { ok: false, error: "Admins only" };
-
-  const admin = dbAdmin();
-  const { data: report, error: fetchErr } = await admin
-    .from("reports")
-    .select("*")
-    .eq("id", reportId)
-    .maybeSingle();
-  if (fetchErr || !report) return { ok: false, error: "Report not found" };
-
-  const row = report as Record<string, unknown>;
-  const reportedHandle = cleanHandle(String(row["reported_username"] ?? ""));
-  let targetUserId = (row["reported_user_id"] as string | null) ?? null;
-
-  if (!targetUserId && reportedHandle) {
-    const { data: p } = await admin
-      .from("profiles")
-      .select("id")
-      .ilike("handle", reportedHandle)
-      .maybeSingle();
-    targetUserId = (p as { id?: string } | null)?.id ?? null;
-  }
-
-  const warningText =
-    customReason?.trim() ||
-    `Warning from moderation team: ${formatReportReasonLabel(String(row["reason"] ?? "rule violation"))}`;
-
-  if (targetUserId) {
-    try {
-      const { data: existingStrike } = await admin
-        .from("user_strikes")
-        .select("strike_count")
-        .eq("user_id", targetUserId)
-        .maybeSingle();
-      const current = Number(
-        (existingStrike as { strike_count?: number } | null)?.strike_count ?? 0,
-      );
-      await admin.from("user_strikes").upsert(
-        {
-          user_id: targetUserId,
-          username: reportedHandle || "unknown",
-          strike_count: Math.min(current + 1, 3),
-          last_reason: warningText,
-          last_kind: String(row["reason"] ?? "other"),
-          last_content_type: String(row["target_type"] ?? "none"),
-          last_content_id:
-            (row["comment_id"] as string | null) ?? (row["video_id"] as string | null),
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "user_id" },
-      );
-    } catch {
-      // ignore if user_strikes doesn't exist
-    }
-
-    try {
-      await admin.from("notifications").insert({
-        target_user_id: targetUserId,
-        actor_user_id: adminUserId,
-        type: "warning",
-        text: warningText,
-        video_id: (row["video_id"] as string | null) ?? null,
-      });
-    } catch {
-      // ignore
-    }
-  }
-
-  await admin
-    .from("reports")
-    .update({ status: "actioned", action_taken: "warned" })
-    .eq("id", reportId);
-
-  try {
-    await admin.from("moderation_log").insert({
-      user_id: targetUserId,
-      username: reportedHandle || null,
-      action: "warn",
-      reason: warningText,
-      auto: false,
-      actor: check.handle,
-      actor_id: adminUserId,
-    });
-  } catch {
-    // ignore
   }
 
   return { ok: true };

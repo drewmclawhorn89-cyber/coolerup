@@ -8,7 +8,8 @@
  */
 import { supabase } from "@/integrations/supabase/client";
 
-export type AccountSubscriptionStatus = "active" | "pending" | "cancelled" | "expired" | "trialing";
+export type AccountSubscriptionStatus =
+  "free" | "active" | "pending" | "cancelled" | "expired" | "trialing";
 
 export type AccountSubscriptionRow = {
   id: string;
@@ -20,6 +21,7 @@ export type AccountSubscriptionRow = {
   started_at: string;
   expires_at: string | null;
   payment_method: string | null;
+  payment_verified: boolean;
   auto_renew: boolean;
   created_at: string;
   updated_at: string;
@@ -32,6 +34,7 @@ export type AccountSubscriptionInput = {
   startedAt: string;
   expiresAt?: string | null;
   paymentMethod?: string | null;
+  paymentVerified?: boolean;
   autoRenew?: boolean;
 };
 
@@ -95,6 +98,7 @@ function emit(): void {
 
 function parseStatus(raw: unknown): AccountSubscriptionStatus {
   if (
+    raw === "free" ||
     raw === "active" ||
     raw === "pending" ||
     raw === "cancelled" ||
@@ -104,7 +108,7 @@ function parseStatus(raw: unknown): AccountSubscriptionStatus {
     return raw;
   }
   if (raw === "canceled") return "cancelled";
-  return "expired";
+  return "free";
 }
 
 function toRow(value: unknown): AccountSubscriptionRow | null {
@@ -125,7 +129,8 @@ function toRow(value: unknown): AccountSubscriptionRow | null {
     started_at: String(r["started_at"] ?? new Date().toISOString()),
     expires_at: (r["expires_at"] as string | null | undefined) ?? null,
     payment_method: (r["payment_method"] as string | null | undefined) ?? null,
-    auto_renew: Boolean(r["auto_renew"] ?? true),
+    payment_verified: Boolean(r["payment_verified"] ?? false),
+    auto_renew: Boolean(r["auto_renew"] ?? false),
     created_at: String(r["created_at"] ?? new Date().toISOString()),
     updated_at: String(r["updated_at"] ?? new Date().toISOString()),
   };
@@ -217,7 +222,9 @@ export function setCachedAccountSubscription(
     started_at: input.startedAt,
     expires_at: input.expiresAt ?? null,
     payment_method: input.paymentMethod ?? existing?.payment_method ?? null,
-    auto_renew: input.autoRenew ?? true,
+    payment_verified:
+      input.paymentVerified ?? (input.planId !== "all" && input.status === "active"),
+    auto_renew: input.autoRenew ?? false,
     created_at: existing?.created_at ?? now,
     updated_at: now,
   };
@@ -333,16 +340,25 @@ export async function saveAccountSubscription(
   input: AccountSubscriptionInput,
 ): Promise<AccountSubscriptionRow | null> {
   const now = new Date().toISOString();
+  const isForever = input.planId === "all" || input.planName === "All Access Forever";
+  const paymentVerified =
+    input.paymentVerified ?? Boolean(input.status === "active" && input.paymentMethod);
+
+  if (isForever && input.status === "active" && !paymentVerified) {
+    throw new Error("All Access Forever requires a verified payment.");
+  }
+
   const payload: Record<string, unknown> = {
     user_id: userId,
     plan_id: input.planId,
-    plan_name: input.planName ?? null,
+    plan_name: isForever ? "All Access Forever" : (input.planName ?? null),
     plan_status: input.status,
     status: input.status,
     started_at: input.startedAt,
-    expires_at: input.expiresAt ?? null,
+    expires_at: isForever ? null : (input.expiresAt ?? null),
     payment_method: input.paymentMethod ?? null,
-    auto_renew: input.autoRenew ?? true,
+    payment_verified: paymentVerified,
+    auto_renew: input.autoRenew ?? (!isForever && input.status === "active"),
     updated_at: now,
   };
 
@@ -352,16 +368,16 @@ export async function saveAccountSubscription(
     .select("*")
     .maybeSingle();
 
-  // Compatibility fallback if the DB still has the pre-20261231000000 schema.
+  // Compatibility fallback if the DB still has the pre-migration schema without new columns.
   if (res.error && isSchemaFallbackError(res.error)) {
     const legacyPayload: Record<string, unknown> = {
       user_id: userId,
       plan_id: input.planId,
-      plan_name: input.planName ?? null,
+      plan_name: isForever ? "All Access Forever" : (input.planName ?? null),
       status: input.status,
       started_at: input.startedAt,
-      expires_at: input.expiresAt ?? null,
-      auto_renew: input.autoRenew ?? true,
+      expires_at: isForever ? null : (input.expiresAt ?? null),
+      auto_renew: input.autoRenew ?? (!isForever && input.status === "active"),
       updated_at: now,
     };
     res = await db

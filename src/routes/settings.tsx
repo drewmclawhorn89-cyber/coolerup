@@ -733,9 +733,7 @@ function Settings() {
                 ? `Active: ${subscriptionDisplayName(subscription)}`
                 : subscription?.status === "pending"
                   ? `Payment pending: ${subscriptionDisplayName(subscription)}`
-                  : subscription?.status === "expired"
-                    ? "Subscription expired — View plans"
-                    : "View plans"}
+                  : "Free"}
             </span>
             <span className="flex items-center gap-1 text-xs text-white/70">
               View plans

@@ -20,6 +20,7 @@ export type LifetimeGrant = {
   plan: LifetimePlan;
   status: LifetimeStatus;
   isLifetime: boolean;
+  paymentVerified?: boolean;
   grantedBy: string | null;
   grantedAt: string | null;
   revokedAt: string | null;
@@ -40,6 +41,7 @@ const OWNER_DEFAULT_GRANT: LifetimeGrant = {
   plan: "all",
   status: "active",
   isLifetime: true,
+  paymentVerified: true,
   grantedBy: OWNER_HANDLE,
   grantedAt: null,
   revokedAt: null,
@@ -70,9 +72,11 @@ function emitLifetime(): void {
 /*  Reading & In-Memory Cache                                                 */
 /* -------------------------------------------------------------------------- */
 
-/** True only for a live grant. A canceled row is *not* active. */
+/** True only for a live, verified grant. A canceled or unverified row is *not* active. */
 export function isLifetimeActive(grant?: LifetimeGrant | null): boolean {
-  return Boolean(grant?.isLifetime && grant?.status === "active");
+  if (!grant?.isLifetime || grant.status !== "active") return false;
+  if (grant.paymentVerified === false) return false;
+  return true;
 }
 
 /**
@@ -152,11 +156,22 @@ function toGrant(row: unknown): LifetimeGrant | null {
   if (!row || typeof row !== "object") return null;
   const r = row as Record<string, unknown>;
   const plan = r["plan"];
-  if (!plan) return null;
+  if (!plan || plan === "free") return null;
+  const status = (r["status"] ?? "expired") as LifetimeStatus;
+  const isLifetime = Boolean(r["is_lifetime"] ?? r["isLifetime"]);
+  const hasExplicitVerified =
+    r["payment_verified"] !== undefined || r["paymentVerified"] !== undefined;
+  const paymentVerified = hasExplicitVerified
+    ? Boolean(r["payment_verified"] ?? r["paymentVerified"])
+    : false;
+  if (status === "active" && !paymentVerified) {
+    return null;
+  }
   return {
     plan: plan as LifetimePlan,
-    status: (r["status"] ?? "active") as LifetimeStatus,
-    isLifetime: Boolean(r["is_lifetime"] ?? r["isLifetime"]),
+    status,
+    isLifetime,
+    paymentVerified,
     grantedBy: (r["granted_by"] ?? r["grantedBy"] ?? null) as string | null,
     grantedAt: (r["granted_at"] ?? r["grantedAt"] ?? null) as string | null,
     revokedAt: (r["revoked_at"] ?? r["revokedAt"] ?? null) as string | null,

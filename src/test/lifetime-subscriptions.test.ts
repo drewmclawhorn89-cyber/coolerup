@@ -133,4 +133,15 @@ describe("event name", () => {
   it("is stable, so the subscription hook can listen for revokes", () => {
     expect(LIFETIME_EVENT).toBe("lifetime-change");
   });
+
+  it("ignores active non-owner grant when paymentVerified is false", () => {
+    seed({
+      plan: "all",
+      status: "active",
+      isLifetime: true,
+      paymentVerified: false,
+      grantedBy: null,
+    });
+    expect(getSubscription(NON_OWNER)).toBeNull();
+  });
 });

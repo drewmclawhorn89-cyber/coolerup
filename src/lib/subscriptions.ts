@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 
 import {
+  ALL_ACCESS_FOREVER_PLAN,
+  LIFETIME_PLAN,
   PLANS,
   backgroundPlayPlan,
   fetchPlansFromDb,
@@ -43,6 +45,8 @@ import {
 
 export type { Plan };
 export {
+  ALL_ACCESS_FOREVER_PLAN,
+  LIFETIME_PLAN,
   PLANS,
   fetchPlansFromDb,
   getPlans,
@@ -296,40 +300,97 @@ const paymentMethods = new Map<string, PaymentMethod>();
 const codeGrants = new Map<string, string>();
 
 function planLabel(planId: string): string {
+  if (planId === "free") return "Free";
+  if (planId === "all") return "All Access Forever";
   return planById(planId)?.label ?? planId;
 }
 
 export function subscriptionDisplayName(sub?: Subscription | null): string {
-  if (!sub) return "Free";
-  if (sub.isLifetime) return lifetimePlanLabel(sub.planId);
+  if (!sub || (sub.status !== "active" && sub.status !== "pending")) return "Free";
+  if (sub.isLifetime || sub.planId === "all") return lifetimePlanLabel(sub.planId);
   return planLabel(sub.planId);
 }
 
+function isExpiredDate(expiresAt?: string | null): boolean {
+  if (!expiresAt) return false;
+  const ms = Date.parse(expiresAt);
+  return Number.isFinite(ms) && ms <= Date.now();
+}
+
 function toAccountInput(sub: Subscription): AccountSubscriptionInput {
+  const isForever = sub.planId === "all" || Boolean(sub.isLifetime);
   return {
     planId: sub.planId,
-    planName: planLabel(sub.planId),
+    planName: isForever ? "All Access Forever" : planLabel(sub.planId),
     status: sub.status === "active" ? "active" : sub.status === "pending" ? "pending" : "expired",
     startedAt: sub.startedAt,
-    expiresAt: sub.currentPeriodEnd ?? null,
+    expiresAt: isForever ? null : (sub.currentPeriodEnd ?? null),
     paymentMethod: sub.paymentMethod
       ? maskCard(sub.paymentMethod)
       : sub.source === "code" && sub.code
         ? `Code: ${sub.code}`
         : null,
-    autoRenew: sub.status === "active" && sub.source !== "code",
+    paymentVerified:
+      sub.status === "active" && (Boolean(sub.paymentMethod) || sub.source === "code"),
+    autoRenew: !isForever && sub.status === "active" && sub.source !== "code",
   };
 }
 
-/** Turn an account row into the shape the rest of the app already understands. */
-function fromAccountRow(row: AccountSubscriptionRow): Subscription {
-  const rowStatus = row.plan_status ?? row.status;
-  const status: SubStatus =
-    rowStatus === "active" || rowStatus === "trialing"
-      ? "active"
-      : rowStatus === "pending"
-        ? "pending"
-        : "expired";
+/**
+ * Turn an account row into the app Subscription shape, enforcing:
+ * - Default is Free (never Forever) when no row or status is free/cancelled/expired.
+ * - Monthly/Yearly plans check expires_at: past expires_at => expired ("Free").
+ * - All Access Forever requires plan_name = "All Access Forever" AND
+ *   plan_status = "active" AND payment_verified = true (or owner handle).
+ */
+function fromAccountRow(row: AccountSubscriptionRow, handle?: string | null): Subscription | null {
+  const rawStatus = String(row.plan_status ?? row.status ?? "free").toLowerCase();
+  const planId = (row.plan_id ?? "").trim();
+  const planName = (row.plan_name ?? "").trim();
+
+  if (!planId || planId === "free" || rawStatus === "free") {
+    return null;
+  }
+
+  const isForever = planId === "all" || /all access forever|lifetime all access/i.test(planName);
+
+  if (isForever) {
+    const validForever =
+      planName === "All Access Forever" &&
+      rawStatus === "active" &&
+      (row.payment_verified === true || isOwnerHandle(handle));
+    if (!validForever) {
+      return null;
+    }
+    return {
+      planId: "all",
+      status: "active",
+      isLifetime: true,
+      startedAt: row.started_at,
+      paidAt: row.started_at,
+      paymentMethod: paymentMethodFromLabel(row.payment_method, row.updated_at),
+      source: "payment",
+      code: null,
+      currentPeriodEnd: null,
+    };
+  }
+
+  let status: SubStatus;
+  if (rawStatus === "cancelled" || rawStatus === "canceled" || rawStatus === "expired") {
+    status = "expired";
+  } else if (
+    (rawStatus === "active" || rawStatus === "trialing") &&
+    isExpiredDate(row.expires_at)
+  ) {
+    status = "expired";
+  } else if (rawStatus === "active" || rawStatus === "trialing") {
+    status = "active";
+  } else if (rawStatus === "pending") {
+    status = "pending";
+  } else {
+    status = "expired";
+  }
+
   const isCode = row.payment_method
     ? row.payment_method.startsWith("Code:")
     : Boolean(row.expires_at);
@@ -353,8 +414,8 @@ function fromAccountRow(row: AccountSubscriptionRow): Subscription {
 /**
  * The subscription in force for this handle (and/or userId).
  *
- * The Supabase account row is the source of truth. Lifetime grants outrank
- * purchasable tiers, and owner @drewmclawhorn3 always keeps their plan.
+ * Default is ALWAYS Free (null) when no paid row exists.
+ * Owner @drewmclawhorn3 keeps their plan without copying it to other users.
  * Zero device/localStorage fallback is ever consulted.
  */
 export function getSubscription(
@@ -386,7 +447,8 @@ export function getSubscription(
     (handle ? cachedAccountSubscription(handle) : null);
   if (!row) return null;
 
-  const sub = fromAccountRow(row);
+  const sub = fromAccountRow(row, handle);
+  if (!sub) return null;
   if (handle && !sub.paymentMethod) {
     sub.paymentMethod = paymentMethods.get(handle) ?? null;
   }
@@ -425,8 +487,10 @@ export async function saveSubscriptionToAccount(params: {
   userId?: string | null | undefined;
   handle: string;
   planId: string;
+  planName?: string | null | undefined;
   status: AccountSubscriptionStatus;
   paymentMethod?: PaymentMethod | string | null | undefined;
+  paymentVerified?: boolean | undefined;
   startedAt?: string | undefined;
   expiresAt?: string | null | undefined;
   source?: "payment" | "code" | undefined;
@@ -438,11 +502,13 @@ export async function saveSubscriptionToAccount(params: {
   }
 
   const now = new Date();
+  const isForever = params.planId === "all" || params.planName === "All Access Forever";
   const startedAt = params.startedAt ?? now.toISOString();
   const nextMonth = new Date(now);
   nextMonth.setMonth(nextMonth.getMonth() + 1);
-  const expiresAt =
-    params.expiresAt !== undefined
+  const expiresAt = isForever
+    ? null
+    : params.expiresAt !== undefined
       ? params.expiresAt
       : params.status === "active"
         ? nextMonth.toISOString()
@@ -460,17 +526,24 @@ export async function saveSubscriptionToAccount(params: {
     pmLabel = `Code: ${params.code}`;
   }
 
+  const paymentVerified = params.paymentVerified ?? Boolean(params.status === "active" && pmLabel);
+
+  if (isForever && params.status === "active" && !paymentVerified) {
+    throw new Error("All Access Forever requires a verified payment.");
+  }
+
   if (pmObj) paymentMethods.set(params.handle, pmObj);
   if (params.code) codeGrants.set(params.planId, params.code);
 
   const row = await saveAccountSubscription(userId, {
     planId: params.planId,
-    planName: planLabel(params.planId),
+    planName: isForever ? "All Access Forever" : (params.planName ?? planLabel(params.planId)),
     status: params.status,
     startedAt,
     expiresAt,
     paymentMethod: pmLabel,
-    autoRenew: params.status === "active" && params.source !== "code",
+    paymentVerified,
+    autoRenew: !isForever && params.status === "active" && params.source !== "code",
   });
 
   await loadAccountSubscription(userId, params.handle);
@@ -478,7 +551,8 @@ export async function saveSubscriptionToAccount(params: {
 
   const hydrated = getSubscription(params.handle, userId);
   if (hydrated) return hydrated;
-  if (row) return fromAccountRow(row);
+  const fallbackSub = row ? fromAccountRow(row, params.handle) : null;
+  if (fallbackSub) return fallbackSub;
   throw new Error("Could not verify saved subscription.");
 }
 

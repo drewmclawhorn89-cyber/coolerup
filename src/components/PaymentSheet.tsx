@@ -168,6 +168,8 @@ export function PaymentSheet({ plan, handle, userId, sub, onClose, onSignIn }: P
 
   const amount = plan.price;
 
+  const isForever = plan.id === "all";
+
   const applyPaymentMethod = async (pm: PaymentMethod) => {
     setError(null);
     if (!handle && !userId) {
@@ -182,8 +184,11 @@ export function PaymentSheet({ plan, handle, userId, sub, onClose, onSignIn }: P
           userId,
           handle: targetHandle,
           planId: plan.id,
+          planName: plan.label,
           status: sub?.status === "pending" ? "pending" : "active",
           paymentMethod: pm,
+          paymentVerified: sub?.status !== "pending",
+          ...(isForever ? { expiresAt: null } : {}),
         });
         setDone(`Payment method (${maskCard(pm)}) saved to your account.`);
         return;
@@ -193,8 +198,11 @@ export function PaymentSheet({ plan, handle, userId, sub, onClose, onSignIn }: P
         userId,
         handle: targetHandle,
         planId: plan.id,
+        planName: plan.label,
         status: "active",
         paymentMethod: pm,
+        paymentVerified: true,
+        ...(isForever ? { expiresAt: null } : {}),
       });
       setDone(`${plan.label} is active (${maskCard(pm)}) — saved to your account.`);
     } catch (err) {
@@ -242,6 +250,7 @@ export function PaymentSheet({ plan, handle, userId, sub, onClose, onSignIn }: P
           userId,
           handle: targetHandle,
           planId: plan.id,
+          planName: plan.label,
           status: sub?.status === "pending" ? "pending" : "active",
           paymentMethod: {
             ...result.paymentMethod,
@@ -250,6 +259,8 @@ export function PaymentSheet({ plan, handle, userId, sub, onClose, onSignIn }: P
             expMonth: saved.card.expMonth,
             expYear: saved.card.expYear,
           },
+          paymentVerified: sub?.status !== "pending",
+          ...(isForever ? { expiresAt: null } : {}),
         });
         setDone("Payment method saved to your account.");
         return;
@@ -276,8 +287,11 @@ export function PaymentSheet({ plan, handle, userId, sub, onClose, onSignIn }: P
         userId,
         handle: targetHandle,
         planId: plan.id,
+        planName: plan.label,
         status: nextStatus,
         paymentMethod: pm,
+        paymentVerified: charge.status === "succeeded",
+        ...(isForever ? { expiresAt: null } : {}),
       });
 
       if (charge.status === "succeeded") {
@@ -306,8 +320,10 @@ export function PaymentSheet({ plan, handle, userId, sub, onClose, onSignIn }: P
         userId,
         handle: targetHandle,
         planId: plan.id,
+        planName: plan.label,
         status: "pending",
         paymentMethod: "Venmo",
+        paymentVerified: false,
       });
       setDone("Opened Venmo — saved as pending to your account until confirmed.");
     } catch (err) {
@@ -327,7 +343,8 @@ export function PaymentSheet({ plan, handle, userId, sub, onClose, onSignIn }: P
         <DialogHeader>
           <DialogTitle className="text-white">{title}</DialogTitle>
           <DialogDescription className="text-white/70">
-            {plan.emoji} {plan.label} · ${plan.price.toFixed(2)}/mo
+            {plan.emoji} {plan.label} · ${plan.price.toFixed(2)}
+            {isForever ? " one-time" : "/mo"}
           </DialogDescription>
         </DialogHeader>
 
@@ -362,6 +379,12 @@ export function PaymentSheet({ plan, handle, userId, sub, onClose, onSignIn }: P
             <div className="rounded-lg border border-white/15 bg-black p-3 text-xs text-white/75">
               {manage ? (
                 <>Your card is what renews the plan. Nothing is charged right now.</>
+              ) : isForever ? (
+                <>
+                  Charged today:{" "}
+                  <span className="font-semibold text-white">${amount.toFixed(2)}</span> once — All
+                  Access Forever never expires.
+                </>
               ) : (
                 <>
                   Charged today:{" "}

@@ -353,7 +353,7 @@ function Profile() {
   const isOwn = !!auth.handle && auth.handle === username;
   // The owner's plan is read from the account, so it follows them to a new
   // phone. Other viewers see nothing here.
-  const mySubscription = useSubscription(isOwn ? auth.handle : null);
+  const mySubscription = useSubscription(isOwn ? auth.handle : null, isOwn ? auth.user?.id : null);
   /** Paid shelves are private: they only ever load for your own profile. */
   const myPaid = useMyPaidVideos(isOwn ? (profile?.id ?? null) : null);
   const purchased = usePurchasedVideos(isOwn ? (auth.user?.id ?? null) : null);
@@ -957,9 +957,7 @@ function Profile() {
               />
             </div>
           )}
-          {profile?.bio && (
-            <p className="max-w-md text-sm text-muted-foreground">{profile.bio}</p>
-          )}
+          {profile?.bio && <p className="max-w-md text-sm text-muted-foreground">{profile.bio}</p>}
           {profile?.links && Object.keys(profile.links).length > 0 && (
             <div className="flex flex-wrap justify-center gap-2">
               {LINK_FIELDS.filter(

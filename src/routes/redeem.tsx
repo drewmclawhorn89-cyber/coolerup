@@ -24,7 +24,7 @@ export const Route = createFileRoute("/redeem")({
 
 function RedeemPage() {
   const auth = useAuth();
-  const sub = useSubscription(auth.handle);
+  const sub = useSubscription(auth.handle, auth.user?.id);
   const summary = codeSubscriptionSummary(sub);
 
   return (

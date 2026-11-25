@@ -6,11 +6,13 @@ import { RedeemCodeBox } from "@/components/RedeemCodeBox";
 import { LifetimeBanner } from "@/components/LifetimeBadge";
 import { Button } from "@/components/ui/button";
 import {
+  ALL_ACCESS_FOREVER_PLAN,
   PLANS,
   cancelSubscriptionOnAccount,
   fetchPlansFromDb,
   formatExpiry,
   maskCard,
+  subscriptionDisplayName,
   useSubscriptionState,
   type Plan,
 } from "@/lib/subscriptions";
@@ -38,7 +40,7 @@ export function SubscriptionsPanel({
   onSignIn?: (() => void) | undefined;
 }) {
   const { subscription: sub, loading: subLoading } = useSubscriptionState(handle, userId);
-  const [plans, setPlans] = useState<Plan[]>(PLANS);
+  const [plans, setPlans] = useState<Plan[]>(() => [...PLANS, ALL_ACCESS_FOREVER_PLAN]);
   const [plansLoading, setPlansLoading] = useState(true);
   const [cancelling, setCancelling] = useState(false);
 
@@ -48,7 +50,9 @@ export function SubscriptionsPanel({
     setPlansLoading(true);
     void fetchPlansFromDb()
       .then((loaded) => {
-        if (alive && loaded.length > 0) setPlans(loaded);
+        if (!alive || loaded.length === 0) return;
+        const hasForever = loaded.some((p) => p.id === ALL_ACCESS_FOREVER_PLAN.id);
+        setPlans(hasForever ? loaded : [...loaded, ALL_ACCESS_FOREVER_PLAN]);
       })
       .finally(() => {
         if (alive) setPlansLoading(false);
@@ -122,10 +126,21 @@ export function SubscriptionsPanel({
         </div>
       ) : (
         <>
+          <div className="rounded-xl border border-white/15 bg-black p-3 text-sm text-white">
+            Current plan:{" "}
+            <span className="font-semibold">
+              {sub?.status === "active"
+                ? `Active: ${subscriptionDisplayName(sub)}`
+                : sub?.status === "pending"
+                  ? `Payment pending: ${subscriptionDisplayName(sub)}`
+                  : "Free"}
+            </span>
+          </div>
+
           {sub?.status === "expired" && (
             <div className="rounded-xl border border-white/15 bg-black p-3 text-sm text-white">
-              <span className="font-semibold">Your subscription isn&apos;t active.</span> Pick a
-              plan below to get your perks back.
+              <span className="font-semibold">Your subscription isn&apos;t active.</span> You are on
+              the Free plan. Pick a plan below to subscribe.
             </div>
           )}
 
@@ -143,15 +158,17 @@ export function SubscriptionsPanel({
           )}
 
           {plans.map((p) => {
+            const isForeverTier = p.id === "all" || p.label === "All Access Forever";
             const current = sub?.planId === p.id;
             const pending = current && sub?.status === "pending";
             const active = current && sub?.status === "active";
             const expired = current && sub?.status === "expired";
-            const trialing = trial.active && trial.planId === p.id;
-            const trialSpent = hasUsedTrial(handle, p.id);
+            const trialing = !isForeverTier && trial.active && trial.planId === p.id;
+            const trialSpent = !isForeverTier && hasUsedTrial(handle, p.id);
             const highlighted = pending || active || trialing;
-            const lifetime = Boolean(sub?.isLifetime);
-            const isCurrentPlan = active || (lifetime && (sub?.planId === "all" || current));
+            const lifetime = Boolean(sub?.status === "active" && sub?.isLifetime);
+            const isCurrentPlan = active;
+            const includedInLifetime = lifetime && !active && sub?.planId === "all";
 
             return (
               <div
@@ -184,7 +201,9 @@ export function SubscriptionsPanel({
                   <div className="text-right text-white">
                     <div className="font-bold">
                       ${p.price.toFixed(2)}
-                      <span className="text-xs font-normal text-white/70">/mo</span>
+                      <span className="text-xs font-normal text-white/70">
+                        {isForeverTier ? " one-time" : "/mo"}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -195,9 +214,9 @@ export function SubscriptionsPanel({
                   ))}
                 </ul>
 
-                {lifetime ? (
+                {includedInLifetime ? (
                   <p className="mt-3 rounded-lg border border-amber-400/40 bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-300">
-                    Included in your lifetime plan
+                    Included in your All Access Forever plan
                   </p>
                 ) : pending ? (
                   <div className="mt-3 space-y-2">
@@ -230,31 +249,39 @@ export function SubscriptionsPanel({
                         </button>
                       </div>
                     )}
-                    <Button
-                      className="w-full border border-white/20 bg-white/10 text-white hover:bg-white/20"
-                      variant="secondary"
-                      disabled={cancelling}
-                      onClick={() => void handleCancel(p.id)}
-                    >
-                      {cancelling ? "Cancelling…" : "Current Plan · Cancel"}
-                    </Button>
+                    {isForeverTier ? (
+                      <p className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs font-medium text-emerald-300">
+                        Active: All Access Forever &middot; Never expires
+                      </p>
+                    ) : (
+                      <Button
+                        className="w-full border border-white/20 bg-white/10 text-white hover:bg-white/20"
+                        variant="secondary"
+                        disabled={cancelling}
+                        onClick={() => void handleCancel(p.id)}
+                      >
+                        {cancelling ? "Cancelling…" : "Current Plan · Cancel"}
+                      </Button>
+                    )}
                   </div>
                 ) : (
                   <>
+                    {!isForeverTier && (
+                      <Button
+                        className="mt-3 w-full border border-white/20 bg-white/10 text-white hover:bg-white/20"
+                        variant="secondary"
+                        disabled={trialSpent}
+                        onClick={() => startPlanTrial(p)}
+                      >
+                        {trialing
+                          ? `Trial running \u00b7 ${trial.label} left`
+                          : trialSpent
+                            ? "Free trial used"
+                            : "Start 1-hour free trial"}
+                      </Button>
+                    )}
                     <Button
-                      className="mt-3 w-full border border-white/20 bg-white/10 text-white hover:bg-white/20"
-                      variant="secondary"
-                      disabled={trialSpent}
-                      onClick={() => startPlanTrial(p)}
-                    >
-                      {trialing
-                        ? `Trial running \u00b7 ${trial.label} left`
-                        : trialSpent
-                          ? "Free trial used"
-                          : "Start 1-hour free trial"}
-                    </Button>
-                    <Button
-                      className="mt-2 w-full bg-white text-black hover:bg-white/90"
+                      className={`${isForeverTier ? "mt-3" : "mt-2"} w-full bg-white text-black hover:bg-white/90`}
                       onClick={() => {
                         if (!handle && !userId) {
                           onSignIn?.();
@@ -263,9 +290,11 @@ export function SubscriptionsPanel({
                         openSheet(p);
                       }}
                     >
-                      {sub?.status === "active"
-                        ? `Switch to ${p.label} \u2014 $${p.price.toFixed(2)}/mo`
-                        : `Get ${p.label} \u2014 $${p.price.toFixed(2)}/mo`}
+                      {isForeverTier
+                        ? `Get ${p.label} \u2014 $${p.price.toFixed(2)}`
+                        : sub?.status === "active"
+                          ? `Switch to ${p.label} \u2014 $${p.price.toFixed(2)}/mo`
+                          : `Get ${p.label} \u2014 $${p.price.toFixed(2)}/mo`}
                     </Button>
                   </>
                 )}
@@ -276,8 +305,8 @@ export function SubscriptionsPanel({
       )}
 
       <p className="pt-1 text-center text-xs text-white/60">
-        Plans renew monthly until you cancel. Cancel anytime and you keep your perks until the end
-        of the period you paid for.
+        Monthly plans renew until you cancel. All Access Forever is a one-time purchase that never
+        expires.
       </p>
 
       <RedeemCodeBox handle={handle} onSignIn={onSignIn} className="mt-1" />

@@ -29,8 +29,18 @@ export async function canAccessBeta(userId: string | undefined): Promise<boolean
   ) => Promise<{ data: unknown }>;
   try {
     const { data: lifetime } = await call("my_lifetime_subscription");
-    const row = lifetime as { plan?: string; status?: string; is_lifetime?: boolean } | null;
-    return Boolean(row?.is_lifetime && row.status === "active" && row.plan === "all");
+    const row = lifetime as {
+      plan?: string;
+      status?: string;
+      is_lifetime?: boolean;
+      payment_verified?: boolean;
+    } | null;
+    return Boolean(
+      row?.is_lifetime &&
+      row.status === "active" &&
+      row.plan === "all" &&
+      row.payment_verified === true,
+    );
   } catch {
     return false;
   }

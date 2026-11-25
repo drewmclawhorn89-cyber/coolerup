@@ -97,22 +97,23 @@ let dbPlansCache: Plan[] | null = null;
  */
 export const LIFETIME_PLAN: Plan = {
   id: "all",
-  label: "Lifetime All Access",
+  label: "All Access Forever",
   emoji: "\u{1F451}",
-  price: 0,
+  price: 99.99,
   perks: [
     "Everything in Plus, Pro and VIP",
     "Offline video downloads",
     "Offline music downloads",
     "Background play",
     "Beta features",
-    "1,000 coins",
     "Never expires",
   ],
   offline: true,
   musicOffline: true,
   backgroundPlay: true,
 };
+
+export const ALL_ACCESS_FOREVER_PLAN = LIFETIME_PLAN;
 
 export function getPlans(): Plan[] {
   return dbPlansCache && dbPlansCache.length > 0 ? dbPlansCache : PLANS;

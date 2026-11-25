@@ -72,6 +72,25 @@ const planRows: Row[] = [
     sort_order: 3,
     active: true,
   },
+  {
+    id: "all",
+    plan_name: "All Access Forever",
+    emoji: "👑",
+    price_cents: 9999,
+    perks: [
+      "Everything in Plus, Pro and VIP",
+      "Offline video downloads",
+      "Offline music downloads",
+      "Background play",
+      "Beta features",
+      "Never expires",
+    ],
+    offline: true,
+    music_offline: true,
+    background_play: true,
+    sort_order: 4,
+    active: true,
+  },
 ];
 
 let currentUser: string | null = null;
@@ -356,8 +375,8 @@ describe("real account-backed subscriptions (no device storage)", () => {
     expect(keys.filter((k) => /subscription|lifetime|plan|paid/i.test(k))).toEqual([]);
   });
 
-  it("migration enforces single row per user_id, subscription_plans, profiles sync, and owner protection", () => {
-    const sql = readFileSync(
+  it("migration enforces single row per user_id, Free default, payment_verified, and non-destructive cleanup", () => {
+    const sql2026 = readFileSync(
       join(
         __dirname,
         "..",
@@ -368,11 +387,177 @@ describe("real account-backed subscriptions (no device storage)", () => {
       ),
       "utf8",
     );
-    expect(sql).toContain("create table if not exists public.subscription_plans");
-    expect(sql).toContain("add constraint user_subscriptions_user_id_key unique (user_id)");
-    expect(sql).toContain("plan_status");
-    expect(sql).toContain("payment_method");
-    expect(sql).toContain("drewmclawhorn3");
-    expect(sql).toContain("auth.uid() = user_id");
+    expect(sql2026).toContain("create table if not exists public.subscription_plans");
+    expect(sql2026).toContain("add constraint user_subscriptions_user_id_key unique (user_id)");
+    expect(sql2026).toContain("plan_status");
+    expect(sql2026).toContain("payment_method");
+    expect(sql2026).toContain("drewmclawhorn3");
+    expect(sql2026).toContain("auth.uid() = user_id");
+
+    const sql2027 = readFileSync(
+      join(
+        __dirname,
+        "..",
+        "..",
+        "supabase",
+        "migrations",
+        "20270101000000_fix_free_default_and_payment_verified.sql",
+      ),
+      "utf8",
+    );
+    expect(sql2027).toContain("set default 'free'");
+    expect(sql2027).toContain(
+      "add column if not exists payment_verified boolean not null default false",
+    );
+    expect(sql2027).toContain("All Access Forever");
+    expect(sql2027).toContain("plan_status = 'expired'");
+    expect(sql2027).not.toMatch(/delete\s+from\s+public\.(profiles|videos|full_videos)/i);
+  });
+
+  it("proves a NEW account with no purchase shows Free (NEVER All Access Forever), then buying Forever -> logout -> login shows Active: All Access Forever", async () => {
+    const { SubscriptionsPanel } = await import("@/components/SubscriptionsPanel");
+    const NEW_USER = "22222222-2222-2222-2222-222222222222";
+    const NEW_HANDLE = "brandnewuser";
+    currentUser = NEW_USER;
+
+    // 1. New test account logs in with NO subscription row in Supabase -> MUST show "Free".
+    render(createElement(SubscriptionsPanel, { handle: NEW_HANDLE, userId: NEW_USER }));
+    await waitFor(() => {
+      expect(screen.getByText(/Current plan:/i)).toHaveTextContent("Current plan: Free");
+    });
+    expect(screen.queryByText(/Active: All Access Forever/i)).not.toBeInTheDocument();
+    expect(subs.planUnlocksOffline(NEW_HANDLE)).toBe(false);
+
+    // 2. Buy All Access Forever on that test account (payment_verified = true, expires_at = null).
+    await subs.saveSubscriptionToAccount({
+      userId: NEW_USER,
+      handle: NEW_HANDLE,
+      planId: "all",
+      planName: "All Access Forever",
+      status: "active",
+      paymentMethod: "Visa •••• 4242",
+      paymentVerified: true,
+      expiresAt: null,
+    });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      user_id: NEW_USER,
+      plan_id: "all",
+      plan_name: "All Access Forever",
+      plan_status: "active",
+      payment_verified: true,
+      expires_at: null,
+    });
+
+    cleanup();
+
+    // 3. Log out (clear all client memory & localStorage).
+    account.clearAccountSubscriptionCache();
+    lifetime.clearLifetimeCache();
+    expect(subs.getSubscription(NEW_HANDLE, NEW_USER)).toBeNull();
+    expect(Object.keys(localStorage)).toEqual([]);
+
+    // 4. Log in again on a different phone/browser -> MUST show "Active: All Access Forever" automatically!
+    render(createElement(SubscriptionsPanel, { handle: NEW_HANDLE, userId: NEW_USER }));
+    await waitFor(() => {
+      expect(screen.getByText(/Current plan:/i)).toHaveTextContent(
+        "Current plan: Active: All Access Forever",
+      );
+    });
+    expect(screen.getByText("Current Plan")).toBeInTheDocument();
+    expect(subs.subscriptionDisplayName(subs.getSubscription(NEW_HANDLE, NEW_USER))).toBe(
+      "All Access Forever",
+    );
+  });
+
+  it("rejects unverified All Access Forever rows, cancelled/expired/free rows, and expired monthly plans", async () => {
+    const { SubscriptionsPanel } = await import("@/components/SubscriptionsPanel");
+
+    // 1. Unverified Forever row in DB (payment_verified = false) -> MUST show "Free", NOT Forever.
+    rows.push({
+      id: "bogus-forever",
+      user_id: USER,
+      plan_id: "all",
+      plan_name: "All Access Forever",
+      plan_status: "active",
+      status: "active",
+      started_at: new Date().toISOString(),
+      expires_at: null,
+      payment_method: null,
+      payment_verified: false,
+      auto_renew: false,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+    await account.loadAccountSubscription(USER, HANDLE);
+    expect(subs.getSubscription(HANDLE, USER)).toBeNull();
+    expect(subs.subscriptionDisplayName(subs.getSubscription(HANDLE, USER))).toBe("Free");
+    expect(subs.planUnlocksOffline(HANDLE)).toBe(false);
+
+    render(createElement(SubscriptionsPanel, { handle: HANDLE, userId: USER }));
+    await waitFor(() => {
+      expect(screen.getByText(/Current plan:/i)).toHaveTextContent("Current plan: Free");
+    });
+    expect(screen.queryByText(/Active: All Access Forever/i)).not.toBeInTheDocument();
+    cleanup();
+
+    // Attempting to save active All Access Forever without verified payment MUST throw.
+    await expect(
+      account.saveAccountSubscription(USER, {
+        planId: "all",
+        planName: "All Access Forever",
+        status: "active",
+        startedAt: new Date().toISOString(),
+        paymentVerified: false,
+      }),
+    ).rejects.toThrow(/verified payment/i);
+
+    // 2. Cancelled / expired / free statuses -> show "Free" and lock perks.
+    for (const status of ["cancelled", "expired", "free"] as const) {
+      rows[0] = {
+        ...rows[0]!,
+        plan_id: "vip",
+        plan_name: "VIP",
+        plan_status: status,
+        status,
+        payment_verified: true,
+        expires_at: new Date(Date.now() + 86400_000).toISOString(),
+      };
+      account.clearAccountSubscriptionCache();
+      await account.loadAccountSubscription(USER, HANDLE);
+      const sub = subs.getSubscription(HANDLE, USER);
+      expect(subs.subscriptionDisplayName(sub)).toBe("Free");
+      expect(subs.planUnlocksOffline(HANDLE)).toBe(false);
+    }
+
+    // 3. Monthly/Yearly plan past expires_at -> MUST show "Free" and lock paid features.
+    rows[0] = {
+      ...rows[0]!,
+      plan_id: "vip",
+      plan_name: "VIP",
+      plan_status: "active",
+      status: "active",
+      payment_verified: true,
+      expires_at: new Date(Date.now() - 60_000).toISOString(),
+    };
+    account.clearAccountSubscriptionCache();
+    await account.loadAccountSubscription(USER, HANDLE);
+    const expiredSub = subs.getSubscription(HANDLE, USER);
+    expect(expiredSub?.status).toBe("expired");
+    expect(subs.subscriptionDisplayName(expiredSub)).toBe("Free");
+    expect(subs.planUnlocksOffline(HANDLE)).toBe(false);
+    expect(subs.planUnlocksMusicOffline(HANDLE)).toBe(false);
+    expect(subs.planUnlocksBackgroundPlay(HANDLE)).toBe(false);
+
+    // Owner @drewmclawhorn3 has All Access Forever, NEVER copied to non-owner users.
+    await lifetime.refreshLifetime("drewmclawhorn3");
+    expect(subs.getSubscription("drewmclawhorn3", USER)?.planId).toBe("all");
+    const OTHER_USER = "33333333-3333-3333-3333-333333333333";
+    await account.loadAccountSubscription(OTHER_USER, "regularuser");
+    expect(subs.getSubscription("regularuser", OTHER_USER)).toBeNull();
+    expect(subs.subscriptionDisplayName(subs.getSubscription("regularuser", OTHER_USER))).toBe(
+      "Free",
+    );
+    expect(subs.planUnlocksOffline("regularuser")).toBe(false);
   });
 });

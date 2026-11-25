@@ -4,11 +4,9 @@
  *
  * The database owns the grant. `public.subscriptions` has a row per user with
  * `is_lifetime` and `status`; only the owner can write it, through the
- * `admin_grant_lifetime` / `admin_revoke_lifetime` RPCs.
- *
- * Strictly memory-only on the client: zero localStorage, cookies, or device
- * storage is ever read or written for subscription or plan state.
- * Owner @drewmclawhorn3 never loses their plan on login or refresh.
+ * `admin_grant_lifetime` / `admin_revoke_lifetime` RPCs. This module keeps a
+ * mirror of `my_lifetime_subscription()` in `localStorage` so UI gates stay
+ * synchronous and re-syncs with Supabase on sign-in, focus, and mount.
  */
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -20,16 +18,13 @@ export type LifetimeGrant = {
   plan: LifetimePlan;
   status: LifetimeStatus;
   isLifetime: boolean;
-  paymentVerified?: boolean;
   grantedBy: string | null;
   grantedAt: string | null;
   revokedAt: string | null;
 };
 
-/** Fired whenever the in-memory grant cache changes, so the UI can re-render. */
+/** Fired whenever the cached grant changes, so the UI can re-render. */
 export const LIFETIME_EVENT = "lifetime-change";
-
-export const OWNER_HANDLE = "drewmclawhorn3";
 
 const PLAN_LABELS: Record<LifetimePlan, string> = {
   pro: "Pro Forever",
@@ -37,46 +32,25 @@ const PLAN_LABELS: Record<LifetimePlan, string> = {
   all: "All Access Forever",
 };
 
-const OWNER_DEFAULT_GRANT: LifetimeGrant = {
-  plan: "all",
-  status: "active",
-  isLifetime: true,
-  paymentVerified: true,
-  grantedBy: OWNER_HANDLE,
-  grantedAt: null,
-  revokedAt: null,
-};
-
-/** Strictly in-memory cache keyed by normalized handle. Never persisted to device storage. */
-const lifetimeMemoryCache = new Map<string, LifetimeGrant>();
-
-function normHandle(handle?: string | null): string {
-  return (handle ?? "").trim().replace(/^@/, "").toLowerCase();
-}
-
-export function isOwnerHandle(handle?: string | null): boolean {
-  return normHandle(handle) === OWNER_HANDLE;
-}
+const cacheKey = (handle: string) => `lifetime:${handle}`;
 
 export function lifetimePlanLabel(plan?: string | null): string {
   return PLAN_LABELS[plan as LifetimePlan] ?? "Lifetime";
 }
 
-function emitLifetime(): void {
+function emit(): void {
   if (typeof window !== "undefined") {
     window.dispatchEvent(new Event(LIFETIME_EVENT));
   }
 }
 
 /* -------------------------------------------------------------------------- */
-/*  Reading & In-Memory Cache                                                 */
+/*  Reading & Cache                                                           */
 /* -------------------------------------------------------------------------- */
 
-/** True only for a live, verified grant. A canceled or unverified row is *not* active. */
+/** True only for a live grant. A canceled row is *not* active. */
 export function isLifetimeActive(grant?: LifetimeGrant | null): boolean {
-  if (!grant?.isLifetime || grant.status !== "active") return false;
-  if (grant.paymentVerified === false) return false;
-  return true;
+  return Boolean(grant?.isLifetime && grant.status === "active");
 }
 
 /**
@@ -87,48 +61,26 @@ export function isLifetimeRevoked(grant?: LifetimeGrant | null): boolean {
   return Boolean(grant && grant.status === "canceled");
 }
 
-/**
- * The in-memory grant for this handle, if any.
- * Never reads localStorage or any device store.
- * Owner @drewmclawhorn3 always keeps their plan.
- */
+/** Synchronous read of the last known server grant for this handle. */
 export function cachedLifetime(handle?: string | null): LifetimeGrant | null {
-  const key = normHandle(handle);
-  if (!key || typeof window === "undefined") return null;
-  const hit = lifetimeMemoryCache.get(key);
-  if (hit) return hit;
-  if (isOwnerHandle(key)) return OWNER_DEFAULT_GRANT;
-  return null;
-}
-
-/** Updates the in-memory lifetime grant cache without writing to device storage. */
-export function setCachedLifetimeGrant(
-  handle: string,
-  grant: LifetimeGrant | null,
-): LifetimeGrant | null {
-  const key = normHandle(handle);
-  if (!key) return null;
-  if (grant) {
-    lifetimeMemoryCache.set(key, grant);
-  } else {
-    lifetimeMemoryCache.delete(key);
+  if (!handle || typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(cacheKey(handle));
+    return raw ? (JSON.parse(raw) as LifetimeGrant) : null;
+  } catch {
+    return null;
   }
-  emitLifetime();
-  return grant;
 }
 
 function writeCache(handle: string, grant: LifetimeGrant | null) {
-  const key = normHandle(handle);
-  if (!key) return;
-  if (isOwnerHandle(key) && (!grant || grant.status !== "active" || !grant.isLifetime)) {
-    // Owner @drewmclawhorn3 never loses their plan on login or refresh.
-    lifetimeMemoryCache.set(key, grant && isLifetimeActive(grant) ? grant : OWNER_DEFAULT_GRANT);
-  } else if (grant) {
-    lifetimeMemoryCache.set(key, grant);
-  } else {
-    lifetimeMemoryCache.delete(key);
+  if (typeof window === "undefined") return;
+  try {
+    if (grant) localStorage.setItem(cacheKey(handle), JSON.stringify(grant));
+    else localStorage.removeItem(cacheKey(handle));
+  } catch {
+    /* private mode / quota */
   }
-  emitLifetime();
+  emit();
 }
 
 /* -------------------------------------------------------------------------- */
@@ -156,22 +108,11 @@ function toGrant(row: unknown): LifetimeGrant | null {
   if (!row || typeof row !== "object") return null;
   const r = row as Record<string, unknown>;
   const plan = r["plan"];
-  if (!plan || plan === "free") return null;
-  const status = (r["status"] ?? "expired") as LifetimeStatus;
-  const isLifetime = Boolean(r["is_lifetime"] ?? r["isLifetime"]);
-  const hasExplicitVerified =
-    r["payment_verified"] !== undefined || r["paymentVerified"] !== undefined;
-  const paymentVerified = hasExplicitVerified
-    ? Boolean(r["payment_verified"] ?? r["paymentVerified"])
-    : false;
-  if (status === "active" && !paymentVerified) {
-    return null;
-  }
+  if (!plan) return null;
   return {
     plan: plan as LifetimePlan,
-    status,
-    isLifetime,
-    paymentVerified,
+    status: (r["status"] ?? "active") as LifetimeStatus,
+    isLifetime: Boolean(r["is_lifetime"] ?? r["isLifetime"]),
     grantedBy: (r["granted_by"] ?? r["grantedBy"] ?? null) as string | null,
     grantedAt: (r["granted_at"] ?? r["grantedAt"] ?? null) as string | null,
     revokedAt: (r["revoked_at"] ?? r["revokedAt"] ?? null) as string | null,
@@ -183,43 +124,21 @@ function toGrant(row: unknown): LifetimeGrant | null {
 /* -------------------------------------------------------------------------- */
 
 /**
- * Pull the authoritative grant from Supabase and update the in-memory cache.
- * Owner @drewmclawhorn3 always keeps their active All Access Forever grant.
+ * Pull the authoritative grant from Supabase and cache it.
+ *
+ * A network error leaves the cache alone rather than wrongly revoking access
+ * while the viewer is genuinely offline; a real server response (including
+ * `null` or `status = 'canceled'`) overwrites it immediately.
  */
 export async function refreshLifetime(handle?: string | null): Promise<LifetimeGrant | null> {
   if (!handle) return null;
 
   const { data, error } = await rpc("my_lifetime_subscription");
-  if (error) {
-    if (isOwnerHandle(handle)) {
-      const preserved = lifetimeMemoryCache.get(normHandle(handle)) ?? OWNER_DEFAULT_GRANT;
-      lifetimeMemoryCache.set(normHandle(handle), preserved);
-      return preserved;
-    }
-    return cachedLifetime(handle);
-  }
+  if (error) return cachedLifetime(handle);
 
   const grant = toGrant(data);
-  if (isOwnerHandle(handle) && (!grant || !isLifetimeActive(grant))) {
-    writeCache(handle, OWNER_DEFAULT_GRANT);
-    return OWNER_DEFAULT_GRANT;
-  }
   writeCache(handle, grant);
   return grant;
-}
-
-/** Drop the in-memory grant cache, e.g. on sign-out. */
-export function clearLifetimeCache(handle?: string | null) {
-  if (!handle) {
-    lifetimeMemoryCache.clear();
-    emitLifetime();
-    return;
-  }
-  const key = normHandle(handle);
-  if (key) {
-    lifetimeMemoryCache.delete(key);
-    emitLifetime();
-  }
 }
 
 /**

@@ -84,9 +84,6 @@ export const PLANS: Plan[] = [
   },
 ];
 
-/** In-memory cache of plans fetched from `public.subscription_plans`. */
-let dbPlansCache: Plan[] | null = null;
-
 /**
  * The lifetime tier.
  *
@@ -97,95 +94,24 @@ let dbPlansCache: Plan[] | null = null;
  */
 export const LIFETIME_PLAN: Plan = {
   id: "all",
-  label: "All Access Forever",
+  label: "All Access",
   emoji: "\u{1F451}",
-  price: 99.99,
+  price: 0,
   perks: [
     "Everything in Plus, Pro and VIP",
     "Offline video downloads",
     "Offline music downloads",
     "Background play",
     "Beta features",
-    "Never expires",
   ],
   offline: true,
   musicOffline: true,
   backgroundPlay: true,
 };
 
-export const ALL_ACCESS_FOREVER_PLAN = LIFETIME_PLAN;
-
-export function getPlans(): Plan[] {
-  return dbPlansCache && dbPlansCache.length > 0 ? dbPlansCache : PLANS;
-}
-
-export function setDynamicPlans(plans: Plan[]): void {
-  dbPlansCache = plans.length > 0 ? plans : null;
-}
-
-function rowToPlan(raw: unknown): Plan | null {
-  if (!raw || typeof raw !== "object") return null;
-  const r = raw as Record<string, unknown>;
-  const id = typeof r["id"] === "string" ? r["id"].trim() : "";
-  if (!id) return null;
-  const label =
-    typeof r["plan_name"] === "string" && r["plan_name"].trim()
-      ? r["plan_name"].trim()
-      : (PLANS.find((p) => p.id === id)?.label ?? id);
-  const priceCents = Number(r["price_cents"]);
-  const fallback = PLANS.find((p) => p.id === id);
-  const price =
-    Number.isFinite(priceCents) && priceCents >= 0 ? priceCents / 100 : (fallback?.price ?? 0);
-  const perks = Array.isArray(r["perks"])
-    ? r["perks"].filter((x): x is string => typeof x === "string")
-    : (fallback?.perks ?? []);
-  return {
-    id,
-    label,
-    emoji: typeof r["emoji"] === "string" ? r["emoji"] : (fallback?.emoji ?? ""),
-    price,
-    perks,
-    offline: typeof r["offline"] === "boolean" ? r["offline"] : (fallback?.offline ?? false),
-    musicOffline:
-      typeof r["music_offline"] === "boolean"
-        ? r["music_offline"]
-        : (fallback?.musicOffline ?? false),
-    backgroundPlay:
-      typeof r["background_play"] === "boolean"
-        ? r["background_play"]
-        : (fallback?.backgroundPlay ?? false),
-  };
-}
-
-/**
- * Fetches the purchasable plans list from `public.subscription_plans` in Supabase.
- * Falls back to `PLANS` only when offline or the migration has not been run yet.
- */
-export async function fetchPlansFromDb(): Promise<Plan[]> {
-  try {
-    const { untypedDb } = await import("@/lib/untypedDb");
-    const { data, error } = await untypedDb
-      .from("subscription_plans")
-      .select("*")
-      .eq("active", true)
-      .order("sort_order", { ascending: true });
-    if (error || !Array.isArray(data) || data.length === 0) {
-      return getPlans();
-    }
-    const parsed = data.map(rowToPlan).filter((p): p is Plan => p !== null);
-    if (parsed.length > 0) {
-      dbPlansCache = parsed;
-      return parsed;
-    }
-  } catch {
-    // Offline or mocked environment without subscription_plans
-  }
-  return getPlans();
-}
-
 export function planById(id?: string | null): Plan | undefined {
   if (id === LIFETIME_PLAN.id) return LIFETIME_PLAN;
-  return getPlans().find((p) => p.id === id) ?? PLANS.find((p) => p.id === id);
+  return PLANS.find((p) => p.id === id);
 }
 
 /** True when this plan id is the lifetime "everything" tier. */
@@ -227,8 +153,7 @@ export function planIncludesBackgroundPlay(id?: string | null): boolean {
  * stops marking any tier as offline-capable.
  */
 export function offlinePlan(): Plan {
-  const list = getPlans();
-  return list.find((p) => p.offline) ?? list[list.length - 1]!;
+  return PLANS.find((p) => p.offline) ?? PLANS[PLANS.length - 1]!;
 }
 
 /**
@@ -238,8 +163,7 @@ export function offlinePlan(): Plan {
  * would actually have to buy for music.
  */
 export function musicOfflinePlan(): Plan {
-  const list = getPlans();
-  return list.find((p) => p.musicOffline) ?? list[list.length - 1]!;
+  return PLANS.find((p) => p.musicOffline) ?? PLANS[PLANS.length - 1]!;
 }
 
 /**
@@ -249,8 +173,7 @@ export function musicOfflinePlan(): Plan {
  * actually have to buy for background play.
  */
 export function backgroundPlayPlan(): Plan {
-  const list = getPlans();
-  return list.find((p) => p.backgroundPlay) ?? list[list.length - 1]!;
+  return PLANS.find((p) => p.backgroundPlay) ?? PLANS[PLANS.length - 1]!;
 }
 
 /** Authoritative price in cents, or null when the plan id is unknown. */

@@ -41,7 +41,7 @@ function PaywallPage() {
         </div>
       </header>
 
-      <SubscriptionsPanel handle={auth.handle} userId={auth.user?.id} onSignIn={auth.signIn} />
+      <SubscriptionsPanel handle={auth.handle} onSignIn={auth.signIn} />
 
       <div className="mx-auto w-full max-w-2xl px-4">
         <RedeemCodeBox handle={auth.handle} onSignIn={auth.signIn} className="mt-2" />

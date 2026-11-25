@@ -17,8 +17,10 @@ import {
 } from "@/lib/googlepay";
 import { chargePlanWithGooglePay, saveCardForTrial } from "@/lib/payments.functions";
 import {
+  confirmPayment,
   maskCard,
-  saveSubscriptionToAccount,
+  requestPayment,
+  updatePaymentMethod,
   venmoUrl,
   type PaymentMethod,
   type Plan,
@@ -63,7 +65,6 @@ type Props = {
   /** The plan being bought. `null` closes the sheet. */
   plan: Plan | null;
   handle?: string | null | undefined;
-  userId?: string | null | undefined;
   sub: Subscription | null;
   onClose: () => void;
   onSignIn?: (() => void) | undefined;
@@ -109,7 +110,7 @@ function GooglePayButton({
       type="button"
       onClick={onClick}
       disabled={disabled || busy}
-      className="flex h-12 w-full items-center justify-center gap-2 rounded-lg border border-white/20 bg-black text-sm font-medium text-white transition-opacity hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+      className="flex h-12 w-full items-center justify-center gap-2 rounded-lg border border-border bg-black text-sm font-medium text-white transition-opacity hover:bg-black/90 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-black dark:hover:bg-white/90"
     >
       <GoogleG className="h-5 w-5" />
       <span>{busy ? "Opening Google Pay…" : label}</span>
@@ -118,10 +119,10 @@ function GooglePayButton({
 }
 
 /**
- * Tap-to-pay sheet. Persists purchases and payment method updates directly to
- * Supabase keyed by `user_id` ONLY (updates the single row for `user_id`).
+ * Tap-to-pay sheet: opens from a plan's button, offers Google Pay first
+ * and falls back to card details or Venmo.
  */
-export function PaymentSheet({ plan, handle, userId, sub, onClose, onSignIn }: Props) {
+export function PaymentSheet({ plan, handle, sub, onClose, onSignIn }: Props) {
   const open = Boolean(plan);
   // Managing an existing plan means swapping the card, not buying again.
   const manage = Boolean(
@@ -168,61 +169,31 @@ export function PaymentSheet({ plan, handle, userId, sub, onClose, onSignIn }: P
 
   const amount = plan.price;
 
-  const isForever = plan.id === "all";
-
-  const applyPaymentMethod = async (pm: PaymentMethod) => {
+  const applyPaymentMethod = (pm: PaymentMethod) => {
     setError(null);
-    if (!handle && !userId) {
+    if (!handle) {
       onSignIn?.();
       return;
     }
-    setBusy(true);
-    try {
-      const targetHandle = handle || userId || "user";
-      if (manage) {
-        await saveSubscriptionToAccount({
-          userId,
-          handle: targetHandle,
-          planId: plan.id,
-          planName: plan.label,
-          status: sub?.status === "pending" ? "pending" : "active",
-          paymentMethod: pm,
-          paymentVerified: sub?.status !== "pending",
-          ...(isForever ? { expiresAt: null } : {}),
-        });
-        setDone(`Payment method (${maskCard(pm)}) saved to your account.`);
-        return;
-      }
-
-      await saveSubscriptionToAccount({
-        userId,
-        handle: targetHandle,
-        planId: plan.id,
-        planName: plan.label,
-        status: "active",
-        paymentMethod: pm,
-        paymentVerified: true,
-        ...(isForever ? { expiresAt: null } : {}),
-      });
-      setDone(`${plan.label} is active (${maskCard(pm)}) — saved to your account.`);
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Could not save your subscription to your account.",
-      );
-    } finally {
-      setBusy(false);
+    if (manage) {
+      updatePaymentMethod(handle, pm);
+      setDone(`Payment method (${maskCard(pm)}) saved.`);
+      return;
     }
+    requestPayment(handle, plan.id);
+    updatePaymentMethod(handle, pm);
+    confirmPayment(handle);
+    setDone(`${plan.label} is active (${maskCard(pm)}).`);
   };
 
   const payWithGoogle = async () => {
     setError(null);
-    if (!handle && !userId) {
+    if (!handle) {
       onSignIn?.();
       return;
     }
     setBusy(true);
     try {
-      const targetHandle = handle || userId || "user";
       const result = await requestGooglePay(amount, `${plan.label} \u00b7 Coolerup`);
       if (!result.ok) {
         if (result.reason === "cancelled") return;
@@ -246,23 +217,14 @@ export function PaymentSheet({ plan, handle, userId, sub, onClose, onSignIn }: P
           setError(saved.message);
           return;
         }
-        await saveSubscriptionToAccount({
-          userId,
-          handle: targetHandle,
-          planId: plan.id,
-          planName: plan.label,
-          status: sub?.status === "pending" ? "pending" : "active",
-          paymentMethod: {
-            ...result.paymentMethod,
-            brand: cardBrandFrom(saved.card.brand, result.paymentMethod.brand),
-            last4: saved.card.last4 !== "0000" ? saved.card.last4 : result.paymentMethod.last4,
-            expMonth: saved.card.expMonth,
-            expYear: saved.card.expYear,
-          },
-          paymentVerified: sub?.status !== "pending",
-          ...(isForever ? { expiresAt: null } : {}),
+        updatePaymentMethod(handle, {
+          ...result.paymentMethod,
+          brand: cardBrandFrom(saved.card.brand, result.paymentMethod.brand),
+          last4: saved.card.last4 !== "0000" ? saved.card.last4 : result.paymentMethod.last4,
+          expMonth: saved.card.expMonth,
+          expYear: saved.card.expYear,
         });
-        setDone("Payment method saved to your account.");
+        setDone("Payment method saved.");
         return;
       }
 
@@ -281,20 +243,10 @@ export function PaymentSheet({ plan, handle, userId, sub, onClose, onSignIn }: P
         expMonth: charge.card.expMonth,
         expYear: charge.card.expYear,
       };
-
-      const nextStatus = charge.status === "succeeded" ? "active" : "pending";
-      await saveSubscriptionToAccount({
-        userId,
-        handle: targetHandle,
-        planId: plan.id,
-        planName: plan.label,
-        status: nextStatus,
-        paymentMethod: pm,
-        paymentVerified: charge.status === "succeeded",
-        ...(isForever ? { expiresAt: null } : {}),
-      });
-
+      requestPayment(handle, plan.id);
+      updatePaymentMethod(handle, pm);
       if (charge.status === "succeeded") {
+        confirmPayment(handle);
         setDone(`Paid $${(charge.amountCents / 100).toFixed(2)} \u2014 ${plan.label} is active.`);
       } else {
         setDone("Payment is processing \u2014 your plan activates as soon as it clears.");
@@ -306,54 +258,35 @@ export function PaymentSheet({ plan, handle, userId, sub, onClose, onSignIn }: P
     }
   };
 
-  const payWithVenmo = async () => {
+  const payWithVenmo = () => {
     setError(null);
-    if (!handle && !userId) {
+    if (!handle) {
       onSignIn?.();
       return;
     }
-    setBusy(true);
-    try {
-      const targetHandle = handle || userId || "user";
-      window.open(venmoUrl(plan, handle), "_blank", "noopener,noreferrer");
-      await saveSubscriptionToAccount({
-        userId,
-        handle: targetHandle,
-        planId: plan.id,
-        planName: plan.label,
-        status: "pending",
-        paymentMethod: "Venmo",
-        paymentVerified: false,
-      });
-      setDone("Opened Venmo — saved as pending to your account until confirmed.");
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Could not save your Venmo request to your account.",
-      );
-    } finally {
-      setBusy(false);
-    }
+    requestPayment(handle, plan.id);
+    window.open(venmoUrl(plan, handle), "_blank", "noopener,noreferrer");
+    setDone("Opened Venmo — send the payment there, then return here while it clears.");
   };
 
   const title = manage ? "Payment method" : `Pay for ${plan.label}`;
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
-      <DialogContent className="max-h-[88dvh] overflow-y-auto border-white/15 bg-black text-white sm:max-w-md">
+      <DialogContent className="max-h-[88dvh] overflow-y-auto sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-white">{title}</DialogTitle>
-          <DialogDescription className="text-white/70">
-            {plan.emoji} {plan.label} · ${plan.price.toFixed(2)}
-            {isForever ? " one-time" : "/mo"}
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>
+            {plan.emoji} {plan.label} · ${plan.price.toFixed(2)}/mo
           </DialogDescription>
         </DialogHeader>
 
         {done ? (
           <div className="space-y-3">
-            <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-3 text-sm text-white">
+            <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm">
               {done}
             </div>
-            <Button className="w-full bg-white text-black hover:bg-white/90" onClick={onClose}>
+            <Button className="w-full" onClick={onClose}>
               Done
             </Button>
           </div>
@@ -362,33 +295,27 @@ export function PaymentSheet({ plan, handle, userId, sub, onClose, onSignIn }: P
             <PaymentMethodForm
               planLabel={plan.label}
               price={amount}
-              submitLabel={busy ? "Saving…" : manage ? "Save card" : `Pay $${amount.toFixed(2)}`}
+              submitLabel={manage ? "Save card" : `Pay $${amount.toFixed(2)}`}
               onCancel={() => setStage("choose")}
-              onSubmit={(pm) => void applyPaymentMethod(pm)}
+              onSubmit={applyPaymentMethod}
             />
-            {error && <p className="text-center text-xs text-red-400">{error}</p>}
+            {error && <p className="text-center text-xs text-destructive">{error}</p>}
           </div>
         ) : (
           <div className="space-y-3">
-            {!handle && !userId && (
-              <div className="rounded-lg border border-white/15 bg-black p-3 text-sm text-white">
+            {!handle && (
+              <div className="rounded-lg border bg-muted/40 p-3 text-sm">
                 Sign in first so we can attach the plan to your account.
               </div>
             )}
 
-            <div className="rounded-lg border border-white/15 bg-black p-3 text-xs text-white/75">
+            <div className="rounded-lg border bg-muted/40 p-3 text-xs text-muted-foreground">
               {manage ? (
                 <>Your card is what renews the plan. Nothing is charged right now.</>
-              ) : isForever ? (
-                <>
-                  Charged today:{" "}
-                  <span className="font-semibold text-white">${amount.toFixed(2)}</span> once — All
-                  Access Forever never expires.
-                </>
               ) : (
                 <>
                   Charged today:{" "}
-                  <span className="font-semibold text-white">${amount.toFixed(2)}</span>, then
+                  <span className="font-semibold text-foreground">${amount.toFixed(2)}</span>, then
                   monthly until you cancel.
                 </>
               )}
@@ -396,14 +323,14 @@ export function PaymentSheet({ plan, handle, userId, sub, onClose, onSignIn }: P
 
             <GooglePayButton
               label={manage ? "Save with Google Pay" : `Pay $${amount.toFixed(2)} with Google Pay`}
-              onClick={() => void payWithGoogle()}
+              onClick={payWithGoogle}
               busy={busy}
               disabled={busy}
             />
             {!gpayReady && (
               <div className="space-y-1 text-center">
-                <p className="text-[11px] text-white/60">{gpayHint(gpayReason)}</p>
-                <p className="text-[11px] text-white/60">
+                <p className="text-[11px] text-muted-foreground">{gpayHint(gpayReason)}</p>
+                <p className="text-[11px] text-muted-foreground">
                   You can still tap the button above — it will open the Google Pay sheet or tell you
                   exactly what went wrong.
                 </p>
@@ -413,28 +340,28 @@ export function PaymentSheet({ plan, handle, userId, sub, onClose, onSignIn }: P
                     resetGooglePay();
                     checkGooglePay();
                   }}
-                  className="text-[11px] font-medium text-white underline underline-offset-2"
+                  className="text-[11px] font-medium text-primary underline underline-offset-2"
                 >
                   Re-check Google Pay
                 </button>
               </div>
             )}
             {!HAS_STRIPE && gpayReady && (
-              <p className="text-center text-[11px] text-white/60">
+              <p className="text-center text-[11px] text-muted-foreground">
                 Test mode: the Google Pay sheet is real, but no card is charged until a payment
                 gateway key is added.
               </p>
             )}
 
             <div className="flex items-center gap-3">
-              <span className="h-px flex-1 bg-white/15" />
-              <span className="text-[11px] uppercase tracking-wide text-white/60">or</span>
-              <span className="h-px flex-1 bg-white/15" />
+              <span className="h-px flex-1 bg-border" />
+              <span className="text-[11px] uppercase tracking-wide text-muted-foreground">or</span>
+              <span className="h-px flex-1 bg-border" />
             </div>
 
             <Button
               variant="secondary"
-              className="w-full bg-white text-black hover:bg-white/90"
+              className="w-full"
               disabled={busy}
               onClick={() => setStage("card")}
             >
@@ -444,27 +371,24 @@ export function PaymentSheet({ plan, handle, userId, sub, onClose, onSignIn }: P
             {!manage && (
               <Button
                 variant="ghost"
-                className="w-full border border-white/15 text-white hover:bg-white/10"
+                className="w-full border"
                 disabled={busy}
-                onClick={() => void payWithVenmo()}
+                onClick={payWithVenmo}
               >
                 Pay with Venmo
               </Button>
             )}
 
-            {!handle && !userId && (
-              <Button
-                className="w-full bg-white text-black hover:bg-white/90"
-                onClick={() => onSignIn?.()}
-              >
+            {!handle && (
+              <Button className="w-full" onClick={() => onSignIn?.()}>
                 Sign in
               </Button>
             )}
 
-            {error && <p className="text-center text-xs text-red-400">{error}</p>}
+            {error && <p className="text-center text-xs text-destructive">{error}</p>}
 
-            <p className="text-center text-[11px] leading-relaxed text-white/60">
-              Your subscription is saved to your account. We store only the payment type and last 4
+            <p className="text-center text-[11px] leading-relaxed text-muted-foreground">
+              Your subscription is saved to this device. We store only the card brand and last 4
               digits.
             </p>
           </div>

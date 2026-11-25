@@ -1,12 +1,9 @@
 import { useEffect, useState } from "react";
 
 import {
-  ALL_ACCESS_FOREVER_PLAN,
   LIFETIME_PLAN,
   PLANS,
   backgroundPlayPlan,
-  fetchPlansFromDb,
-  getPlans,
   musicOfflinePlan,
   offlinePlan,
   planById,
@@ -19,37 +16,26 @@ import { activeTrial, hasUsedTrial, isTrialActive } from "@/lib/trial";
 import {
   ACCOUNT_SUBSCRIPTION_EVENT,
   cachedAccountSubscription,
-  cachedAccountSubscriptionForUser,
   cancelAccountSubscriptionForHandle,
   clearCachedAccountSubscription,
-  currentAccountUserId,
-  isAccountSubscriptionLoading,
-  loadAccountSubscription,
   persistAccountSubscriptionForHandle,
   refreshAccountSubscription,
-  saveAccountSubscription,
   setCachedAccountSubscription,
   type AccountSubscriptionInput,
   type AccountSubscriptionRow,
-  type AccountSubscriptionStatus,
 } from "@/lib/accountSubscriptions";
 import {
   LIFETIME_EVENT,
   cachedLifetime,
   isLifetimeActive,
   isLifetimeRevoked,
-  isOwnerHandle,
-  lifetimePlanLabel,
   refreshLifetime,
 } from "@/lib/subscription";
 
 export type { Plan };
 export {
-  ALL_ACCESS_FOREVER_PLAN,
   LIFETIME_PLAN,
   PLANS,
-  fetchPlansFromDb,
-  getPlans,
   planById,
   planIncludesBackgroundPlay,
   planIncludesMusicOffline,
@@ -211,57 +197,6 @@ export function providerLabel(pm: PaymentMethod): string {
   return "Card";
 }
 
-function paymentMethodFromLabel(
-  rawLabel: string | null | undefined,
-  addedAt: string,
-): PaymentMethod | null {
-  const label = (rawLabel ?? "").trim();
-  if (!label || label.startsWith("Code:")) return null;
-  const lower = label.toLowerCase();
-  const last4Match = label.match(/(\d{4})$/);
-  const last4 = last4Match?.[1] ?? "0000";
-  if (lower.startsWith("google pay")) {
-    return {
-      provider: "googlepay",
-      brand: "card",
-      last4,
-      expMonth: 0,
-      expYear: 0,
-      holder: "Google Pay",
-      addedAt,
-    };
-  }
-  if (lower.startsWith("venmo")) {
-    return {
-      provider: "venmo",
-      brand: "card",
-      last4: "0000",
-      expMonth: 0,
-      expYear: 0,
-      holder: "Venmo",
-      addedAt,
-    };
-  }
-  const brand: CardBrand = lower.includes("visa")
-    ? "visa"
-    : lower.includes("mastercard")
-      ? "mastercard"
-      : lower.includes("american express") || lower.includes("amex")
-        ? "amex"
-        : lower.includes("discover")
-          ? "discover"
-          : "card";
-  return {
-    provider: "card",
-    brand,
-    last4,
-    expMonth: 0,
-    expYear: 0,
-    holder: label,
-    addedAt,
-  };
-}
-
 /* -------------------------------------------------------------------------- */
 /*  Subscription record                                                       */
 /* -------------------------------------------------------------------------- */
@@ -289,143 +224,72 @@ export type Subscription = {
   grantedBy?: string | null;
 };
 
-/** Fired whenever the subscription cache changes, so the UI can re-render. */
+/** Fired whenever the subscription changes, so the UI can re-render. */
 export const SUBSCRIPTION_EVENT = "subscription-change";
 const EVT = SUBSCRIPTION_EVENT;
-
-/** Session-only parsed payment method objects; safe display label lives in Supabase. */
-const paymentMethods = new Map<string, PaymentMethod>();
-
-/** Code strings are kept in memory so the "active via code" line can render. */
-const codeGrants = new Map<string, string>();
-
-function planLabel(planId: string): string {
-  if (planId === "free") return "Free";
-  if (planId === "all") return "All Access Forever";
-  return planById(planId)?.label ?? planId;
-}
-
-export function subscriptionDisplayName(sub?: Subscription | null): string {
-  if (!sub || (sub.status !== "active" && sub.status !== "pending")) return "Free";
-  if (sub.isLifetime || sub.planId === "all") return lifetimePlanLabel(sub.planId);
-  return planLabel(sub.planId);
-}
-
-function isExpiredDate(expiresAt?: string | null): boolean {
-  if (!expiresAt) return false;
-  const ms = Date.parse(expiresAt);
-  return Number.isFinite(ms) && ms <= Date.now();
-}
+const key = (handle: string) => `sub:${handle}`;
 
 function toAccountInput(sub: Subscription): AccountSubscriptionInput {
-  const isForever = sub.planId === "all" || Boolean(sub.isLifetime);
   return {
     planId: sub.planId,
-    planName: isForever ? "All Access Forever" : planLabel(sub.planId),
+    planName: planById(sub.planId)?.label ?? sub.planId,
     status: sub.status === "active" ? "active" : sub.status === "pending" ? "pending" : "expired",
     startedAt: sub.startedAt,
-    expiresAt: isForever ? null : (sub.currentPeriodEnd ?? null),
-    paymentMethod: sub.paymentMethod
-      ? maskCard(sub.paymentMethod)
-      : sub.source === "code" && sub.code
-        ? `Code: ${sub.code}`
-        : null,
-    paymentVerified:
-      sub.status === "active" && (Boolean(sub.paymentMethod) || sub.source === "code"),
-    autoRenew: !isForever && sub.status === "active" && sub.source !== "code",
+    expiresAt: sub.currentPeriodEnd ?? null,
+    autoRenew: sub.status === "active" && sub.source !== "code",
   };
 }
 
-/**
- * Turn an account row into the app Subscription shape, enforcing:
- * - Default is Free (never Forever) when no row or status is free/cancelled/expired.
- * - Monthly/Yearly plans check expires_at: past expires_at => expired ("Free").
- * - All Access Forever requires plan_name = "All Access Forever" AND
- *   plan_status = "active" AND payment_verified = true (or owner handle).
- */
-function fromAccountRow(row: AccountSubscriptionRow, handle?: string | null): Subscription | null {
-  const rawStatus = String(row.plan_status ?? row.status ?? "free").toLowerCase();
-  const planId = (row.plan_id ?? "").trim();
-  const planName = (row.plan_name ?? "").trim();
-
-  if (!planId || planId === "free" || rawStatus === "free") {
-    return null;
-  }
-
-  const isForever = planId === "all" || /all access forever|lifetime all access/i.test(planName);
-
-  if (isForever) {
-    const validForever =
-      planName === "All Access Forever" &&
-      rawStatus === "active" &&
-      (row.payment_verified === true || isOwnerHandle(handle));
-    if (!validForever) {
-      return null;
-    }
-    return {
-      planId: "all",
-      status: "active",
-      isLifetime: true,
-      startedAt: row.started_at,
-      paidAt: row.started_at,
-      paymentMethod: paymentMethodFromLabel(row.payment_method, row.updated_at),
-      source: "payment",
-      code: null,
-      currentPeriodEnd: null,
-    };
-  }
-
-  let status: SubStatus;
-  if (rawStatus === "cancelled" || rawStatus === "canceled" || rawStatus === "expired") {
-    status = "expired";
-  } else if (
-    (rawStatus === "active" || rawStatus === "trialing") &&
-    isExpiredDate(row.expires_at)
-  ) {
-    status = "expired";
-  } else if (rawStatus === "active" || rawStatus === "trialing") {
-    status = "active";
-  } else if (rawStatus === "pending") {
-    status = "pending";
-  } else {
-    status = "expired";
-  }
-
-  const isCode = row.payment_method
-    ? row.payment_method.startsWith("Code:")
-    : Boolean(row.expires_at);
-  const code =
-    row.payment_method && row.payment_method.startsWith("Code:")
-      ? row.payment_method.slice("Code:".length).trim()
-      : (codeGrants.get(row.plan_id) ?? null);
+function fromAccountRow(row: AccountSubscriptionRow): Subscription {
+  const status: SubStatus =
+    row.status === "active" || row.status === "trialing"
+      ? "active"
+      : row.status === "pending"
+        ? "pending"
+        : "expired";
   return {
     planId: row.plan_id,
     status,
     isLifetime: false,
     startedAt: row.started_at,
     paidAt: status === "active" ? row.started_at : null,
-    paymentMethod: paymentMethodFromLabel(row.payment_method, row.updated_at),
-    source: isCode ? "code" : "payment",
-    code,
+    paymentMethod: null,
+    source: row.expires_at ? "code" : "payment",
+    code: null,
     currentPeriodEnd: row.expires_at,
   };
 }
 
-/**
- * The subscription in force for this handle (and/or userId).
- *
- * Default is ALWAYS Free (null) when no paid row exists.
- * Owner @drewmclawhorn3 keeps their plan without copying it to other users.
- * Zero device/localStorage fallback is ever consulted.
- */
-export function getSubscription(
-  handle?: string | null,
-  userId?: string | null,
-): Subscription | null {
-  if ((!handle && !userId) || typeof window === "undefined") return null;
+function readRaw(handle: string): Subscription | null {
+  try {
+    const raw = localStorage.getItem(key(handle));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<Subscription>;
+    if (!parsed.planId) return null;
+    return {
+      planId: parsed.planId,
+      status: parsed.status ?? "expired",
+      startedAt: parsed.startedAt ?? new Date().toISOString(),
+      paidAt: parsed.paidAt ?? null,
+      paymentMethod: parsed.paymentMethod ?? null,
+      source: parsed.source,
+      code: parsed.code ?? null,
+      currentPeriodEnd: parsed.currentPeriodEnd ?? null,
+    };
+  } catch {
+    return null;
+  }
+}
 
-  const lifetime = handle ? cachedLifetime(handle) : null;
-  if (!isOwnerHandle(handle) && isLifetimeRevoked(lifetime)) return null;
+/**
+ * The subscription in force for this handle (device record + account sync +
+ * server lifetime grants).
+ */
+export function getSubscription(handle?: string | null): Subscription | null {
+  if (!handle || typeof window === "undefined") return null;
+
+  const lifetime = cachedLifetime(handle);
+  if (isLifetimeRevoked(lifetime)) return null;
 
   if (lifetime && isLifetimeActive(lifetime)) {
     return {
@@ -442,17 +306,11 @@ export function getSubscription(
     };
   }
 
-  const row =
-    (userId ? cachedAccountSubscriptionForUser(userId) : null) ??
-    (handle ? cachedAccountSubscription(handle) : null);
-  if (!row) return null;
+  const device = readRaw(handle);
+  if (device) return device;
 
-  const sub = fromAccountRow(row, handle);
-  if (!sub) return null;
-  if (handle && !sub.paymentMethod) {
-    sub.paymentMethod = paymentMethods.get(handle) ?? null;
-  }
-  return sub;
+  const account = cachedAccountSubscription(handle);
+  return account ? fromAccountRow(account) : null;
 }
 
 /** True when there is a usable card on file. */
@@ -460,131 +318,30 @@ export function hasPaymentMethod(handle?: string | null): boolean {
   return Boolean(getSubscription(handle)?.paymentMethod);
 }
 
-/**
- * Updates in-memory cache immediately and triggers a background DB persist.
- * Use `saveSubscriptionToAccount` when callers need to await confirmation.
- */
 function write(handle: string, sub: Subscription | null) {
   if (sub) {
-    if (sub.paymentMethod) paymentMethods.set(handle, sub.paymentMethod);
-    if (sub.code) codeGrants.set(sub.planId, sub.code);
+    localStorage.setItem(key(handle), JSON.stringify(sub));
     const input = toAccountInput(sub);
     setCachedAccountSubscription(handle, input);
     void persistAccountSubscriptionForHandle(handle, input).catch(() => {
-      // Background sync for synchronous unit helpers; interactive purchases await `saveSubscriptionToAccount`.
+      /* background sync */
     });
   } else {
+    localStorage.removeItem(key(handle));
     clearCachedAccountSubscription(handle);
   }
-  if (typeof window !== "undefined") window.dispatchEvent(new Event(EVT));
-}
-
-/**
- * Saves or updates the single subscription row for `user_id` in Supabase.
- * Awaits the real database write and throws if saving fails.
- */
-export async function saveSubscriptionToAccount(params: {
-  userId?: string | null | undefined;
-  handle: string;
-  planId: string;
-  planName?: string | null | undefined;
-  status: AccountSubscriptionStatus;
-  paymentMethod?: PaymentMethod | string | null | undefined;
-  paymentVerified?: boolean | undefined;
-  startedAt?: string | undefined;
-  expiresAt?: string | null | undefined;
-  source?: "payment" | "code" | undefined;
-  code?: string | null | undefined;
-}): Promise<Subscription> {
-  const userId = params.userId || (await currentAccountUserId());
-  if (!userId) {
-    throw new Error("Sign in to save your subscription to your account.");
-  }
-
-  const now = new Date();
-  const isForever = params.planId === "all" || params.planName === "All Access Forever";
-  const startedAt = params.startedAt ?? now.toISOString();
-  const nextMonth = new Date(now);
-  nextMonth.setMonth(nextMonth.getMonth() + 1);
-  const expiresAt = isForever
-    ? null
-    : params.expiresAt !== undefined
-      ? params.expiresAt
-      : params.status === "active"
-        ? nextMonth.toISOString()
-        : null;
-
-  let pmObj: PaymentMethod | null = null;
-  let pmLabel: string | null = null;
-  if (typeof params.paymentMethod === "string") {
-    pmLabel = params.paymentMethod;
-    pmObj = paymentMethodFromLabel(pmLabel, now.toISOString());
-  } else if (params.paymentMethod) {
-    pmObj = params.paymentMethod;
-    pmLabel = maskCard(params.paymentMethod);
-  } else if (params.source === "code" && params.code) {
-    pmLabel = `Code: ${params.code}`;
-  }
-
-  const paymentVerified = params.paymentVerified ?? Boolean(params.status === "active" && pmLabel);
-
-  if (isForever && params.status === "active" && !paymentVerified) {
-    throw new Error("All Access Forever requires a verified payment.");
-  }
-
-  if (pmObj) paymentMethods.set(params.handle, pmObj);
-  if (params.code) codeGrants.set(params.planId, params.code);
-
-  const row = await saveAccountSubscription(userId, {
-    planId: params.planId,
-    planName: isForever ? "All Access Forever" : (params.planName ?? planLabel(params.planId)),
-    status: params.status,
-    startedAt,
-    expiresAt,
-    paymentMethod: pmLabel,
-    paymentVerified,
-    autoRenew: !isForever && params.status === "active" && params.source !== "code",
-  });
-
-  await loadAccountSubscription(userId, params.handle);
-  if (typeof window !== "undefined") window.dispatchEvent(new Event(EVT));
-
-  const hydrated = getSubscription(params.handle, userId);
-  if (hydrated) return hydrated;
-  const fallbackSub = row ? fromAccountRow(row, params.handle) : null;
-  if (fallbackSub) return fallbackSub;
-  throw new Error("Could not verify saved subscription.");
-}
-
-/** Cancels the account subscription row in Supabase (`plan_status = 'cancelled'`). */
-export async function cancelSubscriptionOnAccount(params: {
-  userId?: string | null | undefined;
-  handle: string;
-  planId?: string | undefined;
-}): Promise<void> {
-  const existing = getSubscription(params.handle, params.userId);
-  const targetPlanId = params.planId ?? existing?.planId;
-  paymentMethods.delete(params.handle);
-  if (targetPlanId) codeGrants.delete(targetPlanId);
-  clearCachedAccountSubscription(params.handle);
-  if (typeof window !== "undefined") window.dispatchEvent(new Event(EVT));
-  await cancelAccountSubscriptionForHandle(params.handle, targetPlanId, params.userId);
-  if (typeof window !== "undefined") window.dispatchEvent(new Event(EVT));
+  window.dispatchEvent(new Event(EVT));
 }
 
 /** Update the card on an existing subscription. */
 export function updatePaymentMethod(handle: string, pm: PaymentMethod) {
-  paymentMethods.set(handle, pm);
   const existing = getSubscription(handle);
-  if (!existing) {
-    if (typeof window !== "undefined") window.dispatchEvent(new Event(EVT));
-    return;
-  }
+  if (!existing) return;
   write(handle, { ...existing, paymentMethod: pm });
 }
 
 /**
- * Mark a plan pending until payment clears (Venmo / offline helper).
+ * Mark a plan pending until payment clears.
  */
 export function requestPayment(handle: string, planId: string) {
   const existing = getSubscription(handle);
@@ -649,18 +406,15 @@ export function applyCodeSubscription(
 }
 
 /**
- * Cancel the plan on the account.
+ * Cancel the plan on the device and account.
  */
 export function cancelSubscription(handle: string) {
   const existing = getSubscription(handle);
   const planId = existing?.planId;
-  paymentMethods.delete(handle);
-  if (planId) codeGrants.delete(planId);
-  clearCachedAccountSubscription(handle);
-  if (typeof window !== "undefined") window.dispatchEvent(new Event(EVT));
+  write(handle, null);
   if (planId) {
     void cancelAccountSubscriptionForHandle(handle, planId).catch(() => {
-      // Ignored in synchronous unit helpers.
+      /* background sync */
     });
   }
 }
@@ -763,9 +517,9 @@ export function offlineLockReason(handle?: string | null): OfflineLockReason | n
   if (!handle) return "signed-out";
   const sub = getSubscription(handle);
   if (!sub) {
-    const usedAnyOfflineTrial = getPlans()
-      .filter((p) => p.offline)
-      .some((p) => hasUsedTrial(handle, p.id));
+    const usedAnyOfflineTrial = PLANS.filter((p) => p.offline).some((p) =>
+      hasUsedTrial(handle, p.id),
+    );
     return usedAnyOfflineTrial ? "trial-ended" : "no-plan";
   }
   if (sub.status === "expired" || sub.status === "pending") return "expired";
@@ -777,9 +531,9 @@ export function musicOfflineLockReason(handle?: string | null): OfflineLockReaso
   if (!handle) return "signed-out";
   const sub = getSubscription(handle);
   if (!sub) {
-    const usedAnyMusicTrial = getPlans()
-      .filter((p) => p.musicOffline)
-      .some((p) => hasUsedTrial(handle, p.id));
+    const usedAnyMusicTrial = PLANS.filter((p) => p.musicOffline).some((p) =>
+      hasUsedTrial(handle, p.id),
+    );
     return usedAnyMusicTrial ? "trial-ended" : "no-plan";
   }
   if (sub.status === "expired" || sub.status === "pending") return "expired";
@@ -791,9 +545,9 @@ export function backgroundPlayLockReason(handle?: string | null): OfflineLockRea
   if (!handle) return "signed-out";
   const sub = getSubscription(handle);
   if (!sub) {
-    const usedAnyBackgroundTrial = getPlans()
-      .filter((p) => p.backgroundPlay)
-      .some((p) => hasUsedTrial(handle, p.id));
+    const usedAnyBackgroundTrial = PLANS.filter((p) => p.backgroundPlay).some((p) =>
+      hasUsedTrial(handle, p.id),
+    );
     return usedAnyBackgroundTrial ? "trial-ended" : "no-plan";
   }
   if (sub.status === "expired" || sub.status === "pending") return "expired";
@@ -801,73 +555,27 @@ export function backgroundPlayLockReason(handle?: string | null): OfflineLockRea
 }
 
 /**
- * Reactive subscription + loading state for this account.
- *
- * When a user is signed in, `loading` stays true until Supabase has returned
- * their account subscription so the UI shows a spinner instead of flashing "Free".
+ * Reactive subscription for this handle.
  */
-export function useSubscriptionState(
-  handle?: string | null,
-  userId?: string | null,
-): { subscription: Subscription | null; loading: boolean } {
-  const [sub, setSub] = useState<Subscription | null>(() => getSubscription(handle, userId));
-  const [loading, setLoading] = useState<boolean>(() =>
-    Boolean(userId && isAccountSubscriptionLoading(handle, userId) && !isOwnerHandle(handle)),
-  );
+export function useSubscription(handle?: string | null) {
+  const [sub, setSub] = useState<Subscription | null>(() => getSubscription(handle));
 
   useEffect(() => {
-    let alive = true;
-    const sync = () => {
-      if (!alive) return;
-      setSub(getSubscription(handle, userId));
-      setLoading(
-        Boolean(userId && isAccountSubscriptionLoading(handle, userId) && !isOwnerHandle(handle)),
-      );
-    };
+    const sync = () => setSub(getSubscription(handle));
     sync();
     window.addEventListener(EVT, sync);
     window.addEventListener(ACCOUNT_SUBSCRIPTION_EVENT, sync);
     window.addEventListener(LIFETIME_EVENT, sync);
     window.addEventListener("focus", sync);
-
-    if (userId || handle) {
-      Promise.all([refreshAccountSubscription(handle, userId), refreshLifetime(handle)]).finally(
-        sync,
-      );
-    }
-
+    void refreshAccountSubscription(handle);
+    void refreshLifetime(handle);
     return () => {
-      alive = false;
       window.removeEventListener(EVT, sync);
       window.removeEventListener(ACCOUNT_SUBSCRIPTION_EVENT, sync);
       window.removeEventListener(LIFETIME_EVENT, sync);
       window.removeEventListener("focus", sync);
     };
-  }, [handle, userId]);
+  }, [handle]);
 
-  return { subscription: sub, loading };
-}
-
-/**
- * Reactive subscription for this handle (and optional userId).
- */
-export function useSubscription(handle?: string | null, userId?: string | null) {
-  return useSubscriptionState(handle, userId).subscription;
-}
-
-/**
- * Force a fresh read of the account's subscription from Supabase by user_id.
- * Returns null when the account has no active/paid plan (never invents a plan).
- */
-export async function restoreSubscription(
-  handle?: string | null,
-  userId?: string | null,
-): Promise<Subscription | null> {
-  if (!handle && !userId) return null;
-  if (handle) clearCachedAccountSubscription(handle);
-  await Promise.all([refreshAccountSubscription(handle, userId), refreshLifetime(handle)]);
-  if (typeof window !== "undefined") window.dispatchEvent(new Event(EVT));
-  const restored = getSubscription(handle, userId);
-  if (!restored || restored.status !== "active") return null;
-  return restored;
+  return sub;
 }

@@ -22,7 +22,6 @@ import {
   clearAccountSubscriptionCache,
   setCachedAccountSubscription,
 } from "@/lib/accountSubscriptions";
-import { setCachedLifetimeGrant } from "@/lib/subscription";
 
 /**
  * Offline Mode is a paid-subscriber feature: no free hour, no downloads for
@@ -284,14 +283,17 @@ describe("a paid plan stored on the account", () => {
   });
 
   it("still unlocks the lifetime all-access grant", () => {
-    setCachedLifetimeGrant(H, {
-      plan: "all",
-      status: "active",
-      isLifetime: true,
-      grantedBy: "drewmclawhorn3",
-      grantedAt: null,
-      revokedAt: null,
-    });
+    localStorage.setItem(
+      `lifetime:${H}`,
+      JSON.stringify({
+        plan: "all",
+        status: "active",
+        isLifetime: true,
+        grantedBy: "drewmclawhorn3",
+        grantedAt: null,
+        revokedAt: null,
+      }),
+    );
     expect(planUnlocksOffline(H)).toBe(true);
     expect(getSubscription(H)?.isLifetime).toBe(true);
   });

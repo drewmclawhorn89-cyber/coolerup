@@ -353,7 +353,7 @@ function Profile() {
   const isOwn = !!auth.handle && auth.handle === username;
   // The owner's plan is read from the account, so it follows them to a new
   // phone. Other viewers see nothing here.
-  const mySubscription = useSubscription(isOwn ? auth.handle : null, isOwn ? auth.user?.id : null);
+  const mySubscription = useSubscription(isOwn ? auth.handle : null);
   /** Paid shelves are private: they only ever load for your own profile. */
   const myPaid = useMyPaidVideos(isOwn ? (profile?.id ?? null) : null);
   const purchased = usePurchasedVideos(isOwn ? (auth.user?.id ?? null) : null);

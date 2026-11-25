@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { useYouTubeDurations, withYouTubeDurations } from "@/lib/useYouTubeDurations";
 import { FullVideoCard } from "@/components/FullVideoCard";
 import { FullVideoGridSkeleton } from "@/components/Skeletons";
-import { FeedLoadingSpinner } from "@/components/FeedLoadingSpinner";
 import { useAuth } from "@/hooks/useAuth";
 import { useOfflineUnlocked } from "@/lib/subscriptions";
 import { FULL_VIDEO_CATEGORIES, listFullVideos, type FullVideo } from "@/lib/fullVideos";
@@ -536,7 +535,21 @@ function VideosPage() {
           {/* Scroll target: the next page loads as this comes into view. */}
           <div ref={sentinelRef} aria-hidden className="h-px w-full" />
 
-          {loadingMore && <FeedLoadingSpinner />}
+          {loadingMore && (
+            <div className="w-full py-2">
+              <FullVideoGridSkeleton count={2} />
+            </div>
+          )}
+
+          {hasMore && !loadingMore && (
+            <button
+              type="button"
+              onClick={() => void loadMore()}
+              className="rounded-full bg-secondary px-4 py-2 text-sm font-semibold text-secondary-foreground hover:bg-accent"
+            >
+              Load more
+            </button>
+          )}
 
           {!hasMore && (
             <p className="py-2 text-[13px] text-muted-foreground">That's everything for now.</p>

@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Ban, LogOut } from "lucide-react";
+import { Ban, LogOut, Smartphone } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
+import { checkIdentityBan, getDeviceId, registerDevice } from "@/lib/autoBans";
 
 type BanStatus = {
   is_banned: boolean;
@@ -19,11 +20,17 @@ type BanStatus = {
  * `my_ban_status()` once the session loads and, if the account is banned,
  * replaces the entire app with a clear explanation + sign-out button.
  *
+ * It also does two jobs for Auto Bans:
+ *   1. registers the current device so a permanent ban can burn it, and
+ *   2. checks whether this device is already burned, so a brand-new account
+ *      on a banned phone is stopped at the door.
+ *
  * Mounted inside AuthProvider in __root.tsx so it covers every route.
  */
 export function BanGate({ children }: { children: React.ReactNode }) {
   const { user, ready, handle, signOut } = useAuth();
   const [status, setStatus] = useState<BanStatus | null>(null);
+  const [deviceBanned, setDeviceBanned] = useState(false);
   const lastUserId = useRef<string | null>(null);
 
   const check = useCallback(async () => {
@@ -64,11 +71,22 @@ export function BanGate({ children }: { children: React.ReactNode }) {
     if (!user) {
       lastUserId.current = null;
       setStatus(null);
+      setDeviceBanned(false);
       return;
     }
     if (lastUserId.current === user.id) return;
     lastUserId.current = user.id;
     void check();
+
+    // Register this device, then make sure it is not already burned. A device
+    // ban is checked even for a fresh account, which is the whole point.
+    void (async () => {
+      await registerDevice();
+      const deviceId = getDeviceId();
+      if (!deviceId) return;
+      const hit = await checkIdentityBan("device", deviceId);
+      if (hit.banned) setDeviceBanned(true);
+    })();
   }, [ready, user, check]);
 
   // Re-check when the tab regains focus and every 60s, so a ban applied while
@@ -83,6 +101,33 @@ export function BanGate({ children }: { children: React.ReactNode }) {
       window.removeEventListener("focus", recheck);
     };
   }, [user, check]);
+
+  if (deviceBanned) {
+    return (
+      <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center gap-6 bg-black px-6 text-center text-white">
+        <div
+          className="flex h-20 w-20 items-center justify-center rounded-full"
+          style={{ backgroundColor: "rgba(254,44,85,0.16)" }}
+        >
+          <Smartphone className="h-10 w-10" style={{ color: "#FE2C55" }} />
+        </div>
+        <div className="max-w-sm space-y-3">
+          <h1 className="text-2xl font-bold tracking-tight">This device is banned from Coolerup</h1>
+          <p className="text-sm leading-relaxed text-white/60">
+            A Coolerup account on this device was permanently banned for breaking the rules, so new
+            accounts cannot be created here.
+          </p>
+          <p className="text-xs text-white/40">
+            Think this was a mistake? Contact support to appeal.
+          </p>
+        </div>
+        <Button variant="secondary" className="gap-2" onClick={() => void signOut()}>
+          <LogOut className="h-4 w-4" />
+          Sign out
+        </Button>
+      </div>
+    );
+  }
 
   if (status?.is_banned) {
     const until =

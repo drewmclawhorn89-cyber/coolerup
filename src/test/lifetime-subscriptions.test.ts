@@ -3,14 +3,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 /**
  * Lifetime grants: "give this person everything, forever, until I take it back".
  *
- * The database owns the grant and `src/lib/subscription.ts` mirrors it in
- * `localStorage` so sync UI gates don't flicker. These tests pin the rules that
- * matter:
+ * The database owns the grant. The client keeps a localStorage copy under
+ * `lifetime:<handle>` so the first paint is instant, and `getSubscription`
+ * overlays that copy on top of the ordinary paid/code subscription. These tests
+ * pin the three rules that matter:
  *
  *   1. An active lifetime grant wins, with NO expiry (`currentPeriodEnd` null).
- *   2. A revoked grant (status "canceled") beats even a local paid subscription —
- *      the user drops straight to the paywall.
- *   3. A lifetime "all" grant satisfies every plan id.
+ *   2. A revoked grant (status "canceled") drops the user straight to the
+ *      paywall - it must not fall back to a stale localStorage plan.
+ *   3. A lifetime "all" grant satisfies every plan id, including ones that do
+ *      not exist yet.
  */
 
 vi.mock("@/integrations/supabase/client", () => ({
@@ -25,17 +27,14 @@ vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn(), warning: v
 const { isLifetimeActive, isLifetimeRevoked, lifetimePlanLabel, LIFETIME_EVENT } =
   await import("@/lib/subscription");
 const { getSubscription, hasPlanAccess } = await import("@/lib/subscriptions");
-const { setCachedAccountSubscription } = await import("@/lib/accountSubscriptions");
 
-const NON_OWNER = "vip-fan";
+const H = "drewmclawhorn3";
 
-function seed(grant: Record<string, unknown>, handle = NON_OWNER) {
-  localStorage.setItem(`lifetime:${handle}`, JSON.stringify(grant));
+function seed(grant: Record<string, unknown>) {
+  localStorage.setItem(`lifetime:${H}`, JSON.stringify(grant));
 }
 
-beforeEach(() => {
-  localStorage.clear();
-});
+beforeEach(() => localStorage.clear());
 
 describe("grant predicates", () => {
   it("treats active + is_lifetime as live", () => {
@@ -57,7 +56,7 @@ describe("grant predicates", () => {
   });
 });
 
-describe("getSubscription overlays a cached lifetime grant", () => {
+describe("getSubscription overlays a lifetime grant", () => {
   it("returns an active plan with no expiry date", () => {
     seed({
       plan: "all",
@@ -67,25 +66,31 @@ describe("getSubscription overlays a cached lifetime grant", () => {
       grantedAt: "2026-11-08T12:00:00.000Z",
     });
 
-    const sub = getSubscription(NON_OWNER);
+    const sub = getSubscription(H);
 
     expect(sub).not.toBeNull();
     expect(sub?.planId).toBe("all");
     expect(sub?.status).toBe("active");
     expect(sub?.isLifetime).toBe(true);
     expect(sub?.grantedBy).toBe("drewmclawhorn3");
+    // The whole point: never expires.
     expect(sub?.currentPeriodEnd).toBeNull();
   });
 
   it("drops a revoked user to the paywall, ignoring any stale paid plan", () => {
-    setCachedAccountSubscription(NON_OWNER, {
-      planId: "vip",
-      status: "active",
-      startedAt: "2026-01-01T00:00:00.000Z",
-    });
+    // A leftover paid plan in the ordinary slot must not survive the revoke.
+    localStorage.setItem(
+      `subscription:${H}`,
+      JSON.stringify({
+        planId: "vip",
+        status: "active",
+        startedAt: "2026-01-01T00:00:00.000Z",
+        currentPeriodEnd: "2099-01-01T00:00:00.000Z",
+      }),
+    );
     seed({ plan: "all", status: "canceled", isLifetime: false, revokedAt: "2026-11-09T00:00:00Z" });
 
-    expect(getSubscription(NON_OWNER)).toBeNull();
+    expect(getSubscription(H)).toBeNull();
   });
 
   it("has no grant at all for an untouched handle", () => {
@@ -99,13 +104,13 @@ describe("hasPlanAccess with a lifetime all grant", () => {
   });
 
   it("unlocks every purchasable plan", () => {
-    expect(hasPlanAccess(NON_OWNER, "plus")).toBe(true);
-    expect(hasPlanAccess(NON_OWNER, "pro")).toBe(true);
-    expect(hasPlanAccess(NON_OWNER, "vip")).toBe(true);
+    expect(hasPlanAccess(H, "plus")).toBe(true);
+    expect(hasPlanAccess(H, "pro")).toBe(true);
+    expect(hasPlanAccess(H, "vip")).toBe(true);
   });
 
   it("unlocks a plan id that does not exist yet", () => {
-    expect(hasPlanAccess(NON_OWNER, "some-future-tier")).toBe(true);
+    expect(hasPlanAccess(H, "some-future-tier")).toBe(true);
   });
 });
 

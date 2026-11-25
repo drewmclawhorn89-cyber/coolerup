@@ -698,23 +698,3 @@
     opacity: 0;
   }
 }
-
-/* ---------------------------------------------------------------------------
-   Lovable "Edit with Lovable" badge removal fallback.
-   LovableBadgeGuard deletes the entire badge DOM node, wrapper, and X close
-   button on load and via MutationObserver; these selectors ensure zero flash
-   for the entire container and close button before hydration finishes.
-   --------------------------------------------------------------------------- */
-[data-lovable-badge],
-[data-lovable-badge-close],
-#lovable-badge,
-#lovable-badge-close,
-#lovable-badge-wrapper,
-.lovable-badge,
-[id*="lovable-badge"],
-[class*="lovable-badge"] {
-  display: none !important;
-  visibility: hidden !important;
-  opacity: 0 !important;
-  pointer-events: none !important;
-}

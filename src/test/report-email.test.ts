@@ -180,18 +180,12 @@ describe("buildReportEmailContent", () => {
 });
 
 describe("Admin > Reports page and SQL migrations", () => {
-  it("renders Delete Post, Ban User, and Dismiss Report actions", () => {
+  it("renders Delete Post, Warn User, Ban User, and Dismiss Report actions", () => {
     const admin = read("src/routes/admin.tsx");
     expect(admin).toContain("Delete Post");
+    expect(admin).toContain("Warn User");
     expect(admin).toContain("Ban User");
     expect(admin).toContain("Dismiss Report");
-  });
-
-  it("no longer offers the removed warning action", () => {
-    const admin = read("src/routes/admin.tsx");
-    expect(admin).not.toContain("Warn User");
-    expect(admin).not.toContain("AI Bot Logs");
-    expect(admin).not.toContain("Ban List");
   });
 
   it("includes both Supabase migration and SQL Editor script for report emails and actions", () => {

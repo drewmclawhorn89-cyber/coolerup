@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { resolveMediaUrl } from "@/lib/media";
 import { untypedDb } from "@/lib/untypedDb";
+import { screenBeforeWrite } from "@/lib/autoBans";
 
 /**
  * Groups (Facebook-style group pages).
@@ -178,6 +179,17 @@ export async function createGroup(
   const name = input.name.trim();
   if (!name) throw new Error("Give your group a name.");
 
+  // Group names and descriptions are public text, so they go through the same
+  // 3-strike ladder as captions and comments.
+  const blocked = await screenBeforeWrite({
+    userId: creator.id,
+    username: creator.username,
+    text: `${name} ${input.description ?? ""}`,
+  });
+  if (blocked && blocked.strike > 0) {
+    throw new Error("That group name or description breaks Coolerup rules.");
+  }
+
   const { data, error } = await db
     .from("groups")
     .insert({
@@ -334,6 +346,17 @@ export async function createGroupPost(input: {
     throw new Error("Add a caption, photo or video first.");
   }
 
+  // Screen before the row exists: `auto_moderate` only knows how to delete
+  // feed videos and comments, so a group post is refused rather than written
+  // and then cleaned up.
+  const blocked = await screenBeforeWrite({
+    userId: input.userId,
+    username: input.username,
+    text: caption,
+  });
+  if (blocked && blocked.strike > 0) {
+    throw new Error("That post breaks Coolerup rules.");
+  }
   const { data, error } = await db
     .from("group_posts")
     .insert({
@@ -467,6 +490,15 @@ export async function createGroupPostComment(input: {
   const gifCredit = input.gifCredit ?? null;
   if (!body && !gifUrl) {
     throw new Error("Write a comment or pick a GIF first.");
+  }
+
+  const blocked = await screenBeforeWrite({
+    userId: input.userId,
+    username: input.username,
+    text: body,
+  });
+  if (blocked && blocked.strike > 0) {
+    throw new Error("That comment breaks Coolerup rules.");
   }
 
   const { data, error } = await db

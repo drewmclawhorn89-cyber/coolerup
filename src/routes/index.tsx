@@ -77,8 +77,6 @@ import {
 import { listSaved, onOfflineChange } from "@/lib/offline";
 import { readFeedCache, writeFeedCache } from "@/lib/feed-cache";
 import { feedPageSize, isLiteMode, useLowDataMode, useNetwork } from "@/lib/network";
-import { preloadModeFor } from "@/lib/feedPaging";
-import { FeedLoadingSpinner } from "@/components/FeedLoadingSpinner";
 import { useCompressedThumbnail } from "@/lib/thumbnailCache";
 import {
   FeedSkeleton,
@@ -1657,10 +1655,20 @@ function Index() {
                     onSavedChange={handleSavedChange}
                     repostedBy={repostBy.get(v.id) ?? v.reposted_by ?? null}
                     posterUsername={v.poster_username ?? v.username}
-                    preloadMode={preloadModeFor(idx, activeVideoIndex, { lite, lowData })}
+                    preloadMode={
+                      idx === activeVideoIndex
+                        ? "active"
+                        : !lite && !lowData && idx === activeVideoIndex + 1
+                          ? "next"
+                          : "idle"
+                    }
                   />
                 ))}
-                {loadingMore && shown.length > 0 && <FeedLoadingSpinner />}
+                {loadingMore && shown.length > 0 && (
+                  <div className="px-4 py-4">
+                    <ListRowSkeleton count={2} />
+                  </div>
+                )}
                 <div id="scroll-sentinel" className="h-10 w-full" />
               </div>
             </div>

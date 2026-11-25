@@ -10,6 +10,7 @@ import { canBakeFilters, filterById } from "@/lib/filters";
 import { songStreamUrl, uploadVideo, type Song } from "@/lib/loop";
 import { describeUploadError, withUploadRetry } from "@/lib/uploadErrors";
 import { fetchTracks, type Track } from "@/components/MusicPlayer";
+import { useWarnings } from "@/components/WarningProvider";
 
 const MGK_QUERY = "mgk machine gun kelly";
 
@@ -26,6 +27,7 @@ export function PhotoDialog({
   username?: string | null;
   onPosted?: () => void;
 }) {
+  const { muted, mutedUntil, strikeCount, notify } = useWarnings();
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [facingMode, setFacingMode] = useState<FacingMode>("user");
@@ -173,6 +175,23 @@ export function PhotoDialog({
     if (!photo) return;
     if (!username) {
       toast.error("Finish setting up your profile before posting");
+      return;
+    }
+    if (muted) {
+      // Re-raise the warning popup rather than a passing toast: a muted user
+      // trying to post again is still a rule break, and the modal is the thing
+      // they actually read.
+      notify({
+        ok: true,
+        strike: Math.max(strikeCount, 2),
+        action: "mute",
+        permanent: false,
+        muted_until: mutedUntil,
+        deleted: false,
+        message: mutedUntil
+          ? `You're muted until ${new Date(mutedUntil).toLocaleString()}.`
+          : "You're muted and can't post right now.",
+      });
       return;
     }
     setPosting(true);

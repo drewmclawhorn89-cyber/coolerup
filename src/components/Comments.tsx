@@ -4,6 +4,8 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { notifyUser, profileIdForHandle } from "@/lib/notify";
+import { screenContent } from "@/lib/autoBans";
+import { useWarnings } from "@/components/WarningProvider";
 import { ReportButton } from "@/components/ReportButton";
 import { findHighlightedCommentId, type HighlightCommentTarget } from "@/lib/inboxNotifications";
 import { GifGridSkeleton, ListRowSkeleton } from "@/components/Skeletons";
@@ -57,6 +59,7 @@ export function Comments({
   const offsetRef = useRef(0);
   const loadingMoreRef = useRef(false);
   const { handle, signIn, user } = useAuth();
+  const { muted, mutedUntil, strikeCount, notify } = useWarnings();
 
   const fetchLikesForRows = useCallback(
     async (rows: Omit<Comment, "like_count" | "liked_by_me">[]): Promise<Comment[]> => {
@@ -183,6 +186,25 @@ export function Comments({
     e.preventDefault();
     const body = text.trim();
     if (!body && !gif) return;
+    // Strike 2 mutes commenting for 24 hours. Block before the insert so a
+    // muted user cannot keep posting and stacking strikes.
+    if (muted) {
+      // Re-raise the warning popup rather than a passing toast: a muted user
+      // trying to post again is still a rule break, and the modal is the thing
+      // they actually read.
+      notify({
+        ok: true,
+        strike: Math.max(strikeCount, 2),
+        action: "mute",
+        permanent: false,
+        muted_until: mutedUntil,
+        deleted: false,
+        message: mutedUntil
+          ? `You're muted until ${new Date(mutedUntil).toLocaleString()}.`
+          : "You're muted and can't comment right now.",
+      });
+      return;
+    }
     setBusy(true);
     const { data, error } = await supabase
       .from("comments")
@@ -205,6 +227,22 @@ export function Comments({
     setItems((c) => [{ ...data, like_count: 0, liked_by_me: false }, ...(c ?? [])]);
     setText("");
 
+    // Auto-detect on the text we just stored. On a violation the database
+    // removes the row, so drop it from the local thread too and let the
+    // WarningProvider show 1/3, 2/3 or 3/3.
+    if (user?.id) {
+      void screenContent({
+        userId: user.id,
+        username: handle ?? "guest",
+        text: body,
+        contentType: "comment",
+        contentId: (data as { id?: string } | null)?.id ?? null,
+      }).then((result) => {
+        if (result?.deleted) {
+          setItems((c) => (c ?? []).filter((x) => x.id !== (data as { id?: string }).id));
+        }
+      });
+    }
     setGif(null);
     setGifCredit(null);
     setShowGifs(false);

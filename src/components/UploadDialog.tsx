@@ -8,6 +8,7 @@ import { describeUploadError, withUploadRetry } from "@/lib/uploadErrors";
 import { fetchTracks, type Track } from "@/components/MusicPlayer";
 import { SoundPickerDialog } from "@/components/SoundPickerDialog";
 import type { Sound } from "@/lib/sounds";
+import { useWarnings } from "@/components/WarningProvider";
 import { PaidVideoFields, paidSelectionInvalid } from "@/components/PaidVideoFields";
 import { MatureVideoFields } from "@/components/MatureVideoFields";
 import { TikTokPostFields } from "@/components/TikTokPostFields";
@@ -28,6 +29,7 @@ export function UploadDialog({
   /** Pre-selected sound ("Use this sound" from a sound page). */
   sound?: Sound | null;
 }) {
+  const { muted, mutedUntil, strikeCount, notify } = useWarnings();
   const auth = useAuth();
   const [files, setFiles] = useState<File[]>([]);
   const file = files[0] ?? null;
@@ -142,6 +144,23 @@ export function UploadDialog({
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!file || !username.trim()) return;
+    if (muted) {
+      // Re-raise the warning popup rather than a passing toast: a muted user
+      // trying to post again is still a rule break, and the modal is the thing
+      // they actually read.
+      notify({
+        ok: true,
+        strike: Math.max(strikeCount, 2),
+        action: "mute",
+        permanent: false,
+        muted_until: mutedUntil,
+        deleted: false,
+        message: mutedUntil
+          ? `You're muted until ${new Date(mutedUntil).toLocaleString()}.`
+          : "You're muted and can't post right now.",
+      });
+      return;
+    }
     if (readBool("wifi-upload") && isCellularConnection()) {
       toast.error("Upload over Wi-Fi only is on. Connect to Wi-Fi to post.");
       return;

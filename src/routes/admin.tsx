@@ -41,12 +41,27 @@ import {
   adminModerationLog,
   adminReports,
   adminUnban,
+  adminWarnReportedUser,
   amIAdmin,
   reasonDisplayLabel,
   type AdminBan,
   type AdminReport,
   type ModerationLogRow,
 } from "@/lib/moderation";
+import {
+  adminBanList,
+  adminBotLogs,
+  scanPublishedVideos,
+  safetyBotSweep,
+  purgeHiddenVideos,
+  amIOwner,
+  ownerUnban,
+  VIOLATION_LABEL,
+  type BanListRow,
+  type BotLogRow,
+  type ViolationKind,
+} from "@/lib/autoBans";
+import { SafetyBotBadge, SAFETY_BOT_HANDLE } from "@/components/SafetyBotBadge";
 import { appBuildId } from "@/lib/appBuild";
 import {
   DEFAULT_MAINTENANCE_MESSAGE,
@@ -59,7 +74,7 @@ export const Route = createFileRoute("/admin")({
   head: () => ({
     meta: [
       { title: "Moderation — Coolerup" },
-      { name: "description", content: "Review reports and manage bans." },
+      { name: "description", content: "Review reports, manage bans, and audit auto-moderation." },
       { property: "og:title", content: "Moderation — Coolerup" },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
@@ -71,6 +86,8 @@ export const Route = createFileRoute("/admin")({
 type Tab =
   | "reports"
   | "bans"
+  | "banlist"
+  | "botlogs"
   | "log"
   | "coins"
   | "free"
@@ -111,6 +128,9 @@ function AdminPage() {
   const [reports, setReports] = useState<AdminReport[]>([]);
   const [bans, setBans] = useState<AdminBan[]>([]);
   const [log, setLog] = useState<ModerationLogRow[]>([]);
+  const [banList, setBanList] = useState<BanListRow[]>([]);
+  const [botLogs, setBotLogs] = useState<BotLogRow[]>([]);
+  const [isOwner, setIsOwner] = useState(false);
   const [coinOrders, setCoinOrders] = useState<AdminVenmoOrder[]>([]);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
@@ -130,6 +150,20 @@ function AdminPage() {
       setBans(b);
       setLog(l);
       try {
+        setBanList(await adminBanList());
+        setIsOwner(await amIOwner());
+      } catch {
+        // Ban list is additive; a missing migration must not blank the page.
+        setBanList([]);
+        setIsOwner(false);
+      }
+      try {
+        setBotLogs(await adminBotLogs(200));
+      } catch {
+        // Bot logs are additive too.
+        setBotLogs([]);
+      }
+      try {
         setCoinOrders(await adminCoinVenmoOrders());
       } catch {
         // Coin orders are optional; a failure here shouldn't blank moderation.
@@ -144,6 +178,82 @@ function AdminPage() {
       setLoading(false);
     }
   }, []);
+
+  const [sweeping, setSweeping] = useState(false);
+  const [sweepSummary, setSweepSummary] = useState("");
+  const [scanning, setScanning] = useState(false);
+  const [scanProgress, setScanProgress] = useState("0/0");
+  const [scanSummary, setScanSummary] = useState("");
+
+  /**
+   * Clean what is already published.
+   *
+   * The database triggers cover new writes only, so this asks Postgres to walk
+   * every existing video, comment and profile with the same rules. It is the
+   * button that makes "take it down right now" true for content that predates
+   * the triggers.
+   */
+  const runSweep = useCallback(async () => {
+    setSweeping(true);
+    setSweepSummary("");
+    try {
+      const res = await safetyBotSweep();
+      if (!res.ok) {
+        setSweepSummary(res.error || "Sweep failed");
+        return;
+      }
+      setSweepSummary(
+        `Hid ${res.videos_hidden} video${res.videos_hidden === 1 ? "" : "s"} · ` +
+          `removed ${res.comments_removed} comment${res.comments_removed === 1 ? "" : "s"} · ` +
+          `cleared ${res.profiles_cleared} profile${res.profiles_cleared === 1 ? "" : "s"}`,
+      );
+      await refresh();
+    } catch (e) {
+      setSweepSummary(e instanceof Error ? e.message : "Sweep failed");
+    } finally {
+      setSweeping(false);
+    }
+  }, [refresh]);
+
+  /** Delete the hidden videos for good, so they stop costing storage. */
+  const runPurge = useCallback(async () => {
+    setSweeping(true);
+    setSweepSummary("");
+    try {
+      const res = await purgeHiddenVideos();
+      if (!res.ok) {
+        setSweepSummary(res.error || "Purge failed");
+        return;
+      }
+      setSweepSummary(`Deleted ${res.deleted} hidden video${res.deleted === 1 ? "" : "s"}`);
+      await refresh();
+    } catch (e) {
+      setSweepSummary(e instanceof Error ? e.message : "Purge failed");
+    } finally {
+      setSweeping(false);
+    }
+  }, [refresh]);
+
+  const runScan = useCallback(async () => {
+    setScanning(true);
+    setScanSummary("");
+    try {
+      const report = await scanPublishedVideos({
+        limit: 30,
+        onProgress: (done, total) => setScanProgress(`${done}/${total}`),
+      });
+      setScanSummary(
+        `Scanned ${report.scanned} video${report.scanned === 1 ? "" : "s"} · ` +
+          `${report.hits.length} explicit · ${report.hits.filter((h) => h.banned).length} banned · ` +
+          `${report.skipped} skipped · ${report.failed} failed`,
+      );
+      if (report.hits.length > 0) await refresh();
+    } catch (e) {
+      setScanSummary(e instanceof Error ? e.message : "Scan failed");
+    } finally {
+      setScanning(false);
+    }
+  }, [refresh]);
 
   useEffect(() => {
     let active = true;
@@ -273,7 +383,9 @@ function AdminPage() {
           [
             ["reports", `Reports (${pending.length})`],
             ["bans", `Bans (${activeBans.length + activeMutes.length})`],
-            ["log", "Log"],
+            ["banlist", "Ban List"],
+            ["botlogs", "AI Bot Logs"],
+            ["log", "Auto-ban log"],
             ["coins", `Coins (${pendingCoins})`],
             ["free", "Free coins"],
             ["payouts", "Payouts"],
@@ -411,6 +523,25 @@ function AdminPage() {
                   </Button>
                   <Button
                     size="sm"
+                    variant="secondary"
+                    className="gap-1.5 border border-amber-400/30 bg-amber-500/15 text-amber-200 hover:bg-amber-500/25"
+                    disabled={busy === `warn-${r.id}`}
+                    onClick={() =>
+                      void run(
+                        `warn-${r.id}`,
+                        () =>
+                          adminWarnReportedUser(
+                            r.id,
+                            `Moderation warning (${reasonLabel(r.reason)})`,
+                          ),
+                        `@${r.reported_username} warned`,
+                      )
+                    }
+                  >
+                    <AlertTriangle className="h-3.5 w-3.5" /> Warn User
+                  </Button>
+                  <Button
+                    size="sm"
                     variant="destructive"
                     className="gap-1.5 bg-[#FE2C55] text-white hover:bg-[#e9274d]"
                     disabled={busy === `ban-${r.id}`}
@@ -535,6 +666,225 @@ function AdminPage() {
               </div>
             </article>
           ))}
+        </section>
+      )}
+
+      {tab === "banlist" && (
+        <section className="space-y-3">
+          <p className="text-xs text-muted-foreground">
+            Every auto-ban and strike, with the warning level it reached.{" "}
+            {isOwner ? "As the owner you can unban here." : "Only @drewmclawhorn3 can unban."}
+          </p>
+          <div className="rounded-xl border bg-card p-3">
+            <p className="text-sm font-medium">Scan the feed for explicit videos</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Checks the last 30 published videos on this device and removes + bans anything
+              explicit. Uploads are already checked automatically; this cleans up anything posted
+              before the classifier existed.
+            </p>
+            <Button
+              size="sm"
+              variant="secondary"
+              className="mt-2"
+              disabled={scanning}
+              onClick={runScan}
+            >
+              {scanning ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Scanning {scanProgress}
+                </>
+              ) : (
+                "Scan last 30 videos"
+              )}
+            </Button>
+            {scanSummary && <p className="mt-2 text-xs text-muted-foreground">{scanSummary}</p>}
+          </div>
+          {banList.length === 0 && <Empty text="No auto bans yet." />}
+          {banList.map((row) => {
+            const strike = Math.min(Math.max(row.strike_count, 1), 3);
+            const kindLabel =
+              VIOLATION_LABEL[row.last_kind as ViolationKind] ?? row.last_kind ?? "Rule break";
+            return (
+              <article
+                key={row.id}
+                className={`rounded-xl border p-3 ${
+                  row.active
+                    ? "border-destructive/40 bg-destructive/5"
+                    : "border-border bg-card opacity-70"
+                }`}
+              >
+                <div className="flex flex-wrap items-center gap-2 text-sm font-semibold">
+                  <Link
+                    to="/u/$username"
+                    params={{ username: row.username }}
+                    className="hover:text-primary"
+                  >
+                    @{row.username}
+                  </Link>
+                  <span className="rounded-full bg-[#FE2C55]/15 px-2 py-0.5 text-[11px] font-bold text-[#FE2C55]">
+                    Warning {strike}/3
+                  </span>
+                  {row.is_permanent && (
+                    <span className="rounded-full bg-destructive px-2 py-0.5 text-[11px] font-bold text-white">
+                      permanent
+                    </span>
+                  )}
+                  {row.auto && (
+                    <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                      auto
+                    </span>
+                  )}
+                </div>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {kindLabel}
+                  {row.last_content_type && row.last_content_type !== "none"
+                    ? ` \u00b7 ${row.last_content_type}`
+                    : ""}
+                  {row.reason ? ` \u2014 ${row.reason}` : ""}
+                </p>
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  {when(row.created_at)}
+                  {row.identity_count > 0
+                    ? ` \u00b7 ${row.identity_count} device/email/phone ban${row.identity_count === 1 ? "" : "s"}`
+                    : ""}
+                  {row.banned_by ? ` \u00b7 by ${row.banned_by}` : ""}
+                </p>
+                {isOwner && row.active && (
+                  <div className="mt-3">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      disabled={busy === `ob-${row.id}`}
+                      onClick={() =>
+                        void run(
+                          `ob-${row.id}`,
+                          async () => {
+                            const res = await ownerUnban(row.username);
+                            return res.ok ? { ok: true } : res;
+                          },
+                          `@${row.username} unbanned`,
+                        )
+                      }
+                    >
+                      <Undo2 className="h-3.5 w-3.5" /> Unban
+                    </Button>
+                  </div>
+                )}
+              </article>
+            );
+          })}
+        </section>
+      )}
+
+      {tab === "botlogs" && (
+        <section className="space-y-3">
+          <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3">
+            <p className="flex flex-wrap items-center gap-2 text-sm font-bold">
+              <SafetyBotBadge /> AI Bot Logs
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Everything the Safety Bot removed, muted or banned, with the content it acted on and
+              why. Unban is owner-only (@drewmclawhorn3).
+            </p>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <Button size="sm" onClick={runSweep} disabled={sweeping}>
+                {sweeping ? "Cleaning…" : "Clean the app now"}
+              </Button>
+              <Button size="sm" variant="outline" onClick={runPurge} disabled={sweeping}>
+                Delete hidden videos
+              </Button>
+            </div>
+            {sweepSummary && (
+              <p className="mt-2 text-xs font-medium text-emerald-400">{sweepSummary}</p>
+            )}
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              New posts, comments, messages and bios are screened the instant they are saved. The
+              buttons above clean anything that was posted before that was switched on.
+            </p>
+          </div>
+          {botLogs.length === 0 && <Empty text="The Safety Bot has not taken any action yet." />}
+          {botLogs.map((l) => {
+            const kindLabel = VIOLATION_LABEL[l.kind as ViolationKind] ?? l.kind ?? "Rule break";
+            const active =
+              l.is_permanent ||
+              (l.expires_at ? new Date(l.expires_at).getTime() > Date.now() : false);
+            return (
+              <article key={l.id} className="rounded-xl border border-border bg-card p-3">
+                <div className="flex flex-wrap items-center gap-2 text-sm font-semibold">
+                  <Link
+                    to="/u/$username"
+                    params={{ username: SAFETY_BOT_HANDLE }}
+                    className="text-emerald-400 hover:underline"
+                  >
+                    Safety Bot
+                  </Link>
+                  <span className="text-muted-foreground">→</span>
+                  {l.username ? (
+                    <Link
+                      to="/u/$username"
+                      params={{ username: l.username }}
+                      className="hover:text-primary"
+                    >
+                      @{l.username}
+                    </Link>
+                  ) : (
+                    <span>unknown</span>
+                  )}
+                  <span className="rounded-full bg-[#FE2C55]/15 px-2 py-0.5 text-[11px] font-bold text-[#FE2C55]">
+                    {l.action}
+                  </span>
+                  <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                    {kindLabel}
+                  </span>
+                  {l.strike_count > 0 && (
+                    <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                      strike {Math.min(l.strike_count, 3)}/3
+                    </span>
+                  )}
+                  {l.is_permanent && (
+                    <span className="rounded-full bg-destructive px-2 py-0.5 text-[11px] font-bold text-white">
+                      permanent
+                    </span>
+                  )}
+                </div>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {l.reason || "—"}
+                  {l.content_type && l.content_type !== "none" ? ` · ${l.content_type}` : ""}
+                </p>
+                {l.content_excerpt && (
+                  <p className="mt-2 rounded-lg bg-black px-3 py-2 text-xs text-white/70">
+                    “{l.content_excerpt}”
+                  </p>
+                )}
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  {when(l.created_at)} · by {l.actor || "Safety Bot"}
+                  {l.expires_at ? ` · until ${when(l.expires_at)}` : ""}
+                </p>
+                {isOwner && active && l.username && (
+                  <div className="mt-3">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      disabled={busy === `bl-${l.id}`}
+                      onClick={() =>
+                        void run(
+                          `bl-${l.id}`,
+                          async () => {
+                            const res = await ownerUnban(l.username as string);
+                            return res.ok ? { ok: true } : res;
+                          },
+                          `@${l.username} unbanned`,
+                        )
+                      }
+                    >
+                      <Undo2 className="h-3.5 w-3.5" /> Unban
+                    </Button>
+                  </div>
+                )}
+              </article>
+            );
+          })}
         </section>
       )}
 

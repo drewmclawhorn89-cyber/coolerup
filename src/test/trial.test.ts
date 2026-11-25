@@ -17,7 +17,6 @@ import {
   validateCard,
   type PaymentMethod,
 } from "@/lib/subscriptions";
-import { setCachedAccountSubscription } from "@/lib/accountSubscriptions";
 
 const H = "tester";
 
@@ -115,32 +114,43 @@ describe("paid subscriptions \u2014 the plan record carries no trial status", ()
     expect(getSubscription(H)?.status).toBe("active");
   });
 
-  it("treats a cancelled account row as expired", () => {
-    setCachedAccountSubscription(H, {
-      planId: "pro",
-      status: "cancelled",
-      startedAt: new Date().toISOString(),
-    });
+  it("treats a legacy trial record as expired", () => {
+    localStorage.setItem(
+      `subscription:${H}`,
+      JSON.stringify({
+        planId: "pro",
+        status: "trial",
+        startedAt: new Date().toISOString(),
+        trialEndsAt: new Date(Date.now() + 5 * 86400000).toISOString(),
+        paidAt: null,
+        paymentMethod: CARD,
+      }),
+    );
     const sub = getSubscription(H);
     expect(sub?.status).toBe("expired");
     expect(isActive(sub)).toBe(false);
+    expect(sub?.paymentMethod?.last4).toBe("4242");
   });
 
-  it("returns only the canonical fields for an account row", () => {
-    setCachedAccountSubscription(H, {
-      planId: "vip",
-      status: "active",
-      startedAt: new Date().toISOString(),
-    });
+  it("drops the retired trialEndsAt field when reading a record", () => {
+    localStorage.setItem(
+      `subscription:${H}`,
+      JSON.stringify({
+        planId: "vip",
+        status: "active",
+        startedAt: new Date().toISOString(),
+        trialEndsAt: new Date().toISOString(),
+        paidAt: new Date().toISOString(),
+        paymentMethod: null,
+      }),
+    );
     const sub = getSubscription(H);
     expect(sub).not.toBeNull();
-    // `trialEndsAt` is retired; the account row is projected onto the
-    // canonical set the rest of the app understands.
+    // `trialEndsAt` is retired; `normalize()` always fills the canonical set.
     expect(sub).not.toHaveProperty("trialEndsAt");
     expect(Object.keys(sub!).sort()).toEqual([
       "code",
       "currentPeriodEnd",
-      "isLifetime",
       "paidAt",
       "paymentMethod",
       "planId",
@@ -189,93 +199,10 @@ describe("paid subscriptions \u2014 the plan record carries no trial status", ()
     expect(maskCard(gpay)).toBe("Google Pay");
   });
 
-  it("reads a pending plan from the account", () => {
-    setCachedAccountSubscription(H, {
-      planId: "pro",
-      status: "pending",
-      startedAt: new Date().toISOString(),
-    });
+  it("migrates the old bare-string format", () => {
+    localStorage.setItem(`subscription:${H}`, "pending:pro");
     expect(getSubscription(H)?.status).toBe("pending");
-    setCachedAccountSubscription(H, {
-      planId: "vip",
-      status: "active",
-      startedAt: new Date().toISOString(),
-    });
+    localStorage.setItem(`subscription:${H}`, "vip");
     expect(getSubscription(H)?.status).toBe("active");
   });
-
-  it("treats a cancelled account row as expired", () => {
-    setCachedAccountSubscription(H, {
-      planId: "pro",
-      status: "cancelled",
-      startedAt: new Date().toISOString(),
-    });
-    const sub = getSubscription(H);
-    expect(sub?.status).toBe("expired");
-    expect(isActive(sub)).toBe(false);
-  });
-
-  it("returns only the canonical fields for an account row", () => {
-    setCachedAccountSubscription(H, {
-      planId: "vip",
-      status: "active",
-      startedAt: new Date().toISOString(),
-    });
-    const sub = getSubscription(H);
-    expect(sub).not.toBeNull();
-    // `trialEndsAt` is retired; the account row is projected onto the
-    // canonical set the rest of the app understands.
-    expect(sub).not.toHaveProperty("trialEndsAt");
-    expect(Object.keys(sub!).sort()).toEqual([
-      "code",
-      "currentPeriodEnd",
-      "isLifetime",
-      "paidAt",
-      "paymentMethod",
-      "planId",
-      "source",
-      "startedAt",
-      "status",
-    ]);
-  });
-
-  it("clears the plan on cancel", () => {
-    requestPayment(H, "plus");
-    confirmPayment(H);
-    cancelSubscription(H);
-    expect(getSubscription(H)).toBeNull();
-    expect(isActive(null)).toBe(false);
-  });
-
-  it("accepts a Google Pay method with no expiry", () => {
-    const gpay = {
-      provider: "googlepay" as const,
-      brand: "visa" as const,
-      last4: "1234",
-      expMonth: 0,
-      expYear: 0,
-      holder: "Google Pay",
-      addedAt: new Date().toISOString(),
-    };
-    requestPayment(H, "plus");
-    updatePaymentMethod(H, gpay);
-    expect(getSubscription(H)?.paymentMethod?.provider).toBe("googlepay");
-    expect(hasPaymentMethod(H)).toBe(true);
-    expect(maskCard(gpay)).toBe("Google Pay \u2022\u2022\u2022\u2022 1234");
-    expect(formatExpiry(gpay)).toBe("on file");
-  });
-
-  it("labels an opaque wallet token without digits", () => {
-    const gpay = {
-      provider: "googlepay" as const,
-      brand: "card" as const,
-      last4: "0000",
-      expMonth: 0,
-      expYear: 0,
-      holder: "Google Pay",
-      addedAt: new Date().toISOString(),
-    };
-    expect(maskCard(gpay)).toBe("Google Pay");
-  });
-
 });

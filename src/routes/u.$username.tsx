@@ -50,6 +50,13 @@ import type { Profile as ProfileRow } from "@/hooks/useAuth";
 import { OnlineDot, OnlineStatusSubtitle } from "@/components/OnlineStatusBadge";
 import { normalizePresenceHandle, useOnlineStatus, useOnlineStatuses } from "@/lib/onlineStatus";
 import { ReportButton } from "@/components/ReportButton";
+import {
+  SAFETY_BOT_AVATAR,
+  SAFETY_BOT_BIO,
+  SAFETY_BOT_NAME,
+  SafetyBotBadge,
+  isSafetyBot,
+} from "@/components/SafetyBotBadge";
 import { PaidVideoGate } from "@/components/PaidVideoGate";
 import { PAID_GOLD } from "@/components/PaidVideoFields";
 import {
@@ -61,9 +68,6 @@ import {
 } from "@/lib/paidVideos";
 import { useCompressedThumbnail } from "@/lib/thumbnailCache";
 import { isLiteMode, useNetwork } from "@/lib/network";
-import { preloadModeFor } from "@/lib/feedPaging";
-import { planById, useSubscription } from "@/lib/subscriptions";
-import { FeedLoadingSpinner } from "@/components/FeedLoadingSpinner";
 import { ListRowSkeleton, VideoGridSkeleton } from "@/components/Skeletons";
 
 const FOLLOW_PAGE_SIZE = 10;
@@ -351,9 +355,6 @@ function Profile() {
 
   const equipped = useEquipped(username);
   const isOwn = !!auth.handle && auth.handle === username;
-  // The owner's plan is read from the account, so it follows them to a new
-  // phone. Other viewers see nothing here.
-  const mySubscription = useSubscription(isOwn ? auth.handle : null);
   /** Paid shelves are private: they only ever load for your own profile. */
   const myPaid = useMyPaidVideos(isOwn ? (profile?.id ?? null) : null);
   const purchased = usePurchasedVideos(isOwn ? (auth.user?.id ?? null) : null);
@@ -798,8 +799,11 @@ function Profile() {
             ? (likedVideos ?? [])
             : []
           : videos;
-  const displayName = profile?.display_name || username;
-  const rawAvatar = avatar;
+  // The bot is a real account now (migration 0029), so the profile row wins.
+  // The constants are only a fallback for the moment before the row resolves.
+  const bot = isSafetyBot(username, profile?.id);
+  const displayName = profile?.display_name || (bot ? SAFETY_BOT_NAME : username);
+  const rawAvatar = avatar || (bot ? SAFETY_BOT_AVATAR : null);
   const shownAvatar = useCompressedThumbnail(rawAvatar, { maxDim: 200 }) ?? rawAvatar;
   const total = shownVideos?.length ?? 0;
   const sentinel = useRef<HTMLDivElement>(null);
@@ -904,27 +908,23 @@ function Profile() {
               className={`flex flex-wrap items-center justify-center gap-2 text-2xl ${findItem(equipped.name)?.className ?? ""}`}
             >
               {findItem(equipped.top)?.emoji} {displayName}
+              {bot && <SafetyBotBadge />}
             </h1>
             <p className="flex flex-wrap items-center justify-center gap-1.5 text-sm text-muted-foreground">
               <span>@{username}</span>
-            </p>
-            {isOwn && mySubscription?.status === "active" && (
-              <p className="mt-1 flex justify-center">
-                <span className="rounded-full border border-border bg-secondary/60 px-2 py-0.5 text-xs font-medium">
-                  {mySubscription.isLifetime
-                    ? "Lifetime"
-                    : (planById(mySubscription.planId)?.label ?? mySubscription.planId)}{" "}
-                  plan
+              {bot && (
+                <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-400">
+                  Official
                 </span>
-              </p>
-            )}
+              )}
+            </p>
             {profilePresence.visible && !profilePresence.isOnline && (
               <div className="mt-0.5 flex justify-center">
                 <OnlineStatusSubtitle status={profilePresence} />
               </div>
             )}
           </div>
-          {!isOwn && auth.ready && (
+          {!isOwn && auth.ready && !bot && (
             <div className="flex items-center gap-2">
               <Button
                 type="button"
@@ -957,7 +957,11 @@ function Profile() {
               />
             </div>
           )}
-          {profile?.bio && <p className="max-w-md text-sm text-muted-foreground">{profile.bio}</p>}
+          {(bot || profile?.bio) && (
+            <p className="max-w-md text-sm text-muted-foreground">
+              {bot ? SAFETY_BOT_BIO : profile?.bio}
+            </p>
+          )}
           {profile?.links && Object.keys(profile.links).length > 0 && (
             <div className="flex flex-wrap justify-center gap-2">
               {LINK_FIELDS.filter(
@@ -1090,7 +1094,11 @@ function Profile() {
           </p>
         )}
         {hasMore[tab] && <div ref={sentinel} className="h-10" />}
-        {loadingMore && shownVideos !== null && <FeedLoadingSpinner />}
+        {loadingMore && shownVideos !== null && (
+          <div className="py-3">
+            <ListRowSkeleton count={2} />
+          </div>
+        )}
 
         {isOwn && (
           <div className="mt-5 space-y-3 px-1">
@@ -1184,7 +1192,12 @@ function Profile() {
             }}
           >
             {shownVideos.map((v, i) => {
-              const preloadMode = preloadModeFor(i, viewerActiveIndex, { lite });
+              const preloadMode =
+                i === viewerActiveIndex
+                  ? "active"
+                  : !lite && i === viewerActiveIndex + 1
+                    ? "next"
+                    : "idle";
               return (
                 <div key={v.id} className="h-dvh snap-start snap-always">
                   <VideoCard

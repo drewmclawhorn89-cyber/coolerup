@@ -3,7 +3,6 @@ import type { User } from "@supabase/supabase-js";
 import type { User as FirebaseUser } from "firebase/auth";
 import { supabase } from "@/integrations/supabase/client";
 import { onFirebasePhoneUserChange, signOutFirebasePhone } from "@/lib/firebase";
-import { clearAccountSubscriptionCache } from "@/lib/accountSubscriptions";
 import { toast } from "sonner";
 
 export type Profile = {
@@ -283,9 +282,6 @@ function useAuthState(): AuthValue {
     openAuthDialog();
   };
   const signOut = async () => {
-    // Clear the on-screen subscription immediately: the next account must not
-    // inherit the plan shown for this one.
-    clearAccountSubscriptionCache();
     await Promise.all([supabase.auth.signOut(), signOutFirebasePhone()]);
   };
 

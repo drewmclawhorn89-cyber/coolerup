@@ -176,7 +176,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     return {
       meta: [
         { charSet: "utf-8" },
-        { name: "viewport", content: "width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" },
+        { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
         { title: "Coolerup — Short Videos, Full Songs & Browser by Drew McLawhorn" },
         {
           name: "description",
@@ -207,7 +207,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         { name: "theme-color", content: "#000000" },
         { name: "mobile-web-app-capable", content: "yes" },
         { name: "apple-mobile-web-app-capable", content: "yes" },
-        { name: "apple-mobile-web-app-status-bar-style", content: "black-translucent" },
+        { name: "apple-mobile-web-app-status-bar-style", content: "black" },
         { name: "apple-mobile-web-app-title", content: "coolerup" },
       ],
       links: [
@@ -246,7 +246,6 @@ function RootShell({ children }: { children: ReactNode }) {
     <html lang="en">
       <head>
         <HeadContent />
-        <style>{"html,body,#root{background:#000000!important;background-color:#000000!important;color-scheme:dark}"}</style>
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: COOLERUP_JSON_LD }} />
       </head>
       <body>

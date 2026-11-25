@@ -514,90 +514,36 @@ export type Database = {
       direct_messages: {
         Row: {
           created_at: string
-          deleted_at: string | null
-          deleted_by_recipient: boolean | null
-          deleted_by_sender: boolean | null
           from_id: string | null
           from_username: string
           gif_credit: string | null
           gif_url: string | null
           id: string
-          is_view_once: boolean | null
-          media_caption: string | null
-          media_duration: number | null
-          media_has_coolerup_watermark: boolean | null
-          media_has_external_watermark: boolean | null
-          media_thumbnail: string | null
-          media_type: string | null
-          media_url: string | null
-          media_video_id: string | null
-          media_video_url: string | null
-          media_watermark_type: string | null
           message: string
-          reply_to_message_id: string | null
           to_id: string | null
           to_username: string
-          view_once: boolean | null
-          view_once_expires_at: string | null
-          view_once_opened_at: string | null
         }
         Insert: {
           created_at?: string
-          deleted_at?: string | null
-          deleted_by_recipient?: boolean | null
-          deleted_by_sender?: boolean | null
           from_id?: string | null
           from_username: string
           gif_credit?: string | null
           gif_url?: string | null
           id?: string
-          is_view_once?: boolean | null
-          media_caption?: string | null
-          media_duration?: number | null
-          media_has_coolerup_watermark?: boolean | null
-          media_has_external_watermark?: boolean | null
-          media_thumbnail?: string | null
-          media_type?: string | null
-          media_url?: string | null
-          media_video_id?: string | null
-          media_video_url?: string | null
-          media_watermark_type?: string | null
           message: string
-          reply_to_message_id?: string | null
           to_id?: string | null
           to_username: string
-          view_once?: boolean | null
-          view_once_expires_at?: string | null
-          view_once_opened_at?: string | null
         }
         Update: {
           created_at?: string
-          deleted_at?: string | null
-          deleted_by_recipient?: boolean | null
-          deleted_by_sender?: boolean | null
           from_id?: string | null
           from_username?: string
           gif_credit?: string | null
           gif_url?: string | null
           id?: string
-          is_view_once?: boolean | null
-          media_caption?: string | null
-          media_duration?: number | null
-          media_has_coolerup_watermark?: boolean | null
-          media_has_external_watermark?: boolean | null
-          media_thumbnail?: string | null
-          media_type?: string | null
-          media_url?: string | null
-          media_video_id?: string | null
-          media_video_url?: string | null
-          media_watermark_type?: string | null
           message?: string
-          reply_to_message_id?: string | null
           to_id?: string | null
           to_username?: string
-          view_once?: boolean | null
-          view_once_expires_at?: string | null
-          view_once_opened_at?: string | null
         }
         Relationships: []
       }
@@ -2732,45 +2678,6 @@ export type Database = {
           updated_at?: string
           user_id?: string
           username?: string
-        }
-        Relationships: []
-      }
-      user_subscriptions: {
-        Row: {
-          auto_renew: boolean
-          created_at: string
-          expires_at: string | null
-          id: string
-          plan_id: string
-          plan_name: string | null
-          started_at: string
-          status: string
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          auto_renew?: boolean
-          created_at?: string
-          expires_at?: string | null
-          id?: string
-          plan_id: string
-          plan_name?: string | null
-          started_at?: string
-          status?: string
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          auto_renew?: boolean
-          created_at?: string
-          expires_at?: string | null
-          id?: string
-          plan_id?: string
-          plan_name?: string | null
-          started_at?: string
-          status?: string
-          updated_at?: string
-          user_id?: string
         }
         Relationships: []
       }

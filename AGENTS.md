@@ -20,4 +20,3 @@
 - Enforce text safety and mute restrictions with database triggers, serialize strikes per account and deduplicate by content ID; browser checks alone are bypassable.
 - Keep pending TikTok schema typings in a migration-matched extension of the generated client; this preserves typed queries without modifying generated files or changing authentication.
 - Route all video download/share exports through Smart Watermark detection on the source bytes; preserve detected existing watermarks unchanged, otherwise require the moving Coolerup mark, so filenames and captions cannot bypass the rule.
-- Theme preferences set only an opt-in detail token through a document data attribute; shared surface and button tokens remain static to prevent page-edge color leaks.

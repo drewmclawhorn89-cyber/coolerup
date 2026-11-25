@@ -652,7 +652,7 @@ function Messages() {
                   }}
                   className={`max-w-[78%] rounded-2xl text-sm select-none ${
                     isMine
-                      ? "ml-auto bg-theme-detail text-primary-foreground"
+                      ? "ml-auto bg-primary text-primary-foreground"
                       : "border border-white/15 bg-card text-white"
                   } ${hasMediaBubble ? "overflow-hidden p-1.5" : "px-3 py-2"}`}
                 >

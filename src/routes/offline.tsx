@@ -103,6 +103,13 @@ function OfflinePage() {
         blob: saved.blob,
         username: saved.video?.username,
         filename: `coolerup-${id}.mp4`,
+        source: {
+          hasExternalWatermark: saved.video?.has_external_watermark,
+          isTikTok: saved.video?.is_tiktok,
+          sourceProvider: saved.video?.source_provider,
+          sourceUrl: saved.video?.source_url,
+          videoUrl: saved.video?.video_url,
+        },
         onProgress: ({ percent, stage }) => toast.loading(`${stage}… ${percent}%`, { id: t }),
       });
       saveFileToDisk(file);
@@ -151,6 +158,13 @@ function OfflinePage() {
         blob: item.blob,
         username: item.video?.username,
         filename: `coolerup-${item.id}.mp4`,
+        source: {
+          hasExternalWatermark: item.video?.has_external_watermark,
+          isTikTok: item.video?.is_tiktok,
+          isYouTube: item.video?.is_youtube,
+          sourceProvider: item.video?.source_provider,
+          videoUrl: item.video?.video_url,
+        },
         onProgress: ({ percent, stage }) => toast.loading(`${stage}… ${percent}%`, { id: t }),
       });
       saveFileToDisk(file);

@@ -249,7 +249,9 @@ function RootShell({ children }: { children: ReactNode }) {
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: COOLERUP_JSON_LD }} />
       </head>
       <body>
-        {children}
+        <div id="root">
+          <div className="app-route-viewport">{children}</div>
+        </div>
         <Scripts />
       </body>
     </html>
@@ -299,9 +301,6 @@ function RootComponent() {
 
   useEffect(() => {
     applyPrefs();
-    const mq = window.matchMedia?.("(prefers-color-scheme: light)");
-    mq?.addEventListener?.("change", applyPrefs);
-    return () => mq?.removeEventListener?.("change", applyPrefs);
   }, []);
 
   // Cache the app shell and static assets so Coolerup still opens on weak or

@@ -1476,7 +1476,7 @@ function Settings() {
       {/* Appearance */}
       <div className="rounded-2xl border bg-card p-4">
         <h2 className="font-semibold">Appearance</h2>
-        <p className="mt-1 text-sm text-muted-foreground">Choose an app theme.</p>
+        <p className="mt-1 text-sm text-muted-foreground">Choose a color to preview here.</p>
         <div className="mt-3">
           <ThemePicker theme={theme} changeTheme={changeTheme} />
         </div>

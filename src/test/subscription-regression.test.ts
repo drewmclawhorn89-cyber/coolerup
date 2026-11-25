@@ -23,6 +23,7 @@ vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn(), warning: v
 
 const { getSubscription, planUnlocksOffline, requestPayment, confirmPayment, cancelSubscription } =
   await import("@/lib/subscriptions");
+const { setCachedAccountSubscription } = await import("@/lib/accountSubscriptions");
 
 const H = "drewmclawhorn3";
 
@@ -33,9 +34,19 @@ function serverRow(grant: Record<string, unknown>) {
 
 beforeEach(() => localStorage.clear());
 
-describe("a server row does not freeze the subscription screen", () => {
-  it("lets a new purchase override a server row", () => {
-    serverRow({ plan: "plus", status: "active", isLifetime: false });
+describe("an account row does not freeze the subscription screen", () => {
+  const accountRow = (
+    planId: string,
+    status: "active" | "pending" | "cancelled" | "expired" | "trialing" = "active",
+  ) =>
+    setCachedAccountSubscription(H, {
+      planId,
+      status,
+      startedAt: new Date().toISOString(),
+    });
+
+  it("lets a new purchase override an account row", () => {
+    accountRow("plus");
 
     requestPayment(H, "pro");
 
@@ -43,8 +54,8 @@ describe("a server row does not freeze the subscription screen", () => {
     expect(getSubscription(H)?.status).toBe("pending");
   });
 
-  it("lets a confirmed purchase activate over a server row", () => {
-    serverRow({ plan: "plus", status: "active", isLifetime: false });
+  it("lets a confirmed purchase activate over an account row", () => {
+    accountRow("plus");
 
     requestPayment(H, "pro");
     confirmPayment(H);
@@ -54,8 +65,8 @@ describe("a server row does not freeze the subscription screen", () => {
     expect(planUnlocksOffline(H)).toBe(true);
   });
 
-  it("actually cancels a server-backed plan", () => {
-    serverRow({ plan: "plus", status: "active", isLifetime: false });
+  it("actually cancels an account-backed plan", () => {
+    accountRow("plus");
 
     cancelSubscription(H);
 
@@ -63,27 +74,31 @@ describe("a server row does not freeze the subscription screen", () => {
     expect(planUnlocksOffline(H)).toBe(false);
   });
 
-  it("keeps the cancellation after the server row is refreshed again", () => {
-    serverRow({ plan: "plus", status: "active", isLifetime: false });
+  it("keeps the cancellation after the account row is re-fetched", () => {
+    accountRow("plus");
     cancelSubscription(H);
 
-    // A later refresh writes the same row back into the cache.
-    serverRow({ plan: "plus", status: "active", isLifetime: false });
+    // A later refresh brings the same row back, now marked cancelled.
+    accountRow("plus", "cancelled");
 
-    expect(getSubscription(H)).toBeNull();
+    expect(planUnlocksOffline(H)).toBe(false);
+    expect(getSubscription(H)?.status).toBe("expired");
   });
 
-  it("still lets a server row supply a plan when the device has none", () => {
-    serverRow({ plan: "pro", status: "active", isLifetime: false });
+  it("still lets an account row supply a plan when the device has none", () => {
+    accountRow("pro");
 
     expect(getSubscription(H)?.planId).toBe("pro");
     expect(getSubscription(H)?.isLifetime).toBe(false);
     expect(planUnlocksOffline(H)).toBe(true);
   });
 
-  it("never lets a local record outrank a lifetime grant", () => {
-    serverRow({ plan: "all", status: "active", isLifetime: true });
-    requestPayment(H, "plus");
+  it("never lets an account row outrank a lifetime grant", () => {
+    localStorage.setItem(
+      `lifetime:${H}`,
+      JSON.stringify({ plan: "all", status: "active", isLifetime: true }),
+    );
+    accountRow("plus");
 
     expect(getSubscription(H)?.planId).toBe("all");
     expect(getSubscription(H)?.isLifetime).toBe(true);

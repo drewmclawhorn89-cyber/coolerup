@@ -34,6 +34,7 @@ import { AuthProvider, useAuth } from "../hooks/useAuth";
 import { resolveSupabaseUrl } from "../integrations/supabase/project";
 import { SnowEffect } from "../components/SnowEffect";
 import { LovableBadgeGuard } from "../components/LovableBadgeGuard";
+import { SubscriptionSync } from "../components/SubscriptionSync";
 import { MiniPlayer } from "../components/MiniPlayer";
 import { USE_SOUND_EVENT, type PlayerTrack } from "../lib/songPlayer";
 import type { Sound } from "../lib/sounds";
@@ -356,6 +357,7 @@ function RootComponent() {
             playing when you switch top tabs, lock the phone, or leave the app. */}
         <MiniPlayer />
         <UseSoundHandler />
+        <SubscriptionSync />
       </AuthProvider>
     </QueryClientProvider>
   );

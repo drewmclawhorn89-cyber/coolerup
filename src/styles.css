@@ -170,13 +170,22 @@
     border-color: var(--color-border);
   }
 
+  /* Safari: page edges always stay black, whatever theme is picked. */
+  html,
+  body {
+    background-color: #000000 !important;
+    min-height: 100%;
+    min-height: 100svh;
+    min-height: 100dvh;
+    margin: 0;
+  }
+
   html {
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
   }
 
   body {
-    background-color: var(--color-background);
     color: var(--color-foreground);
     font-family: var(--font-sans);
   }

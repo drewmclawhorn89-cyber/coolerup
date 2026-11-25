@@ -201,9 +201,9 @@ export function applyTheme(theme: string) {
     "--ring": t.ring,
   };
   THEME_VARS.forEach((v) => root.style.setProperty(v, set[v] ?? ""));
-  root.style.backgroundColor = t.bg;
+  root.style.backgroundColor = "#000000";
   root.style.colorScheme = id === "light" ? "light" : "dark";
-  if (document.body) document.body.style.backgroundColor = t.bg;
+  if (document.body) document.body.style.backgroundColor = "#000000";
 }
 
 const LANG_CODES: Record<string, string> = {

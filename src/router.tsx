@@ -10,6 +10,7 @@ export const getRouter = () => {
     routeTree,
     context: { queryClient },
     scrollRestoration: true,
+    scrollToTopSelectors: [".app-route-viewport"],
     defaultPreloadStaleTime: 0,
     defaultPendingComponent: RoutePendingSkeleton,
   });

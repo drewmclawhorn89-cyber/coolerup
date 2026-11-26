@@ -819,15 +819,15 @@ function Profile() {
 
   if (banned && !isOwn) {
     return (
-      <div className="min-h-dvh bg-background">
+      <div className="min-h-dvh w-full bg-background pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)] text-white">
         <div className="mx-auto max-w-4xl px-4 pt-4">
-          <Link to="/" className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+          <Link to="/" className="inline-flex items-center gap-2 text-sm text-white">
             <ArrowLeft className="h-4 w-4" /> Home
           </Link>
           <div className="flex flex-col items-center gap-3 py-24 text-center">
-            <Lock className="h-10 w-10 text-muted-foreground" />
-            <h1 className="text-xl font-semibold text-foreground">{BANNED_TEXT}</h1>
-            <p className="max-w-sm text-sm text-muted-foreground">
+            <Lock className="h-10 w-10 text-white/75" />
+            <h1 className="text-xl font-semibold text-white">{BANNED_TEXT}</h1>
+            <p className="max-w-sm text-sm text-white/75">
               @{username} can&apos;t be shown on Coolerup right now.
             </p>
           </div>
@@ -837,9 +837,9 @@ function Profile() {
   }
 
   return (
-    <div className="min-h-dvh bg-background">
+    <div className="min-h-dvh w-full bg-background pb-[calc(2rem+env(safe-area-inset-bottom))] pt-[env(safe-area-inset-top)] text-white">
       <div className="mx-auto max-w-4xl px-4 pt-4">
-        <Link to="/" className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+        <Link to="/" className="inline-flex items-center gap-2 text-sm text-white">
           <ArrowLeft className="h-4 w-4" /> Home
         </Link>
 
@@ -930,7 +930,7 @@ function Profile() {
                 type="button"
                 onClick={() => void toggleProfileFollow()}
                 disabled={followBusy}
-                className="min-w-36 rounded-full bg-[#fe2c55] font-bold text-white"
+                className="min-w-36 rounded-full bg-white font-bold text-black"
                 aria-pressed={following}
               >
                 {following ? (
@@ -979,7 +979,7 @@ function Profile() {
               </Button>
               <Link
                 to="/settings"
-                className="inline-flex items-center rounded-md border px-3 py-1 text-sm"
+                className="inline-flex items-center rounded-md border border-white/25 bg-white px-3 py-1 text-sm font-medium text-black"
               >
                 Settings
               </Link>
@@ -1017,7 +1017,7 @@ function Profile() {
                 aria-selected={active}
                 role="tab"
                 className={`flex flex-1 items-center justify-center gap-1.5 border-b-2 pb-2 pt-1 text-white ${
-                  active ? "border-primary font-bold" : "border-transparent"
+                  active ? "border-white font-bold" : "border-transparent"
                 }`}
               >
                 <Icon className={`h-5 w-5 ${active && t.key === "liked" ? "fill-current" : ""}`} />
@@ -1258,7 +1258,7 @@ function Profile() {
                           to="/u/$username"
                           params={{ username: u.handle }}
                           onClick={() => setFollowingOpen(false)}
-                          className="flex items-center gap-3 py-3 hover:opacity-80"
+                          className="flex items-center gap-3 py-3"
                         >
                           <div className="relative shrink-0">
                             <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-primary text-sm uppercase text-primary-foreground">
@@ -1341,7 +1341,7 @@ function Profile() {
                           to="/u/$username"
                           params={{ username: u.handle }}
                           onClick={() => setFollowersOpen(false)}
-                          className="flex items-center gap-3 py-3 hover:opacity-80"
+                          className="flex items-center gap-3 py-3"
                         >
                           <div className="relative shrink-0">
                             <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-primary text-sm uppercase text-primary-foreground">

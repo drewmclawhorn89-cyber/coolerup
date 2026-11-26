@@ -581,18 +581,20 @@ function WatchPage() {
       <div
         role="status"
         aria-label="Loading video"
-        className="mx-auto w-full max-w-6xl space-y-4 bg-black px-3 py-4 text-white"
+        className="min-h-dvh w-full bg-background pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)] text-white"
       >
-        <div className="aspect-video w-full animate-pulse rounded-xl bg-zinc-800/80" />
-        <div className="h-5 w-2/3 animate-pulse rounded bg-zinc-800/80" />
-        <ListRowSkeleton count={3} />
+        <div className="mx-auto w-full max-w-6xl space-y-4 px-3 py-4 text-white">
+          <div className="aspect-video w-full animate-pulse rounded-xl bg-white/10" />
+          <div className="h-5 w-2/3 animate-pulse rounded bg-white/10" />
+          <ListRowSkeleton count={3} />
+        </div>
       </div>
     );
   }
 
   if (error || !video) {
     return (
-      <div className="mx-auto max-w-lg px-4 py-16 text-center">
+      <div className="min-h-dvh w-full bg-background px-4 py-16 text-center text-white">
         <p className="text-base font-semibold">{error ?? "Video not found"}</p>
         <Link to="/videos" className="mt-4 inline-block text-sm underline">
           Browse videos
@@ -604,7 +606,7 @@ function WatchPage() {
   return (
     <div className="mx-auto w-full max-w-6xl px-0 pb-24 sm:px-3">
       <div className="flex items-center gap-2 px-3 py-2">
-        <Link to="/videos" aria-label="Back to videos" className="rounded-full p-1 hover:bg-accent">
+        <Link to="/videos" aria-label="Back to videos" className="rounded-full p-1 text-white">
           <ArrowLeft className="h-5 w-5" />
         </Link>
         <span className="text-sm font-semibold">Watch</span>
@@ -753,7 +755,7 @@ function WatchPage() {
               <div className="mx-3 mt-2 sm:mx-0">
                 {/* TikTok provenance, same rule as YouTube: we embed the original
                   and never rehost the file. */}
-                <div className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg bg-black px-3 py-2 text-white">
+                <div className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg bg-card px-3 py-2 text-white">
                   <span className="flex items-center gap-1.5 text-[13px] font-bold">
                     <Play className="size-4 fill-current" /> TikTok
                   </span>
@@ -879,7 +881,7 @@ function WatchPage() {
                 <button
                   type="button"
                   onClick={() => void toggleSubscribe()}
-                  className="shrink-0 rounded-full bg-red-600 px-4 py-2 text-sm font-semibold text-white"
+                  className="shrink-0 rounded-full bg-white px-4 py-2 text-sm font-semibold text-black"
                 >
                   {subscribed ? (
                     <span className="flex items-center gap-1">

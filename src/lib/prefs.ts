@@ -47,110 +47,20 @@ export const readBool = (k: string, d = false) => readPref(k, String(d)) === "tr
 
 type ThemePalette = {
   bg: string;
-  fg: string;
-  card: string;
-  muted: string;
-  mutedFg: string;
-  border: string;
-  primary: string;
-  primaryFg: string;
-  accent: string;
-  accentFg: string;
-  ring: string;
 };
 
 const THEMES: Record<string, ThemePalette> = {
-  light: {
-    bg: "#000000",
-    fg: "#fafafa",
-    card: "#151515",
-    muted: "#262626",
-    mutedFg: "#a1a1aa",
-    border: "#2e2e2e",
-    primary: "#fafafa",
-    primaryFg: "#111111",
-    accent: "#262626",
-    accentFg: "#fafafa",
-    ring: "#71717a",
-  },
-  dark: {
-    bg: "#000000",
-    fg: "#fafafa",
-    card: "#151515",
-    muted: "#262626",
-    mutedFg: "#a1a1aa",
-    border: "#2e2e2e",
-    primary: "#fafafa",
-    primaryFg: "#111111",
-    accent: "#262626",
-    accentFg: "#fafafa",
-    ring: "#71717a",
-  },
-  blue: {
-    bg: "#000000",
-    fg: "#ffffff",
-    card: "#1d4fc4",
-    muted: "#1e293b",
-    mutedFg: "#dbeafe",
-    border: "#3b82f6",
-    primary: "#2563EB",
-    primaryFg: "#ffffff",
-    accent: "#1e40af",
-    accentFg: "#ffffff",
-    ring: "#60a5fa",
-  },
-  purple: {
-    bg: "#000000",
-    fg: "#ffffff",
-    card: "#7e22ce",
-    muted: "#271a38",
-    mutedFg: "#f3e8ff",
-    border: "#a855f7",
-    primary: "#9333ea",
-    primaryFg: "#ffffff",
-    accent: "#6b21a8",
-    accentFg: "#ffffff",
-    ring: "#c084fc",
-  },
-  pink: {
-    bg: "#000000",
-    fg: "#ffffff",
-    card: "#db2777",
-    muted: "#331424",
-    mutedFg: "#fce7f3",
-    border: "#f472b6",
-    primary: "#ec4899",
-    primaryFg: "#ffffff",
-    accent: "#be185d",
-    accentFg: "#ffffff",
-    ring: "#f9a8d4",
-  },
-  green: {
-    bg: "#000000",
-    fg: "#ffffff",
-    card: "#15803d",
-    muted: "#11261a",
-    mutedFg: "#dcfce7",
-    border: "#22c55e",
-    primary: "#16a34a",
-    primaryFg: "#ffffff",
-    accent: "#166534",
-    accentFg: "#ffffff",
-    ring: "#4ade80",
-  },
-  red: {
-    bg: "#000000",
-    fg: "#ffffff",
-    card: "#b91c1c",
-    muted: "#2d1215",
-    mutedFg: "#fee2e2",
-    border: "#ef4444",
-    primary: "#dc2626",
-    primaryFg: "#ffffff",
-    accent: "#991b1b",
-    accentFg: "#ffffff",
-    ring: "#f87171",
-  },
+  dark: { bg: "#000000" },
+  black: { bg: "#000000" },
+  light: { bg: "#27272a" },
+  white: { bg: "#27272a" },
+  blue: { bg: "#2563EB" },
+  red: { bg: "#DC2626" },
+  pink: { bg: "#EC4899" },
+  green: { bg: "#16A34A" },
+  purple: { bg: "#9333EA" },
+  orange: { bg: "#EA580C" },
+  christmas: { bg: "#16A34A" },
 };
 
 const THEME_VARS = [
@@ -171,39 +81,48 @@ const THEME_VARS = [
   "--accent",
   "--accent-foreground",
   "--ring",
+  "--sidebar",
+  "--sidebar-foreground",
 ];
+
+export function isSupportedTheme(theme: string): boolean {
+  return theme === "system" || theme in THEMES;
+}
+
+export function getThemeBackground(theme: string): string {
+  const id = theme === "system" ? "dark" : theme.toLowerCase();
+  return (THEMES[id] ?? THEMES["dark"]!).bg;
+}
 
 export function applyTheme(theme: string) {
   if (typeof document === "undefined") return;
   const root = document.documentElement;
-  let id = theme;
-  if (id === "system") {
-    id = window.matchMedia?.("(prefers-color-scheme: light)").matches ? "light" : "dark";
-  }
-  const t = THEMES[id] ?? THEMES["dark"]!;
+  const bg = getThemeBackground(theme);
   const set: Record<string, string> = {
-    "--background": "#000000",
-    "--foreground": t.fg,
-    "--card": t.card,
-    "--card-foreground": t.fg,
-    "--popover": t.card,
-    "--popover-foreground": t.fg,
-    "--muted": t.muted,
-    "--muted-foreground": t.mutedFg,
-    "--border": t.border,
-    "--input": t.border,
-    "--primary": t.primary,
-    "--primary-foreground": t.primaryFg,
-    "--secondary": t.accent,
-    "--secondary-foreground": t.accentFg,
-    "--accent": t.accent,
-    "--accent-foreground": t.accentFg,
-    "--ring": t.ring,
+    "--background": bg,
+    "--foreground": "#ffffff",
+    "--card": "rgba(255, 255, 255, 0.09)",
+    "--card-foreground": "#ffffff",
+    "--popover": "#18181b",
+    "--popover-foreground": "#ffffff",
+    "--muted": "rgba(255, 255, 255, 0.14)",
+    "--muted-foreground": "rgba(255, 255, 255, 0.8)",
+    "--border": "rgba(255, 255, 255, 0.22)",
+    "--input": "rgba(255, 255, 255, 0.25)",
+    "--primary": "#ffffff",
+    "--primary-foreground": "#000000",
+    "--secondary": "rgba(255, 255, 255, 0.14)",
+    "--secondary-foreground": "#ffffff",
+    "--accent": "rgba(255, 255, 255, 0.14)",
+    "--accent-foreground": "#ffffff",
+    "--ring": "#ffffff",
+    "--sidebar": bg,
+    "--sidebar-foreground": "#ffffff",
   };
   THEME_VARS.forEach((v) => root.style.setProperty(v, set[v] ?? ""));
-  root.style.backgroundColor = "#000000";
+  root.style.backgroundColor = bg;
   root.style.colorScheme = "dark";
-  if (document.body) document.body.style.backgroundColor = "#000000";
+  if (document.body) document.body.style.backgroundColor = bg;
 }
 
 const LANG_CODES: Record<string, string> = {

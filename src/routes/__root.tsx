@@ -35,6 +35,7 @@ import { resolveSupabaseUrl } from "../integrations/supabase/project";
 import { SnowEffect } from "../components/SnowEffect";
 import { LovableBadgeGuard } from "../components/LovableBadgeGuard";
 import { SubscriptionSync } from "../components/SubscriptionSync";
+import { ThemeSync } from "../components/ThemeSync";
 import { MiniPlayer } from "../components/MiniPlayer";
 import { USE_SOUND_EVENT, type PlayerTrack } from "../lib/songPlayer";
 import type { Sound } from "../lib/sounds";
@@ -243,12 +244,12 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" style={{ backgroundColor: "#000000" }}>
+    <html lang="en">
       <head>
         <HeadContent />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: COOLERUP_JSON_LD }} />
       </head>
-      <body className="bg-black text-white" style={{ backgroundColor: "#000000" }}>
+      <body className="bg-background text-foreground">
         {children}
         <Scripts />
       </body>
@@ -358,6 +359,7 @@ function RootComponent() {
         <MiniPlayer />
         <UseSoundHandler />
         <SubscriptionSync />
+        <ThemeSync />
         <LovableBadgeGuard />
       </AuthProvider>
     </QueryClientProvider>

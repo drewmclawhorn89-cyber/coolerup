@@ -1000,7 +1000,7 @@ function VideoCardImpl({
   const reposter = repostedBy && repostedBy !== video.username ? repostedBy : null;
 
   return (
-    <section className="feed-card relative h-full w-full snap-start snap-always bg-black md:flex md:items-center md:justify-center md:bg-transparent md:py-4">
+    <section className="feed-card relative h-full w-full snap-start snap-always bg-transparent md:flex md:items-center md:justify-center md:bg-transparent md:py-4">
       <div className="relative flex h-full w-full items-end md:h-auto md:w-auto md:gap-4">
         <div className="flex h-full min-w-0 flex-1 flex-col md:h-auto md:flex-none md:gap-3">
           <div
@@ -1027,7 +1027,7 @@ function VideoCardImpl({
               if (longPressRef.current) window.clearTimeout(longPressRef.current);
               longPressRef.current = null;
             }}
-            className="relative h-full w-full overflow-hidden bg-black md:aspect-[9/16] md:h-[calc(100dvh-11rem)] md:max-h-[760px] md:w-auto md:rounded-2xl md:bg-card"
+            className="relative h-full w-full overflow-hidden bg-transparent md:aspect-[9/16] md:h-[calc(100dvh-11rem)] md:max-h-[760px] md:w-auto md:rounded-2xl md:bg-card"
           >
             {isTikTok && (
               <div
@@ -1433,8 +1433,8 @@ function VideoCardImpl({
                     : "bottom-[env(safe-area-inset-bottom)]"
                 }`}
               >
-                <div className="absolute inset-x-0 bottom-0 h-1 bg-foreground/20">
-                  <div ref={progressRef} className="h-full bg-primary" style={{ width: "0%" }} />
+                <div className="absolute inset-x-0 bottom-0 h-1 bg-white/25">
+                  <div ref={progressRef} className="h-full bg-white" style={{ width: "0%" }} />
                 </div>
               </div>
             )}
@@ -1490,7 +1490,7 @@ function VideoCardImpl({
                 onClick={toggleFollow}
                 aria-label={isFollowing ? "Unfollow" : "Follow"}
                 aria-pressed={isFollowing}
-                className="-mt-2.5 flex h-5 w-5 items-center justify-center rounded-full bg-[#fe2c55] text-[12px] font-bold leading-none text-white"
+                className="-mt-2.5 flex h-5 w-5 items-center justify-center rounded-full bg-white text-[12px] font-bold leading-none text-black"
               >
                 {isFollowing ? "✓" : "+"}
               </button>

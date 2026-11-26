@@ -497,11 +497,11 @@ function Messages() {
 
   if (auth.ready && !auth.user) {
     return (
-      <div className="flex h-dvh flex-col items-center justify-center gap-4 bg-black p-6 text-center text-white">
+      <div className="flex h-dvh w-full flex-col items-center justify-center gap-4 bg-background p-6 text-center text-white">
         <p className="font-display text-2xl">Your messages</p>
-        <p className="text-white/60">Sign in to send and read private messages.</p>
+        <p className="text-white/70">Sign in to send and read private messages.</p>
         <Button onClick={auth.signIn}>Sign in</Button>
-        <Link to="/" className="text-sm text-white/60">
+        <Link to="/" className="text-sm text-white/70">
           Back to Coolerup
         </Link>
       </div>
@@ -509,426 +509,430 @@ function Messages() {
   }
 
   return (
-    <div className="mx-auto flex h-dvh max-w-md flex-col bg-black text-white pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)]">
-      <div className="border-b border-white/15 p-4">
-        <div className="flex items-center gap-3">
-          <Link to="/" aria-label="Back to Coolerup" className="text-white/70">
-            <ArrowLeft className="h-5 w-5" />
-          </Link>
-          <h1 className="font-display text-xl text-white">Messages</h1>
-        </div>
-        <input
-          value={toUser}
-          onChange={(e) => setToUser(e.target.value)}
-          placeholder="Message @username"
-          className="mt-3 w-full rounded-full border border-white/15 bg-zinc-900 px-4 py-2 text-sm text-white placeholder:text-white/40 outline-none focus:border-primary"
-        />
-      </div>
-
-      {toUser === "" ? (
-        <div className="flex-1 overflow-y-auto p-2">
-          <p className="px-3 py-2 text-xs font-bold tracking-widest text-white/50">INBOX</p>
-          {inbox.size === 0 ? (
-            <p className="mt-20 text-center text-white/50">No messages yet</p>
-          ) : (
-            [...inbox.entries()].reverse().map(([user, last]) => {
-              const st = presenceByHandle[normalizePresenceHandle(user)] ?? {
-                visible: false,
-                isOnline: false,
-                statusText: null,
-              };
-              return (
-                <button
-                  key={user}
-                  onClick={() => setToUser(user)}
-                  className="flex w-full items-center gap-3 rounded-xl p-3 text-left"
-                >
-                  <div className="relative shrink-0">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary font-display uppercase text-primary-foreground">
-                      {user[0]}
-                    </div>
-                    <OnlineDot
-                      visible={st.visible && st.isOnline}
-                      size="md"
-                      className="absolute bottom-0 right-0"
-                    />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-bold text-white">@{user}</p>
-                    {st.visible && !st.isOnline && st.statusText && (
-                      <OnlineStatusSubtitle status={st} className="block truncate" />
-                    )}
-                    <p className="truncate text-xs text-white/60">{formatInboxPreview(last)}</p>
-                  </div>
-                </button>
-              );
-            })
-          )}
-        </div>
-      ) : (
-        <>
-          <div className="flex items-center gap-2 border-b border-white/15 p-3">
-            <button onClick={() => setToUser("")} className="text-sm font-bold text-primary">
-              ← Inbox
-            </button>
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
-                <span className="truncate font-bold text-white">@{toUser}</span>
-                <OnlineDot
-                  visible={activePresence.visible && activePresence.isOnline}
-                  size="sm"
-                  className="border-0"
-                />
-              </div>
-              {activePresence.visible && !activePresence.isOnline && activePresence.statusText && (
-                <OnlineStatusSubtitle status={activePresence} className="block truncate" />
-              )}
-            </div>
-            <button
-              onClick={() => placeCall(true)}
-              className="ml-auto rounded-full p-2 text-white/70"
-              aria-label={`Video call @${toUser}`}
-            >
-              <VideoIcon className="h-5 w-5" />
-            </button>
-            <button
-              onClick={() => placeCall(false)}
-              className="rounded-full p-2 text-white/70"
-              aria-label={`Voice call @${toUser}`}
-            >
-              <Phone className="h-5 w-5" />
-            </button>
+    <div className="flex h-dvh w-full flex-col bg-background text-white pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)]">
+      <div className="mx-auto flex min-h-0 w-full max-w-md flex-1 flex-col">
+        <div className="border-b border-white/15 p-4">
+          <div className="flex items-center gap-3">
+            <Link to="/" aria-label="Back to Coolerup" className="text-white">
+              <ArrowLeft className="h-5 w-5" />
+            </Link>
+            <h1 className="font-display text-xl text-white">Messages</h1>
           </div>
+          <input
+            value={toUser}
+            onChange={(e) => setToUser(e.target.value)}
+            placeholder="Message @username"
+            className="mt-3 w-full rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm text-white placeholder:text-white/50 outline-none focus:border-white"
+          />
+        </div>
 
-          {mediaPermission && !mediaPermission.allowed && (
-            <div className="flex items-center gap-2 border-b border-white/10 bg-zinc-950 px-3 py-2 text-xs text-white/70">
-              <Lock className="h-3.5 w-3.5 shrink-0 text-amber-400" />
-              <span>{mediaPermission.reason}</span>
+        {toUser === "" ? (
+          <div className="flex-1 overflow-y-auto p-2">
+            <p className="px-3 py-2 text-xs font-bold tracking-widest text-white/50">INBOX</p>
+            {inbox.size === 0 ? (
+              <p className="mt-20 text-center text-white/50">No messages yet</p>
+            ) : (
+              [...inbox.entries()].reverse().map(([user, last]) => {
+                const st = presenceByHandle[normalizePresenceHandle(user)] ?? {
+                  visible: false,
+                  isOnline: false,
+                  statusText: null,
+                };
+                return (
+                  <button
+                    key={user}
+                    onClick={() => setToUser(user)}
+                    className="flex w-full items-center gap-3 rounded-xl p-3 text-left"
+                  >
+                    <div className="relative shrink-0">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary font-display uppercase text-primary-foreground">
+                        {user[0]}
+                      </div>
+                      <OnlineDot
+                        visible={st.visible && st.isOnline}
+                        size="md"
+                        className="absolute bottom-0 right-0"
+                      />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-bold text-white">@{user}</p>
+                      {st.visible && !st.isOnline && st.statusText && (
+                        <OnlineStatusSubtitle status={st} className="block truncate" />
+                      )}
+                      <p className="truncate text-xs text-white/60">{formatInboxPreview(last)}</p>
+                    </div>
+                  </button>
+                );
+              })
+            )}
+          </div>
+        ) : (
+          <>
+            <div className="flex items-center gap-2 border-b border-white/15 p-3">
+              <button onClick={() => setToUser("")} className="text-sm font-bold text-white">
+                ← Inbox
+              </button>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="truncate font-bold text-white">@{toUser}</span>
+                  <OnlineDot
+                    visible={activePresence.visible && activePresence.isOnline}
+                    size="sm"
+                    className="border-0"
+                  />
+                </div>
+                {activePresence.visible &&
+                  !activePresence.isOnline &&
+                  activePresence.statusText && (
+                    <OnlineStatusSubtitle status={activePresence} className="block truncate" />
+                  )}
+              </div>
+              <button
+                onClick={() => placeCall(true)}
+                className="ml-auto rounded-full p-2 text-white/70"
+                aria-label={`Video call @${toUser}`}
+              >
+                <VideoIcon className="h-5 w-5" />
+              </button>
+              <button
+                onClick={() => placeCall(false)}
+                className="rounded-full p-2 text-white/70"
+                aria-label={`Voice call @${toUser}`}
+              >
+                <Phone className="h-5 w-5" />
+              </button>
             </div>
-          )}
 
-          <div className="flex-1 space-y-2.5 overflow-y-auto p-3">
-            {convo.map((m) => {
-              const isMine = m.from_username.toLowerCase() === cleanMe;
-              const isCallLine =
-                m.message.startsWith("📞 ") && !m.gif_url && !m.media_url && !m.view_once;
+            {mediaPermission && !mediaPermission.allowed && (
+              <div className="flex items-center gap-2 border-b border-white/10 bg-zinc-950 px-3 py-2 text-xs text-white/70">
+                <Lock className="h-3.5 w-3.5 shrink-0 text-amber-400" />
+                <span>{mediaPermission.reason}</span>
+              </div>
+            )}
 
-              if (isCallLine) {
+            <div className="flex-1 space-y-2.5 overflow-y-auto p-3">
+              {convo.map((m) => {
+                const isMine = m.from_username.toLowerCase() === cleanMe;
+                const isCallLine =
+                  m.message.startsWith("📞 ") && !m.gif_url && !m.media_url && !m.view_once;
+
+                if (isCallLine) {
+                  return (
+                    <div
+                      key={m.id}
+                      className="mx-auto bg-transparent text-center text-xs italic text-white/50"
+                    >
+                      {m.message}
+                    </div>
+                  );
+                }
+
+                const hasMediaBubble = Boolean(m.media_url || m.view_once);
+                const viewOnceExpired = isViewOnceExpired(m);
+                const mediaUrl = resolvedUrls[m.id];
+                const isVideoBubble = m.media_type === "video" || m.media_type === "coolerup_video";
+
                 return (
                   <div
                     key={m.id}
-                    className="mx-auto bg-transparent text-center text-xs italic text-white/50"
+                    onTouchStart={() => {
+                      if (hasMediaBubble || m.gif_url) startLongPress(m);
+                    }}
+                    onTouchEnd={cancelLongPress}
+                    onTouchMove={cancelLongPress}
+                    onTouchCancel={cancelLongPress}
+                    onMouseDown={() => {
+                      if (hasMediaBubble || m.gif_url) startLongPress(m);
+                    }}
+                    onMouseUp={cancelLongPress}
+                    onMouseLeave={cancelLongPress}
+                    onContextMenu={(e) => {
+                      if (hasMediaBubble || m.gif_url) {
+                        e.preventDefault();
+                        cancelLongPress();
+                        setActionTarget(m);
+                      }
+                    }}
+                    className={`max-w-[78%] rounded-2xl text-sm select-none ${
+                      isMine
+                        ? "ml-auto bg-primary text-primary-foreground"
+                        : "border border-white/15 bg-card text-white"
+                    } ${hasMediaBubble ? "overflow-hidden p-1.5" : "px-3 py-2"}`}
                   >
-                    {m.message}
+                    {hasMediaBubble && (
+                      <button
+                        type="button"
+                        onClick={() => void handleOpenMediaBubble(m)}
+                        aria-label={
+                          m.view_once
+                            ? viewOnceExpired
+                              ? "Opened View Once media"
+                              : "Open View Once media"
+                            : `Open ${isVideoBubble ? "video" : "photo"} full screen`
+                        }
+                        className="block w-full text-left"
+                      >
+                        {m.view_once ? (
+                          <div className="flex w-60 items-center gap-3 rounded-xl bg-black/35 px-3.5 py-4 sm:w-64">
+                            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/15">
+                              <EyeOff className="h-5 w-5" />
+                            </span>
+                            <div className="min-w-0">
+                              <p className="text-sm font-bold">
+                                {viewOnceExpired
+                                  ? "Opened"
+                                  : isVideoBubble
+                                    ? "View Once Video"
+                                    : "View Once Photo"}
+                              </p>
+                              <p className="text-xs opacity-80">
+                                {viewOnceExpired
+                                  ? "Media disappeared"
+                                  : isMine
+                                    ? "Sent · Disappears after 1 view"
+                                    : "Tap to view once"}
+                              </p>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="relative w-60 overflow-hidden rounded-xl bg-black sm:w-64">
+                            {mediaUrl ? (
+                              isVideoBubble ? (
+                                <>
+                                  <video
+                                    src={`${mediaUrl}#t=0.2`}
+                                    muted
+                                    playsInline
+                                    preload="metadata"
+                                    className="aspect-[4/5] w-full object-cover"
+                                  />
+                                  <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/25">
+                                    <span className="flex h-12 w-12 items-center justify-center rounded-full bg-black/75 text-white">
+                                      <Play className="ml-0.5 h-6 w-6 fill-white" />
+                                    </span>
+                                  </span>
+                                  {m.media_type === "coolerup_video" && (
+                                    <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-black/75 px-2.5 py-1 text-[11px] font-semibold text-white">
+                                      <Film className="h-3 w-3" />
+                                      Coolerup Video
+                                    </span>
+                                  )}
+                                </>
+                              ) : (
+                                <img
+                                  src={mediaUrl}
+                                  alt={m.media_caption || "Chat photo"}
+                                  loading="lazy"
+                                  className="max-h-80 w-full object-cover"
+                                />
+                              )
+                            ) : (
+                              <div className="aspect-[4/5] w-full animate-pulse bg-zinc-800" />
+                            )}
+                          </div>
+                        )}
+                      </button>
+                    )}
+
+                    {(m.message || m.media_caption) && (
+                      <p className={hasMediaBubble ? "px-2 pb-1 pt-1.5" : ""}>
+                        {m.message || m.media_caption}
+                      </p>
+                    )}
+
+                    {m.gif_url && (
+                      <div className={m.message ? "mt-1.5" : ""}>
+                        <img
+                          src={m.gif_url}
+                          alt="GIF"
+                          loading="lazy"
+                          className="max-h-52 rounded-xl"
+                        />
+                        {m.gif_credit && (
+                          <p className="mt-0.5 text-[10px] font-semibold opacity-70">
+                            Made by {m.gif_credit}
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </div>
                 );
-              }
+              })}
+              <div ref={endRef} />
+            </div>
 
-              const hasMediaBubble = Boolean(m.media_url || m.view_once);
-              const viewOnceExpired = isViewOnceExpired(m);
-              const mediaUrl = resolvedUrls[m.id];
-              const isVideoBubble = m.media_type === "video" || m.media_type === "coolerup_video";
+            {showGifs && (
+              <GifPicker
+                className="border-t border-white/15"
+                onPick={(url, meta) => {
+                  setDraftGif(url);
+                  setDraftGifCredit(meta?.username ? `@${meta.username}` : null);
+                  setDraftFile(null);
+                  setDraftCoolerupVideo(null);
+                  setShowGifs(false);
+                }}
+                onClose={() => setShowGifs(false)}
+              />
+            )}
 
-              return (
-                <div
-                  key={m.id}
-                  onTouchStart={() => {
-                    if (hasMediaBubble || m.gif_url) startLongPress(m);
-                  }}
-                  onTouchEnd={cancelLongPress}
-                  onTouchMove={cancelLongPress}
-                  onTouchCancel={cancelLongPress}
-                  onMouseDown={() => {
-                    if (hasMediaBubble || m.gif_url) startLongPress(m);
-                  }}
-                  onMouseUp={cancelLongPress}
-                  onMouseLeave={cancelLongPress}
-                  onContextMenu={(e) => {
-                    if (hasMediaBubble || m.gif_url) {
-                      e.preventDefault();
-                      cancelLongPress();
-                      setActionTarget(m);
-                    }
-                  }}
-                  className={`max-w-[78%] rounded-2xl text-sm select-none ${
-                    isMine
-                      ? "ml-auto bg-primary text-primary-foreground"
-                      : "border border-white/15 bg-card text-white"
-                  } ${hasMediaBubble ? "overflow-hidden p-1.5" : "px-3 py-2"}`}
-                >
-                  {hasMediaBubble && (
-                    <button
-                      type="button"
-                      onClick={() => void handleOpenMediaBubble(m)}
-                      aria-label={
-                        m.view_once
-                          ? viewOnceExpired
-                            ? "Opened View Once media"
-                            : "Open View Once media"
-                          : `Open ${isVideoBubble ? "video" : "photo"} full screen`
-                      }
-                      className="block w-full text-left"
-                    >
-                      {m.view_once ? (
-                        <div className="flex w-60 items-center gap-3 rounded-xl bg-black/35 px-3.5 py-4 sm:w-64">
-                          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/15">
-                            <EyeOff className="h-5 w-5" />
-                          </span>
-                          <div className="min-w-0">
-                            <p className="text-sm font-bold">
-                              {viewOnceExpired
-                                ? "Opened"
-                                : isVideoBubble
-                                  ? "View Once Video"
-                                  : "View Once Photo"}
-                            </p>
-                            <p className="text-xs opacity-80">
-                              {viewOnceExpired
-                                ? "Media disappeared"
-                                : isMine
-                                  ? "Sent · Disappears after 1 view"
-                                  : "Tap to view once"}
-                            </p>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="relative w-60 overflow-hidden rounded-xl bg-black sm:w-64">
-                          {mediaUrl ? (
-                            isVideoBubble ? (
-                              <>
-                                <video
-                                  src={`${mediaUrl}#t=0.2`}
-                                  muted
-                                  playsInline
-                                  preload="metadata"
-                                  className="aspect-[4/5] w-full object-cover"
-                                />
-                                <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/25">
-                                  <span className="flex h-12 w-12 items-center justify-center rounded-full bg-black/75 text-white">
-                                    <Play className="ml-0.5 h-6 w-6 fill-white" />
-                                  </span>
-                                </span>
-                                {m.media_type === "coolerup_video" && (
-                                  <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-black/75 px-2.5 py-1 text-[11px] font-semibold text-white">
-                                    <Film className="h-3 w-3" />
-                                    Coolerup Video
-                                  </span>
-                                )}
-                              </>
-                            ) : (
-                              <img
-                                src={mediaUrl}
-                                alt={m.media_caption || "Chat photo"}
-                                loading="lazy"
-                                className="max-h-80 w-full object-cover"
-                              />
-                            )
-                          ) : (
-                            <div className="aspect-[4/5] w-full animate-pulse bg-zinc-800" />
-                          )}
-                        </div>
-                      )}
-                    </button>
+            {/* Draft Preview Strip with View Once Toggle */}
+            {(draftGif || draftFile || draftCoolerupVideo) && (
+              <div className="flex items-center justify-between gap-3 border-t border-white/15 bg-zinc-950 px-3 py-2">
+                <div className="flex min-w-0 items-center gap-2.5">
+                  {draftGif && (
+                    <img
+                      src={draftGif}
+                      alt="Selected GIF"
+                      className="h-14 w-14 rounded-lg object-cover"
+                    />
                   )}
-
-                  {(m.message || m.media_caption) && (
-                    <p className={hasMediaBubble ? "px-2 pb-1 pt-1.5" : ""}>
-                      {m.message || m.media_caption}
-                    </p>
-                  )}
-
-                  {m.gif_url && (
-                    <div className={m.message ? "mt-1.5" : ""}>
+                  {draftFile &&
+                    draftFilePreview &&
+                    (isImageMediaFile(draftFile) ? (
                       <img
-                        src={m.gif_url}
-                        alt="GIF"
-                        loading="lazy"
-                        className="max-h-52 rounded-xl"
+                        src={draftFilePreview}
+                        alt="Selected photo"
+                        className="h-14 w-14 rounded-lg object-cover"
                       />
-                      {m.gif_credit && (
-                        <p className="mt-0.5 text-[10px] font-semibold opacity-70">
-                          Made by {m.gif_credit}
-                        </p>
-                      )}
+                    ) : (
+                      <video
+                        src={draftFilePreview}
+                        muted
+                        playsInline
+                        className="h-14 w-14 rounded-lg object-cover"
+                      />
+                    ))}
+                  {draftCoolerupVideo && (
+                    <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-primary/20 text-primary">
+                      <Film className="h-6 w-6" />
                     </div>
                   )}
-                </div>
-              );
-            })}
-            <div ref={endRef} />
-          </div>
-
-          {showGifs && (
-            <GifPicker
-              className="border-t border-white/15"
-              onPick={(url, meta) => {
-                setDraftGif(url);
-                setDraftGifCredit(meta?.username ? `@${meta.username}` : null);
-                setDraftFile(null);
-                setDraftCoolerupVideo(null);
-                setShowGifs(false);
-              }}
-              onClose={() => setShowGifs(false)}
-            />
-          )}
-
-          {/* Draft Preview Strip with View Once Toggle */}
-          {(draftGif || draftFile || draftCoolerupVideo) && (
-            <div className="flex items-center justify-between gap-3 border-t border-white/15 bg-zinc-950 px-3 py-2">
-              <div className="flex min-w-0 items-center gap-2.5">
-                {draftGif && (
-                  <img
-                    src={draftGif}
-                    alt="Selected GIF"
-                    className="h-14 w-14 rounded-lg object-cover"
-                  />
-                )}
-                {draftFile &&
-                  draftFilePreview &&
-                  (isImageMediaFile(draftFile) ? (
-                    <img
-                      src={draftFilePreview}
-                      alt="Selected photo"
-                      className="h-14 w-14 rounded-lg object-cover"
-                    />
-                  ) : (
-                    <video
-                      src={draftFilePreview}
-                      muted
-                      playsInline
-                      className="h-14 w-14 rounded-lg object-cover"
-                    />
-                  ))}
-                {draftCoolerupVideo && (
-                  <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-primary/20 text-primary">
-                    <Film className="h-6 w-6" />
+                  <div className="min-w-0">
+                    <p className="truncate text-xs font-bold text-white">
+                      {draftFile
+                        ? draftFile.name
+                        : draftCoolerupVideo
+                          ? `Coolerup Video · @${draftCoolerupVideo.username}`
+                          : "Selected GIF"}
+                    </p>
+                    {(draftFile || draftCoolerupVideo) && (
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={viewOnceDraft}
+                        onClick={() => setViewOnceDraft((v) => !v)}
+                        className={`mt-1 inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${
+                          viewOnceDraft
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : "border-white/20 bg-zinc-900 text-white/80"
+                        }`}
+                      >
+                        <EyeOff className="h-3 w-3" />
+                        <span>View Once {viewOnceDraft ? "ON" : "OFF"}</span>
+                      </button>
+                    )}
                   </div>
-                )}
-                <div className="min-w-0">
-                  <p className="truncate text-xs font-bold text-white">
-                    {draftFile
-                      ? draftFile.name
-                      : draftCoolerupVideo
-                        ? `Coolerup Video · @${draftCoolerupVideo.username}`
-                        : "Selected GIF"}
-                  </p>
-                  {(draftFile || draftCoolerupVideo) && (
-                    <button
-                      type="button"
-                      role="switch"
-                      aria-checked={viewOnceDraft}
-                      onClick={() => setViewOnceDraft((v) => !v)}
-                      className={`mt-1 inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${
-                        viewOnceDraft
-                          ? "border-primary bg-primary text-primary-foreground"
-                          : "border-white/20 bg-zinc-900 text-white/80"
-                      }`}
-                    >
-                      <EyeOff className="h-3 w-3" />
-                      <span>View Once {viewOnceDraft ? "ON" : "OFF"}</span>
-                    </button>
-                  )}
                 </div>
+                <button
+                  type="button"
+                  onClick={clearDraftMedia}
+                  aria-label="Remove attachment"
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-zinc-900 text-white/70"
+                >
+                  <X className="h-4 w-4" />
+                </button>
               </div>
+            )}
+
+            <DmAttachmentSheet
+              open={showAttachMenu}
+              onClose={() => setShowAttachMenu(false)}
+              onPickFile={(file) => {
+                setDraftFile(file);
+                setDraftCoolerupVideo(null);
+                setDraftGif(null);
+                setShowAttachMenu(false);
+              }}
+              onOpenGif={() => {
+                setShowGifs(true);
+              }}
+              onPickCoolerupVideo={(video) => {
+                setDraftCoolerupVideo(video);
+                setDraftFile(null);
+                setDraftGif(null);
+                setShowAttachMenu(false);
+              }}
+              viewOnce={viewOnceDraft}
+              onToggleViewOnce={() => setViewOnceDraft((v) => !v)}
+              permission={mediaPermission}
+              uploading={sending}
+            />
+
+            <div className="flex items-center gap-2 border-t border-white/15 p-3">
               <button
                 type="button"
-                onClick={clearDraftMedia}
-                aria-label="Remove attachment"
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-zinc-900 text-white/70"
+                onClick={() => {
+                  setShowGifs(false);
+                  setShowAttachMenu((v) => !v);
+                }}
+                aria-label="Add attachment"
+                aria-expanded={showAttachMenu}
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-zinc-900 text-white"
               >
-                <X className="h-4 w-4" />
+                <Plus className="h-5 w-5" />
               </button>
+              <input
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && void send()}
+                placeholder="Message..."
+                maxLength={2000}
+                className="min-w-0 flex-1 rounded-full border border-white/20 bg-white/10 px-4 py-2.5 text-sm text-white placeholder:text-white/50 outline-none focus:border-white"
+              />
+              <Button
+                onClick={() => void send()}
+                disabled={sending}
+                className="h-11 rounded-full px-5"
+              >
+                {sending ? "Sending..." : "Send"}
+              </Button>
             </div>
-          )}
+          </>
+        )}
 
-          <DmAttachmentSheet
-            open={showAttachMenu}
-            onClose={() => setShowAttachMenu(false)}
-            onPickFile={(file) => {
-              setDraftFile(file);
-              setDraftCoolerupVideo(null);
-              setDraftGif(null);
-              setShowAttachMenu(false);
+        {lightboxState && (
+          <DmMediaLightbox
+            items={lightboxState.items}
+            initialIndex={lightboxState.initialIndex}
+            onClose={() => setLightboxState(null)}
+            onOpenActions={(item) => {
+              if (item.msg) {
+                setLightboxState(null);
+                setActionTarget(item.msg);
+              }
             }}
-            onOpenGif={() => {
-              setShowGifs(true);
-            }}
-            onPickCoolerupVideo={(video) => {
-              setDraftCoolerupVideo(video);
-              setDraftFile(null);
-              setDraftGif(null);
-              setShowAttachMenu(false);
-            }}
-            viewOnce={viewOnceDraft}
-            onToggleViewOnce={() => setViewOnceDraft((v) => !v)}
-            permission={mediaPermission}
-            uploading={sending}
           />
+        )}
 
-          <div className="flex items-center gap-2 border-t border-white/15 p-3">
-            <button
-              type="button"
-              onClick={() => {
-                setShowGifs(false);
-                setShowAttachMenu((v) => !v);
-              }}
-              aria-label="Add attachment"
-              aria-expanded={showAttachMenu}
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-zinc-900 text-white"
-            >
-              <Plus className="h-5 w-5" />
-            </button>
-            <input
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && void send()}
-              placeholder="Message..."
-              maxLength={2000}
-              className="min-w-0 flex-1 rounded-full border border-white/15 bg-zinc-900 px-4 py-2.5 text-sm text-white placeholder:text-white/40 outline-none focus:border-primary"
-            />
-            <Button
-              onClick={() => void send()}
-              disabled={sending}
-              className="h-11 rounded-full px-5"
-            >
-              {sending ? "Sending..." : "Send"}
-            </Button>
-          </div>
-        </>
-      )}
-
-      {lightboxState && (
-        <DmMediaLightbox
-          items={lightboxState.items}
-          initialIndex={lightboxState.initialIndex}
-          onClose={() => setLightboxState(null)}
-          onOpenActions={(item) => {
-            if (item.msg) {
-              setLightboxState(null);
-              setActionTarget(item.msg);
-            }
-          }}
-        />
-      )}
-
-      {actionTarget && auth.user && me && (
-        <DmMediaActionSheet
-          msg={actionTarget}
-          resolvedUrl={resolvedUrls[actionTarget.id]}
-          myUserId={auth.user.id}
-          myHandle={me}
-          recentRecipients={recentRecipients}
-          onClose={() => setActionTarget(null)}
-          onDeleted={(id) => {
-            setMsgs((prev) => prev.filter((row) => row.id !== id));
-          }}
-          onForwarded={(newRow) => {
-            if (newRow) {
-              setMsgs((prev) => [...prev, newRow]);
-            }
-          }}
-        />
-      )}
+        {actionTarget && auth.user && me && (
+          <DmMediaActionSheet
+            msg={actionTarget}
+            resolvedUrl={resolvedUrls[actionTarget.id]}
+            myUserId={auth.user.id}
+            myHandle={me}
+            recentRecipients={recentRecipients}
+            onClose={() => setActionTarget(null)}
+            onDeleted={(id) => {
+              setMsgs((prev) => prev.filter((row) => row.id !== id));
+            }}
+            onForwarded={(newRow) => {
+              if (newRow) {
+                setMsgs((prev) => [...prev, newRow]);
+              }
+            }}
+          />
+        )}
+      </div>
     </div>
   );
 }

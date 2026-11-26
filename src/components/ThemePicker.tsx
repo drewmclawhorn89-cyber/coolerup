@@ -6,7 +6,7 @@ export function ThemePicker({
   changeTheme: (id: string) => void;
 }) {
   const themes = [
-    { id: "dark", label: "Black", color: "#fe2c55", text: "#ffffff" },
+    { id: "dark", label: "Black", color: "#000000", text: "#ffffff" },
     { id: "white", label: "White", color: "#ffffff", text: "#000000" },
     { id: "system", label: "System", color: "#e5e7eb", text: "#000000" },
     { id: "blue", label: "Blue", color: "#2563EB", text: "#ffffff" },
@@ -27,10 +27,8 @@ export function ThemePicker({
           onClick={() => changeTheme(t.id)}
           aria-pressed={theme === t.id}
           style={{ backgroundColor: t.color, color: t.text }}
-          className={`rounded-md border px-4 py-2 text-sm font-medium transition ${
-            theme === t.id
-              ? "ring-2 ring-foreground ring-offset-2 ring-offset-background"
-              : "opacity-90 hover:opacity-100"
+          className={`rounded-md border border-white/30 px-4 py-2 text-sm font-medium ${
+            theme === t.id ? "ring-2 ring-white ring-offset-2 ring-offset-background" : "opacity-90"
           }`}
         >
           {t.label}

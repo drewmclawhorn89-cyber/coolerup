@@ -175,7 +175,7 @@
   html,
   body,
   #root {
-    background-color: #000000 !important;
+    background-color: var(--background) !important;
     color: var(--color-foreground);
     font-family: var(--font-sans);
     width: 100%;
@@ -188,7 +188,7 @@
     html,
     body,
     #root {
-      background-color: #000000 !important;
+      background-color: var(--background) !important;
       width: 100%;
       min-height: 100dvh;
       margin: 0;

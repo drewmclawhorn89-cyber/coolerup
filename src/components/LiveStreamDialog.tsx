@@ -1397,7 +1397,7 @@ export function LiveStreamDialog({
                   type="button"
                   onClick={() => void toggleFollow()}
                   disabled={followBusy}
-                  className="shrink-0 rounded-full bg-[#FE2C55] px-3 py-1 text-[11px] font-extrabold text-white disabled:opacity-60"
+                  className="shrink-0 rounded-full bg-white px-3 py-1 text-[11px] font-extrabold text-black disabled:opacity-60"
                 >
                   {following ? "Following" : "Follow"}
                 </button>

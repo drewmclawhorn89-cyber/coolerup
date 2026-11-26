@@ -280,7 +280,9 @@ function TopTabs({ className = "", ctx }: { className?: string; ctx: TopTabsCtx 
             onClick={item.onClick}
             aria-current={item.active ? "page" : undefined}
             className={`flex shrink-0 items-center gap-1 whitespace-nowrap border-b-2 pb-0.5 text-[13px] ${
-              item.active ? "border-white font-bold text-white" : "border-transparent text-white/70"
+              item.active
+                ? "border-primary font-bold text-white"
+                : "border-transparent text-white/70"
             }`}
           >
             {item.icon}
@@ -1197,9 +1199,15 @@ function Index() {
     authAvatar: avatarThumb || auth.avatar,
   };
 
-  // The bar sits in normal flow at the top of the screen on every breakpoint so
-  // it never floats over the video (which made the tabs unreadable on phones).
-  // Solid background + border keeps it legible over any content.
+  // On the mobile video feed, the top tabs sit on top of the edge-to-edge
+  // full-screen video (no black bar shrinking the frame). Non-feed tabs keep
+  // a solid bar above their scrollable list.
+  const topTabsFeedClass =
+    "absolute inset-x-0 top-0 z-30 flex shrink-0 items-center gap-1 bg-gradient-to-b from-black/75 via-black/35 to-transparent px-2 pb-4 " +
+    "md:relative md:inset-x-auto md:top-auto md:gap-2 md:border-b md:border-white/10 md:bg-black md:bg-none md:px-4 md:pb-2 md:pt-2 " +
+    (christmas
+      ? "pt-[calc(max(0.5rem,env(safe-area-inset-top))+0.65rem)]"
+      : "pt-[max(0.5rem,env(safe-area-inset-top))]");
   const topTabsClass =
     "relative z-30 flex shrink-0 items-center gap-1 border-b border-white/10 bg-black px-2 pb-2 " +
     "md:gap-2 md:px-4 md:pb-2 md:pt-2 " +
@@ -1209,6 +1217,13 @@ function Index() {
   // Non-feed screens (Inbox, Shop, Subscriptions) use the same solid bar.
   const topTabsStaticClass =
     "relative z-30 flex shrink-0 items-center gap-1 border-b border-white/10 bg-black px-2 pb-2 pt-[calc(env(safe-area-inset-top)+0.5rem)] md:gap-2 md:px-4 md:pb-2 md:pt-2";
+  const isFeedView =
+    !onLiveTab &&
+    feedTab !== "codes" &&
+    !(activeTab === "foryou" && (feedTab === "marketplace" || feedTab === "groups")) &&
+    activeTab !== "shop" &&
+    activeTab !== "subscriptions" &&
+    activeTab !== "inbox";
 
   const [title, sub] = query
     ? [`Results for "${query}"`, `${shown.length} videos`]
@@ -1271,7 +1286,7 @@ function Index() {
   }, []);
 
   return (
-    <div className="flex h-dvh overflow-hidden bg-background">
+    <div className="flex h-[100dvh] w-full overflow-hidden bg-black">
       <aside className="hidden w-72 shrink-0 flex-col gap-6 border-r bg-sidebar p-6 md:flex">
         <div>
           <h1 className="font-display text-4xl tracking-tight">
@@ -1368,7 +1383,7 @@ function Index() {
         )}
       </aside>
 
-      <main className="relative mx-auto flex h-[100dvh] w-full min-w-0 max-w-[430px] flex-1 flex-col bg-black md:h-auto md:max-w-none md:bg-transparent">
+      <main className="relative flex h-[100dvh] w-full min-w-0 flex-1 flex-col overflow-hidden bg-black md:h-auto md:bg-transparent">
         {offlineMode && (
           <div className="flex shrink-0 items-center gap-2 bg-primary/10 px-4 py-2 text-sm font-bold text-primary md:px-10">
             <WifiOff className="h-4 w-4" /> You're offline — watching saved videos
@@ -1609,8 +1624,8 @@ function Index() {
                 </div>
               )}
 
-            <div className="relative flex min-h-0 flex-1 flex-col">
-              <TopTabs className={topTabsClass} ctx={topTabsCtx} />
+            <div className="relative flex min-h-0 flex-1 flex-col bg-black">
+              <TopTabs className={topTabsFeedClass} ctx={topTabsCtx} />
               <div
                 ref={feedScrollRef}
                 onScroll={(e) => {
@@ -1658,6 +1673,7 @@ function Index() {
                     repostedBy={repostBy.get(v.id) ?? v.reposted_by ?? null}
                     posterUsername={v.poster_username ?? v.username}
                     preloadMode={preloadModeFor(idx, activeVideoIndex, { lite, lowData })}
+                    overlayBottomNav
                   />
                 ))}
                 {loadingMore && shown.length > 0 && <FeedLoadingSpinner />}
@@ -1669,7 +1685,11 @@ function Index() {
 
         <nav
           aria-label="Phone navigation"
-          className="mobile-top-nav grid shrink-0 grid-cols-5 place-items-center w-full gap-0 border-0 bg-black px-0 rounded-none md:hidden"
+          className={`mobile-bottom-nav grid w-full grid-cols-5 place-items-center gap-0 rounded-none border-0 px-0 md:hidden ${
+            isFeedView
+              ? "absolute inset-x-0 bottom-0 z-30 bg-gradient-to-t from-black/90 via-black/65 to-transparent pt-2"
+              : "shrink-0 bg-black"
+          }`}
         >
           {NAV.filter((n) => n.id === "foryou" || n.id === "following").map(
             ({ id, label, icon: Icon }) => (

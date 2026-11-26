@@ -135,6 +135,8 @@ export type VideoCardProps = {
   highlightComment?: HighlightCommentTarget | null;
   /** Feed controller hint: only "active" and "next" (+1) may load; "idle" unloads. */
   preloadMode?: "active" | "next" | "idle";
+  /** True when rendered behind the overlaid phone bottom nav on the main feed. */
+  overlayBottomNav?: boolean;
 };
 
 function VideoCardImpl({
@@ -152,6 +154,7 @@ function VideoCardImpl({
   initialShowComments = false,
   highlightComment = null,
   preloadMode,
+  overlayBottomNav = false,
 }: VideoCardProps) {
   const ref = useRef<HTMLVideoElement>(null);
   const [src, setSrc] = useState("");
@@ -1058,7 +1061,7 @@ function VideoCardImpl({
                 onLoad={() => setLoadState("ready")}
                 onError={() => setLoadState("error")}
                 onDoubleClick={() => !liked && toggleLike()}
-                className="h-full w-full cursor-pointer object-cover"
+                className="absolute inset-0 h-full w-full cursor-pointer object-cover"
               />
             )}
             {song && isImage && (
@@ -1152,7 +1155,7 @@ function VideoCardImpl({
                     if (Math.abs(a.currentTime - target) > 0.45) a.currentTime = target;
                   }
                 }}
-                className={`h-full w-full cursor-pointer ${full ? "object-contain" : "object-cover"} ${matureLocked ? "scale-110 blur-2xl" : ""}`}
+                className={`absolute inset-0 h-full w-full cursor-pointer ${full ? "object-contain" : "object-cover"} ${matureLocked ? "scale-110 blur-2xl" : ""}`}
               />
             )}
 
@@ -1370,7 +1373,13 @@ function VideoCardImpl({
                 grow *upward* from it, so a long caption never pushes the
                 username into the middle of the frame. Order here is
                 top→bottom: caption, sound, @handle, repost attribution. */}
-            <div className="video-caption absolute inset-x-0 bottom-0 z-20 pb-4 pl-3 pr-16 pt-16 md:pb-4">
+            <div
+              className={`video-caption absolute inset-x-0 bottom-0 z-20 pl-3 pr-16 pt-16 md:pb-4 ${
+                overlayBottomNav
+                  ? "pb-[calc(4.5rem+env(safe-area-inset-bottom))]"
+                  : "pb-[max(1rem,env(safe-area-inset-bottom))]"
+              }`}
+            >
               <div className={showCaptions ? "" : "md:hidden"}>
                 <p className="line-clamp-3 break-words text-sm">{captionText}</p>
               </div>
@@ -1416,7 +1425,14 @@ function VideoCardImpl({
               </div>
             </div>
             {!isImage && (
-              <div onClick={seek} className="absolute inset-x-0 bottom-0 h-3 cursor-pointer">
+              <div
+                onClick={seek}
+                className={`absolute inset-x-0 h-3 cursor-pointer md:bottom-0 ${
+                  overlayBottomNav
+                    ? "bottom-[calc(3.5rem+env(safe-area-inset-bottom))]"
+                    : "bottom-[env(safe-area-inset-bottom)]"
+                }`}
+              >
                 <div className="absolute inset-x-0 bottom-0 h-1 bg-foreground/20">
                   <div ref={progressRef} className="h-full bg-primary" style={{ width: "0%" }} />
                 </div>
@@ -1424,7 +1440,13 @@ function VideoCardImpl({
             )}
             {/* Quality badge — only when the user picked a quality by hand. */}
             {!isImage && qualitySource.badge && (
-              <span className="pointer-events-none absolute bottom-3 right-3 z-20 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-bold leading-tight text-white backdrop-blur">
+              <span
+                className={`pointer-events-none absolute right-3 z-20 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-bold leading-tight text-white backdrop-blur md:bottom-3 ${
+                  overlayBottomNav
+                    ? "bottom-[calc(4.25rem+env(safe-area-inset-bottom))]"
+                    : "bottom-3"
+                }`}
+              >
                 {qualitySource.badge}
               </span>
             )}
@@ -1435,7 +1457,13 @@ function VideoCardImpl({
             <p className="text-sm text-muted-foreground">{captionText}</p>
           </div>
         </div>
-        <div className="absolute bottom-14 right-1.5 z-20 flex flex-col items-center gap-3.5 md:static md:mb-10 md:gap-3.5">
+        <div
+          className={`absolute right-1.5 z-20 flex flex-col items-center gap-3.5 md:static md:mb-10 md:gap-3.5 ${
+            overlayBottomNav
+              ? "bottom-[calc(4.75rem+env(safe-area-inset-bottom))]"
+              : "bottom-[calc(3.5rem+env(safe-area-inset-bottom))]"
+          }`}
+        >
           {/* Avatar + follow badge — TikTok pins the + onto the avatar's chin. */}
           <div className="flex flex-col items-center">
             <Link

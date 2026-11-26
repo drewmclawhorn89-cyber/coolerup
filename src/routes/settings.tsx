@@ -786,11 +786,14 @@ function Settings() {
               toast.success(next ? "Online status ON" : "Online status OFF");
             }}
             className="flex h-7 w-12 shrink-0 items-center rounded-full p-1 transition"
-            style={{ backgroundColor: showOnline ? "#25D366" : "#333" }}
+            style={{ backgroundColor: showOnline ? "var(--primary)" : "#333" }}
           >
             <span
-              className="h-5 w-5 rounded-full bg-white transition"
-              style={{ transform: showOnline ? "translateX(20px)" : "translateX(0)" }}
+              className="h-5 w-5 rounded-full transition"
+              style={{
+                backgroundColor: showOnline ? "var(--primary-foreground)" : "#ffffff",
+                transform: showOnline ? "translateX(20px)" : "translateX(0)",
+              }}
             />
           </button>
         </div>
@@ -813,11 +816,14 @@ function Settings() {
               toast.success(next ? "18+ videos shown" : "18+ videos hidden");
             }}
             className="flex h-7 w-12 shrink-0 items-center rounded-full p-1 transition"
-            style={{ backgroundColor: showMature ? "#FE2C55" : "#333" }}
+            style={{ backgroundColor: showMature ? "var(--primary)" : "#333" }}
           >
             <span
-              className="h-5 w-5 rounded-full bg-white transition"
-              style={{ transform: showMature ? "translateX(20px)" : "translateX(0)" }}
+              className="h-5 w-5 rounded-full transition"
+              style={{
+                backgroundColor: showMature ? "var(--primary-foreground)" : "#ffffff",
+                transform: showMature ? "translateX(20px)" : "translateX(0)",
+              }}
             />
           </button>
         </div>
@@ -991,8 +997,7 @@ function Settings() {
           </div>
           <button
             onClick={saveLinks}
-            style={{ backgroundColor: "black", color: "white" }}
-            className="rounded-md px-4 py-2 font-medium"
+            className="rounded-md bg-primary px-4 py-2 font-medium text-primary-foreground"
           >
             Save Links to Profile
           </button>
@@ -1142,12 +1147,14 @@ function Settings() {
                 });
               }}
               className="h-7 w-12 shrink-0 rounded-full p-1"
-              style={{ backgroundColor: allowMessagesFromEveryone ? "white" : "#333" }}
+              style={{ backgroundColor: allowMessagesFromEveryone ? "var(--primary)" : "#333" }}
             >
               <div
                 className="h-5 w-5 rounded-full transition"
                 style={{
-                  backgroundColor: allowMessagesFromEveryone ? "black" : "white",
+                  backgroundColor: allowMessagesFromEveryone
+                    ? "var(--primary-foreground)"
+                    : "#ffffff",
                   transform: allowMessagesFromEveryone ? "translateX(20px)" : "translateX(0)",
                 }}
               />
@@ -1198,8 +1205,7 @@ function Settings() {
           />
           <button
             onClick={savePhone}
-            style={{ backgroundColor: "black", color: "white" }}
-            className="rounded-md px-4 py-2 font-medium"
+            className="rounded-md bg-primary px-4 py-2 font-medium text-primary-foreground"
           >
             Save
           </button>
@@ -1243,12 +1249,12 @@ function Settings() {
                 aria-pressed={offlineMode}
                 aria-label="Toggle Offline Mode"
                 className="h-7 w-12 shrink-0 rounded-full p-1 transition"
-                style={{ backgroundColor: offlineMode ? "#16a34a" : "#333" }}
+                style={{ backgroundColor: offlineMode ? "var(--primary)" : "#333" }}
               >
                 <div
                   className="h-5 w-5 rounded-full transition"
                   style={{
-                    backgroundColor: "white",
+                    backgroundColor: offlineMode ? "var(--primary-foreground)" : "#ffffff",
                     transform: offlineMode ? "translateX(20px)" : "translateX(0)",
                   }}
                 />
@@ -1296,8 +1302,7 @@ function Settings() {
                 <button
                   type="button"
                   onClick={() => (window.location.href = "/offline")}
-                  style={{ backgroundColor: "black", color: "white" }}
-                  className="rounded-md px-3 py-1.5 text-[13px] font-medium"
+                  className="rounded-md bg-primary px-3 py-1.5 text-[13px] font-medium text-primary-foreground"
                 >
                   View Offline Videos →
                 </button>
@@ -1320,16 +1325,14 @@ function Settings() {
               <button
                 type="button"
                 onClick={() => setShowOfflinePaywall(true)}
-                style={{ backgroundColor: "black", color: "white" }}
-                className="rounded-md px-4 py-2 font-medium"
+                className="rounded-md bg-primary px-4 py-2 font-medium text-primary-foreground"
               >
                 Turn on Offline Mode
               </button>
               <button
                 type="button"
                 onClick={() => setShowSubscriptions(true)}
-                style={{ backgroundColor: "#16a34a", color: "white" }}
-                className="rounded-md px-4 py-2 font-medium"
+                className="rounded-md bg-primary px-4 py-2 font-medium text-primary-foreground"
               >
                 Subscribe · ${offlinePrice.toFixed(2)}/mo
               </button>
@@ -1373,12 +1376,12 @@ function Settings() {
             aria-pressed={backgroundPlay}
             aria-label="Toggle Background Play"
             className="h-7 w-12 shrink-0 rounded-full p-1 transition"
-            style={{ backgroundColor: backgroundPlay ? "#16a34a" : "#333" }}
+            style={{ backgroundColor: backgroundPlay ? "var(--primary)" : "#333" }}
           >
             <div
               className="h-5 w-5 rounded-full transition"
               style={{
-                backgroundColor: "white",
+                backgroundColor: backgroundPlay ? "var(--primary-foreground)" : "#ffffff",
                 transform: backgroundPlay ? "translateX(20px)" : "translateX(0)",
               }}
             />
@@ -1425,11 +1428,14 @@ function Settings() {
               toast.success(next ? "Low Data Mode ON" : "Low Data Mode OFF");
             }}
             className="flex h-7 w-12 shrink-0 items-center rounded-full p-1 transition"
-            style={{ backgroundColor: lowDataMode ? "#25D366" : "#333" }}
+            style={{ backgroundColor: lowDataMode ? "var(--primary)" : "#333" }}
           >
             <span
-              className="h-5 w-5 rounded-full bg-white transition"
-              style={{ transform: lowDataMode ? "translateX(20px)" : "translateX(0)" }}
+              className="h-5 w-5 rounded-full transition"
+              style={{
+                backgroundColor: lowDataMode ? "var(--primary-foreground)" : "#ffffff",
+                transform: lowDataMode ? "translateX(20px)" : "translateX(0)",
+              }}
             />
           </button>
         </div>

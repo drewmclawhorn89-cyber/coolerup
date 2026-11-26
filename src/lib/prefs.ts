@@ -61,17 +61,17 @@ type ThemePalette = {
 
 const THEMES: Record<string, ThemePalette> = {
   light: {
-    bg: "#ffffff",
-    fg: "#111111",
-    card: "#ffffff",
-    muted: "#f1f1f3",
-    mutedFg: "#6b7280",
-    border: "#e4e4e7",
-    primary: "#111111",
-    primaryFg: "#ffffff",
-    accent: "#f1f1f3",
-    accentFg: "#111111",
-    ring: "#a1a1aa",
+    bg: "#000000",
+    fg: "#fafafa",
+    card: "#151515",
+    muted: "#262626",
+    mutedFg: "#a1a1aa",
+    border: "#2e2e2e",
+    primary: "#fafafa",
+    primaryFg: "#111111",
+    accent: "#262626",
+    accentFg: "#fafafa",
+    ring: "#71717a",
   },
   dark: {
     bg: "#000000",
@@ -87,69 +87,69 @@ const THEMES: Record<string, ThemePalette> = {
     ring: "#71717a",
   },
   blue: {
-    bg: "#2563EB",
+    bg: "#000000",
     fg: "#ffffff",
     card: "#1d4fc4",
-    muted: "#1e40af",
+    muted: "#1e293b",
     mutedFg: "#dbeafe",
     border: "#3b82f6",
-    primary: "#ffffff",
-    primaryFg: "#1d4fc4",
+    primary: "#2563EB",
+    primaryFg: "#ffffff",
     accent: "#1e40af",
     accentFg: "#ffffff",
-    ring: "#93c5fd",
+    ring: "#60a5fa",
   },
   purple: {
-    bg: "#9333ea",
+    bg: "#000000",
     fg: "#ffffff",
     card: "#7e22ce",
-    muted: "#6b21a8",
+    muted: "#271a38",
     mutedFg: "#f3e8ff",
     border: "#a855f7",
-    primary: "#ffffff",
-    primaryFg: "#7e22ce",
+    primary: "#9333ea",
+    primaryFg: "#ffffff",
     accent: "#6b21a8",
     accentFg: "#ffffff",
-    ring: "#d8b4fe",
+    ring: "#c084fc",
   },
   pink: {
-    bg: "#ec4899",
+    bg: "#000000",
     fg: "#ffffff",
     card: "#db2777",
-    muted: "#be185d",
+    muted: "#331424",
     mutedFg: "#fce7f3",
     border: "#f472b6",
-    primary: "#ffffff",
-    primaryFg: "#be185d",
-    accent: "#9d174d",
+    primary: "#ec4899",
+    primaryFg: "#ffffff",
+    accent: "#be185d",
     accentFg: "#ffffff",
     ring: "#f9a8d4",
   },
   green: {
-    bg: "#16a34a",
+    bg: "#000000",
     fg: "#ffffff",
     card: "#15803d",
-    muted: "#166534",
+    muted: "#11261a",
     mutedFg: "#dcfce7",
     border: "#22c55e",
-    primary: "#ffffff",
-    primaryFg: "#166534",
-    accent: "#14532d",
+    primary: "#16a34a",
+    primaryFg: "#ffffff",
+    accent: "#166534",
     accentFg: "#ffffff",
-    ring: "#86efac",
+    ring: "#4ade80",
   },
   red: {
-    bg: "#dc2626",
+    bg: "#000000",
     fg: "#ffffff",
     card: "#b91c1c",
-    muted: "#991b1b",
+    muted: "#2d1215",
     mutedFg: "#fee2e2",
     border: "#ef4444",
-    primary: "#ffffff",
-    primaryFg: "#991b1b",
-    accent: "#7f1d1d",
+    primary: "#dc2626",
+    primaryFg: "#ffffff",
+    accent: "#991b1b",
     accentFg: "#ffffff",
-    ring: "#fca5a5",
+    ring: "#f87171",
   },
 };
 
@@ -182,7 +182,7 @@ export function applyTheme(theme: string) {
   }
   const t = THEMES[id] ?? THEMES["dark"]!;
   const set: Record<string, string> = {
-    "--background": t.bg,
+    "--background": "#000000",
     "--foreground": t.fg,
     "--card": t.card,
     "--card-foreground": t.fg,
@@ -201,9 +201,9 @@ export function applyTheme(theme: string) {
     "--ring": t.ring,
   };
   THEME_VARS.forEach((v) => root.style.setProperty(v, set[v] ?? ""));
-  root.style.backgroundColor = t.bg;
-  root.style.colorScheme = id === "light" ? "light" : "dark";
-  if (document.body) document.body.style.backgroundColor = t.bg;
+  root.style.backgroundColor = "#000000";
+  root.style.colorScheme = "dark";
+  if (document.body) document.body.style.backgroundColor = "#000000";
 }
 
 const LANG_CODES: Record<string, string> = {

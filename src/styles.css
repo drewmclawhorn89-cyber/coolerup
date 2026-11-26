@@ -170,15 +170,29 @@
     border-color: var(--color-border);
   }
 
-  html {
-    -webkit-text-size-adjust: 100%;
-    text-size-adjust: 100%;
-  }
-
-  body {
-    background-color: var(--color-background);
+  html,
+  body,
+  #root {
+    background-color: #000000 !important;
     color: var(--color-foreground);
     font-family: var(--font-sans);
+    width: 100%;
+    min-height: 100dvh;
+    margin: 0;
+    padding: 0;
+  }
+
+  @media (display-mode: standalone) {
+    html,
+    body,
+    #root {
+      background-color: #000000 !important;
+      width: 100%;
+      min-height: 100dvh;
+      margin: 0;
+      padding: 0;
+      overscroll-behavior: none;
+    }
   }
 
   /* Remove the 300ms tap delay and the grey flash on mobile. */

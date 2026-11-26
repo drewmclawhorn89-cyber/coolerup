@@ -1,4 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { CornerDownRight, Heart, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -7,6 +8,7 @@ import { notifyUser, profileIdForHandle } from "@/lib/notify";
 import { ReportButton } from "@/components/ReportButton";
 import { findHighlightedCommentId, type HighlightCommentTarget } from "@/lib/inboxNotifications";
 import { GifGridSkeleton, ListRowSkeleton } from "@/components/Skeletons";
+import { closeCommentsOverlay, openCommentsOverlay } from "@/lib/commentsOverlay";
 
 const GifPicker = lazy(() =>
   import("@/components/GifPicker").then((m) => ({ default: m.GifPicker })),
@@ -51,12 +53,43 @@ export function Comments({
   const [gifCredit, setGifCredit] = useState<string | null>(null);
   const [showGifs, setShowGifs] = useState(false);
   const [replyTo, setReplyTo] = useState<Comment | null>(null);
+  const [keyboardMetrics, setKeyboardMetrics] = useState<{
+    bottomOffset: number;
+    maxHeightPx: number | null;
+  }>({ bottomOffset: 0, maxHeightPx: null });
   const highlightedElRef = useRef<HTMLDivElement | null>(null);
   const commentsScrollRef = useRef<HTMLDivElement | null>(null);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
   const offsetRef = useRef(0);
   const loadingMoreRef = useRef(false);
-  const { handle, signIn, user } = useAuth();
+  const { avatar, handle, signIn, user } = useAuth();
+
+  // Hide the main bottom navigation whenever this sheet is mounted.
+  useEffect(() => {
+    openCommentsOverlay();
+    return () => {
+      closeCommentsOverlay();
+    };
+  }, []);
+
+  // Track iOS / Android soft keyboard so the sheet & input bar stay cleanly above it.
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.visualViewport) return;
+    const vv = window.visualViewport;
+    const updateViewport = () => {
+      const bottomOffset = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
+      const maxHeightPx = bottomOffset > 0 ? Math.max(240, Math.round(vv.height - 8)) : null;
+      setKeyboardMetrics({ bottomOffset, maxHeightPx });
+    };
+    updateViewport();
+    vv.addEventListener("resize", updateViewport);
+    vv.addEventListener("scroll", updateViewport);
+    return () => {
+      vv.removeEventListener("resize", updateViewport);
+      vv.removeEventListener("scroll", updateViewport);
+    };
+  }, []);
 
   const fetchLikesForRows = useCallback(
     async (rows: Omit<Comment, "like_count" | "liked_by_me">[]): Promise<Comment[]> => {
@@ -107,8 +140,6 @@ export function Comments({
         )
       : await ordered;
     if (error) {
-      // An empty list and a failed query used to look identical ("No comments
-      // yet"), which hid real RLS/network failures. Surface it instead.
       setLoadError(error.message);
       setItems([]);
       return;
@@ -211,7 +242,6 @@ export function Comments({
     setReplyTo(null);
     onAdded();
 
-    // Let the video owner know — in the bell and on their phone.
     void (async () => {
       try {
         if (!user?.id) return;
@@ -252,7 +282,6 @@ export function Comments({
     }
   }, [highlightedId, showGifs]);
 
-  /** Optimistically flip a comment's like, then settle on the server value. */
   const likeComment = async (comment: Comment) => {
     if (!user?.id) {
       void signIn();
@@ -277,7 +306,6 @@ export function Comments({
         const { error } = await supabase
           .from("comment_likes")
           .insert({ comment_id: comment.id, user_id: user.id });
-        // 23505 = already liked; treat as success.
         if (error && error.code !== "23505") throw error;
       } else {
         const { error } = await supabase
@@ -288,7 +316,6 @@ export function Comments({
         if (error) throw error;
       }
     } catch {
-      // Put it back the way it was.
       setItems((list) =>
         (list ?? []).map((c) =>
           c.id === comment.id
@@ -300,30 +327,42 @@ export function Comments({
     }
   };
 
-  return (
+  const userInitial = (handle ?? "").trim().charAt(0).toUpperCase() || "?";
+
+  const content = (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-end bg-overlay sm:items-stretch"
+      className="fixed inset-0 z-[90] bg-black/55"
       onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Comments"
     >
       <aside
         onClick={(e) => e.stopPropagation()}
         onTouchStart={(e) => e.stopPropagation()}
         onTouchMove={(e) => e.stopPropagation()}
         onWheel={(e) => e.stopPropagation()}
-        className={`mobile-comments flex w-full max-w-md flex-col rounded-t-2xl border bg-card sm:h-full sm:rounded-none sm:border-l ${
-          showGifs ? "h-[70dvh]" : "h-[75dvh]"
-        }`}
+        style={{
+          backgroundColor: "var(--background)",
+          bottom: keyboardMetrics.bottomOffset > 0 ? `${keyboardMetrics.bottomOffset}px` : "0px",
+          maxHeight: keyboardMetrics.maxHeightPx ? `${keyboardMetrics.maxHeightPx}px` : undefined,
+        }}
+        className="mobile-comments sheet-up fixed bottom-0 left-0 z-[91] flex h-[70dvh] w-screen flex-col overflow-hidden rounded-t-2xl border-t border-white/20 bg-background text-white sm:left-auto sm:right-0 sm:top-0 sm:h-dvh sm:w-full sm:max-w-md sm:rounded-none sm:border-l sm:border-t-0"
       >
-        <header className="flex items-center justify-between border-b p-4">
-          <h2 className="font-bold">Comments {items ? `(${items.length})` : ""}</h2>
-          <button onClick={onClose} aria-label="Close">
+        <header className="flex shrink-0 items-center justify-between border-b border-white/20 px-4 py-3.5">
+          <h2 className="text-base font-bold text-white">
+            Comments {items ? `(${items.length})` : ""}
+          </h2>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="flex h-8 w-8 items-center justify-center rounded-full text-white"
+          >
             <X className="h-5 w-5" />
           </button>
         </header>
-        {/* While the GIF picker (or the GIF maker inside it) is open it takes
-            the sheet's free space and the thread is hidden. Before this the
-            two shared a flex column, so on a phone the maker was squeezed
-            below the fold and its Create button could not be reached. */}
+
         {showGifs ? (
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             <Suspense fallback={<GifGridSkeleton className="p-3" />}>
@@ -340,22 +379,25 @@ export function Comments({
             </Suspense>
           </div>
         ) : (
-          <div ref={commentsScrollRef} className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
+          <div
+            ref={commentsScrollRef}
+            className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-4"
+          >
             {items === null && <ListRowSkeleton count={4} />}
             {loadError && (
               <div className="space-y-2">
-                <p className="text-sm text-muted-foreground">Couldn't load comments: {loadError}</p>
+                <p className="text-sm text-white/80">Couldn't load comments: {loadError}</p>
                 <button
                   type="button"
                   onClick={() => void load()}
-                  className="rounded-full bg-secondary px-4 py-1.5 text-xs font-bold"
+                  className="rounded-full bg-white px-4 py-1.5 text-xs font-bold text-black"
                 >
                   Try again
                 </button>
               </div>
             )}
             {!loadError && items?.length === 0 && (
-              <p className="text-sm text-muted-foreground">No comments yet. Be the first.</p>
+              <p className="text-sm text-white/75">No comments yet. Be the first.</p>
             )}
             {topLevel.map((c) => (
               <div key={c.id} className="space-y-3">
@@ -363,7 +405,10 @@ export function Comments({
                   <CommentRow
                     c={c}
                     videoId={videoId}
-                    onReply={setReplyTo}
+                    onReply={(target) => {
+                      setReplyTo(target);
+                      inputRef.current?.focus();
+                    }}
                     onLike={likeComment}
                     highlighted={c.id === highlightedId}
                   />
@@ -377,7 +422,10 @@ export function Comments({
                     <CommentRow
                       c={r}
                       videoId={videoId}
-                      onReply={setReplyTo}
+                      onReply={(target) => {
+                        setReplyTo(target);
+                        inputRef.current?.focus();
+                      }}
                       onLike={likeComment}
                       highlighted={r.id === highlightedId}
                     />
@@ -389,30 +437,46 @@ export function Comments({
             {loadingMore && <ListRowSkeleton count={2} />}
           </div>
         )}
+
         {!handle ? (
-          <div className="border-t p-4">
+          <div
+            style={{
+              backgroundColor: "var(--background)",
+              paddingBottom:
+                keyboardMetrics.bottomOffset > 0
+                  ? "12px"
+                  : "calc(env(safe-area-inset-bottom) + 12px)",
+            }}
+            className="shrink-0 border-t border-white/20 bg-background px-3 pt-3"
+          >
             <button
+              type="button"
               onClick={signIn}
-              className="w-full rounded-full bg-primary py-2.5 text-sm font-bold text-primary-foreground"
+              className="w-full rounded-full bg-white py-2.5 text-sm font-bold text-black"
             >
               Sign in to comment
             </button>
           </div>
         ) : (
-          <>
+          <div style={{ backgroundColor: "var(--background)" }} className="shrink-0 bg-background">
             {replyTo && (
-              <div className="flex items-center justify-between border-t px-4 pt-3 text-xs text-muted-foreground">
+              <div className="flex items-center justify-between border-t border-white/20 px-4 pt-2.5 text-xs text-white/80">
                 <span>Replying to @{replyTo.username}</span>
-                <button type="button" onClick={() => setReplyTo(null)} aria-label="Cancel reply">
+                <button
+                  type="button"
+                  onClick={() => setReplyTo(null)}
+                  aria-label="Cancel reply"
+                  className="text-white"
+                >
                   <X className="h-4 w-4" />
                 </button>
               </div>
             )}
             {gif && (
-              <div className="relative border-t px-4 pt-3">
+              <div className="relative border-t border-white/20 px-4 pt-2.5">
                 <img src={gif} alt="Selected GIF" className="max-h-32 rounded-lg" />
                 {gifCredit && (
-                  <p className="mt-1 text-[10px] font-semibold text-muted-foreground">
+                  <p className="mt-1 text-[10px] font-semibold text-white/75">
                     Made by {gifCredit}
                   </p>
                 )}
@@ -423,41 +487,73 @@ export function Comments({
                     setGifCredit(null);
                   }}
                   aria-label="Remove GIF"
-                  className="absolute left-5 top-5 rounded-full bg-background/80 p-1"
+                  className="absolute left-5 top-4 rounded-full bg-black/80 p-1 text-white"
                 >
                   <X className="h-3 w-3" />
                 </button>
               </div>
             )}
             {!showGifs && (
-              <form onSubmit={submit} className="flex gap-2 border-t p-4">
+              <form
+                onSubmit={submit}
+                style={{
+                  paddingBottom:
+                    keyboardMetrics.bottomOffset > 0
+                      ? "12px"
+                      : "calc(env(safe-area-inset-bottom) + 12px)",
+                }}
+                className="flex items-center gap-2 border-t border-white/20 px-3 pt-3"
+              >
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/25 bg-white/15 text-xs font-bold uppercase text-white">
+                  {avatar ? (
+                    <img
+                      src={avatar}
+                      alt={handle ? `@${handle}` : "Your profile"}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    userInitial
+                  )}
+                </div>
                 <input
+                  ref={inputRef}
                   value={text}
                   onChange={(e) => setText(e.target.value)}
+                  onFocus={() => {
+                    if (typeof window !== "undefined") {
+                      window.scrollTo(0, 0);
+                    }
+                  }}
                   maxLength={300}
                   placeholder={replyTo ? `Reply to @${replyTo.username}…` : "Add a comment…"}
-                  className="min-w-0 flex-1 rounded-full bg-secondary px-4 py-2 text-base outline-none focus:ring-2 focus:ring-ring sm:text-sm"
+                  className="h-10 min-w-0 flex-1 rounded-full border border-white/25 bg-white/15 px-4 text-base text-white placeholder:text-white/65 outline-none sm:text-sm"
                 />
                 <button
                   type="button"
                   onClick={() => setShowGifs((v) => !v)}
-                  className="rounded-full bg-secondary px-3 text-xs font-bold"
+                  className="flex h-10 shrink-0 items-center justify-center rounded-full border border-white/25 bg-white/15 px-3 text-xs font-bold text-white"
                 >
                   GIF
                 </button>
                 <button
+                  type="submit"
                   disabled={busy || (!text.trim() && !gif)}
-                  className="rounded-full bg-primary px-4 text-sm font-bold text-primary-foreground disabled:opacity-50"
+                  className="flex h-10 shrink-0 items-center justify-center rounded-full bg-white px-4 text-sm font-bold text-black disabled:opacity-50"
                 >
                   Post
                 </button>
               </form>
             )}
-          </>
+          </div>
         )}
       </aside>
     </div>
   );
+
+  if (typeof document !== "undefined" && document.body) {
+    return createPortal(content, document.body);
+  }
+  return content;
 }
 
 function CommentRow({
@@ -479,16 +575,16 @@ function CommentRow({
   return (
     <div
       data-highlighted={highlighted ? "true" : undefined}
-      className={`flex gap-3 transition-colors ${
-        highlighted ? "-mx-2.5 rounded-xl bg-primary/15 px-2.5 py-2 ring-1 ring-primary/60" : ""
+      className={`flex items-start gap-3 ${
+        highlighted ? "-mx-2.5 rounded-xl bg-white/15 px-2.5 py-2 ring-1 ring-white/60" : ""
       }`}
     >
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-bold uppercase">
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/25 bg-white/15 text-xs font-bold uppercase text-white">
         {initial}
       </div>
-      <div className="min-w-0 break-words">
-        <p className="text-xs font-bold text-muted-foreground">@{c.username}</p>
-        {c.body && <p className="text-sm">{c.body}</p>}
+      <div className="min-w-0 flex-1 break-words">
+        <p className="text-xs font-bold text-white/80">@{c.username}</p>
+        {c.body && <p className="mt-0.5 text-sm leading-snug text-white">{c.body}</p>}
         {c.gif_url && (
           <>
             <img
@@ -496,23 +592,23 @@ function CommentRow({
               alt="GIF"
               loading="lazy"
               decoding="async"
-              className="mt-1 max-h-40 rounded-lg"
+              className="mt-1.5 max-h-40 rounded-lg"
             />
             {c.gif_credit && (
-              <p className="mt-0.5 text-[10px] font-semibold text-muted-foreground">
+              <p className="mt-0.5 text-[10px] font-semibold text-white/75">
                 Made by {c.gif_credit}
               </p>
             )}
           </>
         )}
-        <div className="mt-1 flex items-center gap-3">
+        <div className="mt-1.5 flex items-center gap-4">
           <button
             type="button"
             onClick={() => onLike(c)}
             aria-pressed={c.liked_by_me}
             aria-label={c.liked_by_me ? "Unlike comment" : "Like comment"}
             className={`flex items-center gap-1 text-xs font-semibold ${
-              c.liked_by_me ? "text-red-500" : "text-muted-foreground"
+              c.liked_by_me ? "text-[#FE2C55]" : "text-white/80"
             }`}
           >
             <Heart className={`h-3.5 w-3.5 ${c.liked_by_me ? "fill-current" : ""}`} />
@@ -521,7 +617,7 @@ function CommentRow({
           <button
             type="button"
             onClick={() => onReply(c)}
-            className="flex items-center gap-1 text-xs font-semibold text-muted-foreground"
+            className="flex items-center gap-1 text-xs font-semibold text-white/80"
           >
             <CornerDownRight className="h-3 w-3" /> Reply
           </button>
@@ -535,7 +631,7 @@ function CommentRow({
             }
             targetText={c.body?.trim() || (c.gif_url ? "[GIF comment]" : null)}
             thumbnailUrl={c.gif_url}
-            className="flex items-center gap-1 text-xs font-semibold text-muted-foreground"
+            className="flex items-center gap-1 text-xs font-semibold text-white/80"
             label="Report"
           />
         </div>

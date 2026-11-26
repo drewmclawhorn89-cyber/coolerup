@@ -1,5 +1,5 @@
 /* Coolerup service worker: offline app shell + incoming-call push alerts. */
-const CACHE = "coolerup-shell-v8";
+const CACHE = "coolerup-shell-v9";
 const SHELL = [
   "/",
   "/manifest.json",

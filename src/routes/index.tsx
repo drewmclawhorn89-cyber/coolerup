@@ -101,6 +101,7 @@ import {
   type InboxActor,
   type NotificationRow,
 } from "@/lib/inboxNotifications";
+import { useCommentsSheetOpen } from "@/lib/commentsOverlay";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -1241,6 +1242,7 @@ function Index() {
   // user signs in/out and whenever the app returns to the foreground, so likes
   // made on another device (or before a stale session) show as filled hearts.
   const authUserId = auth.user?.id;
+  const commentsSheetOpen = useCommentsSheetOpen();
   useEffect(() => {
     if (!authUserId) {
       setLiked(new Set());
@@ -1674,76 +1676,78 @@ function Index() {
           </>
         )}
 
-        <nav
-          aria-label="Phone navigation"
-          className={`mobile-bottom-nav grid w-full grid-cols-5 place-items-center gap-0 rounded-none border-0 px-0 md:hidden ${
-            isFeedView
-              ? "absolute inset-x-0 bottom-0 z-30 bg-gradient-to-t from-black/90 via-black/65 to-transparent pt-2"
-              : "shrink-0 bg-background"
-          }`}
-        >
-          {NAV.filter((n) => n.id === "foryou" || n.id === "following").map(
-            ({ id, label, icon: Icon }) => (
-              <Button
-                key={id}
-                variant="ghost"
-                onClick={() => {
-                  setTab(id);
-                  if (id === "foryou") setFeedTab("foryou");
-                }}
-                aria-current={activeTab === id ? "page" : undefined}
-                className="h-14 min-w-0 flex-col gap-1 rounded-none px-0 text-[9px] text-white"
-              >
-                <Icon className="h-5 w-5" />
-                {label}
-              </Button>
-            ),
-          )}
-          <Button
-            aria-label="Create video or go live"
-            onClick={() =>
-              guardOnboarding(() => (auth.user ? setCreateMenuOpen(true) : auth.signIn()))
-            }
-            style={{ backgroundColor: "#ec4899", color: "#ffffff" }}
-            className="m-auto h-9 w-10 rounded-lg px-0 [&_svg]:size-6"
+        {!commentsSheetOpen && (
+          <nav
+            aria-label="Phone navigation"
+            className={`mobile-bottom-nav grid w-full grid-cols-5 place-items-center gap-0 rounded-none border-0 px-0 md:hidden ${
+              isFeedView
+                ? "absolute inset-x-0 bottom-0 z-30 bg-gradient-to-t from-black/90 via-black/65 to-transparent pt-2"
+                : "shrink-0 bg-background"
+            }`}
           >
-            <Plus />
-          </Button>
-          {NAV.filter((n) => n.id === "inbox").map(({ id, label, icon: Icon }) => (
-            <Fragment key={id}>
+            {NAV.filter((n) => n.id === "foryou" || n.id === "following").map(
+              ({ id, label, icon: Icon }) => (
+                <Button
+                  key={id}
+                  variant="ghost"
+                  onClick={() => {
+                    setTab(id);
+                    if (id === "foryou") setFeedTab("foryou");
+                  }}
+                  aria-current={activeTab === id ? "page" : undefined}
+                  className="h-14 min-w-0 flex-col gap-1 rounded-none px-0 text-[9px] text-white"
+                >
+                  <Icon className="h-5 w-5" />
+                  {label}
+                </Button>
+              ),
+            )}
+            <Button
+              aria-label="Create video or go live"
+              onClick={() =>
+                guardOnboarding(() => (auth.user ? setCreateMenuOpen(true) : auth.signIn()))
+              }
+              style={{ backgroundColor: "#ec4899", color: "#ffffff" }}
+              className="m-auto h-9 w-10 rounded-lg px-0 [&_svg]:size-6"
+            >
+              <Plus />
+            </Button>
+            {NAV.filter((n) => n.id === "inbox").map(({ id, label, icon: Icon }) => (
+              <Fragment key={id}>
+                <Button
+                  variant="ghost"
+                  onClick={() => setTab(id)}
+                  aria-current={activeTab === id ? "page" : undefined}
+                  className="h-14 min-w-0 flex-col gap-1 rounded-none px-0 text-[9px] text-white"
+                >
+                  <Icon className="h-5 w-5" />
+                  {label}
+                </Button>
+              </Fragment>
+            ))}
+            {auth.user && auth.handle ? (
+              <Link
+                to="/u/$username"
+                params={{ username: auth.handle }}
+                aria-label="Profile"
+                className="flex h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-none px-0 text-[9px] text-white [&_svg]:size-5"
+              >
+                <User />
+                Profile
+              </Link>
+            ) : (
               <Button
                 variant="ghost"
-                onClick={() => setTab(id)}
-                aria-current={activeTab === id ? "page" : undefined}
-                className="h-14 min-w-0 flex-col gap-1 rounded-none px-0 text-[9px] text-white"
+                aria-label="Profile"
+                onClick={() => auth.signIn()}
+                className="h-14 min-w-0 flex-col gap-1 rounded-none px-0 text-[9px] text-white [&_svg]:size-5"
               >
-                <Icon className="h-5 w-5" />
-                {label}
+                <User />
+                Profile
               </Button>
-            </Fragment>
-          ))}
-          {auth.user && auth.handle ? (
-            <Link
-              to="/u/$username"
-              params={{ username: auth.handle }}
-              aria-label="Profile"
-              className="flex h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-none px-0 text-[9px] text-white [&_svg]:size-5"
-            >
-              <User />
-              Profile
-            </Link>
-          ) : (
-            <Button
-              variant="ghost"
-              aria-label="Profile"
-              onClick={() => auth.signIn()}
-              className="h-14 min-w-0 flex-col gap-1 rounded-none px-0 text-[9px] text-white [&_svg]:size-5"
-            >
-              <User />
-              Profile
-            </Button>
-          )}
-        </nav>
+            )}
+          </nav>
+        )}
       </main>
 
       <aside className="hidden w-80 shrink-0 flex-col justify-center p-8 xl:flex">

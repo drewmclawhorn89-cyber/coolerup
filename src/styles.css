@@ -269,8 +269,7 @@
   padding-top: max(0.5rem, env(safe-area-inset-top));
   padding-bottom: 0.5rem;
 }
-.mobile-bottom-nav,
-.mobile-comments {
+.mobile-bottom-nav {
   padding-bottom: env(safe-area-inset-bottom);
 }
 

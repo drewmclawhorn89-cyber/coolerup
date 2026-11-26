@@ -12,6 +12,7 @@ import { fetchMyLikes } from "@/lib/loop";
 import type { Video } from "@/lib/loop";
 import { useLiveDirectory } from "@/lib/liveDirectory";
 import { isLiteMode, useNetwork } from "@/lib/network";
+import { preloadModeFor } from "@/lib/feedPaging";
 import {
   SEARCH_PAGE_SIZE,
   filterLiveHosts,
@@ -388,12 +389,7 @@ function SearchPage() {
             className="h-dvh snap-y snap-mandatory overflow-y-scroll"
           >
             {results.videos.map((video, idx) => {
-              const preloadMode =
-                idx === activeViewIndex
-                  ? "active"
-                  : !lite && idx === activeViewIndex + 1
-                    ? "next"
-                    : "idle";
+              const preloadMode = preloadModeFor(idx, activeViewIndex, { lite });
               return (
                 <div key={video.id} className="h-dvh snap-start snap-always">
                   <VideoCard

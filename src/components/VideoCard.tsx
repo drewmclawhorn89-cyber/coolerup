@@ -1290,7 +1290,7 @@ function VideoCardImpl({
                   e.stopPropagation();
                   void ref.current?.play().catch(() => {});
                 }}
-                className="absolute left-1/2 top-1/2 z-[6] flex h-16 w-16 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur transition hover:bg-black/75"
+                className="absolute left-1/2 top-1/2 z-[6] flex h-16 w-16 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur"
               >
                 <Play className="h-8 w-8 fill-current" />
               </button>
@@ -1308,7 +1308,7 @@ function VideoCardImpl({
                         setLoadState("loading");
                         setRetry((r) => r + 1);
                       }}
-                      className="rounded-full border border-white/30 px-4 py-1.5 text-xs font-bold text-white transition hover:bg-white/10"
+                      className="rounded-full border border-white/30 px-4 py-1.5 text-xs font-bold text-white"
                     >
                       Try again
                     </button>
@@ -1322,7 +1322,7 @@ function VideoCardImpl({
                         e.stopPropagation();
                         setManualLoad(true);
                       }}
-                      className="flex h-14 w-14 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur transition hover:bg-white/25"
+                      className="flex h-14 w-14 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur"
                     >
                       <Play className="h-7 w-7 fill-current" />
                     </button>
@@ -1490,9 +1490,7 @@ function VideoCardImpl({
                 onClick={toggleFollow}
                 aria-label={isFollowing ? "Unfollow" : "Follow"}
                 aria-pressed={isFollowing}
-                className={`-mt-2.5 flex h-5 w-5 items-center justify-center rounded-full text-[12px] font-bold leading-none transition ${
-                  isFollowing ? "bg-white text-black" : "bg-[#fe2c55] text-white"
-                }`}
+                className="-mt-2.5 flex h-5 w-5 items-center justify-center rounded-full bg-[#fe2c55] text-[12px] font-bold leading-none text-white"
               >
                 {isFollowing ? "✓" : "+"}
               </button>
@@ -1621,7 +1619,7 @@ function VideoCardImpl({
                 setShowLikeMenu(false);
                 void toggleRepost();
               }}
-              className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-[15px] font-semibold transition active:bg-white/10 hover:bg-white/10"
+              className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-[15px] font-semibold"
             >
               <Repeat2
                 className={`h-5 w-5 ${reposted ? "text-yellow-400" : "text-white"}`}
@@ -1635,7 +1633,7 @@ function VideoCardImpl({
             <button
               type="button"
               onClick={hideVideo}
-              className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-[15px] font-semibold transition active:bg-white/10 hover:bg-white/10"
+              className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-[15px] font-semibold"
             >
               <span className="w-5 text-center text-lg leading-none" aria-hidden>
                 😒
@@ -1645,7 +1643,7 @@ function VideoCardImpl({
             <button
               type="button"
               onClick={() => setShowLikeMenu(false)}
-              className="mt-1 w-full rounded-xl px-3 py-3 text-[15px] font-semibold text-white/70 transition active:bg-white/10 hover:bg-white/10"
+              className="mt-1 w-full rounded-xl px-3 py-3 text-[15px] font-semibold text-white/70"
             >
               Cancel
             </button>
@@ -1728,10 +1726,10 @@ function VideoCardImpl({
                 key={r.id}
                 type="button"
                 onClick={() => setReportReason(r.id)}
-                className={`flex w-full items-start justify-between gap-3 rounded-lg border px-3 py-2.5 text-left text-white transition ${
+                className={`flex w-full items-start justify-between gap-3 rounded-lg border px-3 py-2.5 text-left text-white ${
                   reportReason === r.id
                     ? "border-[#FE2C55] bg-[#FE2C55]/15"
-                    : "border-white/15 bg-black hover:border-white/30"
+                    : "border-white/15 bg-black"
                 }`}
               >
                 <span className="min-w-0">
@@ -1758,15 +1756,11 @@ function VideoCardImpl({
           />
 
           <div className="flex items-center justify-end gap-2">
-            <Button
-              variant="ghost"
-              className="text-white/80 hover:bg-white/10 hover:text-white"
-              onClick={() => setShowReport(false)}
-            >
+            <Button variant="ghost" className="text-white/80" onClick={() => setShowReport(false)}>
               Cancel
             </Button>
             <Button
-              className="bg-[#FE2C55] text-white hover:bg-[#e9274d]"
+              className="bg-[#FE2C55] text-white"
               onClick={() => void submitReport()}
               disabled={!reportReason || submittingReport}
             >

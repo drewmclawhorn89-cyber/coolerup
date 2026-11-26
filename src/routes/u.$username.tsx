@@ -930,10 +930,7 @@ function Profile() {
                 type="button"
                 onClick={() => void toggleProfileFollow()}
                 disabled={followBusy}
-                variant={following ? "outline" : "default"}
-                className={`min-w-36 rounded-full font-bold ${
-                  following ? "border-border" : "bg-[#fe2c55] text-white hover:bg-[#e9274d]"
-                }`}
+                className="min-w-36 rounded-full bg-[#fe2c55] font-bold text-white"
                 aria-pressed={following}
               >
                 {following ? (
@@ -952,7 +949,7 @@ function Profile() {
                 targetUrl={typeof window !== "undefined" ? window.location.href : null}
                 targetText={profile?.bio?.trim() || profile?.display_name?.trim() || `@${username}`}
                 thumbnailUrl={avatar}
-                className="rounded-full border border-border p-2 text-muted-foreground transition-colors hover:text-[#FE2C55]"
+                className="rounded-full border border-border p-2 text-muted-foreground"
                 iconClassName="h-4 w-4"
               />
             </div>
@@ -968,7 +965,7 @@ function Profile() {
                   href={normalizeLink(profile.links![f.key] as string)!}
                   target="_blank"
                   rel="noopener noreferrer nofollow"
-                  className="rounded-full border border-border px-3 py-1 text-xs font-semibold hover:bg-accent"
+                  className="rounded-full border border-border px-3 py-1 text-xs font-semibold"
                 >
                   {f.label}
                 </a>
@@ -1019,10 +1016,8 @@ function Profile() {
                 aria-label={t.label}
                 aria-selected={active}
                 role="tab"
-                className={`flex flex-1 items-center justify-center gap-1.5 border-b-2 pb-2 pt-1 transition-colors ${
-                  active
-                    ? "border-foreground text-foreground"
-                    : "border-transparent text-muted-foreground hover:text-foreground/80"
+                className={`flex flex-1 items-center justify-center gap-1.5 border-b-2 pb-2 pt-1 text-white ${
+                  active ? "border-primary font-bold" : "border-transparent"
                 }`}
               >
                 <Icon className={`h-5 w-5 ${active && t.key === "liked" ? "fill-current" : ""}`} />

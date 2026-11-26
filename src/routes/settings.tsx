@@ -653,7 +653,7 @@ function Settings() {
             <Link
               to="/u/$username"
               params={{ username: auth.handle }}
-              className="flex w-full items-center justify-start rounded-md border bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
+              className="flex w-full items-center justify-start rounded-md border bg-background px-4 py-2 text-sm font-medium text-foreground"
             >
               <UserRound className="mr-2 h-4 w-4" />
               View profile
@@ -670,7 +670,7 @@ function Settings() {
       {auth.isAdmin && (
         <Link
           to="/beta"
-          className="flex w-full items-center justify-between rounded-2xl border bg-card px-4 py-4 text-sm font-semibold transition-colors hover:bg-accent"
+          className="flex w-full items-center justify-between rounded-2xl border bg-card px-4 py-4 text-sm font-semibold"
         >
           <span>🧪 Beta — private test area</span>
           <ChevronRight className="h-4 w-4 text-muted-foreground" />
@@ -686,7 +686,7 @@ function Settings() {
         <div className="mt-3 space-y-2">
           <Link
             to="/wallet"
-            className="flex w-full items-center justify-between rounded-md border bg-background px-4 py-3 text-sm font-medium transition-colors hover:bg-accent"
+            className="flex w-full items-center justify-between rounded-md border bg-background px-4 py-3 text-sm font-medium"
           >
             <span className="flex items-center gap-2">
               <Gem className="h-4 w-4" /> Wallet & cash out
@@ -695,7 +695,7 @@ function Settings() {
           </Link>
           <Link
             to="/creator"
-            className="flex w-full items-center justify-between rounded-md border bg-background px-4 py-3 text-sm font-medium transition-colors hover:bg-accent"
+            className="flex w-full items-center justify-between rounded-md border bg-background px-4 py-3 text-sm font-medium"
           >
             <span className="flex items-center gap-2">
               <Banknote className="h-4 w-4" /> Creator dashboard
@@ -712,7 +712,7 @@ function Settings() {
         <button
           type="button"
           onClick={() => setShowSubscriptions(true)}
-          className="mt-3 flex w-full items-center justify-between rounded-md border border-white/15 bg-black px-4 py-3 text-left text-sm font-medium text-white transition-colors hover:bg-white/10"
+          className="mt-3 flex w-full items-center justify-between rounded-md border border-white/15 bg-black px-4 py-3 text-left text-sm font-medium text-white"
         >
           <span className="flex items-center gap-2">
             <CreditCard className="h-4 w-4 text-white" />
@@ -730,7 +730,7 @@ function Settings() {
           type="button"
           onClick={() => void handleRestoreSubscription()}
           disabled={restoringSubscription}
-          className="mt-2 flex w-full items-center justify-between rounded-md border border-white/15 bg-black px-4 py-3 text-left text-sm font-medium text-white transition-colors hover:bg-white/10 disabled:opacity-60"
+          className="mt-2 flex w-full items-center justify-between rounded-md border border-white/15 bg-black px-4 py-3 text-left text-sm font-medium text-white disabled:opacity-60"
         >
           <span className="flex items-center gap-2">
             <RefreshCw

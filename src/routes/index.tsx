@@ -247,7 +247,7 @@ function TopTabs({ className = "", ctx }: { className?: string; ctx: TopTabsCtx 
   }, [activeIndex, items.length]);
 
   const arrowClass =
-    "flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white/20 text-white transition hover:bg-white/30 disabled:bg-white/5 disabled:text-white/25";
+    "flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white/20 text-white disabled:bg-white/5 disabled:text-white/25";
   const mask = ends.atEnd
     ? undefined
     : "linear-gradient(to right, black 0, black calc(100% - 24px), transparent 100%)";
@@ -280,9 +280,7 @@ function TopTabs({ className = "", ctx }: { className?: string; ctx: TopTabsCtx 
             onClick={item.onClick}
             aria-current={item.active ? "page" : undefined}
             className={`flex shrink-0 items-center gap-1 whitespace-nowrap border-b-2 pb-0.5 text-[13px] ${
-              item.active
-                ? "border-primary font-bold text-white"
-                : "border-transparent text-white/70"
+              item.active ? "border-primary font-bold text-white" : "border-transparent text-white"
             }`}
           >
             {item.icon}
@@ -306,7 +304,7 @@ function TopTabs({ className = "", ctx }: { className?: string; ctx: TopTabsCtx 
           type="button"
           aria-label="Search videos"
           onClick={onSearch}
-          className="flex h-7 w-7 items-center justify-center rounded-full bg-white/20 text-white transition hover:bg-white/30"
+          className="flex h-7 w-7 items-center justify-center rounded-full bg-white/20 text-white"
         >
           <Search className="size-4" />
         </button>
@@ -314,7 +312,7 @@ function TopTabs({ className = "", ctx }: { className?: string; ctx: TopTabsCtx 
           type="button"
           aria-label={authUser ? "Sign out" : "Sign in"}
           onClick={onAuth}
-          className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-full bg-white/20 text-white transition hover:bg-white/30"
+          className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-full bg-white/20 text-white"
         >
           {authAvatar ? (
             <img src={authAvatar} alt="" className="h-full w-full object-cover" />
@@ -1306,7 +1304,7 @@ function Index() {
         <button
           type="button"
           onClick={() => void navigate({ to: "/search" })}
-          className="flex items-center gap-2 rounded-full bg-secondary px-4 py-2.5 text-left transition hover:bg-accent"
+          className="flex items-center gap-2 rounded-full bg-secondary px-4 py-2.5 text-left"
         >
           <Search className="h-4 w-4 text-muted-foreground" />
           <span className="text-sm text-muted-foreground">Search videos</span>
@@ -1317,11 +1315,7 @@ function Index() {
             <Fragment key={id}>
               <button
                 onClick={() => setTab(id)}
-                className={`flex items-center gap-3 rounded-xl px-4 py-3 text-left font-bold transition ${
-                  activeTab === id
-                    ? "bg-primary/10 text-primary"
-                    : "text-foreground hover:bg-secondary"
-                }`}
+                className="flex items-center gap-3 rounded-xl px-4 py-3 text-left font-bold text-foreground"
               >
                 <Icon className="h-5 w-5" />
                 <span className="flex items-center gap-2">
@@ -1341,7 +1335,7 @@ function Index() {
           onClick={() =>
             guardOnboarding(() => (auth.user ? setCreateMenuOpen(true) : auth.signIn()))
           }
-          className="flex items-center justify-center gap-2 rounded-full create-pink py-3.5 font-bold shadow-[0_10px_30px_-10px_#ec4899] transition hover:brightness-95"
+          className="flex items-center justify-center gap-2 rounded-full create-pink py-3.5 font-bold shadow-[0_10px_30px_-10px_#ec4899]"
         >
           <Plus className="h-5 w-5" /> Create
         </button>
@@ -1365,18 +1359,14 @@ function Index() {
               <p className="text-muted-foreground">Signed in as</p>
               <p className="truncate font-bold">{auth.name}</p>
             </div>
-            <button
-              onClick={auth.signOut}
-              aria-label="Sign out"
-              className="text-muted-foreground hover:text-foreground"
-            >
+            <button onClick={auth.signOut} aria-label="Sign out" className="text-muted-foreground">
               <LogOut className="h-4 w-4" />
             </button>
           </div>
         ) : (
           <button
             onClick={auth.signIn}
-            className="mt-auto flex items-center justify-center gap-2 rounded-xl border bg-secondary p-3 font-bold transition hover:bg-accent"
+            className="mt-auto flex items-center justify-center gap-2 rounded-xl border bg-secondary p-3 font-bold"
           >
             Sign in
           </button>
@@ -1518,25 +1508,26 @@ function Index() {
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <Button
-                      variant={notificationFilter === "unread" ? "default" : "outline"}
+                      variant="outline"
                       size="sm"
-                      className={
-                        notificationFilter === "unread"
-                          ? undefined
-                          : "border-white/20 bg-transparent text-white hover:bg-white/10 hover:text-white"
-                      }
+                      className="border-white/20 bg-transparent text-white"
                       onClick={() => setNotificationFilter((f) => (f === "all" ? "unread" : "all"))}
                     >
                       {notificationFilter === "all" ? "Unread only" : "Show all"}
                     </Button>
                     {unreadCount > 0 && (
-                      <Button variant="ghost" size="sm" onClick={markAllRead}>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-white"
+                        onClick={markAllRead}
+                      >
                         Mark all read
                       </Button>
                     )}
                     <Link
                       to="/messages"
-                      className="flex items-center gap-3 rounded-xl px-4 py-3 font-bold transition hover:bg-white/10"
+                      className="flex items-center gap-3 rounded-xl px-4 py-3 font-bold text-white"
                     >
                       <MessageCircle className="h-5 w-5" />
                       Messages
@@ -1602,7 +1593,7 @@ function Index() {
                     onClick={() =>
                       guardOnboarding(() => (auth.user ? setRecordingOpen(true) : auth.signIn()))
                     }
-                    className="shrink-0 rounded-full bg-white px-3 py-1.5 text-[11px] font-bold text-black transition hover:bg-white/90"
+                    className="shrink-0 rounded-full bg-white px-3 py-1.5 text-[11px] font-bold text-black"
                   >
                     Post
                   </button>
@@ -1617,7 +1608,7 @@ function Index() {
                         /* ignore */
                       }
                     }}
-                    className="shrink-0 text-white/70 transition hover:text-white"
+                    className="shrink-0 text-white/70"
                   >
                     <X className="h-4 w-4" />
                   </button>
@@ -1701,9 +1692,7 @@ function Index() {
                   if (id === "foryou") setFeedTab("foryou");
                 }}
                 aria-current={activeTab === id ? "page" : undefined}
-                className={`h-14 min-w-0 flex-col gap-1 rounded-none px-0 text-[9px] ${
-                  activeTab === id ? "text-primary" : "text-muted-foreground"
-                }`}
+                className="h-14 min-w-0 flex-col gap-1 rounded-none px-0 text-[9px] text-white"
               >
                 <Icon className="h-5 w-5" />
                 {label}
@@ -1716,7 +1705,7 @@ function Index() {
               guardOnboarding(() => (auth.user ? setCreateMenuOpen(true) : auth.signIn()))
             }
             style={{ backgroundColor: "#ec4899", color: "#ffffff" }}
-            className="m-auto h-9 w-10 rounded-lg px-0 hover:brightness-95 [&_svg]:size-6"
+            className="m-auto h-9 w-10 rounded-lg px-0 [&_svg]:size-6"
           >
             <Plus />
           </Button>
@@ -1726,9 +1715,7 @@ function Index() {
                 variant="ghost"
                 onClick={() => setTab(id)}
                 aria-current={activeTab === id ? "page" : undefined}
-                className={`h-14 min-w-0 flex-col gap-1 rounded-none px-0 text-[9px] ${
-                  activeTab === id ? "text-primary" : "text-muted-foreground"
-                }`}
+                className="h-14 min-w-0 flex-col gap-1 rounded-none px-0 text-[9px] text-white"
               >
                 <Icon className="h-5 w-5" />
                 {label}
@@ -1740,7 +1727,7 @@ function Index() {
               to="/u/$username"
               params={{ username: auth.handle }}
               aria-label="Profile"
-              className="flex h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-none px-0 text-[9px] text-muted-foreground [&_svg]:size-5"
+              className="flex h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-none px-0 text-[9px] text-white [&_svg]:size-5"
             >
               <User />
               Profile
@@ -1750,7 +1737,7 @@ function Index() {
               variant="ghost"
               aria-label="Profile"
               onClick={() => auth.signIn()}
-              className="h-14 min-w-0 flex-col gap-1 rounded-none px-0 text-[9px] text-muted-foreground [&_svg]:size-5"
+              className="h-14 min-w-0 flex-col gap-1 rounded-none px-0 text-[9px] text-white [&_svg]:size-5"
             >
               <User />
               Profile
@@ -1854,7 +1841,7 @@ function Index() {
             type="button"
             aria-label="Close video"
             onClick={() => setInboxViewer(null)}
-            className="absolute left-3 top-[calc(env(safe-area-inset-top)+0.75rem)] z-50 flex h-10 w-10 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur transition hover:bg-black/80"
+            className="absolute left-3 top-[calc(env(safe-area-inset-top)+0.75rem)] z-50 flex h-10 w-10 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur"
           >
             <X className="h-5 w-5" />
           </button>

@@ -512,7 +512,7 @@ function Messages() {
     <div className="mx-auto flex h-dvh max-w-md flex-col bg-black text-white pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)]">
       <div className="border-b border-white/15 p-4">
         <div className="flex items-center gap-3">
-          <Link to="/" aria-label="Back to Coolerup" className="text-white/70 hover:text-white">
+          <Link to="/" aria-label="Back to Coolerup" className="text-white/70">
             <ArrowLeft className="h-5 w-5" />
           </Link>
           <h1 className="font-display text-xl text-white">Messages</h1>
@@ -541,7 +541,7 @@ function Messages() {
                 <button
                   key={user}
                   onClick={() => setToUser(user)}
-                  className="flex w-full items-center gap-3 rounded-xl p-3 text-left hover:bg-zinc-900"
+                  className="flex w-full items-center gap-3 rounded-xl p-3 text-left"
                 >
                   <div className="relative shrink-0">
                     <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary font-display uppercase text-primary-foreground">
@@ -586,14 +586,14 @@ function Messages() {
             </div>
             <button
               onClick={() => placeCall(true)}
-              className="ml-auto rounded-full p-2 text-white/70 hover:bg-zinc-900 hover:text-white"
+              className="ml-auto rounded-full p-2 text-white/70"
               aria-label={`Video call @${toUser}`}
             >
               <VideoIcon className="h-5 w-5" />
             </button>
             <button
               onClick={() => placeCall(false)}
-              className="rounded-full p-2 text-white/70 hover:bg-zinc-900 hover:text-white"
+              className="rounded-full p-2 text-white/70"
               aria-label={`Voice call @${toUser}`}
             >
               <Phone className="h-5 w-5" />
@@ -834,7 +834,7 @@ function Messages() {
                 type="button"
                 onClick={clearDraftMedia}
                 aria-label="Remove attachment"
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-zinc-900 text-white/70 hover:text-white"
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-zinc-900 text-white/70"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -874,7 +874,7 @@ function Messages() {
               }}
               aria-label="Add attachment"
               aria-expanded={showAttachMenu}
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-zinc-900 text-white hover:bg-zinc-800"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-zinc-900 text-white"
             >
               <Plus className="h-5 w-5" />
             </button>

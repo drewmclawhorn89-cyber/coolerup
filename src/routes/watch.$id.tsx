@@ -879,11 +879,7 @@ function WatchPage() {
                 <button
                   type="button"
                   onClick={() => void toggleSubscribe()}
-                  className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold ${
-                    subscribed
-                      ? "bg-secondary text-secondary-foreground"
-                      : "bg-red-600 text-white hover:bg-red-700"
-                  }`}
+                  className="shrink-0 rounded-full bg-red-600 px-4 py-2 text-sm font-semibold text-white"
                 >
                   {subscribed ? (
                     <span className="flex items-center gap-1">

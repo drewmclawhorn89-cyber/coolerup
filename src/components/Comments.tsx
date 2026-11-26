@@ -511,8 +511,8 @@ function CommentRow({
             onClick={() => onLike(c)}
             aria-pressed={c.liked_by_me}
             aria-label={c.liked_by_me ? "Unlike comment" : "Like comment"}
-            className={`flex items-center gap-1 text-xs font-semibold transition ${
-              c.liked_by_me ? "text-red-500" : "text-muted-foreground hover:text-foreground"
+            className={`flex items-center gap-1 text-xs font-semibold ${
+              c.liked_by_me ? "text-red-500" : "text-muted-foreground"
             }`}
           >
             <Heart className={`h-3.5 w-3.5 ${c.liked_by_me ? "fill-current" : ""}`} />
@@ -521,7 +521,7 @@ function CommentRow({
           <button
             type="button"
             onClick={() => onReply(c)}
-            className="flex items-center gap-1 text-xs font-semibold text-muted-foreground hover:text-foreground"
+            className="flex items-center gap-1 text-xs font-semibold text-muted-foreground"
           >
             <CornerDownRight className="h-3 w-3" /> Reply
           </button>
@@ -535,7 +535,7 @@ function CommentRow({
             }
             targetText={c.body?.trim() || (c.gif_url ? "[GIF comment]" : null)}
             thumbnailUrl={c.gif_url}
-            className="flex items-center gap-1 text-xs font-semibold text-muted-foreground hover:text-[#FE2C55]"
+            className="flex items-center gap-1 text-xs font-semibold text-muted-foreground"
             label="Report"
           />
         </div>

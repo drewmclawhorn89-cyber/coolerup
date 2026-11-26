@@ -168,6 +168,8 @@
 @layer base {
   * {
     border-color: var(--color-border);
+    -webkit-tap-highlight-color: transparent !important;
+    -webkit-touch-callout: none;
   }
 
   html,
@@ -195,12 +197,34 @@
     }
   }
 
-  /* Remove the 300ms tap delay and the grey flash on mobile. */
+  /* Remove the 300ms tap delay, focus outlines, tap flashes, and visited shifts. */
   button,
   a,
-  [role="button"] {
-    -webkit-tap-highlight-color: transparent;
+  [role="button"],
+  summary {
+    -webkit-tap-highlight-color: transparent !important;
+    -webkit-touch-callout: none;
     touch-action: manipulation;
+    outline: none !important;
+    --tw-ring-color: transparent !important;
+  }
+
+  button:focus,
+  button:focus-visible,
+  button:active,
+  a:focus,
+  a:focus-visible,
+  a:active,
+  [role="button"]:focus,
+  [role="button"]:focus-visible,
+  [role="button"]:active {
+    outline: none !important;
+    --tw-ring-color: transparent !important;
+    --tw-ring-shadow: 0 0 #0000 !important;
+  }
+
+  a:visited {
+    color: inherit;
   }
 }
 
@@ -235,12 +259,6 @@
   background-color: #ec4899;
   color: #ffffff;
   --tw-shadow-color: #ec4899;
-  &:hover {
-    background-color: #db2777;
-  }
-  &:active {
-    background-color: #be185d;
-  }
 }
 
 .video-caption {

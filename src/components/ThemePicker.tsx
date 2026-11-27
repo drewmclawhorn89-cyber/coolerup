@@ -6,14 +6,16 @@ export function ThemePicker({
   changeTheme: (id: string) => void;
 }) {
   const themes = [
-    { id: "light", label: "Light", color: "#ffffff", text: "#000000" },
-    { id: "dark", label: "Dark", color: "#000000", text: "#ffffff" },
+    { id: "dark", label: "Black", color: "#fe2c55", text: "#ffffff" },
+    { id: "white", label: "White", color: "#ffffff", text: "#000000" },
     { id: "system", label: "System", color: "#e5e7eb", text: "#000000" },
     { id: "blue", label: "Blue", color: "#2563EB", text: "#ffffff" },
-    { id: "purple", label: "Purple", color: "#9333EA", text: "#ffffff" },
+    { id: "red", label: "Red", color: "#DC2626", text: "#ffffff" },
     { id: "pink", label: "Pink", color: "#EC4899", text: "#ffffff" },
     { id: "green", label: "Green", color: "#16A34A", text: "#ffffff" },
-    { id: "red", label: "Red", color: "#DC2626", text: "#ffffff" },
+    { id: "purple", label: "Purple", color: "#9333EA", text: "#ffffff" },
+    { id: "orange", label: "Orange", color: "#EA580C", text: "#ffffff" },
+    { id: "christmas", label: "Christmas", color: "#16A34A", text: "#ffffff" },
   ];
 
   return (

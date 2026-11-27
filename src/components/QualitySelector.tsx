@@ -1,15 +1,13 @@
 import { Check } from "lucide-react";
 import { useEffect } from "react";
-import { createPortal } from "react-dom";
 import { QUALITY_OPTIONS, resolveRendition, type QualityId } from "@/lib/videoQuality";
 import type { EffectiveType } from "@/lib/network";
-import { closeBottomSheetOverlay, openBottomSheetOverlay } from "@/lib/commentsOverlay";
 
 /**
  * TikTok-style quality picker.
  *
  * Opens from the Quality tile in the Share sheet (or a long press on the video).
- * White text on the solid theme background, rounded corners, a checkmark on the
+ * White text on a translucent black panel, rounded corners, a checkmark on the
  * active row, and a short hint under each label.
  */
 export function QualitySelector({
@@ -26,14 +24,6 @@ export function QualitySelector({
   onSelect: (quality: QualityId) => void;
   onClose: () => void;
 }) {
-  useEffect(() => {
-    if (!open) return;
-    openBottomSheetOverlay();
-    return () => {
-      closeBottomSheetOverlay();
-    };
-  }, [open]);
-
   // Escape closes, like every other sheet in the app.
   useEffect(() => {
     if (!open) return;
@@ -48,20 +38,16 @@ export function QualitySelector({
 
   const autoPicks = resolveRendition("auto", effectiveType);
 
-  const content = (
-    <div className="fixed inset-0 z-[90] bg-black/55" onClick={onClose}>
+  return (
+    <div className="fixed inset-0 z-40" onClick={onClose}>
       <div
         role="dialog"
         aria-label="Video quality"
         aria-modal="true"
         onClick={(e) => e.stopPropagation()}
-        style={{
-          backgroundColor: "var(--background)",
-          bottom: "calc(env(safe-area-inset-bottom) + 16px)",
-        }}
-        className="fixed right-2 z-[91] w-56 overflow-hidden rounded-xl border border-white/20 bg-background p-2 text-white shadow-2xl"
+        className="absolute bottom-20 right-2 w-56 overflow-hidden rounded-xl border border-white/10 bg-black/85 p-2 text-white shadow-2xl backdrop-blur"
       >
-        <p className="px-2 pb-1 pt-0.5 text-[11px] font-bold uppercase tracking-widest text-white/60">
+        <p className="px-2 pb-1 pt-0.5 text-[11px] font-bold uppercase tracking-widest text-white/50">
           Quality
         </p>
         <div className="flex flex-col">
@@ -77,20 +63,20 @@ export function QualitySelector({
                   onClose();
                 }}
                 aria-pressed={active}
-                className={`flex w-full items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-left ${
-                  active ? "bg-white/15" : ""
+                className={`flex w-full items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-left transition ${
+                  active ? "bg-white/15" : "hover:bg-white/10"
                 }`}
               >
                 <span className="min-w-0">
                   <span
                     className={`block text-sm font-semibold leading-tight ${
-                      active ? "text-white" : "text-white/80"
+                      active ? "text-white" : "text-gray-300"
                     }`}
                   >
                     {option.label}
                   </span>
                   {hint && (
-                    <span className="block truncate text-[10px] leading-tight text-white/55">
+                    <span className="block truncate text-[10px] leading-tight text-white/45">
                       {hint}
                     </span>
                   )}
@@ -100,15 +86,10 @@ export function QualitySelector({
             );
           })}
         </div>
-        <p className="px-2 pt-1 text-[10px] leading-tight text-white/50">
+        <p className="px-2 pt-1 text-[10px] leading-tight text-white/35">
           Auto adjusts based on your connection — like TikTok.
         </p>
       </div>
     </div>
   );
-
-  if (typeof document !== "undefined" && document.body) {
-    return createPortal(content, document.body);
-  }
-  return content;
 }

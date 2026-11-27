@@ -101,7 +101,6 @@ import {
   type InboxActor,
   type NotificationRow,
 } from "@/lib/inboxNotifications";
-import { useCommentsSheetOpen } from "@/lib/commentsOverlay";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -248,7 +247,7 @@ function TopTabs({ className = "", ctx }: { className?: string; ctx: TopTabsCtx 
   }, [activeIndex, items.length]);
 
   const arrowClass =
-    "flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white/20 text-white disabled:bg-white/5 disabled:text-white/25";
+    "flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white/20 text-white transition hover:bg-white/30 disabled:bg-white/5 disabled:text-white/25";
   const mask = ends.atEnd
     ? undefined
     : "linear-gradient(to right, black 0, black calc(100% - 24px), transparent 100%)";
@@ -281,7 +280,7 @@ function TopTabs({ className = "", ctx }: { className?: string; ctx: TopTabsCtx 
             onClick={item.onClick}
             aria-current={item.active ? "page" : undefined}
             className={`flex shrink-0 items-center gap-1 whitespace-nowrap border-b-2 pb-0.5 text-[13px] ${
-              item.active ? "border-white font-bold text-white" : "border-transparent text-white"
+              item.active ? "border-white font-bold text-white" : "border-transparent text-white/70"
             }`}
           >
             {item.icon}
@@ -305,7 +304,7 @@ function TopTabs({ className = "", ctx }: { className?: string; ctx: TopTabsCtx 
           type="button"
           aria-label="Search videos"
           onClick={onSearch}
-          className="flex h-7 w-7 items-center justify-center rounded-full bg-white/20 text-white"
+          className="flex h-7 w-7 items-center justify-center rounded-full bg-white/20 text-white transition hover:bg-white/30"
         >
           <Search className="size-4" />
         </button>
@@ -313,7 +312,7 @@ function TopTabs({ className = "", ctx }: { className?: string; ctx: TopTabsCtx 
           type="button"
           aria-label={authUser ? "Sign out" : "Sign in"}
           onClick={onAuth}
-          className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-full bg-white/20 text-white"
+          className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-full bg-white/20 text-white transition hover:bg-white/30"
         >
           {authAvatar ? (
             <img src={authAvatar} alt="" className="h-full w-full object-cover" />
@@ -1198,31 +1197,18 @@ function Index() {
     authAvatar: avatarThumb || auth.avatar,
   };
 
-  // On the mobile video feed, the top tabs sit on top of the edge-to-edge
-  // full-screen video (no black bar shrinking the frame). Non-feed tabs keep
-  // a solid bar above their scrollable list.
-  const topTabsFeedClass =
-    "absolute inset-x-0 top-0 z-30 flex shrink-0 items-center gap-1 bg-gradient-to-b from-black/75 via-black/35 to-transparent px-2 pb-4 " +
-    "md:relative md:inset-x-auto md:top-auto md:gap-2 md:border-b md:border-white/10 md:bg-background md:bg-none md:px-4 md:pb-2 md:pt-2 " +
-    (christmas
-      ? "pt-[calc(max(0.5rem,env(safe-area-inset-top))+0.65rem)]"
-      : "pt-[max(0.5rem,env(safe-area-inset-top))]");
+  // The bar sits in normal flow at the top of the screen on every breakpoint so
+  // it never floats over the video (which made the tabs unreadable on phones).
+  // Solid background + border keeps it legible over any content.
   const topTabsClass =
-    "relative z-30 flex shrink-0 items-center gap-1 border-b border-white/10 bg-background px-2 pb-2 " +
+    "relative z-30 flex shrink-0 items-center gap-1 border-b border-white/10 bg-black px-2 pb-2 " +
     "md:gap-2 md:px-4 md:pb-2 md:pt-2 " +
     (christmas
       ? "pt-[calc(max(0.5rem,env(safe-area-inset-top))+0.65rem)]"
       : "pt-[max(0.5rem,env(safe-area-inset-top))]");
   // Non-feed screens (Inbox, Shop, Subscriptions) use the same solid bar.
   const topTabsStaticClass =
-    "relative z-30 flex shrink-0 items-center gap-1 border-b border-white/10 bg-background px-2 pb-2 pt-[calc(env(safe-area-inset-top)+0.5rem)] md:gap-2 md:px-4 md:pb-2 md:pt-2";
-  const isFeedView =
-    !onLiveTab &&
-    feedTab !== "codes" &&
-    !(activeTab === "foryou" && (feedTab === "marketplace" || feedTab === "groups")) &&
-    activeTab !== "shop" &&
-    activeTab !== "subscriptions" &&
-    activeTab !== "inbox";
+    "relative z-30 flex shrink-0 items-center gap-1 border-b border-white/10 bg-black px-2 pb-2 pt-[calc(env(safe-area-inset-top)+0.5rem)] md:gap-2 md:px-4 md:pb-2 md:pt-2";
 
   const [title, sub] = query
     ? [`Results for "${query}"`, `${shown.length} videos`]
@@ -1242,7 +1228,6 @@ function Index() {
   // user signs in/out and whenever the app returns to the foreground, so likes
   // made on another device (or before a stale session) show as filled hearts.
   const authUserId = auth.user?.id;
-  const commentsSheetOpen = useCommentsSheetOpen();
   useEffect(() => {
     if (!authUserId) {
       setLiked(new Set());
@@ -1286,12 +1271,12 @@ function Index() {
   }, []);
 
   return (
-    <div className="flex h-[100dvh] w-full overflow-hidden bg-background">
+    <div className="flex h-dvh overflow-hidden bg-background">
       <aside className="hidden w-72 shrink-0 flex-col gap-6 border-r bg-sidebar p-6 md:flex">
         <div>
           <h1 className="font-display text-4xl tracking-tight">
             coolerup
-            <span className="relative inline-block text-white">
+            <span className="relative inline-block text-primary">
               .
               {christmas && (
                 <SantaHat className="pointer-events-none absolute -top-[0.62em] left-1/2 h-[0.7em] w-[0.8em] -translate-x-1/2 rotate-[8deg] drop-shadow-[0_2px_3px_rgba(0,0,0,0.45)]" />
@@ -1306,7 +1291,7 @@ function Index() {
         <button
           type="button"
           onClick={() => void navigate({ to: "/search" })}
-          className="flex items-center gap-2 rounded-full bg-secondary px-4 py-2.5 text-left"
+          className="flex items-center gap-2 rounded-full bg-secondary px-4 py-2.5 text-left transition hover:bg-accent"
         >
           <Search className="h-4 w-4 text-muted-foreground" />
           <span className="text-sm text-muted-foreground">Search videos</span>
@@ -1317,13 +1302,17 @@ function Index() {
             <Fragment key={id}>
               <button
                 onClick={() => setTab(id)}
-                className="flex items-center gap-3 rounded-xl px-4 py-3 text-left font-bold text-foreground"
+                className={`flex items-center gap-3 rounded-xl px-4 py-3 text-left font-bold transition ${
+                  activeTab === id
+                    ? "bg-primary/10 text-primary"
+                    : "text-foreground hover:bg-secondary"
+                }`}
               >
                 <Icon className="h-5 w-5" />
                 <span className="flex items-center gap-2">
                   {label}
                   {id === "inbox" && unreadCount > 0 && (
-                    <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-white px-1 text-[10px] text-black">
+                    <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] text-primary-foreground">
                       {unreadCount}
                     </span>
                   )}
@@ -1337,7 +1326,7 @@ function Index() {
           onClick={() =>
             guardOnboarding(() => (auth.user ? setCreateMenuOpen(true) : auth.signIn()))
           }
-          className="flex items-center justify-center gap-2 rounded-full create-pink py-3.5 font-bold shadow-[0_10px_30px_-10px_#ec4899]"
+          className="flex items-center justify-center gap-2 rounded-full create-pink py-3.5 font-bold shadow-[0_10px_30px_-10px_#ec4899] transition hover:brightness-95"
         >
           <Plus className="h-5 w-5" /> Create
         </button>
@@ -1361,23 +1350,27 @@ function Index() {
               <p className="text-muted-foreground">Signed in as</p>
               <p className="truncate font-bold">{auth.name}</p>
             </div>
-            <button onClick={auth.signOut} aria-label="Sign out" className="text-muted-foreground">
+            <button
+              onClick={auth.signOut}
+              aria-label="Sign out"
+              className="text-muted-foreground hover:text-foreground"
+            >
               <LogOut className="h-4 w-4" />
             </button>
           </div>
         ) : (
           <button
             onClick={auth.signIn}
-            className="mt-auto flex items-center justify-center gap-2 rounded-xl border bg-secondary p-3 font-bold"
+            className="mt-auto flex items-center justify-center gap-2 rounded-xl border bg-secondary p-3 font-bold transition hover:bg-accent"
           >
             Sign in
           </button>
         )}
       </aside>
 
-      <main className="relative flex h-[100dvh] w-full min-w-0 flex-1 flex-col overflow-hidden bg-background md:h-auto md:bg-transparent">
+      <main className="relative mx-auto flex h-[100dvh] w-full min-w-0 max-w-[430px] flex-1 flex-col bg-black md:h-auto md:max-w-none md:bg-transparent">
         {offlineMode && (
-          <div className="flex shrink-0 items-center gap-2 bg-white/10 px-4 py-2 text-sm font-bold text-white md:px-10">
+          <div className="flex shrink-0 items-center gap-2 bg-primary/10 px-4 py-2 text-sm font-bold text-primary md:px-10">
             <WifiOff className="h-4 w-4" /> You're offline — watching saved videos
           </div>
         )}
@@ -1409,7 +1402,7 @@ function Index() {
                   key={u.id}
                   to="/u/$username"
                   params={{ username: u.handle! }}
-                  className="flex items-center gap-3 rounded-xl px-2 py-2 transition"
+                  className="flex items-center gap-3 rounded-xl px-2 py-2 transition hover:bg-secondary"
                 >
                   <span className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-secondary font-bold uppercase">
                     {u.avatar_url ? (
@@ -1435,7 +1428,7 @@ function Index() {
         )}
 
         {onLiveTab ? (
-          <div className="relative flex min-h-0 flex-1 flex-col bg-background">
+          <div className="relative flex min-h-0 flex-1 flex-col bg-black">
             <TopTabs className={topTabsClass} ctx={topTabsCtx} />
             <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto pt-2">
               <LiveNowList
@@ -1455,21 +1448,21 @@ function Index() {
             </div>
           </div>
         ) : feedTab === "codes" ? (
-          <div className="relative flex min-h-0 flex-1 flex-col bg-background">
+          <div className="relative flex min-h-0 flex-1 flex-col bg-black">
             <TopTabs className={topTabsClass} ctx={topTabsCtx} />
             <Suspense fallback={<PanelSkeleton />}>
               <ChristmasCodesPanel handle={me} onSignIn={auth.signIn} />
             </Suspense>
           </div>
         ) : activeTab === "foryou" && feedTab === "marketplace" && !offlineMode ? (
-          <div className="relative flex min-h-0 flex-1 flex-col bg-background">
+          <div className="relative flex min-h-0 flex-1 flex-col">
             <TopTabs className={topTabsClass} ctx={topTabsCtx} />
             <Suspense fallback={<PanelSkeleton />}>
               <Marketplace />
             </Suspense>
           </div>
         ) : activeTab === "shop" || activeTab === "subscriptions" ? (
-          <div className="flex min-h-0 flex-1 flex-col bg-background">
+          <div className="flex min-h-0 flex-1 flex-col">
             <TopTabs className={topTabsStaticClass} ctx={topTabsCtx} />
             <div className="min-h-0 flex-1 overflow-y-auto">
               {activeTab === "subscriptions" ? (
@@ -1484,7 +1477,7 @@ function Index() {
             </div>
           </div>
         ) : activeTab === "foryou" && feedTab === "groups" && !offlineMode ? (
-          <div className="relative flex min-h-0 flex-1 flex-col bg-background">
+          <div className="relative flex min-h-0 flex-1 flex-col bg-black">
             <TopTabs className={topTabsClass} ctx={topTabsCtx} />
             <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto pt-2">
               <Suspense fallback={<PanelSkeleton />}>
@@ -1493,10 +1486,10 @@ function Index() {
             </div>
           </div>
         ) : activeTab === "inbox" ? (
-          <div className="flex min-h-0 flex-1 flex-col bg-background text-white">
+          <div className="flex min-h-0 flex-1 flex-col bg-black text-white">
             <TopTabs className={topTabsStaticClass} ctx={topTabsCtx} />
-            <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain bg-background">
-              <div className="sticky top-0 z-10 border-b border-white/10 bg-background/90 px-6 pb-4 pt-4 backdrop-blur">
+            <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain bg-black">
+              <div className="sticky top-0 z-10 border-b border-white/10 bg-black/85 px-6 pb-4 pt-4 backdrop-blur">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <h2 className="text-2xl font-display font-bold text-white">Inbox</h2>
@@ -1510,26 +1503,25 @@ function Index() {
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <Button
-                      variant="outline"
+                      variant={notificationFilter === "unread" ? "default" : "outline"}
                       size="sm"
-                      className="border-white/20 bg-transparent text-white"
+                      className={
+                        notificationFilter === "unread"
+                          ? undefined
+                          : "border-white/20 bg-transparent text-white hover:bg-white/10 hover:text-white"
+                      }
                       onClick={() => setNotificationFilter((f) => (f === "all" ? "unread" : "all"))}
                     >
                       {notificationFilter === "all" ? "Unread only" : "Show all"}
                     </Button>
                     {unreadCount > 0 && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-white"
-                        onClick={markAllRead}
-                      >
+                      <Button variant="ghost" size="sm" onClick={markAllRead}>
                         Mark all read
                       </Button>
                     )}
                     <Link
                       to="/messages"
-                      className="flex items-center gap-3 rounded-xl px-4 py-3 font-bold text-white"
+                      className="flex items-center gap-3 rounded-xl px-4 py-3 font-bold transition hover:bg-white/10"
                     >
                       <MessageCircle className="h-5 w-5" />
                       Messages
@@ -1595,7 +1587,7 @@ function Index() {
                     onClick={() =>
                       guardOnboarding(() => (auth.user ? setRecordingOpen(true) : auth.signIn()))
                     }
-                    className="shrink-0 rounded-full bg-white px-3 py-1.5 text-[11px] font-bold text-black"
+                    className="shrink-0 rounded-full bg-white px-3 py-1.5 text-[11px] font-bold text-black transition hover:bg-white/90"
                   >
                     Post
                   </button>
@@ -1610,15 +1602,15 @@ function Index() {
                         /* ignore */
                       }
                     }}
-                    className="shrink-0 text-white/70"
+                    className="shrink-0 text-white/70 transition hover:text-white"
                   >
                     <X className="h-4 w-4" />
                   </button>
                 </div>
               )}
 
-            <div className="relative flex min-h-0 flex-1 flex-col bg-background">
-              <TopTabs className={topTabsFeedClass} ctx={topTabsCtx} />
+            <div className="relative flex min-h-0 flex-1 flex-col">
+              <TopTabs className={topTabsClass} ctx={topTabsCtx} />
               <div
                 ref={feedScrollRef}
                 onScroll={(e) => {
@@ -1666,7 +1658,6 @@ function Index() {
                     repostedBy={repostBy.get(v.id) ?? v.reposted_by ?? null}
                     posterUsername={v.poster_username ?? v.username}
                     preloadMode={preloadModeFor(idx, activeVideoIndex, { lite, lowData })}
-                    overlayBottomNav
                   />
                 ))}
                 {loadingMore && shown.length > 0 && <FeedLoadingSpinner />}
@@ -1676,78 +1667,76 @@ function Index() {
           </>
         )}
 
-        {!commentsSheetOpen && (
-          <nav
-            aria-label="Phone navigation"
-            className={`mobile-bottom-nav grid w-full grid-cols-5 place-items-center gap-0 rounded-none border-0 px-0 md:hidden ${
-              isFeedView
-                ? "absolute inset-x-0 bottom-0 z-30 bg-gradient-to-t from-black/90 via-black/65 to-transparent pt-2"
-                : "shrink-0 bg-background"
-            }`}
-          >
-            {NAV.filter((n) => n.id === "foryou" || n.id === "following").map(
-              ({ id, label, icon: Icon }) => (
-                <Button
-                  key={id}
-                  variant="ghost"
-                  onClick={() => {
-                    setTab(id);
-                    if (id === "foryou") setFeedTab("foryou");
-                  }}
-                  aria-current={activeTab === id ? "page" : undefined}
-                  className="h-14 min-w-0 flex-col gap-1 rounded-none px-0 text-[9px] text-white"
-                >
-                  <Icon className="h-5 w-5" />
-                  {label}
-                </Button>
-              ),
-            )}
-            <Button
-              aria-label="Create video or go live"
-              onClick={() =>
-                guardOnboarding(() => (auth.user ? setCreateMenuOpen(true) : auth.signIn()))
-              }
-              style={{ backgroundColor: "#ec4899", color: "#ffffff" }}
-              className="m-auto h-9 w-10 rounded-lg px-0 [&_svg]:size-6"
-            >
-              <Plus />
-            </Button>
-            {NAV.filter((n) => n.id === "inbox").map(({ id, label, icon: Icon }) => (
-              <Fragment key={id}>
-                <Button
-                  variant="ghost"
-                  onClick={() => setTab(id)}
-                  aria-current={activeTab === id ? "page" : undefined}
-                  className="h-14 min-w-0 flex-col gap-1 rounded-none px-0 text-[9px] text-white"
-                >
-                  <Icon className="h-5 w-5" />
-                  {label}
-                </Button>
-              </Fragment>
-            ))}
-            {auth.user && auth.handle ? (
-              <Link
-                to="/u/$username"
-                params={{ username: auth.handle }}
-                aria-label="Profile"
-                className="flex h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-none px-0 text-[9px] text-white [&_svg]:size-5"
+        <nav
+          aria-label="Phone navigation"
+          className="mobile-top-nav grid shrink-0 grid-cols-5 place-items-center w-full gap-0 border-0 bg-black px-0 rounded-none md:hidden"
+        >
+          {NAV.filter((n) => n.id === "foryou" || n.id === "following").map(
+            ({ id, label, icon: Icon }) => (
+              <Button
+                key={id}
+                variant="ghost"
+                onClick={() => {
+                  setTab(id);
+                  if (id === "foryou") setFeedTab("foryou");
+                }}
+                aria-current={activeTab === id ? "page" : undefined}
+                className={`h-14 min-w-0 flex-col gap-1 rounded-none px-0 text-[9px] ${
+                  activeTab === id ? "text-primary" : "text-muted-foreground"
+                }`}
               >
-                <User />
-                Profile
-              </Link>
-            ) : (
+                <Icon className="h-5 w-5" />
+                {label}
+              </Button>
+            ),
+          )}
+          <Button
+            aria-label="Create video or go live"
+            onClick={() =>
+              guardOnboarding(() => (auth.user ? setCreateMenuOpen(true) : auth.signIn()))
+            }
+            style={{ backgroundColor: "#ec4899", color: "#ffffff" }}
+            className="m-auto h-9 w-10 rounded-lg px-0 hover:brightness-95 [&_svg]:size-6"
+          >
+            <Plus />
+          </Button>
+          {NAV.filter((n) => n.id === "inbox").map(({ id, label, icon: Icon }) => (
+            <Fragment key={id}>
               <Button
                 variant="ghost"
-                aria-label="Profile"
-                onClick={() => auth.signIn()}
-                className="h-14 min-w-0 flex-col gap-1 rounded-none px-0 text-[9px] text-white [&_svg]:size-5"
+                onClick={() => setTab(id)}
+                aria-current={activeTab === id ? "page" : undefined}
+                className={`h-14 min-w-0 flex-col gap-1 rounded-none px-0 text-[9px] ${
+                  activeTab === id ? "text-primary" : "text-muted-foreground"
+                }`}
               >
-                <User />
-                Profile
+                <Icon className="h-5 w-5" />
+                {label}
               </Button>
-            )}
-          </nav>
-        )}
+            </Fragment>
+          ))}
+          {auth.user && auth.handle ? (
+            <Link
+              to="/u/$username"
+              params={{ username: auth.handle }}
+              aria-label="Profile"
+              className="flex h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-none px-0 text-[9px] text-muted-foreground [&_svg]:size-5"
+            >
+              <User />
+              Profile
+            </Link>
+          ) : (
+            <Button
+              variant="ghost"
+              aria-label="Profile"
+              onClick={() => auth.signIn()}
+              className="h-14 min-w-0 flex-col gap-1 rounded-none px-0 text-[9px] text-muted-foreground [&_svg]:size-5"
+            >
+              <User />
+              Profile
+            </Button>
+          )}
+        </nav>
       </main>
 
       <aside className="hidden w-80 shrink-0 flex-col justify-center p-8 xl:flex">
@@ -1845,7 +1834,7 @@ function Index() {
             type="button"
             aria-label="Close video"
             onClick={() => setInboxViewer(null)}
-            className="absolute left-3 top-[calc(env(safe-area-inset-top)+0.75rem)] z-50 flex h-10 w-10 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur"
+            className="absolute left-3 top-[calc(env(safe-area-inset-top)+0.75rem)] z-50 flex h-10 w-10 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur transition hover:bg-black/80"
           >
             <X className="h-5 w-5" />
           </button>

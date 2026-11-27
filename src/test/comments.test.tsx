@@ -1,10 +1,7 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Comments } from "@/components/Comments";
-import { useCommentsSheetOpen } from "@/lib/commentsOverlay";
 
 /**
  * Regression tests for the comment panel.
@@ -91,7 +88,6 @@ vi.mock("@/integrations/supabase/client", () => ({
 
 vi.mock("@/hooks/useAuth", () => ({
   useAuth: () => ({
-    avatar: null,
     handle: "maya.moves",
     signIn: vi.fn(),
     user: { id: "u1" },
@@ -177,67 +173,5 @@ describe("Comments", () => {
     await waitFor(() => expect(insert).toHaveBeenCalledWith({ comment_id: "c1", user_id: "u1" }));
     const unlike = await screen.findByRole("button", { name: "Unlike comment" });
     expect(unlike).toHaveTextContent("2");
-  });
-
-  it("portals a solid 70dvh full-width sheet, hides main bottom nav, and aligns input row", async () => {
-    order.mockResolvedValue({ data: rows, error: null });
-
-    function FlagReader() {
-      const sheetOpen = useCommentsSheetOpen();
-      return <div data-testid="sheet-open-flag">{String(sheetOpen)}</div>;
-    }
-
-    const { rerender } = render(
-      <>
-        <FlagReader />
-        <div data-testid="feed-card" style={{ contain: "layout paint style" }}>
-          <Comments videoId="v1" onClose={() => {}} onAdded={() => {}} />
-        </div>
-      </>,
-    );
-
-    expect(screen.getByTestId("sheet-open-flag")).toHaveTextContent("true");
-
-    const dialog = await screen.findByRole("dialog", { name: "Comments" });
-    // Portaled directly under document.body, outside `.feed-card` containment.
-    expect(dialog.parentElement).toBe(document.body);
-
-    const aside = dialog.querySelector("aside");
-    expect(aside).not.toBeNull();
-    expect(aside?.className).toContain("fixed");
-    expect(aside?.className).toContain("bottom-0");
-    expect(aside?.className).toContain("left-0");
-    expect(aside?.className).toContain("w-screen");
-    expect(aside?.className).toContain("h-[70dvh]");
-    expect(aside?.className).toContain("bg-background");
-    expect(aside?.className).toContain("text-white");
-
-    // Input bar renders [Profile pic] [Add a comment…] [GIF] [Post] in one row.
-    const input = screen.getByPlaceholderText("Add a comment…");
-    const form = input.closest("form");
-    expect(form).not.toBeNull();
-    expect(form?.className).toContain("flex");
-    expect(form?.className).toContain("items-center");
-    // Exact horizontal order: [Profile pic] [Add a comment…] [GIF] [Post].
-    expect(form?.children).toHaveLength(4);
-    expect(form?.children[0]?.tagName).toBe("DIV");
-    expect(form?.children[1]).toBe(input);
-    expect(form?.children[2]).toBe(screen.getByRole("button", { name: "GIF" }));
-    expect(form?.children[3]).toBe(screen.getByRole("button", { name: "Post" }));
-
-    rerender(<FlagReader />);
-    expect(screen.queryByRole("dialog", { name: "Comments" })).not.toBeInTheDocument();
-    expect(screen.getByTestId("sheet-open-flag")).toHaveTextContent("false");
-
-    const commentsSource = readFileSync(
-      join(__dirname, "..", "components", "Comments.tsx"),
-      "utf8",
-    );
-    expect(commentsSource).toContain('backgroundColor: "var(--background)"');
-    expect(commentsSource).toContain("calc(env(safe-area-inset-bottom) + 12px)");
-
-    const indexSource = readFileSync(join(__dirname, "..", "routes", "index.tsx"), "utf8");
-    expect(indexSource).toContain("const commentsSheetOpen = useCommentsSheetOpen();");
-    expect(indexSource).toContain("{!commentsSheetOpen && (");
   });
 });

@@ -157,7 +157,11 @@ function UserRow({
         type="button"
         onClick={() => onToggleFollow(user)}
         title={isSignedIn ? undefined : "Sign in to follow"}
-        className="shrink-0 rounded-full bg-white px-4 py-1.5 text-[13px] font-bold text-black"
+        className={`shrink-0 rounded-full px-4 py-1.5 text-[13px] font-bold transition active:scale-95 ${
+          following
+            ? "border border-white/20 bg-transparent text-white/80"
+            : "bg-[#fe2c55] text-white"
+        }`}
       >
         {following ? "Following" : "Follow"}
       </button>

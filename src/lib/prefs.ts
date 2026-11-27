@@ -45,84 +45,23 @@ export const writePref = (k: string, v: string) => {
 
 export const readBool = (k: string, d = false) => readPref(k, String(d)) === "true";
 
-type ThemePalette = {
-  bg: string;
-};
-
-const THEMES: Record<string, ThemePalette> = {
-  dark: { bg: "#000000" },
-  black: { bg: "#000000" },
-  light: { bg: "#27272a" },
-  white: { bg: "#27272a" },
-  blue: { bg: "#2563EB" },
-  red: { bg: "#DC2626" },
-  pink: { bg: "#EC4899" },
-  green: { bg: "#16A34A" },
-  purple: { bg: "#9333EA" },
-  orange: { bg: "#EA580C" },
-  christmas: { bg: "#16A34A" },
-};
-
-const THEME_VARS = [
-  "--background",
-  "--foreground",
-  "--card",
-  "--card-foreground",
-  "--popover",
-  "--popover-foreground",
-  "--muted",
-  "--muted-foreground",
-  "--border",
-  "--input",
-  "--primary",
-  "--primary-foreground",
-  "--secondary",
-  "--secondary-foreground",
-  "--accent",
-  "--accent-foreground",
-  "--ring",
-  "--sidebar",
-  "--sidebar-foreground",
-];
-
-export function isSupportedTheme(theme: string): boolean {
-  return theme === "system" || theme in THEMES;
-}
-
-export function getThemeBackground(theme: string): string {
-  const id = theme === "system" ? "dark" : theme.toLowerCase();
-  return (THEMES[id] ?? THEMES["dark"]!).bg;
-}
+/** Themes change opt-in accents only, never shared surfaces or button tokens. */
+const THEME_IDS = new Set(["light", "dark", "system", "blue", "red", "pink", "green", "purple", "christmas"]);
 
 export function applyTheme(theme: string) {
   if (typeof document === "undefined") return;
   const root = document.documentElement;
-  const bg = getThemeBackground(theme);
-  const set: Record<string, string> = {
-    "--background": bg,
-    "--foreground": "#ffffff",
-    "--card": "rgba(255, 255, 255, 0.09)",
-    "--card-foreground": "#ffffff",
-    "--popover": "#18181b",
-    "--popover-foreground": "#ffffff",
-    "--muted": "rgba(255, 255, 255, 0.14)",
-    "--muted-foreground": "rgba(255, 255, 255, 0.8)",
-    "--border": "rgba(255, 255, 255, 0.22)",
-    "--input": "rgba(255, 255, 255, 0.25)",
-    "--primary": "#ffffff",
-    "--primary-foreground": "#000000",
-    "--secondary": "rgba(255, 255, 255, 0.14)",
-    "--secondary-foreground": "#ffffff",
-    "--accent": "rgba(255, 255, 255, 0.14)",
-    "--accent-foreground": "#ffffff",
-    "--ring": "#ffffff",
-    "--sidebar": bg,
-    "--sidebar-foreground": "#ffffff",
-  };
-  THEME_VARS.forEach((v) => root.style.setProperty(v, set[v] ?? ""));
-  root.style.backgroundColor = bg;
+  root.dataset["appTheme"] = THEME_IDS.has(theme) ? theme : "dark";
+  // Clear overrides left by older app versions without repainting any surface.
+  ["--background", "--foreground", "--card", "--card-foreground", "--popover",
+    "--popover-foreground", "--muted", "--muted-foreground", "--border", "--input",
+    "--primary", "--primary-foreground", "--secondary", "--secondary-foreground",
+    "--accent", "--accent-foreground", "--ring"].forEach((v) => root.style.removeProperty(v));
+  root.style.removeProperty("background");
+  root.style.removeProperty("background-color");
+  document.body?.style.removeProperty("background");
+  document.body?.style.removeProperty("background-color");
   root.style.colorScheme = "dark";
-  if (document.body) document.body.style.backgroundColor = bg;
 }
 
 const LANG_CODES: Record<string, string> = {

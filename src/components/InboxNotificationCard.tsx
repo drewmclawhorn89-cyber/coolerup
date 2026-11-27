@@ -90,7 +90,7 @@ export function InboxNotificationCard({
     <button
       type="button"
       onClick={() => onSelect(notification)}
-      className={`flex w-full cursor-pointer items-center gap-3 rounded-xl border bg-card p-4 text-left text-card-foreground ${
+      className={`flex w-full cursor-pointer items-center gap-3 rounded-xl border bg-card p-4 text-left text-card-foreground transition hover:brightness-110 active:scale-[0.99] ${
         notification.read ? "opacity-75" : ""
       }`}
     >

@@ -35,7 +35,6 @@ import { resolveSupabaseUrl } from "../integrations/supabase/project";
 import { SnowEffect } from "../components/SnowEffect";
 import { LovableBadgeGuard } from "../components/LovableBadgeGuard";
 import { SubscriptionSync } from "../components/SubscriptionSync";
-import { ThemeSync } from "../components/ThemeSync";
 import { MiniPlayer } from "../components/MiniPlayer";
 import { USE_SOUND_EVENT, type PlayerTrack } from "../lib/songPlayer";
 import type { Sound } from "../lib/sounds";
@@ -177,7 +176,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     return {
       meta: [
         { charSet: "utf-8" },
-        { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
+        { name: "viewport", content: "width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" },
         { title: "Coolerup — Short Videos, Full Songs & Browser by Drew McLawhorn" },
         {
           name: "description",
@@ -247,9 +246,10 @@ function RootShell({ children }: { children: ReactNode }) {
     <html lang="en">
       <head>
         <HeadContent />
+        <style>{"html,body,#root{background:#000000!important;background-color:#000000!important;color-scheme:dark}"}</style>
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: COOLERUP_JSON_LD }} />
       </head>
-      <body className="bg-background text-foreground">
+      <body>
         {children}
         <Scripts />
       </body>
@@ -359,7 +359,6 @@ function RootComponent() {
         <MiniPlayer />
         <UseSoundHandler />
         <SubscriptionSync />
-        <ThemeSync />
         <LovableBadgeGuard />
       </AuthProvider>
     </QueryClientProvider>

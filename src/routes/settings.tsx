@@ -19,8 +19,7 @@ import { EditProfileDialog } from "@/components/EditProfileDialog";
 import { refreshProfile, useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { readBool, readPref } from "@/lib/prefs";
-import { THEME_CHANGED_EVENT, saveAccountTheme } from "@/lib/themeAccount";
+import { readBool, writePref } from "@/lib/prefs";
 import { SHOW_MATURE_PREF, setShowMatureVideos } from "@/lib/matureVideos";
 import { AgeVerificationDialog } from "@/components/AgeVerificationDialog";
 import { useAgeVerification } from "@/lib/ageVerification";
@@ -278,16 +277,14 @@ function Settings() {
   const [showMature, setShowMature] = useState(() => readBool(SHOW_MATURE_PREF, true));
   // Real-ID check for 18+ videos: a birthday alone is not proof.
   const [ageDialogOpen, setAgeDialogOpen] = useState(false);
-  // Theme (synced to Supabase account by user_id across devices)
-  const [theme, setTheme] = useState<string>(() => readPref("theme", "dark"));
-  useEffect(() => {
-    const onThemeChanged = (event: Event) => {
-      const next = (event as CustomEvent<{ theme?: string }>).detail?.theme;
-      setTheme(next || readPref("theme", "dark"));
-    };
-    window.addEventListener(THEME_CHANGED_EVENT, onThemeChanged);
-    return () => window.removeEventListener(THEME_CHANGED_EVENT, onThemeChanged);
-  }, []);
+  // Theme
+  const [theme, setTheme] = useState<string>(() => {
+    try {
+      return localStorage.getItem("settings:theme") || "dark";
+    } catch (e) {
+      return "system";
+    }
+  });
   useEffect(() => {
     try {
       setPrivateAccount(localStorage.getItem("settings:private") === "true");
@@ -569,7 +566,7 @@ function Settings() {
   };
   const changeTheme = (t: string) => {
     setTheme(t);
-    void saveAccountTheme(auth.user?.id, t);
+    writePref("theme", t);
     toast.success(`Theme: ${t}`);
   };
   if (auth.ready && !auth.user) {
@@ -590,916 +587,910 @@ function Settings() {
   // Subscriptions screen, opened from the Settings list.
   if (showSubscriptions) {
     return (
-      <div className="min-h-dvh w-full bg-background pb-[calc(2.5rem+env(safe-area-inset-bottom))] pt-[env(safe-area-inset-top)] text-white">
-        <div className="mx-auto max-w-xl">
-          <div className="flex items-center gap-3 px-4 pt-6">
-            <button
-              onClick={() => setShowSubscriptions(false)}
-              aria-label="Back to settings"
-              className="text-white"
-            >
-              <ArrowLeft className="h-5 w-5" />
-            </button>
-            <h1 className="font-display text-2xl text-white">Subscriptions</h1>
-          </div>
-          <Suspense fallback={<PanelSkeleton />}>
-            <SubscriptionsPanel handle={auth.handle} onSignIn={auth.signIn} />
-          </Suspense>
+      <div className="mx-auto min-h-dvh max-w-xl bg-black pb-10 text-white">
+        <div className="flex items-center gap-3 px-4 pt-6">
+          <button
+            onClick={() => setShowSubscriptions(false)}
+            aria-label="Back to settings"
+            className="text-white/70 hover:text-white"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </button>
+          <h1 className="font-display text-2xl text-white">Subscriptions</h1>
         </div>
+        <Suspense fallback={<PanelSkeleton />}>
+          <SubscriptionsPanel handle={auth.handle} onSignIn={auth.signIn} />
+        </Suspense>
       </div>
     );
   }
 
   return (
-    <div className="min-h-dvh w-full bg-background px-4 pb-[calc(2.5rem+env(safe-area-inset-bottom))] pt-[calc(1.5rem+env(safe-area-inset-top))] text-white">
-      <div className="mx-auto max-w-xl space-y-6">
-        <div className="flex items-center gap-3">
-          <Link to="/" aria-label="Back to home" className="text-white">
-            <ArrowLeft className="h-5 w-5" />
-          </Link>
-          <h1 className="font-display text-2xl text-white">Settings</h1>
-        </div>
+    <div className="mx-auto max-w-xl px-4 pb-10 pt-6 space-y-6">
+      <div className="flex items-center gap-3">
+        <Link
+          to="/"
+          aria-label="Back to home"
+          className="text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="h-5 w-5" />
+        </Link>
+        <h1 className="font-display text-2xl">Settings</h1>
+      </div>
 
-        <div className="rounded-2xl border bg-card p-4">
-          <div className="flex items-center gap-4">
-            {avatarThumb ? (
-              <img
-                src={avatarThumb}
-                alt={auth.name ?? "Profile avatar"}
-                loading="lazy"
-                decoding="async"
-                className="h-14 w-14 rounded-full object-cover"
-              />
-            ) : (
-              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary font-display text-xl uppercase text-primary-foreground">
-                {auth.name?.[0] ?? "U"}
-              </div>
-            )}
-            <div className="min-w-0">
-              <p className="truncate text-lg font-bold">{auth.name ?? "Your profile"}</p>
-              <p className="text-sm text-muted-foreground">@{auth.handle ?? "your-handle"}</p>
+      <div className="rounded-2xl border bg-card p-4">
+        <div className="flex items-center gap-4">
+          {avatarThumb ? (
+            <img
+              src={avatarThumb}
+              alt={auth.name ?? "Profile avatar"}
+              loading="lazy"
+              decoding="async"
+              className="h-14 w-14 rounded-full object-cover"
+            />
+          ) : (
+            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary font-display text-xl uppercase text-primary-foreground">
+              {auth.name?.[0] ?? "U"}
             </div>
-          </div>
-
-          <div className="mt-4 grid grid-cols-1 gap-2 md:grid-cols-2">
-            <Button
-              variant="outline"
-              className="w-full justify-start"
-              onClick={() => setEditing(true)}
-            >
-              <Pencil className="mr-2 h-4 w-4" />
-              Edit profile
-            </Button>
-
-            {auth.handle && (
-              <Link
-                to="/u/$username"
-                params={{ username: auth.handle }}
-                className="flex w-full items-center justify-start rounded-md border border-white/25 bg-white px-4 py-2 text-sm font-medium text-black"
-              >
-                <UserRound className="mr-2 h-4 w-4" />
-                View profile
-              </Link>
-            )}
-
-            <Button variant="outline" className="w-full justify-start" onClick={auth.signOut}>
-              <LogOut className="mr-2 h-4 w-4" />
-              Sign out
-            </Button>
+          )}
+          <div className="min-w-0">
+            <p className="truncate text-lg font-bold">{auth.name ?? "Your profile"}</p>
+            <p className="text-sm text-muted-foreground">@{auth.handle ?? "your-handle"}</p>
           </div>
         </div>
 
-        {auth.isAdmin && (
-          <Link
-            to="/beta"
-            className="flex w-full items-center justify-between rounded-2xl border bg-card px-4 py-4 text-sm font-semibold"
+        <div className="mt-4 grid grid-cols-1 gap-2 md:grid-cols-2">
+          <Button
+            variant="outline"
+            className="w-full justify-start"
+            onClick={() => setEditing(true)}
           >
-            <span>🧪 Beta — private test area</span>
+            <Pencil className="mr-2 h-4 w-4" />
+            Edit profile
+          </Button>
+
+          {auth.handle && (
+            <Link
+              to="/u/$username"
+              params={{ username: auth.handle }}
+              className="flex w-full items-center justify-start rounded-md border bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
+            >
+              <UserRound className="mr-2 h-4 w-4" />
+              View profile
+            </Link>
+          )}
+
+          <Button variant="outline" className="w-full justify-start" onClick={auth.signOut}>
+            <LogOut className="mr-2 h-4 w-4" />
+            Sign out
+          </Button>
+        </div>
+      </div>
+
+      {auth.isAdmin && (
+        <Link
+          to="/beta"
+          className="flex w-full items-center justify-between rounded-2xl border bg-card px-4 py-4 text-sm font-semibold transition-colors hover:bg-accent"
+        >
+          <span>🧪 Beta — private test area</span>
+          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+        </Link>
+      )}
+
+      {/* Earnings — the only way into /wallet and /creator, so it has to be here */}
+      <div className="rounded-2xl border bg-card p-4">
+        <h2 className="font-semibold">Earnings</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Your diamonds, creator-fund earnings, gifts and cashouts.
+        </p>
+        <div className="mt-3 space-y-2">
+          <Link
+            to="/wallet"
+            className="flex w-full items-center justify-between rounded-md border bg-background px-4 py-3 text-sm font-medium transition-colors hover:bg-accent"
+          >
+            <span className="flex items-center gap-2">
+              <Gem className="h-4 w-4" /> Wallet & cash out
+            </span>
             <ChevronRight className="h-4 w-4 text-muted-foreground" />
           </Link>
-        )}
-
-        {/* Earnings — the only way into /wallet and /creator, so it has to be here */}
-        <div className="rounded-2xl border bg-card p-4">
-          <h2 className="font-semibold">Earnings</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Your diamonds, creator-fund earnings, gifts and cashouts.
-          </p>
-          <div className="mt-3 space-y-2">
-            <Link
-              to="/wallet"
-              className="flex w-full items-center justify-between rounded-md border border-white/25 bg-white px-4 py-3 text-sm font-medium text-black"
-            >
-              <span className="flex items-center gap-2">
-                <Gem className="h-4 w-4" /> Wallet & cash out
-              </span>
-              <ChevronRight className="h-4 w-4 text-black/70" />
-            </Link>
-            <Link
-              to="/creator"
-              className="flex w-full items-center justify-between rounded-md border border-white/25 bg-white px-4 py-3 text-sm font-medium text-black"
-            >
-              <span className="flex items-center gap-2">
-                <Banknote className="h-4 w-4" /> Creator dashboard
-              </span>
-              <ChevronRight className="h-4 w-4 text-black/70" />
-            </Link>
-          </div>
-        </div>
-
-        {/* Subscriptions (moved here from the top tab row) */}
-        <div className="rounded-2xl border border-white/20 bg-card p-4 text-white">
-          <h2 className="font-semibold text-white">Subscriptions</h2>
-          <p className="mt-1 text-sm text-white/70">
-            Manage your plan, payment method, and billing.
-          </p>
-          <button
-            type="button"
-            onClick={() => setShowSubscriptions(true)}
-            className="mt-3 flex w-full items-center justify-between rounded-md border border-white/25 bg-white/10 px-4 py-3 text-left text-sm font-medium text-white"
+          <Link
+            to="/creator"
+            className="flex w-full items-center justify-between rounded-md border bg-background px-4 py-3 text-sm font-medium transition-colors hover:bg-accent"
           >
             <span className="flex items-center gap-2">
-              <CreditCard className="h-4 w-4 text-white" />
-              {subscription?.status === "active"
-                ? subscription.isLifetime
-                  ? lifetimePlanLabel(subscription.planId)
-                  : (planById(subscription.planId)?.label ?? "Active")
-                : subscription?.status === "pending"
-                  ? "Payment pending"
-                  : "View plans"}
+              <Banknote className="h-4 w-4" /> Creator dashboard
             </span>
-            <ChevronRight className="h-4 w-4 text-white/70" />
-          </button>
-          <button
-            type="button"
-            onClick={() => void handleRestoreSubscription()}
-            disabled={restoringSubscription}
-            className="mt-2 flex w-full items-center justify-between rounded-md border border-white/25 bg-white/10 px-4 py-3 text-left text-sm font-medium text-white disabled:opacity-60"
-          >
-            <span className="flex items-center gap-2">
-              <RefreshCw
-                className={`h-4 w-4 text-white ${restoringSubscription ? "animate-spin" : ""}`}
-              />
-              {restoringSubscription ? "Restoring\u2026" : "Restore Subscription"}
-            </span>
-            <span className="text-xs text-white/70">From your account</span>
-          </button>
-          <p className="mt-2 text-xs text-white/70">
-            Your plan is saved to your account. Tap Restore Subscription if you don&apos;t see it
-            after signing in on another device.
-          </p>
+            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+          </Link>
         </div>
+      </div>
 
-        {/* Username editor */}
-        <div className="rounded-2xl border bg-card p-4">
-          <h2 className="font-semibold">Username</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Your handle is how others find you. It must be unique.
-          </p>
-          <div className="mt-3 flex gap-2">
-            <input
-              value={newHandle}
-              onChange={(e) => setNewHandle(e.target.value)}
-              className="min-w-0 flex-1 rounded-md border bg-background px-3 py-2 text-sm"
+      {/* Subscriptions (moved here from the top tab row) */}
+      <div className="rounded-2xl border border-white/15 bg-black p-4 text-white">
+        <h2 className="font-semibold text-white">Subscriptions</h2>
+        <p className="mt-1 text-sm text-white/70">Manage your plan, payment method, and billing.</p>
+        <button
+          type="button"
+          onClick={() => setShowSubscriptions(true)}
+          className="mt-3 flex w-full items-center justify-between rounded-md border border-white/15 bg-black px-4 py-3 text-left text-sm font-medium text-white transition-colors hover:bg-white/10"
+        >
+          <span className="flex items-center gap-2">
+            <CreditCard className="h-4 w-4 text-white" />
+            {subscription?.status === "active"
+              ? subscription.isLifetime
+                ? lifetimePlanLabel(subscription.planId)
+                : (planById(subscription.planId)?.label ?? "Active")
+              : subscription?.status === "pending"
+                ? "Payment pending"
+                : "View plans"}
+          </span>
+          <ChevronRight className="h-4 w-4 text-white/70" />
+        </button>
+        <button
+          type="button"
+          onClick={() => void handleRestoreSubscription()}
+          disabled={restoringSubscription}
+          className="mt-2 flex w-full items-center justify-between rounded-md border border-white/15 bg-black px-4 py-3 text-left text-sm font-medium text-white transition-colors hover:bg-white/10 disabled:opacity-60"
+        >
+          <span className="flex items-center gap-2">
+            <RefreshCw
+              className={`h-4 w-4 text-white ${restoringSubscription ? "animate-spin" : ""}`}
             />
-            <Button onClick={saveHandle} disabled={updatingHandle}>
-              {updatingHandle ? "Saving..." : "Save"}
-            </Button>
-          </div>
-        </div>
+            {restoringSubscription ? "Restoring\u2026" : "Restore Subscription"}
+          </span>
+          <span className="text-xs text-white/70">From your account</span>
+        </button>
+        <p className="mt-2 text-xs text-white/70">
+          Your plan is saved to your account. Tap Restore Subscription if you don&apos;t see it
+          after signing in on another device.
+        </p>
+      </div>
 
-        {/* Privacy / Online status & Blocked users */}
-        <div className="rounded-2xl border bg-card p-4">
-          <h2 className="font-semibold">Privacy</h2>
-          <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-white">
-            <div className="min-w-0">
-              <p className="text-sm font-medium text-white">Show when I&apos;m online</p>
-              <p className="mt-0.5 text-xs text-white/60">
-                When off, others can&apos;t see when you&apos;re online or active, and you
-                won&apos;t see theirs.
-              </p>
-            </div>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={showOnline}
-              aria-label="Show when I'm online"
-              onClick={() => {
-                const next = !showOnline;
-                setShowOnline(next);
-                toast.success(next ? "Online status ON" : "Online status OFF");
-              }}
-              className="flex h-7 w-12 shrink-0 items-center rounded-full p-1 transition"
-              style={{ backgroundColor: showOnline ? "#ffffff" : "#333333" }}
-            >
-              <span
-                className="h-5 w-5 rounded-full transition"
-                style={{
-                  backgroundColor: showOnline ? "#000000" : "#ffffff",
-                  transform: showOnline ? "translateX(20px)" : "translateX(0)",
-                }}
-              />
-            </button>
+      {/* Username editor */}
+      <div className="rounded-2xl border bg-card p-4">
+        <h2 className="font-semibold">Username</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Your handle is how others find you. It must be unique.
+        </p>
+        <div className="mt-3 flex gap-2">
+          <input
+            value={newHandle}
+            onChange={(e) => setNewHandle(e.target.value)}
+            className="min-w-0 flex-1 rounded-md border bg-background px-3 py-2 text-sm"
+          />
+          <Button onClick={saveHandle} disabled={updatingHandle}>
+            {updatingHandle ? "Saving..." : "Save"}
+          </Button>
+        </div>
+      </div>
+
+      {/* Privacy / Online status & Blocked users */}
+      <div className="rounded-2xl border bg-card p-4">
+        <h2 className="font-semibold">Privacy</h2>
+        <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-black px-4 py-3 text-white">
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-white">Show when I&apos;m online</p>
+            <p className="mt-0.5 text-xs text-white/60">
+              When off, others can&apos;t see when you&apos;re online or active, and you won&apos;t
+              see theirs.
+            </p>
           </div>
-          <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-white">
-            <div className="min-w-0">
-              <p className="text-sm font-medium text-white">Show 18+ Videos</p>
-              <p className="mt-0.5 text-xs text-white/60">
-                When off, all 18+ mature videos are hidden from your feed.
-              </p>
-            </div>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={showMature}
-              aria-label="Show 18+ Videos"
-              onClick={() => {
-                const next = !showMature;
-                setShowMature(next);
-                setShowMatureVideos(next);
-                toast.success(next ? "18+ videos shown" : "18+ videos hidden");
-              }}
-              className="flex h-7 w-12 shrink-0 items-center rounded-full p-1 transition"
-              style={{ backgroundColor: showMature ? "#ffffff" : "#333333" }}
-            >
-              <span
-                className="h-5 w-5 rounded-full transition"
-                style={{
-                  backgroundColor: showMature ? "#000000" : "#ffffff",
-                  transform: showMature ? "translateX(20px)" : "translateX(0)",
-                }}
-              />
-            </button>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={showOnline}
+            aria-label="Show when I'm online"
+            onClick={() => {
+              const next = !showOnline;
+              setShowOnline(next);
+              toast.success(next ? "Online status ON" : "Online status OFF");
+            }}
+            className="flex h-7 w-12 shrink-0 items-center rounded-full p-1 transition"
+            style={{ backgroundColor: showOnline ? "#25D366" : "#333" }}
+          >
+            <span
+              className="h-5 w-5 rounded-full bg-white transition"
+              style={{ transform: showOnline ? "translateX(20px)" : "translateX(0)" }}
+            />
+          </button>
+        </div>
+        <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-black px-4 py-3 text-white">
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-white">Show 18+ Videos</p>
+            <p className="mt-0.5 text-xs text-white/60">
+              When off, all 18+ mature videos are hidden from your feed.
+            </p>
           </div>
-          {/* Real-ID verification for 18+ videos. A typed birthday is self-reported,
+          <button
+            type="button"
+            role="switch"
+            aria-checked={showMature}
+            aria-label="Show 18+ Videos"
+            onClick={() => {
+              const next = !showMature;
+              setShowMature(next);
+              setShowMatureVideos(next);
+              toast.success(next ? "18+ videos shown" : "18+ videos hidden");
+            }}
+            className="flex h-7 w-12 shrink-0 items-center rounded-full p-1 transition"
+            style={{ backgroundColor: showMature ? "#FE2C55" : "#333" }}
+          >
+            <span
+              className="h-5 w-5 rounded-full bg-white transition"
+              style={{ transform: showMature ? "translateX(20px)" : "translateX(0)" }}
+            />
+          </button>
+        </div>
+        {/* Real-ID verification for 18+ videos. A typed birthday is self-reported,
             so adult content stays locked until a moderator approves an ID. */}
-          <div className="mt-3 rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-white">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-white">Verify your ID for 18+ videos</p>
-                <p className="mt-0.5 text-xs text-white/60">
-                  {ageLoading
-                    ? "Checking your verification status…"
-                    : ageStatus === "approved"
-                      ? "Verified. You can watch 18+ videos."
-                      : ageStatus === "pending"
-                        ? "Your ID is being reviewed. 18+ videos unlock once it's approved."
-                        : ageStatus === "rejected"
-                          ? "Your last ID check was rejected. Submit a new photo to try again."
-                          : "Upload a government ID and a selfie to unlock 18+ videos."}
-                </p>
-              </div>
-              <span
-                className="shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold"
-                style={{
-                  backgroundColor:
-                    ageStatus === "approved"
-                      ? "#22c55e"
-                      : ageStatus === "pending"
-                        ? "#FFC107"
-                        : ageStatus === "rejected"
-                          ? "#FE2C55"
-                          : "#333",
-                  color: ageStatus === "pending" ? "#000" : "#fff",
-                }}
-              >
+        <div className="mt-3 rounded-xl border border-white/10 bg-black px-4 py-3 text-white">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-white">Verify your ID for 18+ videos</p>
+              <p className="mt-0.5 text-xs text-white/60">
                 {ageLoading
-                  ? "…"
+                  ? "Checking your verification status…"
                   : ageStatus === "approved"
-                    ? "Verified"
+                    ? "Verified. You can watch 18+ videos."
                     : ageStatus === "pending"
-                      ? "In review"
+                      ? "Your ID is being reviewed. 18+ videos unlock once it's approved."
                       : ageStatus === "rejected"
-                        ? "Rejected"
-                        : "Not verified"}
-              </span>
+                        ? "Your last ID check was rejected. Submit a new photo to try again."
+                        : "Upload a government ID and a selfie to unlock 18+ videos."}
+              </p>
             </div>
-            <button
-              type="button"
-              onClick={() => setAgeDialogOpen(true)}
-              className="mt-3 w-full rounded-full px-4 py-2 text-sm font-bold"
+            <span
+              className="shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold"
               style={{
-                backgroundColor: ageStatus === "approved" ? "#fff" : "#FE2C55",
-                color: ageStatus === "approved" ? "#000" : "#fff",
+                backgroundColor:
+                  ageStatus === "approved"
+                    ? "#22c55e"
+                    : ageStatus === "pending"
+                      ? "#FFC107"
+                      : ageStatus === "rejected"
+                        ? "#FE2C55"
+                        : "#333",
+                color: ageStatus === "pending" ? "#000" : "#fff",
               }}
             >
-              {ageStatus === "approved"
-                ? "View verification"
-                : ageStatus === "pending"
-                  ? "View review status"
-                  : "Verify my ID"}
-            </button>
+              {ageLoading
+                ? "…"
+                : ageStatus === "approved"
+                  ? "Verified"
+                  : ageStatus === "pending"
+                    ? "In review"
+                    : ageStatus === "rejected"
+                      ? "Rejected"
+                      : "Not verified"}
+            </span>
           </div>
-          <AgeVerificationDialog open={ageDialogOpen} onOpenChange={setAgeDialogOpen} />
-          <p className="mt-4 text-sm text-muted-foreground">Manage blocked users.</p>
-          <div className="mt-3 flex gap-2">
-            <input
-              value={blockTarget}
-              onChange={(e) => setBlockTarget(e.target.value)}
-              placeholder="@username to block"
-              className="min-w-0 flex-1 rounded-md border bg-background px-3 py-2 text-sm"
-            />
-            <Button onClick={() => doBlock(blockTarget)} disabled={blocking}>
-              {blocking ? "Blocking..." : "Block"}
-            </Button>
-          </div>
-          <div className="mt-3 space-y-2">
-            {blocked.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No blocked users</p>
-            ) : (
-              blocked.map((b) => (
-                <div
-                  key={b}
-                  className="flex items-center justify-between rounded-md border border-white/20 bg-white/10 px-3 py-2 text-white"
-                >
-                  <div className="text-sm">@{b}</div>
-                  <button onClick={() => doUnblock(b)} className="text-sm font-semibold text-white">
-                    Unblock
-                  </button>
-                </div>
-              ))
-            )}
-          </div>
+          <button
+            type="button"
+            onClick={() => setAgeDialogOpen(true)}
+            className="mt-3 w-full rounded-full px-4 py-2 text-sm font-bold"
+            style={{
+              backgroundColor: ageStatus === "approved" ? "#fff" : "#FE2C55",
+              color: ageStatus === "approved" ? "#000" : "#fff",
+            }}
+          >
+            {ageStatus === "approved"
+              ? "View verification"
+              : ageStatus === "pending"
+                ? "View review status"
+                : "Verify my ID"}
+          </button>
         </div>
-
-        {/* Notifications */}
-        <div className="rounded-2xl border bg-card p-4">
-          <div className="flex items-center gap-2">
-            <ShieldCheck className="h-4 w-4 text-white" />
-            <h2 className="font-semibold">Notifications</h2>
-          </div>
-          <p className="mt-1 text-sm text-muted-foreground">Turn all notifications on or off.</p>
-          <div className="mt-3 flex gap-2">
-            <button
-              onClick={() => toggleNotifications(true)}
-              className={`rounded-md px-3 py-2 font-medium ${notificationsEnabled ? "bg-white text-black" : "border border-white/25 bg-white/10 text-white"}`}
-            >
-              Enable
-            </button>
-            <button
-              onClick={() => toggleNotifications(false)}
-              className={`rounded-md px-3 py-2 font-medium ${!notificationsEnabled ? "bg-white text-black" : "border border-white/25 bg-white/10 text-white"}`}
-            >
-              Disable
-            </button>
-            <button
-              onClick={runPushTest}
-              disabled={testingPush}
-              className="rounded-md border border-white/25 bg-white/10 px-3 py-2 font-medium text-white disabled:opacity-50"
-            >
-              {testingPush ? "Sending…" : "Send test"}
-            </button>
-          </div>
-          {pushState && (
-            <p className="mt-2 text-xs text-muted-foreground">
-              {!pushState.configured
-                ? "Out-of-app push is not configured on the server (missing VAPID keys)."
-                : pushState.devices > 0
-                  ? `Out-of-app push ready — ${pushState.devices} device${pushState.devices === 1 ? "" : "s"} registered (keys from ${pushState.source ?? "unknown"}).`
-                  : "Push is configured, but this device isn't registered yet. Tap Enable."}
-            </p>
-          )}
-          {deviceHint && <p className="mt-1 text-xs text-amber-500">{deviceHint}</p>}
-          {lastTest && (
-            <p className="mt-1 break-words font-mono text-[11px] text-muted-foreground">
-              {lastTest}
-            </p>
+        <AgeVerificationDialog open={ageDialogOpen} onOpenChange={setAgeDialogOpen} />
+        <p className="mt-4 text-sm text-muted-foreground">Manage blocked users.</p>
+        <div className="mt-3 flex gap-2">
+          <input
+            value={blockTarget}
+            onChange={(e) => setBlockTarget(e.target.value)}
+            placeholder="@username to block"
+            className="min-w-0 flex-1 rounded-md border bg-background px-3 py-2 text-sm"
+          />
+          <Button onClick={() => doBlock(blockTarget)} disabled={blocking}>
+            {blocking ? "Blocking..." : "Block"}
+          </Button>
+        </div>
+        <div className="mt-3 space-y-2">
+          {blocked.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No blocked users</p>
+          ) : (
+            blocked.map((b) => (
+              <div
+                key={b}
+                className="flex items-center justify-between rounded-md border bg-background px-3 py-2"
+              >
+                <div className="text-sm">@{b}</div>
+                <button onClick={() => doUnblock(b)} className="text-sm text-primary">
+                  Unblock
+                </button>
+              </div>
+            ))
           )}
         </div>
-        <div className="rounded-lg border bg-card p-6">
-          <h2 className="font-semibold">Social Links - Add to Your Profile</h2>
-          <p className="mt-1 text-sm text-muted-foreground"> add your links </p>
-          <div className="mt-3 space-y-3">
-            <div className="flex gap-2">
-              <span className="flex items-center rounded-md border bg-muted px-3 text-sm">
-                TikTok
-              </span>
-              <input
-                value={tiktokLink}
-                onChange={(e) => setTiktokLink(e.target.value)}
-                placeholder="https://tiktok.com/@yourname"
-                className="flex-1 rounded-md border bg-background p-2"
-              />
-            </div>
-            <div className="flex gap-2">
-              <span className="flex items-center rounded-md border bg-muted px-3 text-sm">IG</span>
-              <input
-                value={instagramLink}
-                onChange={(e) => setInstagramLink(e.target.value)}
-                placeholder="https://instagram.com/yourname"
-                className="flex-1 rounded-md border bg-background p-2"
-              />
-            </div>
-            <div className="flex gap-2">
-              <span className="flex items-center rounded-md border bg-muted px-3 text-sm">
-                YouTube
-              </span>
-              <input
-                value={youtubeLink}
-                onChange={(e) => setYoutubeLink(e.target.value)}
-                placeholder="https://youtube.com/@yourname"
-                className="flex-1 rounded-md border bg-background p-2"
-              />
-            </div>
-            <button
-              onClick={saveLinks}
-              className="rounded-md bg-white px-4 py-2 font-medium text-black"
-            >
-              Save Links to Profile
-            </button>
-            {tiktokLink && (
-              <div className="mt-2 flex gap-2">
-                <a
-                  href={tiktokLink}
-                  target="_blank"
-                  className="rounded-md bg-white px-3 py-1 text-xs font-medium text-black"
-                >
-                  View TikTok
-                </a>
-                <span className="text-xs text-muted-foreground truncate">{tiktokLink}</span>
-              </div>
-            )}
-          </div>
+      </div>
+
+      {/* Notifications */}
+      <div className="rounded-2xl border bg-card p-4">
+        <div className="flex items-center gap-2">
+          <ShieldCheck className="h-4 w-4 text-primary" />
+          <h2 className="font-semibold">Notifications</h2>
         </div>
-        <TikTokLinkedAccounts enabled={!!auth.user} />
-        {/* DIFFERENT MESSAGE SETTINGS */}
-        <div className="mb-4 rounded-2xl border border-white/20 bg-card p-4 text-white shadow-sm">
-          <h2 className="font-bold text- mb-1" style={{ color: "white" }}>
-            💬 Message Privacy
-          </h2>
-          <p className="text- mb-4" style={{ color: "#e5e7eb" }}>
-            Different settings like TikTok
-          </p>
-
-          <p className="font-bold text- mb-2" style={{ color: "white" }}>
-            Who can DM you
-          </p>
-          <div className="flex flex-col gap-2 mb-5">
-            {[
-              { id: "everyone", label: "Everyone" },
-              { id: "friends", label: "Friends" },
-              { id: "mutuals", label: "Friends of friends" },
-              { id: "noone", label: "No one" },
-            ].map((o) => (
-              <button
-                key={o.id}
-                onClick={() => {
-                  setMessagePrivacy(o.id);
-                  localStorage.setItem("messagePrivacy", o.id);
-                }}
-                className="flex justify-between p-3 rounded-xl border text-left"
-                style={{
-                  background: messagePrivacy === o.id ? "#ffffff" : "rgba(255,255,255,0.1)",
-                  color: messagePrivacy === o.id ? "#000000" : "#ffffff",
-                  borderColor: "rgba(255,255,255,0.22)",
-                }}
-              >
-                <span className="font-medium text-">{o.label}</span>
-                <div
-                  className="h-5 w-5 rounded-full border-2 flex items-center justify-center"
-                  style={{ borderColor: messagePrivacy === o.id ? "black" : "#9ca3af" }}
-                >
-                  {messagePrivacy === o.id && <div className="h-2 w-2 bg-black rounded-full" />}
-                </div>
-              </button>
-            ))}
-          </div>
-
-          <p className="font-bold text- mb-2" style={{ color: "white" }}>
-            Message requests
-          </p>
-          <div className="flex gap-2 mb-5">
-            {["all", "filtered", "off"].map((id) => (
-              <button
-                key={id}
-                onClick={() => {
-                  setMessageFilter(id);
-                  localStorage.setItem("messageFilter", id);
-                }}
-                className="flex-1 py-2 rounded-full font-bold text- border"
-                style={{
-                  backgroundColor: messageFilter === id ? "#ffffff" : "rgba(255,255,255,0.1)",
-                  color: messageFilter === id ? "#000000" : "#ffffff",
-                  borderColor: "rgba(255,255,255,0.22)",
-                }}
-              >
-                {id}
-              </button>
-            ))}
-          </div>
-
-          <div className="border-t" style={{ borderColor: "rgba(255,255,255,0.2)" }}>
-            <div className="flex justify-between items-center py-3">
-              <div>
-                <div className="font-medium text-" style={{ color: "white" }}>
-                  Allow DMs
-                </div>
-                <div className="text-" style={{ color: "#9ca3af" }}>
-                  Let others message you
-                </div>
-              </div>
-              <button
-                onClick={() => {
-                  const v = !allowDM;
-                  setAllowDM(v);
-                  localStorage.setItem("allowDM", String(v));
-                }}
-                className="h-7 w-12 rounded-full p-1"
-                style={{ backgroundColor: allowDM ? "white" : "#333" }}
-              >
-                <div
-                  className="h-5 w-5 rounded-full transition"
-                  style={{
-                    backgroundColor: allowDM ? "black" : "white",
-                    transform: allowDM ? "translateX(20px)" : "translateX(0)",
-                  }}
-                />
-              </button>
-            </div>
-            <div
-              className="flex justify-between items-center py-3 border-t"
-              style={{ borderColor: "rgba(255,255,255,0.2)" }}
-            >
-              <div className="pr-3">
-                <div className="font-medium text-" style={{ color: "white" }}>
-                  Allow messages from everyone
-                </div>
-                <div className="text-xs" style={{ color: "#e5e7eb" }}>
-                  Let anyone send pics &amp; videos in Messages (off = mutual followers only)
-                </div>
-              </div>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={allowMessagesFromEveryone}
-                aria-label="Allow messages from everyone"
-                onClick={() => {
-                  const v = !allowMessagesFromEveryone;
-                  setAllowMessagesFromEveryone(v);
-                  void syncAllowMessagesFromEveryone(auth.user?.id, v).then((res) => {
-                    if (!res.ok) {
-                      toast.error(res.error ?? "Couldn't update message privacy setting");
-                      return;
-                    }
-                    toast.success(
-                      v
-                        ? "Allow messages from everyone: ON"
-                        : "Pics & videos restricted to mutual followers",
-                    );
-                  });
-                }}
-                className="h-7 w-12 shrink-0 rounded-full p-1"
-                style={{ backgroundColor: allowMessagesFromEveryone ? "#ffffff" : "#333333" }}
-              >
-                <div
-                  className="h-5 w-5 rounded-full transition"
-                  style={{
-                    backgroundColor: allowMessagesFromEveryone ? "#000000" : "#ffffff",
-                    transform: allowMessagesFromEveryone ? "translateX(20px)" : "translateX(0)",
-                  }}
-                />
-              </button>
-            </div>
-            <div
-              className="flex justify-between items-center py-3 border-t"
-              style={{ borderColor: "rgba(255,255,255,0.2)" }}
-            >
-              <div>
-                <div className="font-medium text-" style={{ color: "white" }}>
-                  Read receipts
-                </div>
-                <div className="text-" style={{ color: "#9ca3af" }}>
-                  Show when read
-                </div>
-              </div>
-              <button
-                onClick={() => {
-                  const v = !readReceipts;
-                  setReadReceipts(v);
-                  localStorage.setItem("readReceipts", String(v));
-                }}
-                className="h-7 w-12 rounded-full p-1"
-                style={{ backgroundColor: readReceipts ? "white" : "#333" }}
-              >
-                <div
-                  className="h-5 w-5 rounded-full transition"
-                  style={{
-                    backgroundColor: readReceipts ? "black" : "white",
-                    transform: readReceipts ? "translateX(20px)" : "translateX(0)",
-                  }}
-                />
-              </button>
-            </div>
-          </div>
+        <p className="mt-1 text-sm text-muted-foreground">Turn all notifications on or off.</p>
+        <div className="mt-3 flex gap-2">
+          <button
+            onClick={() => toggleNotifications(true)}
+            className={`rounded-md px-3 py-2 ${notificationsEnabled ? "bg-primary text-primary-foreground" : "border bg-background"}`}
+          >
+            Enable
+          </button>
+          <button
+            onClick={() => toggleNotifications(false)}
+            className={`rounded-md px-3 py-2 ${!notificationsEnabled ? "bg-primary text-primary-foreground" : "border bg-background"}`}
+          >
+            Disable
+          </button>
+          <button
+            onClick={runPushTest}
+            disabled={testingPush}
+            className="rounded-md border bg-background px-3 py-2 disabled:opacity-50"
+          >
+            {testingPush ? "Sending…" : "Send test"}
+          </button>
         </div>
-        <div className="rounded-lg border bg-card p-6">
-          <h2 className="font-semibold">Phone Number</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Add your phone number to your account
+        {pushState && (
+          <p className="mt-2 text-xs text-muted-foreground">
+            {!pushState.configured
+              ? "Out-of-app push is not configured on the server (missing VAPID keys)."
+              : pushState.devices > 0
+                ? `Out-of-app push ready — ${pushState.devices} device${pushState.devices === 1 ? "" : "s"} registered (keys from ${pushState.source ?? "unknown"}).`
+                : "Push is configured, but this device isn't registered yet. Tap Enable."}
           </p>
-          <div className="mt-3 flex gap-2">
+        )}
+        {deviceHint && <p className="mt-1 text-xs text-amber-500">{deviceHint}</p>}
+        {lastTest && (
+          <p className="mt-1 break-words font-mono text-[11px] text-muted-foreground">{lastTest}</p>
+        )}
+      </div>
+      <div className="rounded-lg border bg-card p-6">
+        <h2 className="font-semibold">Social Links - Add to Your Profile</h2>
+        <p className="mt-1 text-sm text-muted-foreground"> add your links </p>
+        <div className="mt-3 space-y-3">
+          <div className="flex gap-2">
+            <span className="flex items-center rounded-md border bg-muted px-3 text-sm">
+              TikTok
+            </span>
             <input
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="+1 (555) 000-0000"
-              type="tel"
+              value={tiktokLink}
+              onChange={(e) => setTiktokLink(e.target.value)}
+              placeholder="https://tiktok.com/@yourname"
               className="flex-1 rounded-md border bg-background p-2"
             />
-            <button
-              onClick={savePhone}
-              className="rounded-md bg-white px-4 py-2 font-medium text-black"
-            >
-              Save
-            </button>
           </div>
-          {phone && <p className="mt-2 text-xs text-muted-foreground">Saved: {phone}</p>}
-          <p className="mt-3 text-xs text-muted-foreground">
-            {(() => {
-              const fb = getFirebaseConfigSummary();
-              return fb.configured
-                ? `SMS sign-in connected via Firebase (${fb.projectId}) — free 10 texts/day.`
-                : "SMS sign-in uses free Firebase Phone Auth (10 texts/day). Set VITE_FIREBASE_API_KEY, VITE_FIREBASE_AUTH_DOMAIN, and VITE_FIREBASE_PROJECT_ID in environment variables.";
-            })()}
-          </p>
-        </div>
-        <div className="rounded-lg border bg-card p-6">
-          <div className="flex items-center gap-2">
-            <h2 className="font-semibold">Offline Mode</h2>
-            <span className="rounded-full border px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-              {offlineUnlocked ? "Paid subscribers" : "Paid subscribers only"}
+          <div className="flex gap-2">
+            <span className="flex items-center rounded-md border bg-muted px-3 text-sm">IG</span>
+            <input
+              value={instagramLink}
+              onChange={(e) => setInstagramLink(e.target.value)}
+              placeholder="https://instagram.com/yourname"
+              className="flex-1 rounded-md border bg-background p-2"
+            />
+          </div>
+          <div className="flex gap-2">
+            <span className="flex items-center rounded-md border bg-muted px-3 text-sm">
+              YouTube
             </span>
+            <input
+              value={youtubeLink}
+              onChange={(e) => setYoutubeLink(e.target.value)}
+              placeholder="https://youtube.com/@yourname"
+              className="flex-1 rounded-md border bg-background p-2"
+            />
           </div>
-
-          <p className="mt-1 text-sm text-muted-foreground">
-            Automatically download videos you liked or saved and watch them without a connection.
-          </p>
-
-          {offlineUnlocked ? (
-            <>
-              <div className="mt-3 flex items-center justify-between gap-3 border-t pt-3">
-                <div className="min-w-0">
-                  <div className="font-medium">Offline Mode</div>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    {offlineMode
-                      ? "ON — liked and saved videos download automatically."
-                      : "OFF — turn on to download liked and saved videos."}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={toggleOffline}
-                  aria-pressed={offlineMode}
-                  aria-label="Toggle Offline Mode"
-                  className="h-7 w-12 shrink-0 rounded-full p-1 transition"
-                  style={{ backgroundColor: offlineMode ? "#ffffff" : "#333333" }}
-                >
-                  <div
-                    className="h-5 w-5 rounded-full transition"
-                    style={{
-                      backgroundColor: offlineMode ? "#000000" : "#ffffff",
-                      transform: offlineMode ? "translateX(20px)" : "translateX(0)",
-                    }}
-                  />
-                </button>
-              </div>
-
-              {syncingOffline && (
-                <p className="mt-2 text-xs text-muted-foreground">
-                  {offlineSyncProgress
-                    ? `Downloading ${offlineSyncProgress.current} of ${offlineSyncProgress.total}: ${offlineSyncProgress.title}`
-                    : "Checking your liked and saved videos…"}
-                </p>
-              )}
-
-              <div className="mt-3 rounded-xl border bg-secondary/50 px-3 py-2">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-[13px] font-semibold">
-                    Offline storage: {formatStorage(offlineUsage?.used ?? 0)} /{" "}
-                    {formatStorage(MAX_OFFLINE_BYTES)}
-                  </p>
-                  <span className="shrink-0 text-[11px] text-muted-foreground">
-                    {offlineUsage?.count ?? 0} of {MAX_OFFLINE_VIDEOS} videos
-                  </span>
-                </div>
-                <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-background">
-                  <div
-                    className="h-full rounded-full bg-emerald-600 transition-all"
-                    style={{
-                      width: `${Math.min(
-                        100,
-                        ((offlineUsage?.used ?? 0) / MAX_OFFLINE_BYTES) * 100,
-                      )}%`,
-                    }}
-                  />
-                </div>
-                <div className="mt-3 flex flex-wrap items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => void clearDownloads()}
-                    disabled={clearingDownloads || (offlineUsage?.count ?? 0) === 0}
-                    className="rounded-md border border-destructive/40 px-3 py-1.5 text-[13px] font-semibold text-destructive transition disabled:opacity-50"
-                  >
-                    {clearingDownloads ? "Clearing…" : "Clear Downloads"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => (window.location.href = "/offline")}
-                    className="rounded-md bg-white px-3 py-1.5 text-[13px] font-medium text-black"
-                  >
-                    View Offline Videos →
-                  </button>
-                </div>
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="mt-3 flex items-start gap-3 rounded-xl border bg-secondary/50 p-3">
-                <Lock className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold">Offline Mode is for Paid Subscribers</p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Offline Mode is included with every paid plan — Plus, Pro and VIP. Nothing is
-                    downloaded on a free account.
-                  </p>
-                </div>
-              </div>
-              <div className="mt-3 flex flex-wrap items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => setShowOfflinePaywall(true)}
-                  className="rounded-md bg-white px-4 py-2 font-medium text-black"
-                >
-                  Turn on Offline Mode
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowSubscriptions(true)}
-                  className="rounded-md bg-white px-4 py-2 font-medium text-black"
-                >
-                  Subscribe · ${offlinePrice.toFixed(2)}/mo
-                </button>
-              </div>
-            </>
+          <button
+            onClick={saveLinks}
+            style={{ backgroundColor: "black", color: "white" }}
+            className="rounded-md px-4 py-2 font-medium"
+          >
+            Save Links to Profile
+          </button>
+          {tiktokLink && (
+            <div className="mt-2 flex gap-2">
+              <a
+                href={tiktokLink}
+                target="_blank"
+                style={{ backgroundColor: "black", color: "white" }}
+                className="rounded-md px-3 py-1 text-xs"
+              >
+                View TikTok
+              </a>
+              <span className="text-xs text-muted-foreground truncate">{tiktokLink}</span>
+            </div>
           )}
         </div>
-        {/* Music — Background Play */}
-        <div className="rounded-lg border bg-card p-6">
-          <div className="flex items-center gap-2">
-            <Music className="h-4 w-4 text-muted-foreground" />
-            <h2 className="font-semibold">Music</h2>
-          </div>
-          <div className="mt-3 flex items-center justify-between gap-3 border-t pt-3">
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5 font-medium">
-                Background Play
-                {backgroundUnlocked ? (
-                  <span className="rounded-full bg-white px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-black">
-                    VIP
-                  </span>
-                ) : (
-                  <Lock className="h-3 w-3 text-muted-foreground" aria-label="VIP required" />
-                )}
+      </div>
+      <TikTokLinkedAccounts enabled={!!auth.user} />
+      {/* DIFFERENT MESSAGE SETTINGS - BLACK + WHITE */}
+      <div
+        className="rounded-xl p-4 mb-4 shadow-sm"
+        style={{ backgroundColor: "black", color: "white" }}
+      >
+        <h2 className="font-bold text- mb-1" style={{ color: "white" }}>
+          💬 Message Privacy
+        </h2>
+        <p className="text- mb-4" style={{ color: "#9ca3af" }}>
+          Different settings like TikTok
+        </p>
+
+        <p className="font-bold text- mb-2" style={{ color: "white" }}>
+          Who can DM you
+        </p>
+        <div className="flex flex-col gap-2 mb-5">
+          {[
+            { id: "everyone", label: "Everyone" },
+            { id: "friends", label: "Friends" },
+            { id: "mutuals", label: "Friends of friends" },
+            { id: "noone", label: "No one" },
+          ].map((o) => (
+            <button
+              key={o.id}
+              onClick={() => {
+                setMessagePrivacy(o.id);
+                localStorage.setItem("messagePrivacy", o.id);
+              }}
+              className="flex justify-between p-3 rounded-xl border text-left"
+              style={{
+                background: messagePrivacy === o.id ? "white" : "#1f1f1f",
+                color: messagePrivacy === o.id ? "black" : "white",
+                borderColor: "#333",
+              }}
+            >
+              <span className="font-medium text-">{o.label}</span>
+              <div
+                className="h-5 w-5 rounded-full border-2 flex items-center justify-center"
+                style={{ borderColor: messagePrivacy === o.id ? "black" : "#666" }}
+              >
+                {messagePrivacy === o.id && <div className="h-2 w-2 bg-black rounded-full" />}
               </div>
-              <p className="mt-0.5 text-xs text-muted-foreground">{BACKGROUND_PLAY_HELP}</p>
+            </button>
+          ))}
+        </div>
+
+        <p className="font-bold text- mb-2" style={{ color: "white" }}>
+          Message requests
+        </p>
+        <div className="flex gap-2 mb-5">
+          {["all", "filtered", "off"].map((id) => (
+            <button
+              key={id}
+              onClick={() => {
+                setMessageFilter(id);
+                localStorage.setItem("messageFilter", id);
+              }}
+              className="flex-1 py-2 rounded-full font-bold text- border"
+              style={{
+                backgroundColor: messageFilter === id ? "white" : "#1f1f1f",
+                color: messageFilter === id ? "black" : "white",
+                borderColor: "#333",
+              }}
+            >
+              {id}
+            </button>
+          ))}
+        </div>
+
+        <div className="border-t" style={{ borderColor: "#333" }}>
+          <div className="flex justify-between items-center py-3">
+            <div>
+              <div className="font-medium text-" style={{ color: "white" }}>
+                Allow DMs
+              </div>
+              <div className="text-" style={{ color: "#9ca3af" }}>
+                Let others message you
+              </div>
             </div>
             <button
-              type="button"
               onClick={() => {
-                if (!backgroundUnlocked) {
-                  toast.error(`Background play is a ${backgroundPlayPlan().label} perk.`, {
-                    action: { label: "Upgrade", onClick: () => setShowSubscriptions(true) },
-                  });
-                  return;
-                }
-                const next = !backgroundPlay;
-                setBackgroundPlayEnabled(next);
-                toast.success(next ? "Background Play ON" : "Background Play OFF");
+                const v = !allowDM;
+                setAllowDM(v);
+                localStorage.setItem("allowDM", String(v));
               }}
-              aria-pressed={backgroundPlay}
-              aria-label="Toggle Background Play"
-              className="h-7 w-12 shrink-0 rounded-full p-1 transition"
-              style={{ backgroundColor: backgroundPlay ? "#ffffff" : "#333333" }}
+              className="h-7 w-12 rounded-full p-1"
+              style={{ backgroundColor: allowDM ? "white" : "#333" }}
             >
               <div
                 className="h-5 w-5 rounded-full transition"
                 style={{
-                  backgroundColor: backgroundPlay ? "#000000" : "#ffffff",
-                  transform: backgroundPlay ? "translateX(20px)" : "translateX(0)",
+                  backgroundColor: allowDM ? "black" : "white",
+                  transform: allowDM ? "translateX(20px)" : "translateX(0)",
                 }}
               />
             </button>
           </div>
-          {!backgroundUnlocked && (
-            <button
-              type="button"
-              onClick={() => setShowSubscriptions(true)}
-              className="mt-3 w-full rounded-md bg-white px-4 py-2 text-sm font-bold text-black"
-            >
-              Unlock Background Play with {backgroundPlayPlan().label} · $
-              {backgroundPlayPlan().price.toFixed(2)}/mo
-            </button>
-          )}
-          <p className="mt-2 text-xs text-muted-foreground">
-            {mediaSessionReady
-              ? "Lock-screen and notification controls are enabled — play, pause, next and previous work with the screen off."
-              : "This browser doesn't support lock-screen controls, but audio still keeps playing in the background."}
-          </p>
-          <p className="mt-1 text-xs text-amber-500/90">
-            YouTube songs pause in the background — YouTube blocks it. Your own MP3s, royalty-free
-            songs and downloaded songs play in the background.
-          </p>
-        </div>
-        {/* Low Data Mode */}
-        <div className="rounded-2xl border border-white/20 bg-card p-4 text-white">
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <h2 className="font-semibold text-white">Low Data Mode</h2>
-              <p className="mt-1 text-xs text-white/70">
-                For slow Wi-Fi or low phones: starts videos in lower quality (360p), turns off
-                auto-play, loads smaller images, and skips background preloading.
-              </p>
+          <div
+            className="flex justify-between items-center py-3 border-t"
+            style={{ borderColor: "#333" }}
+          >
+            <div className="pr-3">
+              <div className="font-medium text-" style={{ color: "white" }}>
+                Allow messages from everyone
+              </div>
+              <div className="text-xs" style={{ color: "#9ca3af" }}>
+                Let anyone send pics &amp; videos in Messages (off = mutual followers only)
+              </div>
             </div>
             <button
               type="button"
               role="switch"
-              aria-checked={lowDataMode}
-              aria-label="Low Data Mode"
+              aria-checked={allowMessagesFromEveryone}
+              aria-label="Allow messages from everyone"
               onClick={() => {
-                const next = !lowDataMode;
-                setLowDataMode(next);
-                toast.success(next ? "Low Data Mode ON" : "Low Data Mode OFF");
+                const v = !allowMessagesFromEveryone;
+                setAllowMessagesFromEveryone(v);
+                void syncAllowMessagesFromEveryone(auth.user?.id, v).then((res) => {
+                  if (!res.ok) {
+                    toast.error(res.error ?? "Couldn't update message privacy setting");
+                    return;
+                  }
+                  toast.success(
+                    v
+                      ? "Allow messages from everyone: ON"
+                      : "Pics & videos restricted to mutual followers",
+                  );
+                });
               }}
-              className="flex h-7 w-12 shrink-0 items-center rounded-full p-1 transition"
-              style={{ backgroundColor: lowDataMode ? "#ffffff" : "#333333" }}
+              className="h-7 w-12 shrink-0 rounded-full p-1"
+              style={{ backgroundColor: allowMessagesFromEveryone ? "white" : "#333" }}
             >
-              <span
+              <div
                 className="h-5 w-5 rounded-full transition"
                 style={{
-                  backgroundColor: lowDataMode ? "#000000" : "#ffffff",
-                  transform: lowDataMode ? "translateX(20px)" : "translateX(0)",
+                  backgroundColor: allowMessagesFromEveryone ? "black" : "white",
+                  transform: allowMessagesFromEveryone ? "translateX(20px)" : "translateX(0)",
+                }}
+              />
+            </button>
+          </div>
+          <div
+            className="flex justify-between items-center py-3 border-t"
+            style={{ borderColor: "#333" }}
+          >
+            <div>
+              <div className="font-medium text-" style={{ color: "white" }}>
+                Read receipts
+              </div>
+              <div className="text-" style={{ color: "#9ca3af" }}>
+                Show when read
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                const v = !readReceipts;
+                setReadReceipts(v);
+                localStorage.setItem("readReceipts", String(v));
+              }}
+              className="h-7 w-12 rounded-full p-1"
+              style={{ backgroundColor: readReceipts ? "white" : "#333" }}
+            >
+              <div
+                className="h-5 w-5 rounded-full transition"
+                style={{
+                  backgroundColor: readReceipts ? "black" : "white",
+                  transform: readReceipts ? "translateX(20px)" : "translateX(0)",
                 }}
               />
             </button>
           </div>
         </div>
-
-        {/* Video quality */}
-        <div className="rounded-2xl border bg-card p-4">
-          <h2 className="font-semibold">Video Quality</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Auto adjusts based on your connection — like TikTok.
-          </p>
-          <div className="mt-3 space-y-1.5">
-            {QUALITY_OPTIONS.map((option) => {
-              const active = videoQuality === option.id;
-              return (
-                <button
-                  key={option.id}
-                  type="button"
-                  onClick={() => {
-                    setVideoQuality(option.id);
-                    toast.success(`Video quality set to ${option.label}`);
-                  }}
-                  aria-pressed={active}
-                  className={`flex w-full items-center justify-between gap-3 rounded-md border px-3 py-2 text-left text-white transition ${
-                    active ? "border-white bg-white/15" : "border-white/20 bg-white/5"
-                  }`}
-                >
-                  <span className="min-w-0">
-                    <span className="block text-sm font-medium text-white">
-                      {option.label}
-                      {option.id === "auto" ? " (recommended)" : ""}
-                    </span>
-                    {option.hint && (
-                      <span className="block text-xs text-white/75">{option.hint}</span>
-                    )}
-                  </span>
-                  {active && <span className="shrink-0 text-white">✓</span>}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Appearance */}
-        <div className="rounded-2xl border bg-card p-4">
-          <h2 className="font-semibold">Appearance</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Choose an app theme.</p>
-          <div className="mt-3">
-            <ThemePicker theme={theme} changeTheme={changeTheme} />
-          </div>
-        </div>
-
-        <Suspense fallback={<PanelSkeleton />}>
-          <MoreSettings />
-        </Suspense>
-
-        {auth.user && <EditProfileDialog open={editing} onOpenChange={setEditing} />}
-        <OfflinePaywallDialog
-          open={showOfflinePaywall}
-          onClose={() => setShowOfflinePaywall(false)}
-        />
       </div>
+      <div className="rounded-lg border bg-card p-6">
+        <h2 className="font-semibold">Phone Number</h2>
+        <p className="mt-1 text-sm text-muted-foreground">Add your phone number to your account</p>
+        <div className="mt-3 flex gap-2">
+          <input
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="+1 (555) 000-0000"
+            type="tel"
+            className="flex-1 rounded-md border bg-background p-2"
+          />
+          <button
+            onClick={savePhone}
+            style={{ backgroundColor: "black", color: "white" }}
+            className="rounded-md px-4 py-2 font-medium"
+          >
+            Save
+          </button>
+        </div>
+        {phone && <p className="mt-2 text-xs text-muted-foreground">Saved: {phone}</p>}
+        <p className="mt-3 text-xs text-muted-foreground">
+          {(() => {
+            const fb = getFirebaseConfigSummary();
+            return fb.configured
+              ? `SMS sign-in connected via Firebase (${fb.projectId}) — free 10 texts/day.`
+              : "SMS sign-in uses free Firebase Phone Auth (10 texts/day). Set VITE_FIREBASE_API_KEY, VITE_FIREBASE_AUTH_DOMAIN, and VITE_FIREBASE_PROJECT_ID in environment variables.";
+          })()}
+        </p>
+      </div>
+      <div className="rounded-lg border bg-card p-6">
+        <div className="flex items-center gap-2">
+          <h2 className="font-semibold">Offline Mode</h2>
+          <span className="rounded-full border px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+            {offlineUnlocked ? "Paid subscribers" : "Paid subscribers only"}
+          </span>
+        </div>
+
+        <p className="mt-1 text-sm text-muted-foreground">
+          Automatically download videos you liked or saved and watch them without a connection.
+        </p>
+
+        {offlineUnlocked ? (
+          <>
+            <div className="mt-3 flex items-center justify-between gap-3 border-t pt-3">
+              <div className="min-w-0">
+                <div className="font-medium">Offline Mode</div>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {offlineMode
+                    ? "ON — liked and saved videos download automatically."
+                    : "OFF — turn on to download liked and saved videos."}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={toggleOffline}
+                aria-pressed={offlineMode}
+                aria-label="Toggle Offline Mode"
+                className="h-7 w-12 shrink-0 rounded-full p-1 transition"
+                style={{ backgroundColor: offlineMode ? "#16a34a" : "#333" }}
+              >
+                <div
+                  className="h-5 w-5 rounded-full transition"
+                  style={{
+                    backgroundColor: "white",
+                    transform: offlineMode ? "translateX(20px)" : "translateX(0)",
+                  }}
+                />
+              </button>
+            </div>
+
+            {syncingOffline && (
+              <p className="mt-2 text-xs text-muted-foreground">
+                {offlineSyncProgress
+                  ? `Downloading ${offlineSyncProgress.current} of ${offlineSyncProgress.total}: ${offlineSyncProgress.title}`
+                  : "Checking your liked and saved videos…"}
+              </p>
+            )}
+
+            <div className="mt-3 rounded-xl border bg-secondary/50 px-3 py-2">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-[13px] font-semibold">
+                  Offline storage: {formatStorage(offlineUsage?.used ?? 0)} /{" "}
+                  {formatStorage(MAX_OFFLINE_BYTES)}
+                </p>
+                <span className="shrink-0 text-[11px] text-muted-foreground">
+                  {offlineUsage?.count ?? 0} of {MAX_OFFLINE_VIDEOS} videos
+                </span>
+              </div>
+              <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-background">
+                <div
+                  className="h-full rounded-full bg-emerald-600 transition-all"
+                  style={{
+                    width: `${Math.min(
+                      100,
+                      ((offlineUsage?.used ?? 0) / MAX_OFFLINE_BYTES) * 100,
+                    )}%`,
+                  }}
+                />
+              </div>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => void clearDownloads()}
+                  disabled={clearingDownloads || (offlineUsage?.count ?? 0) === 0}
+                  className="rounded-md border border-destructive/40 px-3 py-1.5 text-[13px] font-semibold text-destructive transition hover:bg-destructive/10 disabled:opacity-50"
+                >
+                  {clearingDownloads ? "Clearing…" : "Clear Downloads"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => (window.location.href = "/offline")}
+                  style={{ backgroundColor: "black", color: "white" }}
+                  className="rounded-md px-3 py-1.5 text-[13px] font-medium"
+                >
+                  View Offline Videos →
+                </button>
+              </div>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="mt-3 flex items-start gap-3 rounded-xl border bg-secondary/50 p-3">
+              <Lock className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+              <div className="min-w-0">
+                <p className="text-sm font-semibold">Offline Mode is for Paid Subscribers</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Offline Mode is included with every paid plan — Plus, Pro and VIP. Nothing is
+                  downloaded on a free account.
+                </p>
+              </div>
+            </div>
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setShowOfflinePaywall(true)}
+                style={{ backgroundColor: "black", color: "white" }}
+                className="rounded-md px-4 py-2 font-medium"
+              >
+                Turn on Offline Mode
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowSubscriptions(true)}
+                style={{ backgroundColor: "#16a34a", color: "white" }}
+                className="rounded-md px-4 py-2 font-medium"
+              >
+                Subscribe · ${offlinePrice.toFixed(2)}/mo
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+      {/* Music — Background Play */}
+      <div className="rounded-lg border bg-card p-6">
+        <div className="flex items-center gap-2">
+          <Music className="h-4 w-4 text-muted-foreground" />
+          <h2 className="font-semibold">Music</h2>
+        </div>
+        <div className="mt-3 flex items-center justify-between gap-3 border-t pt-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5 font-medium">
+              Background Play
+              {backgroundUnlocked ? (
+                <span className="rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-primary">
+                  VIP
+                </span>
+              ) : (
+                <Lock className="h-3 w-3 text-muted-foreground" aria-label="VIP required" />
+              )}
+            </div>
+            <p className="mt-0.5 text-xs text-muted-foreground">{BACKGROUND_PLAY_HELP}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              if (!backgroundUnlocked) {
+                toast.error(`Background play is a ${backgroundPlayPlan().label} perk.`, {
+                  action: { label: "Upgrade", onClick: () => setShowSubscriptions(true) },
+                });
+                return;
+              }
+              const next = !backgroundPlay;
+              setBackgroundPlayEnabled(next);
+              toast.success(next ? "Background Play ON" : "Background Play OFF");
+            }}
+            aria-pressed={backgroundPlay}
+            aria-label="Toggle Background Play"
+            className="h-7 w-12 shrink-0 rounded-full p-1 transition"
+            style={{ backgroundColor: backgroundPlay ? "#16a34a" : "#333" }}
+          >
+            <div
+              className="h-5 w-5 rounded-full transition"
+              style={{
+                backgroundColor: "white",
+                transform: backgroundPlay ? "translateX(20px)" : "translateX(0)",
+              }}
+            />
+          </button>
+        </div>
+        {!backgroundUnlocked && (
+          <button
+            type="button"
+            onClick={() => setShowSubscriptions(true)}
+            className="mt-3 w-full rounded-md bg-primary px-4 py-2 text-sm font-bold text-primary-foreground"
+          >
+            Unlock Background Play with {backgroundPlayPlan().label} · $
+            {backgroundPlayPlan().price.toFixed(2)}/mo
+          </button>
+        )}
+        <p className="mt-2 text-xs text-muted-foreground">
+          {mediaSessionReady
+            ? "Lock-screen and notification controls are enabled — play, pause, next and previous work with the screen off."
+            : "This browser doesn't support lock-screen controls, but audio still keeps playing in the background."}
+        </p>
+        <p className="mt-1 text-xs text-amber-500/90">
+          YouTube songs pause in the background — YouTube blocks it. Your own MP3s, royalty-free
+          songs and downloaded songs play in the background.
+        </p>
+      </div>
+      {/* Low Data Mode */}
+      <div className="rounded-2xl border border-white/10 bg-black p-4 text-white">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="font-semibold text-white">Low Data Mode</h2>
+            <p className="mt-1 text-xs text-white/70">
+              For slow Wi-Fi or low phones: starts videos in lower quality (360p), turns off
+              auto-play, loads smaller images, and skips background preloading.
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={lowDataMode}
+            aria-label="Low Data Mode"
+            onClick={() => {
+              const next = !lowDataMode;
+              setLowDataMode(next);
+              toast.success(next ? "Low Data Mode ON" : "Low Data Mode OFF");
+            }}
+            className="flex h-7 w-12 shrink-0 items-center rounded-full p-1 transition"
+            style={{ backgroundColor: lowDataMode ? "#25D366" : "#333" }}
+          >
+            <span
+              className="h-5 w-5 rounded-full bg-white transition"
+              style={{ transform: lowDataMode ? "translateX(20px)" : "translateX(0)" }}
+            />
+          </button>
+        </div>
+      </div>
+
+      {/* Video quality */}
+      <div className="rounded-2xl border bg-card p-4">
+        <h2 className="font-semibold">Video Quality</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Auto adjusts based on your connection — like TikTok.
+        </p>
+        <div className="mt-3 space-y-1.5">
+          {QUALITY_OPTIONS.map((option) => {
+            const active = videoQuality === option.id;
+            return (
+              <button
+                key={option.id}
+                type="button"
+                onClick={() => {
+                  setVideoQuality(option.id);
+                  toast.success(`Video quality set to ${option.label}`);
+                }}
+                aria-pressed={active}
+                className={`flex w-full items-center justify-between gap-3 rounded-md border px-3 py-2 text-left transition ${
+                  active ? "border-primary bg-primary/10" : "bg-background hover:bg-accent"
+                }`}
+              >
+                <span className="min-w-0">
+                  <span className="block text-sm font-medium">
+                    {option.label}
+                    {option.id === "auto" ? " (recommended)" : ""}
+                  </span>
+                  {option.hint && (
+                    <span className="block text-xs text-muted-foreground">{option.hint}</span>
+                  )}
+                </span>
+                {active && <span className="shrink-0 text-primary">✓</span>}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Appearance */}
+      <div className="rounded-2xl border bg-card p-4">
+        <h2 className="font-semibold">Appearance</h2>
+        <p className="mt-1 text-sm text-muted-foreground">Choose an app theme.</p>
+        <div className="mt-3">
+          <ThemePicker theme={theme} changeTheme={changeTheme} />
+        </div>
+      </div>
+
+      <Suspense fallback={<PanelSkeleton />}>
+        <MoreSettings />
+      </Suspense>
+
+      {auth.user && <EditProfileDialog open={editing} onOpenChange={setEditing} />}
+      <OfflinePaywallDialog
+        open={showOfflinePaywall}
+        onClose={() => setShowOfflinePaywall(false)}
+      />
     </div>
   );
 }

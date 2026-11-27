@@ -2,6 +2,21 @@
 @source "../src";
 @import "tw-animate-css";
 
+/* Unlayered: safe areas and outer surfaces cannot inherit a selected theme. */
+html, body, #root {
+  background: #000000 !important;
+  background-color: #000000 !important;
+  color-scheme: dark;
+}
+
+:root { --theme-detail: #ff2d55; }
+:root[data-app-theme="blue"] { --theme-detail: #2563eb; }
+:root[data-app-theme="red"] { --theme-detail: #dc2626; }
+:root[data-app-theme="pink"] { --theme-detail: #ec4899; }
+:root[data-app-theme="green"] { --theme-detail: #16a34a; }
+:root[data-app-theme="purple"] { --theme-detail: #9333ea; }
+:root[data-app-theme="christmas"] { --theme-detail: #16a34a; }
+
 @custom-variant dark (&:is(.dark *));
 
 /*
@@ -19,6 +34,7 @@
  */
 
 @theme inline {
+  --color-theme-detail: var(--theme-detail);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -136,7 +152,7 @@
   --sidebar-ring: oklch(0.551 0.027 264.364);
 }
 
-:root {
+:root, .dark {
   --background: oklch(0 0 0);
   --foreground: oklch(0.98 0 0);
   --card: oklch(0.16 0 0);
@@ -168,63 +184,34 @@
 @layer base {
   * {
     border-color: var(--color-border);
-    -webkit-tap-highlight-color: transparent !important;
-    -webkit-touch-callout: none;
   }
 
+  /* Safari: page edges always stay black, whatever theme is picked. */
   html,
-  body,
-  #root {
-    background-color: var(--background) !important;
-    color: var(--color-foreground);
-    font-family: var(--font-sans);
-    width: 100%;
+  body {
+    background-color: #000000 !important;
+    min-height: 100%;
+    min-height: 100svh;
     min-height: 100dvh;
     margin: 0;
-    padding: 0;
   }
 
-  @media (display-mode: standalone) {
-    html,
-    body,
-    #root {
-      background-color: var(--background) !important;
-      width: 100%;
-      min-height: 100dvh;
-      margin: 0;
-      padding: 0;
-      overscroll-behavior: none;
-    }
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
   }
 
-  /* Remove the 300ms tap delay, focus outlines, tap flashes, and visited shifts. */
+  body {
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+  }
+
+  /* Remove the 300ms tap delay and the grey flash on mobile. */
   button,
   a,
-  [role="button"],
-  summary {
-    -webkit-tap-highlight-color: transparent !important;
-    -webkit-touch-callout: none;
+  [role="button"] {
+    -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
-    outline: none !important;
-    --tw-ring-color: transparent !important;
-  }
-
-  button:focus,
-  button:focus-visible,
-  button:active,
-  a:focus,
-  a:focus-visible,
-  a:active,
-  [role="button"]:focus,
-  [role="button"]:focus-visible,
-  [role="button"]:active {
-    outline: none !important;
-    --tw-ring-color: transparent !important;
-    --tw-ring-shadow: 0 0 #0000 !important;
-  }
-
-  a:visited {
-    color: inherit;
   }
 }
 
@@ -259,6 +246,12 @@
   background-color: #ec4899;
   color: #ffffff;
   --tw-shadow-color: #ec4899;
+  &:hover {
+    background-color: #db2777;
+  }
+  &:active {
+    background-color: #be185d;
+  }
 }
 
 .video-caption {
@@ -269,7 +262,8 @@
   padding-top: max(0.5rem, env(safe-area-inset-top));
   padding-bottom: 0.5rem;
 }
-.mobile-bottom-nav {
+.mobile-bottom-nav,
+.mobile-comments {
   padding-bottom: env(safe-area-inset-bottom);
 }
 

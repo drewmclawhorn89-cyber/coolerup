@@ -112,7 +112,7 @@ export function ReportButton({
         aria-label={label ?? "Report"}
         className={
           className ||
-          "inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-xs font-medium text-white/75"
+          "inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-xs font-medium text-white/50 transition-colors hover:text-[#FE2C55]"
         }
       >
         <Flag className={iconClassName} />
@@ -128,7 +128,7 @@ export function ReportButton({
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-sm rounded-t-3xl border border-white/20 bg-background p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] text-white sm:rounded-3xl"
+            className="w-full max-w-sm rounded-t-3xl border border-white/15 bg-black p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] text-white sm:rounded-3xl"
           >
             <div className="mb-4 flex items-center justify-between">
               <div>
@@ -144,7 +144,7 @@ export function ReportButton({
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                className="rounded-full p-1.5 text-white"
+                className="rounded-full p-1.5 text-white/60 hover:bg-white/10 hover:text-white"
                 aria-label="Close"
               >
                 <X className="h-4 w-4" />

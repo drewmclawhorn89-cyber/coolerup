@@ -1,6 +1,6 @@
 import { parseCaption, type Video } from "@/lib/loop";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Download, Eye, Lock, Trash2, ArrowLeft, Play, X } from "lucide-react";
+import { Download, Eye, Trash2, ArrowLeft, Play, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,7 +14,6 @@ import {
   type SavedFullVideo,
 } from "@/lib/offline";
 import { useAuth } from "@/hooks/useAuth";
-import { offlinePlan, useOfflineUnlocked } from "@/lib/subscriptions";
 import { toast } from "sonner";
 import {
   prepareWatermarkedFile,
@@ -31,8 +30,27 @@ export const Route = createFileRoute("/offline")({
 type FeedItem = { id: string; video: Video; size: number };
 
 function OfflinePage() {
-  const auth = useAuth();
-  const unlocked = useOfflineUnlocked(auth.handle);
+  const [prepared, setPrepared] = useState<{ key: string; file: File } | null>(null);
+  async function sharePrepared(key: string) {
+    if (prepared?.key !== key) return false;
+    try {
+      await navigator.share({ files: [prepared.file] });
+      setPrepared(null);
+    } catch (e) {
+      if (!(e instanceof Error && e.name === "AbortError"))
+        toast.error("Couldn’t open the share sheet.");
+    }
+    return true;
+  }
+  function finishDownload(file: File, key: string, t: string | number) {
+    if (navigator.canShare?.({ files: [file] })) {
+      setPrepared({ key, file });
+      toast.success("Ready. Tap Save to open the share sheet.", { id: t });
+    } else {
+      saveFileToDisk(file);
+      toast.success("Download started", { id: t });
+    }
+  }
   const [items, setItems] = useState<FeedItem[] | null>(null);
   const [fullItems, setFullItems] = useState<SavedFullVideo[] | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
@@ -90,6 +108,7 @@ function OfflinePage() {
   };
 
   const handleDownload = async (id: string) => {
+    if (await sharePrepared(`short:${id}`)) return;
     const t = toast.loading("Preparing download…");
     try {
       const saved = await getSaved(id);
@@ -103,17 +122,9 @@ function OfflinePage() {
         blob: saved.blob,
         username: saved.video?.username,
         filename: `coolerup-${id}.mp4`,
-        source: {
-          hasExternalWatermark: saved.video?.has_external_watermark,
-          isTikTok: saved.video?.is_tiktok,
-          sourceProvider: saved.video?.source_provider,
-          sourceUrl: saved.video?.source_url,
-          videoUrl: saved.video?.video_url,
-        },
         onProgress: ({ percent, stage }) => toast.loading(`${stage}… ${percent}%`, { id: t }),
       });
-      saveFileToDisk(file);
-      toast.success("Download started", { id: t });
+      finishDownload(file, `short:${id}`, t);
     } catch (e) {
       console.error("Download failed:", watermarkCause(e) || e);
       toast.error(
@@ -150,6 +161,7 @@ function OfflinePage() {
   };
 
   const handleFullDownload = async (item: SavedFullVideo) => {
+    if (await sharePrepared(`full:${item.id}`)) return;
     const t = toast.loading("Preparing download…");
     try {
       // Coolerup's moving watermark is mandatory for original Coolerup videos;
@@ -158,17 +170,9 @@ function OfflinePage() {
         blob: item.blob,
         username: item.video?.username,
         filename: `coolerup-${item.id}.mp4`,
-        source: {
-          hasExternalWatermark: item.video?.has_external_watermark,
-          isTikTok: item.video?.is_tiktok,
-          isYouTube: item.video?.is_youtube,
-          sourceProvider: item.video?.source_provider,
-          videoUrl: item.video?.video_url,
-        },
         onProgress: ({ percent, stage }) => toast.loading(`${stage}… ${percent}%`, { id: t }),
       });
-      saveFileToDisk(file);
-      toast.success("Download started", { id: t });
+      finishDownload(file, `full:${item.id}`, t);
     } catch (e) {
       console.error("Download failed:", watermarkCause(e) || e);
       toast.error(
@@ -193,45 +197,6 @@ function OfflinePage() {
       setRemovingId(null);
     }
   };
-
-  if (!unlocked) {
-    const plan = offlinePlan();
-    return (
-      <div className="mx-auto max-w-xl space-y-6 px-4 pb-10 pt-6">
-        <div className="flex items-center gap-3">
-          <Link
-            to="/settings"
-            aria-label="Back to settings"
-            className="text-muted-foreground hover:text-foreground"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </Link>
-          <h1 className="font-display text-2xl">Offline videos</h1>
-        </div>
-        <div className="rounded-2xl border bg-card p-6 text-center">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-            <Lock className="h-6 w-6 text-muted-foreground" />
-          </div>
-          <h2 className="mt-3 font-semibold">Offline Mode is for Paid Subscribers</h2>
-          <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">
-            {`Offline Mode is included with every paid plan — Plus, Pro and VIP. Plans start at $${plan.price.toFixed(2)}/mo.`}
-          </p>
-          <Link
-            to="/"
-            search={{ tab: "subscriptions" }}
-            className="mt-4 inline-flex rounded-md bg-black px-4 py-2 font-medium text-white"
-          >
-            Get {plan.label} — ${plan.price.toFixed(2)}/mo
-          </Link>
-          <p className="mt-3 text-xs text-muted-foreground">
-            {auth.handle
-              ? "Already subscribed? Offline mode unlocks as soon as your plan is active."
-              : "Sign in first so we can check your plan."}
-          </p>
-        </div>
-      </div>
-    );
-  }
 
   const isEmpty = items?.length === 0 && fullItems?.length === 0;
 
@@ -310,7 +275,7 @@ function OfflinePage() {
                       onClick={() => void handleDownload(item.id)}
                     >
                       <Download className="mr-1 h-4 w-4" />
-                      Download
+                      {prepared?.key === `short:${item.id}` ? "Save…" : "Download"}
                     </Button>
                     <Button
                       size="sm"
@@ -373,7 +338,7 @@ function OfflinePage() {
                       onClick={() => void handleFullDownload(item)}
                     >
                       <Download className="mr-1 h-4 w-4" />
-                      Download
+                      {prepared?.key === `full:${item.id}` ? "Save…" : "Download"}
                     </Button>
                     <Button
                       size="sm"

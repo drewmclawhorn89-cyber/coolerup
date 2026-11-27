@@ -4,7 +4,6 @@ import { useAuth } from "@/hooks/useAuth";
 import { syncOfflineLibrary } from "@/lib/offlineAutoDownload";
 import { OFFLINE_SYNC_EVENT } from "@/lib/offlineEvents";
 import { OFFLINE_MODE_EVENT, useOfflineMode } from "@/lib/offlineMode";
-import { useOfflineUnlocked } from "@/lib/subscriptions";
 
 /** How often a long-lived session re-checks likes/saves in the background. */
 const SYNC_INTERVAL_MS = 5 * 60 * 1000;
@@ -15,18 +14,17 @@ const DEBOUNCE_MS = 1500;
  * Keeps the offline library in step with the user's likes and saves while
  * Offline Mode is ON. Mounted once in the root route.
  *
- * Runs only for a paid, active plan. If the plan lapses the watcher simply
- * stops; already-downloaded videos are left alone.
+ * Runs while a signed-in viewer has enabled automatic downloads.
  */
 export function OfflineAutoDownloadWatcher() {
   const auth = useAuth();
   const offlineMode = useOfflineMode();
-  const paid = useOfflineUnlocked(auth.handle);
+
   const running = useRef(false);
   const warnedCap = useRef(false);
 
   useEffect(() => {
-    if (!auth.ready || !auth.user || !offlineMode || !paid) return;
+    if (!auth.ready || !auth.user || !offlineMode) return;
 
     let disposed = false;
     let timer: number | null = null;
@@ -82,7 +80,7 @@ export function OfflineAutoDownloadWatcher() {
       window.removeEventListener("focus", schedule);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [auth.ready, auth.user, auth.handle, offlineMode, paid]);
+  }, [auth.ready, auth.user, auth.handle, offlineMode]);
 
   return null;
 }

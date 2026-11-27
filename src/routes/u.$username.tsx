@@ -62,7 +62,6 @@ import {
 import { useCompressedThumbnail } from "@/lib/thumbnailCache";
 import { isLiteMode, useNetwork } from "@/lib/network";
 import { preloadModeFor } from "@/lib/feedPaging";
-import { planById, useSubscription } from "@/lib/subscriptions";
 import { FeedLoadingSpinner } from "@/components/FeedLoadingSpinner";
 import { ListRowSkeleton, VideoGridSkeleton } from "@/components/Skeletons";
 
@@ -353,7 +352,6 @@ function Profile() {
   const isOwn = !!auth.handle && auth.handle === username;
   // The owner's plan is read from the account, so it follows them to a new
   // phone. Other viewers see nothing here.
-  const mySubscription = useSubscription(isOwn ? auth.handle : null);
   /** Paid shelves are private: they only ever load for your own profile. */
   const myPaid = useMyPaidVideos(isOwn ? (profile?.id ?? null) : null);
   const purchased = usePurchasedVideos(isOwn ? (auth.user?.id ?? null) : null);
@@ -843,7 +841,7 @@ function Profile() {
           <ArrowLeft className="h-4 w-4" /> Home
         </Link>
 
-        <div className="flex flex-col items-center gap-3 py-8 text-center">
+        <div className="profile-header flex flex-col items-center gap-3 py-8 text-center">
           <div className="relative">
             <button
               type="button"
@@ -908,16 +906,6 @@ function Profile() {
             <p className="flex flex-wrap items-center justify-center gap-1.5 text-sm text-muted-foreground">
               <span>@{username}</span>
             </p>
-            {isOwn && mySubscription?.status === "active" && (
-              <p className="mt-1 flex justify-center">
-                <span className="rounded-full border border-border bg-secondary/60 px-2 py-0.5 text-xs font-medium">
-                  {mySubscription.isLifetime
-                    ? "Lifetime"
-                    : (planById(mySubscription.planId)?.label ?? mySubscription.planId)}{" "}
-                  plan
-                </span>
-              </p>
-            )}
             {profilePresence.visible && !profilePresence.isOnline && (
               <div className="mt-0.5 flex justify-center">
                 <OnlineStatusSubtitle status={profilePresence} />
@@ -957,7 +945,9 @@ function Profile() {
               />
             </div>
           )}
-          {profile?.bio && <p className="max-w-md text-sm text-muted-foreground">{profile.bio}</p>}
+          {profile?.bio && (
+            <p className="max-w-md text-sm text-muted-foreground">{profile.bio}</p>
+          )}
           {profile?.links && Object.keys(profile.links).length > 0 && (
             <div className="flex flex-wrap justify-center gap-2">
               {LINK_FIELDS.filter(

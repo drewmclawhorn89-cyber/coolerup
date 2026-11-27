@@ -42,13 +42,6 @@ import {
   YOUTUBE_BACKGROUND_WARNING,
 } from "@/lib/backgroundPlay";
 import {
-  backgroundPlayPlan,
-  hasBackgroundPlayAccess,
-  hasMusicOfflineAccess,
-  musicOfflinePlan,
-} from "@/lib/subscriptions";
-import { useTrial } from "@/lib/trial";
-import {
   FULL_SONG_SECONDS,
   MUSIC_PAGE_SIZE,
   getAllSounds,
@@ -178,12 +171,6 @@ function MusicPage() {
   /** Downloaded songs untouched for 30 days — offered up for deletion. */
   const [staleSongs, setStaleSongs] = useState<SavedSong[]>([]);
   const listSentinelRef = useRef<HTMLDivElement | null>(null);
-
-  // Offline music downloads are a VIP-only perk (plus the lifetime "all access"
-  // grant). Pro keeps offline *videos*, but music is gated at VIP, so Pro, Plus
-  // and free accounts all see the upgrade prompt here.
-  const offlineUnlocked = hasMusicOfflineAccess(auth.handle);
-  const offlineTrial = useTrial(auth.handle, musicOfflinePlan().id);
 
   // Initial load fetches only the Top Songs page (10 items) + saved IDs for heart icons.
   const loadTopTab = useCallback(async () => {
@@ -566,26 +553,18 @@ function MusicPage() {
    * can't be created, but the blob in IndexedDB still plays. That is the whole
    * point of the Downloaded tab.
    */
-  const resolvePlayableUrl = useCallback(
-    async (sound: Sound): Promise<string> => {
-      // Offline copies only play for VIP. Without the perk we skip IndexedDB
-      // entirely and stream, so a lapsed subscription can't keep using the
-      // downloaded library.
-      if (offlineUnlocked) {
-        const local = await offlineSongUrl(sound.id).catch(() => "");
-        if (local) return local;
-      }
-      return soundAudioUrl(sound);
-    },
-    [offlineUnlocked],
-  );
+  const resolvePlayableUrl = useCallback(async (sound: Sound): Promise<string> => {
+    const local = await offlineSongUrl(sound.id).catch(() => "");
+    if (local) return local;
+    return soundAudioUrl(sound);
+  }, []);
 
   const openSong = useCallback(
     async (sound: Sound, list: Sound[]) => {
       // YouTube songs stream from YouTube's embed player — unless the user
       // attached an audio file, in which case the local copy plays offline.
       if (isYouTubeSound(sound)) {
-        const local = offlineUnlocked ? await offlineSongUrl(sound.id).catch(() => "") : "";
+        const local = await offlineSongUrl(sound.id).catch(() => "");
         if (local) {
           const track = { ...toTrack(sound, local), source: "own" as const };
           songPlayer.playQueue([track], 0);
@@ -642,15 +621,12 @@ function MusicPage() {
         toast.error("Couldn't play that song.");
       }
     },
-    [resolvePlayableUrl, downloadedSongs.length, offlineUnlocked],
+    [resolvePlayableUrl, downloadedSongs.length],
   );
 
   const nowPlayingId = player.queue[player.index]?.soundId ?? "";
   const nowPlayingTrack = player.queue[player.index] ?? null;
   const backgroundPlay = useBackgroundPlay();
-  // Background play is a VIP perk; non-VIP listeners get an upsell instead of
-  // a switch that silently does nothing.
-  const backgroundUnlocked = hasBackgroundPlayAccess(auth.handle);
 
   const renderList = (sounds: Sound[], empty: string) => {
     if (!sounds.length) return <p className="px-1 py-6 text-sm text-muted-foreground">{empty}</p>;
@@ -747,19 +723,11 @@ function MusicPage() {
               onClick={() => setTab(t.id)}
               className={`shrink-0 border-b-2 pb-1.5 text-[13px] font-semibold ${
                 tab === t.id
-                  ? "border-primary text-foreground"
+                  ? "border-[var(--account-accent)] text-white"
                   : "border-transparent text-muted-foreground"
               }`}
             >
-              <span className="inline-flex items-center gap-1">
-                {t.label}
-                {t.id === "downloaded" && !offlineUnlocked && (
-                  <Lock
-                    className="h-3 w-3 text-muted-foreground"
-                    aria-label="Subscription required"
-                  />
-                )}
-              </span>
+              <span className="inline-flex items-center gap-1">{t.label}</span>
             </button>
           ))}
         </div>
@@ -773,33 +741,16 @@ function MusicPage() {
             className={`h-4 w-4 shrink-0 ${backgroundPlay ? "text-primary" : "text-muted-foreground"}`}
           />
           <div className="min-w-0 flex-1">
-            <p className="flex items-center gap-1.5 text-[13px] font-bold">
-              Background Play
-              {!backgroundUnlocked && (
-                <Lock className="h-3 w-3 text-muted-foreground" aria-label="VIP required" />
-              )}
-            </p>
+            <p className="flex items-center gap-1.5 text-[13px] font-bold">Background Play</p>
             <p className="truncate text-[11px] text-muted-foreground">
-              {!backgroundUnlocked
-                ? `VIP perk — upgrade to keep music playing when you leave the app.`
-                : backgroundPlay
-                  ? "Keeps playing when you switch tabs, lock your phone, or open another app."
-                  : "Music stops when you leave the app."}
+              {backgroundPlay
+                ? "Keeps playing when you switch tabs, lock your phone, or open another app."
+                : "Music stops when you leave the app."}
             </p>
           </div>
           <button
             type="button"
             onClick={() => {
-              if (!backgroundUnlocked) {
-                toast.error(`Background play is a ${backgroundPlayPlan().label} perk.`, {
-                  action: {
-                    label: "Upgrade",
-                    onClick: () =>
-                      void navigate({ to: "/settings", search: { subscriptions: true } }),
-                  },
-                });
-                return;
-              }
               const next = !backgroundPlay;
               setBackgroundPlayEnabled(next);
               toast.success(next ? "Background Play ON" : "Background Play OFF");
@@ -812,19 +763,9 @@ function MusicPage() {
                 : "border border-white/15 text-muted-foreground"
             }`}
           >
-            {backgroundUnlocked ? (backgroundPlay ? "ON" : "OFF") : "VIP"}
+            {backgroundPlay ? "ON" : "OFF"}
           </button>
         </div>
-        {!backgroundUnlocked && (
-          <button
-            type="button"
-            onClick={() => void navigate({ to: "/settings", search: { subscriptions: true } })}
-            className="mt-2 w-full rounded-xl bg-primary px-3 py-2 text-xs font-bold text-primary-foreground"
-          >
-            Unlock Background Play with {backgroundPlayPlan().label} · $
-            {backgroundPlayPlan().price.toFixed(2)}/mo
-          </button>
-        )}
         {nowPlayingTrack && !canBackgroundPlay(nowPlayingTrack) && (
           <div className="mt-2 flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2">
             <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-400" />
@@ -985,51 +926,6 @@ function MusicPage() {
             <p className="mt-2 px-1 text-[11px] text-muted-foreground">
               A song is marked “Full song” once its file runs longer than {FULL_SONG_SECONDS}s.
               Shorter ones are 15-second clips.
-            </p>
-          </section>
-        ) : tab === "downloaded" && !offlineUnlocked ? (
-          <section className="py-8 text-center">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
-              <Lock className="h-6 w-6 text-primary" />
-            </div>
-            <h2 className="mt-4 text-base font-bold">Offline music is a VIP perk</h2>
-            <p className="mx-auto mt-1 max-w-xs text-sm leading-relaxed text-muted-foreground">
-              {offlineTrial.used
-                ? `Your free trial has ended. Offline music downloads are a ${musicOfflinePlan().label} perk — Pro and Plus do not include them.`
-                : `Try offline music free for one hour, or subscribe to ${musicOfflinePlan().label} to keep songs on your phone and play them with 0 signal.`}
-            </p>
-            <div className="mt-5 flex flex-col items-center gap-2">
-              {!offlineTrial.used && (
-                <Button
-                  className="w-full max-w-xs"
-                  variant="secondary"
-                  onClick={() => {
-                    if (!auth.user) {
-                      auth.signIn();
-                      return;
-                    }
-                    offlineTrial.start(musicOfflinePlan().id);
-                    toast.success("1-hour free trial started");
-                  }}
-                >
-                  Start 1-hour free trial
-                </Button>
-              )}
-              <Button
-                className="w-full max-w-xs"
-                onClick={() => {
-                  if (!auth.user) {
-                    auth.signIn();
-                    return;
-                  }
-                  void navigate({ to: "/settings", search: { subscriptions: true } });
-                }}
-              >
-                {`Subscribe to ${musicOfflinePlan().label} — $${musicOfflinePlan().price.toFixed(2)}/mo`}
-              </Button>
-            </div>
-            <p className="mt-3 text-[11px] text-muted-foreground">
-              Already subscribed? Refresh after your payment confirms.
             </p>
           </section>
         ) : (

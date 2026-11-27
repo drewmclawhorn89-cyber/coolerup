@@ -55,7 +55,7 @@ export function ChristmasGiftSheet({
         return;
       }
       const note = message.trim().slice(0, 120);
-      await notifyUser({
+      const delivered = await notifyUser({
         targetUserId,
         actorUserId: auth.user.id,
         type: "gift",
@@ -64,6 +64,10 @@ export function ChristmasGiftSheet({
         videoId: videoId ?? null,
         url: `/u/${recipientHandle}`,
       });
+      if (!delivered) {
+        toast.error("Your gift wasn’t delivered. Follow this creator or try again later.");
+        return;
+      }
       toast.success(`🎁 Sent a ${gift.name.toLowerCase()} to @${recipientHandle}!`);
       setMessage("");
       onOpenChange(false);

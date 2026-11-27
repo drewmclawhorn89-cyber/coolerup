@@ -119,14 +119,8 @@ describe("background play", () => {
     expect(music).toContain("setBackgroundPlayEnabled");
   });
 
-  it("gates background play behind the VIP plan", () => {
-    // The entitlement is derived from the plan, not from the stored toggle.
-    expect(mini).toContain("hasBackgroundPlayAccess");
-    expect(mini).toContain("setBackgroundPlayEntitled");
-    expect(settings).toContain("hasBackgroundPlayAccess");
-    expect(music).toContain("hasBackgroundPlayAccess");
-    // Both surfaces point locked listeners at the VIP upsell.
-    expect(settings).toContain("backgroundPlayPlan");
-    expect(music).toContain("backgroundPlayPlan");
+  it("offers background play without a subscription", () => {
+    for (const surface of [mini, settings, music])
+      expect(surface).not.toContain("hasBackgroundPlayAccess");
   });
 });

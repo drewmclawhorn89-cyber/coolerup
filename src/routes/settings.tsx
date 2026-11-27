@@ -16,13 +16,12 @@ import {
 import { Suspense, lazy, useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { EditProfileDialog } from "@/components/EditProfileDialog";
+import { useAccountTheme } from "@/components/AccountTheme";
 import { refreshProfile, useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { readBool, writePref } from "@/lib/prefs";
 import { SHOW_MATURE_PREF, setShowMatureVideos } from "@/lib/matureVideos";
-import { AgeVerificationDialog } from "@/components/AgeVerificationDialog";
-import { useAgeVerification } from "@/lib/ageVerification";
 import { getFirebaseConfigSummary } from "@/lib/firebase";
 import { normalizePhone } from "@/lib/phone";
 import { useShowOnlineSetting } from "@/lib/onlineStatus";
@@ -34,18 +33,6 @@ import {
   readAllowMessagesFromEveryoneLocal,
   syncAllowMessagesFromEveryone,
 } from "@/lib/dmMedia";
-import {
-  backgroundPlayPlan,
-  getSubscription,
-  hasBackgroundPlayAccess,
-  offlinePlan,
-  planById,
-  useOfflineUnlocked,
-  useSubscription,
-} from "@/lib/subscriptions";
-import { refreshAccountSubscription } from "@/lib/accountSubscriptions";
-import { lifetimePlanLabel, refreshLifetime } from "@/lib/subscription";
-import { OfflinePaywallDialog } from "@/components/OfflinePaywallDialog";
 import {
   MAX_OFFLINE_BYTES,
   MAX_OFFLINE_VIDEOS,
@@ -77,23 +64,11 @@ import {
   sendTestPush,
 } from "@/lib/push-client";
 
-// Subscriptions moved out of the top tab row and into Settings. Lazy-loaded so
-// the payment sheet code isn't part of the settings bundle.
-const SubscriptionsPanel = lazy(() =>
-  import("@/components/SubscriptionsPanel").then((m) => ({ default: m.SubscriptionsPanel })),
-);
-
 const MoreSettings = lazy(() =>
   import("@/components/MoreSettings").then((m) => ({ default: m.MoreSettings })),
 );
 
 export const Route = createFileRoute("/settings")({
-  // `?subscriptions=1` opens the plans screen directly — used by upgrade CTAs
-  // elsewhere in the app (e.g. the Music tab's locked Downloaded tab).
-  validateSearch: (search: Record<string, unknown>): { subscriptions?: boolean } =>
-    search["subscriptions"] === true || search["subscriptions"] === "1"
-      ? { subscriptions: true }
-      : {},
   head: () => ({
     meta: [
       { title: "Settings — Coolerup" },
@@ -109,56 +84,19 @@ export const Route = createFileRoute("/settings")({
 
 function Settings() {
   const auth = useAuth();
-  // Live ID-check status for the 18+ verification row.
-  const { status: ageStatus, loading: ageLoading } = useAgeVerification(Boolean(auth.user));
+  const { theme, changeTheme, saving } = useAccountTheme();
   // Playback quality is a device preference (localStorage `video_quality`).
   const { quality: videoQuality, setQuality: setVideoQuality } = useVideoQuality();
   // Low Data Mode: lower quality video first, no auto-play, smaller images.
   const lowDataMode = useLowDataMode();
   const avatarThumb = useCompressedThumbnail(auth.avatar, { maxDim: 160 });
-  // Background play is a VIP perk; the toggle only moves for entitled plans.
   const backgroundPlay = useBackgroundPlay();
-  const backgroundUnlocked = hasBackgroundPlayAccess(auth.handle);
   const [mediaSessionReady, setMediaSessionReady] = useState(false);
   useEffect(() => {
     setMediaSessionReady(isMediaSessionSupported());
   }, []);
-  // Offline Mode is paid-only: a live, active subscription on any paid tier.
-  const subscription = useSubscription(auth.handle);
-  const offlineUnlocked = useOfflineUnlocked(auth.handle);
-  const offlinePrice = offlinePlan().price;
   const offlineMode = useOfflineMode();
   const [editing, setEditing] = useState(false);
-  // Subscriptions used to be its own top tab; it now opens from inside Settings.
-  const { subscriptions: openSubscriptions } = Route.useSearch();
-  const [showSubscriptions, setShowSubscriptions] = useState(Boolean(openSubscriptions));
-  const [restoringSubscription, setRestoringSubscription] = useState(false);
-
-  /** Refresh cached subscription and lifetime status for the signed-in account. */
-  const handleRestoreSubscription = async () => {
-    if (!auth.handle) {
-      toast.error("Sign in to restore a subscription");
-      return;
-    }
-    setRestoringSubscription(true);
-    try {
-      await Promise.all([refreshAccountSubscription(auth.handle), refreshLifetime(auth.handle)]);
-      const current = getSubscription(auth.handle);
-      if (current && current.status === "active") {
-        const label = current.isLifetime
-          ? lifetimePlanLabel(current.planId)
-          : (planById(current.planId)?.label ?? current.planId);
-        toast.success(`Subscription synced: ${label}`);
-      } else {
-        toast.message("No active subscription found for this account");
-      }
-    } catch {
-      toast.error("Couldn't reach the server. Try again.");
-    } finally {
-      setRestoringSubscription(false);
-    }
-  };
-
   const savePhone = () => {
     const trimmed = phone.trim();
     const normalized = trimmed ? normalizePhone(trimmed) : "";
@@ -201,7 +139,6 @@ function Settings() {
   const [tiktokLink, setTiktokLink] = useState("");
   const [instagramLink, setInstagramLink] = useState("");
   const [youtubeLink, setYoutubeLink] = useState("");
-  const [showOfflinePaywall, setShowOfflinePaywall] = useState(false);
   const [offlineUsage, setOfflineUsage] = useState<OfflineUsage | null>(null);
   const [clearingDownloads, setClearingDownloads] = useState(false);
   const [syncingOffline, setSyncingOffline] = useState(false);
@@ -223,15 +160,6 @@ function Settings() {
   const [testingPush, setTestingPush] = useState(false);
   const [deviceHint, setDeviceHint] = useState<string | null>(null);
   const [lastTest, setLastTest] = useState<string | null>(null);
-  const [messagePrivacy, setMessagePrivacy] = useState(() => {
-    try {
-      return typeof localStorage !== "undefined"
-        ? localStorage.getItem("messagePrivacy") || "everyone"
-        : "everyone";
-    } catch {
-      return "everyone";
-    }
-  });
   const [messageFilter, setMessageFilter] = useState(() => {
     try {
       return typeof localStorage !== "undefined"
@@ -275,16 +203,6 @@ function Settings() {
   const [showOnline, setShowOnline] = useShowOnlineSetting();
   // 18+ feed visibility. ON by default; OFF hides every mature video.
   const [showMature, setShowMature] = useState(() => readBool(SHOW_MATURE_PREF, true));
-  // Real-ID check for 18+ videos: a birthday alone is not proof.
-  const [ageDialogOpen, setAgeDialogOpen] = useState(false);
-  // Theme
-  const [theme, setTheme] = useState<string>(() => {
-    try {
-      return localStorage.getItem("settings:theme") || "dark";
-    } catch (e) {
-      return "system";
-    }
-  });
   useEffect(() => {
     try {
       setPrivateAccount(localStorage.getItem("settings:private") === "true");
@@ -313,7 +231,7 @@ function Settings() {
 
   /** Download liked/saved videos now, with progress in the Offline card. */
   const runOfflineSync = useCallback(async () => {
-    if (!offlineUnlocked || syncingOffline) return;
+    if (syncingOffline) return;
     setSyncingOffline(true);
     try {
       const result = await syncOfflineLibrary(auth.handle, auth.user?.id, setOfflineSyncProgress);
@@ -332,15 +250,9 @@ function Settings() {
       setSyncingOffline(false);
       setOfflineSyncProgress(null);
     }
-  }, [auth.handle, auth.user?.id, offlineUnlocked, refreshOfflineUsage, syncingOffline]);
+  }, [auth.handle, auth.user?.id, refreshOfflineUsage, syncingOffline]);
 
   const toggleOffline = () => {
-    // Paid subscribers only. Free accounts get the subscribe popup and nothing
-    // is downloaded.
-    if (!offlineUnlocked) {
-      setShowOfflinePaywall(true);
-      return;
-    }
     const newVal = !offlineMode;
     setOfflineModeOn(newVal);
 
@@ -564,11 +476,6 @@ function Settings() {
       setTestingPush(false);
     }
   };
-  const changeTheme = (t: string) => {
-    setTheme(t);
-    writePref("theme", t);
-    toast.success(`Theme: ${t}`);
-  };
   if (auth.ready && !auth.user) {
     return (
       <div className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-background p-6 text-center">
@@ -580,27 +487,6 @@ function Settings() {
         <Link to="/" className="text-sm text-muted-foreground">
           Back to home
         </Link>
-      </div>
-    );
-  }
-
-  // Subscriptions screen, opened from the Settings list.
-  if (showSubscriptions) {
-    return (
-      <div className="mx-auto min-h-dvh max-w-xl bg-black pb-10 text-white">
-        <div className="flex items-center gap-3 px-4 pt-6">
-          <button
-            onClick={() => setShowSubscriptions(false)}
-            aria-label="Back to settings"
-            className="text-white/70 hover:text-white"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </button>
-          <h1 className="font-display text-2xl text-white">Subscriptions</h1>
-        </div>
-        <Suspense fallback={<PanelSkeleton />}>
-          <SubscriptionsPanel handle={auth.handle} onSignIn={auth.signIn} />
-        </Suspense>
       </div>
     );
   }
@@ -705,47 +591,6 @@ function Settings() {
         </div>
       </div>
 
-      {/* Subscriptions (moved here from the top tab row) */}
-      <div className="rounded-2xl border border-white/15 bg-black p-4 text-white">
-        <h2 className="font-semibold text-white">Subscriptions</h2>
-        <p className="mt-1 text-sm text-white/70">Manage your plan, payment method, and billing.</p>
-        <button
-          type="button"
-          onClick={() => setShowSubscriptions(true)}
-          className="mt-3 flex w-full items-center justify-between rounded-md border border-white/15 bg-black px-4 py-3 text-left text-sm font-medium text-white transition-colors hover:bg-white/10"
-        >
-          <span className="flex items-center gap-2">
-            <CreditCard className="h-4 w-4 text-white" />
-            {subscription?.status === "active"
-              ? subscription.isLifetime
-                ? lifetimePlanLabel(subscription.planId)
-                : (planById(subscription.planId)?.label ?? "Active")
-              : subscription?.status === "pending"
-                ? "Payment pending"
-                : "View plans"}
-          </span>
-          <ChevronRight className="h-4 w-4 text-white/70" />
-        </button>
-        <button
-          type="button"
-          onClick={() => void handleRestoreSubscription()}
-          disabled={restoringSubscription}
-          className="mt-2 flex w-full items-center justify-between rounded-md border border-white/15 bg-black px-4 py-3 text-left text-sm font-medium text-white transition-colors hover:bg-white/10 disabled:opacity-60"
-        >
-          <span className="flex items-center gap-2">
-            <RefreshCw
-              className={`h-4 w-4 text-white ${restoringSubscription ? "animate-spin" : ""}`}
-            />
-            {restoringSubscription ? "Restoring\u2026" : "Restore Subscription"}
-          </span>
-          <span className="text-xs text-white/70">From your account</span>
-        </button>
-        <p className="mt-2 text-xs text-white/70">
-          Your plan is saved to your account. Tap Restore Subscription if you don&apos;t see it
-          after signing in on another device.
-        </p>
-      </div>
-
       {/* Username editor */}
       <div className="rounded-2xl border bg-card p-4">
         <h2 className="font-semibold">Username</h2>
@@ -786,14 +631,11 @@ function Settings() {
               toast.success(next ? "Online status ON" : "Online status OFF");
             }}
             className="flex h-7 w-12 shrink-0 items-center rounded-full p-1 transition"
-            style={{ backgroundColor: showOnline ? "var(--primary)" : "#333" }}
+            style={{ backgroundColor: showOnline ? "var(--account-accent)" : "#333" }}
           >
             <span
-              className="h-5 w-5 rounded-full transition"
-              style={{
-                backgroundColor: showOnline ? "var(--primary-foreground)" : "#ffffff",
-                transform: showOnline ? "translateX(20px)" : "translateX(0)",
-              }}
+              className="h-5 w-5 rounded-full bg-white transition"
+              style={{ transform: showOnline ? "translateX(20px)" : "translateX(0)" }}
             />
           </button>
         </div>
@@ -816,77 +658,14 @@ function Settings() {
               toast.success(next ? "18+ videos shown" : "18+ videos hidden");
             }}
             className="flex h-7 w-12 shrink-0 items-center rounded-full p-1 transition"
-            style={{ backgroundColor: showMature ? "var(--primary)" : "#333" }}
+            style={{ backgroundColor: showMature ? "var(--account-accent)" : "#333" }}
           >
             <span
-              className="h-5 w-5 rounded-full transition"
-              style={{
-                backgroundColor: showMature ? "var(--primary-foreground)" : "#ffffff",
-                transform: showMature ? "translateX(20px)" : "translateX(0)",
-              }}
+              className="h-5 w-5 rounded-full bg-white transition"
+              style={{ transform: showMature ? "translateX(20px)" : "translateX(0)" }}
             />
           </button>
         </div>
-        {/* Real-ID verification for 18+ videos. A typed birthday is self-reported,
-            so adult content stays locked until a moderator approves an ID. */}
-        <div className="mt-3 rounded-xl border border-white/10 bg-black px-4 py-3 text-white">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-sm font-medium text-white">Verify your ID for 18+ videos</p>
-              <p className="mt-0.5 text-xs text-white/60">
-                {ageLoading
-                  ? "Checking your verification status…"
-                  : ageStatus === "approved"
-                    ? "Verified. You can watch 18+ videos."
-                    : ageStatus === "pending"
-                      ? "Your ID is being reviewed. 18+ videos unlock once it's approved."
-                      : ageStatus === "rejected"
-                        ? "Your last ID check was rejected. Submit a new photo to try again."
-                        : "Upload a government ID and a selfie to unlock 18+ videos."}
-              </p>
-            </div>
-            <span
-              className="shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold"
-              style={{
-                backgroundColor:
-                  ageStatus === "approved"
-                    ? "#22c55e"
-                    : ageStatus === "pending"
-                      ? "#FFC107"
-                      : ageStatus === "rejected"
-                        ? "#FE2C55"
-                        : "#333",
-                color: ageStatus === "pending" ? "#000" : "#fff",
-              }}
-            >
-              {ageLoading
-                ? "…"
-                : ageStatus === "approved"
-                  ? "Verified"
-                  : ageStatus === "pending"
-                    ? "In review"
-                    : ageStatus === "rejected"
-                      ? "Rejected"
-                      : "Not verified"}
-            </span>
-          </div>
-          <button
-            type="button"
-            onClick={() => setAgeDialogOpen(true)}
-            className="mt-3 w-full rounded-full px-4 py-2 text-sm font-bold"
-            style={{
-              backgroundColor: ageStatus === "approved" ? "#fff" : "#FE2C55",
-              color: ageStatus === "approved" ? "#000" : "#fff",
-            }}
-          >
-            {ageStatus === "approved"
-              ? "View verification"
-              : ageStatus === "pending"
-                ? "View review status"
-                : "Verify my ID"}
-          </button>
-        </div>
-        <AgeVerificationDialog open={ageDialogOpen} onOpenChange={setAgeDialogOpen} />
         <p className="mt-4 text-sm text-muted-foreground">Manage blocked users.</p>
         <div className="mt-3 flex gap-2">
           <input
@@ -997,7 +776,8 @@ function Settings() {
           </div>
           <button
             onClick={saveLinks}
-            className="rounded-md bg-primary px-4 py-2 font-medium text-primary-foreground"
+            style={{ backgroundColor: "black", color: "white" }}
+            className="rounded-md px-4 py-2 font-medium"
           >
             Save Links to Profile
           </button>
@@ -1028,40 +808,6 @@ function Settings() {
         <p className="text- mb-4" style={{ color: "#9ca3af" }}>
           Different settings like TikTok
         </p>
-
-        <p className="font-bold text- mb-2" style={{ color: "white" }}>
-          Who can DM you
-        </p>
-        <div className="flex flex-col gap-2 mb-5">
-          {[
-            { id: "everyone", label: "Everyone" },
-            { id: "friends", label: "Friends" },
-            { id: "mutuals", label: "Friends of friends" },
-            { id: "noone", label: "No one" },
-          ].map((o) => (
-            <button
-              key={o.id}
-              onClick={() => {
-                setMessagePrivacy(o.id);
-                localStorage.setItem("messagePrivacy", o.id);
-              }}
-              className="flex justify-between p-3 rounded-xl border text-left"
-              style={{
-                background: messagePrivacy === o.id ? "white" : "#1f1f1f",
-                color: messagePrivacy === o.id ? "black" : "white",
-                borderColor: "#333",
-              }}
-            >
-              <span className="font-medium text-">{o.label}</span>
-              <div
-                className="h-5 w-5 rounded-full border-2 flex items-center justify-center"
-                style={{ borderColor: messagePrivacy === o.id ? "black" : "#666" }}
-              >
-                {messagePrivacy === o.id && <div className="h-2 w-2 bg-black rounded-full" />}
-              </div>
-            </button>
-          ))}
-        </div>
 
         <p className="font-bold text- mb-2" style={{ color: "white" }}>
           Message requests
@@ -1103,7 +849,7 @@ function Settings() {
                 localStorage.setItem("allowDM", String(v));
               }}
               className="h-7 w-12 rounded-full p-1"
-              style={{ backgroundColor: allowDM ? "white" : "#333" }}
+              style={{ backgroundColor: allowDM ? "var(--account-accent)" : "#333" }}
             >
               <div
                 className="h-5 w-5 rounded-full transition"
@@ -1123,7 +869,7 @@ function Settings() {
                 Allow messages from everyone
               </div>
               <div className="text-xs" style={{ color: "#9ca3af" }}>
-                Let anyone send pics &amp; videos in Messages (off = mutual followers only)
+                When off, only people who follow you can send messages.
               </div>
             </div>
             <button
@@ -1140,21 +886,19 @@ function Settings() {
                     return;
                   }
                   toast.success(
-                    v
-                      ? "Allow messages from everyone: ON"
-                      : "Pics & videos restricted to mutual followers",
+                    v ? "Allow messages from everyone: ON" : "Messages restricted to followers",
                   );
                 });
               }}
               className="h-7 w-12 shrink-0 rounded-full p-1"
-              style={{ backgroundColor: allowMessagesFromEveryone ? "var(--primary)" : "#333" }}
+              style={{
+                backgroundColor: allowMessagesFromEveryone ? "var(--account-accent)" : "#333",
+              }}
             >
               <div
                 className="h-5 w-5 rounded-full transition"
                 style={{
-                  backgroundColor: allowMessagesFromEveryone
-                    ? "var(--primary-foreground)"
-                    : "#ffffff",
+                  backgroundColor: allowMessagesFromEveryone ? "black" : "white",
                   transform: allowMessagesFromEveryone ? "translateX(20px)" : "translateX(0)",
                 }}
               />
@@ -1179,7 +923,7 @@ function Settings() {
                 localStorage.setItem("readReceipts", String(v));
               }}
               className="h-7 w-12 rounded-full p-1"
-              style={{ backgroundColor: readReceipts ? "white" : "#333" }}
+              style={{ backgroundColor: readReceipts ? "var(--account-accent)" : "#333" }}
             >
               <div
                 className="h-5 w-5 rounded-full transition"
@@ -1205,7 +949,8 @@ function Settings() {
           />
           <button
             onClick={savePhone}
-            className="rounded-md bg-primary px-4 py-2 font-medium text-primary-foreground"
+            style={{ backgroundColor: "black", color: "white" }}
+            className="rounded-md px-4 py-2 font-medium"
           >
             Save
           </button>
@@ -1223,122 +968,84 @@ function Settings() {
       <div className="rounded-lg border bg-card p-6">
         <div className="flex items-center gap-2">
           <h2 className="font-semibold">Offline Mode</h2>
-          <span className="rounded-full border px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-            {offlineUnlocked ? "Paid subscribers" : "Paid subscribers only"}
-          </span>
         </div>
 
         <p className="mt-1 text-sm text-muted-foreground">
           Automatically download videos you liked or saved and watch them without a connection.
         </p>
 
-        {offlineUnlocked ? (
-          <>
-            <div className="mt-3 flex items-center justify-between gap-3 border-t pt-3">
-              <div className="min-w-0">
-                <div className="font-medium">Offline Mode</div>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  {offlineMode
-                    ? "ON — liked and saved videos download automatically."
-                    : "OFF — turn on to download liked and saved videos."}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={toggleOffline}
-                aria-pressed={offlineMode}
-                aria-label="Toggle Offline Mode"
-                className="h-7 w-12 shrink-0 rounded-full p-1 transition"
-                style={{ backgroundColor: offlineMode ? "var(--primary)" : "#333" }}
-              >
-                <div
-                  className="h-5 w-5 rounded-full transition"
-                  style={{
-                    backgroundColor: offlineMode ? "var(--primary-foreground)" : "#ffffff",
-                    transform: offlineMode ? "translateX(20px)" : "translateX(0)",
-                  }}
-                />
-              </button>
-            </div>
+        <div className="mt-3 flex items-center justify-between gap-3 border-t pt-3">
+          <div className="min-w-0">
+            <div className="font-medium">Offline Mode</div>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {offlineMode
+                ? "ON — liked and saved videos download automatically."
+                : "OFF — turn on to download liked and saved videos."}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={toggleOffline}
+            aria-pressed={offlineMode}
+            aria-label="Toggle Offline Mode"
+            className="h-7 w-12 shrink-0 rounded-full p-1 transition"
+            style={{ backgroundColor: offlineMode ? "var(--account-accent)" : "#333" }}
+          >
+            <div
+              className="h-5 w-5 rounded-full transition"
+              style={{
+                backgroundColor: "white",
+                transform: offlineMode ? "translateX(20px)" : "translateX(0)",
+              }}
+            />
+          </button>
+        </div>
 
-            {syncingOffline && (
-              <p className="mt-2 text-xs text-muted-foreground">
-                {offlineSyncProgress
-                  ? `Downloading ${offlineSyncProgress.current} of ${offlineSyncProgress.total}: ${offlineSyncProgress.title}`
-                  : "Checking your liked and saved videos…"}
-              </p>
-            )}
-
-            <div className="mt-3 rounded-xl border bg-secondary/50 px-3 py-2">
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-[13px] font-semibold">
-                  Offline storage: {formatStorage(offlineUsage?.used ?? 0)} /{" "}
-                  {formatStorage(MAX_OFFLINE_BYTES)}
-                </p>
-                <span className="shrink-0 text-[11px] text-muted-foreground">
-                  {offlineUsage?.count ?? 0} of {MAX_OFFLINE_VIDEOS} videos
-                </span>
-              </div>
-              <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-background">
-                <div
-                  className="h-full rounded-full bg-emerald-600 transition-all"
-                  style={{
-                    width: `${Math.min(
-                      100,
-                      ((offlineUsage?.used ?? 0) / MAX_OFFLINE_BYTES) * 100,
-                    )}%`,
-                  }}
-                />
-              </div>
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => void clearDownloads()}
-                  disabled={clearingDownloads || (offlineUsage?.count ?? 0) === 0}
-                  className="rounded-md border border-destructive/40 px-3 py-1.5 text-[13px] font-semibold text-destructive transition hover:bg-destructive/10 disabled:opacity-50"
-                >
-                  {clearingDownloads ? "Clearing…" : "Clear Downloads"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => (window.location.href = "/offline")}
-                  className="rounded-md bg-primary px-3 py-1.5 text-[13px] font-medium text-primary-foreground"
-                >
-                  View Offline Videos →
-                </button>
-              </div>
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="mt-3 flex items-start gap-3 rounded-xl border bg-secondary/50 p-3">
-              <Lock className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-              <div className="min-w-0">
-                <p className="text-sm font-semibold">Offline Mode is for Paid Subscribers</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Offline Mode is included with every paid plan — Plus, Pro and VIP. Nothing is
-                  downloaded on a free account.
-                </p>
-              </div>
-            </div>
-            <div className="mt-3 flex flex-wrap items-center gap-3">
-              <button
-                type="button"
-                onClick={() => setShowOfflinePaywall(true)}
-                className="rounded-md bg-primary px-4 py-2 font-medium text-primary-foreground"
-              >
-                Turn on Offline Mode
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowSubscriptions(true)}
-                className="rounded-md bg-primary px-4 py-2 font-medium text-primary-foreground"
-              >
-                Subscribe · ${offlinePrice.toFixed(2)}/mo
-              </button>
-            </div>
-          </>
+        {syncingOffline && (
+          <p className="mt-2 text-xs text-muted-foreground">
+            {offlineSyncProgress
+              ? `Downloading ${offlineSyncProgress.current} of ${offlineSyncProgress.total}: ${offlineSyncProgress.title}`
+              : "Checking your liked and saved videos…"}
+          </p>
         )}
+
+        <div className="mt-3 rounded-xl border bg-secondary/50 px-3 py-2">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-[13px] font-semibold">
+              Offline storage: {formatStorage(offlineUsage?.used ?? 0)} /{" "}
+              {formatStorage(MAX_OFFLINE_BYTES)}
+            </p>
+            <span className="shrink-0 text-[11px] text-muted-foreground">
+              {offlineUsage?.count ?? 0} of {MAX_OFFLINE_VIDEOS} videos
+            </span>
+          </div>
+          <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-background">
+            <div
+              className="h-full rounded-full bg-emerald-600 transition-all"
+              style={{
+                width: `${Math.min(100, ((offlineUsage?.used ?? 0) / MAX_OFFLINE_BYTES) * 100)}%`,
+              }}
+            />
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => void clearDownloads()}
+              disabled={clearingDownloads || (offlineUsage?.count ?? 0) === 0}
+              className="rounded-md border border-destructive/40 px-3 py-1.5 text-[13px] font-semibold text-destructive transition hover:bg-destructive/10 disabled:opacity-50"
+            >
+              {clearingDownloads ? "Clearing…" : "Clear Downloads"}
+            </button>
+            <button
+              type="button"
+              onClick={() => (window.location.href = "/offline")}
+              style={{ backgroundColor: "black", color: "white" }}
+              className="rounded-md px-3 py-1.5 text-[13px] font-medium"
+            >
+              View Offline Videos →
+            </button>
+          </div>
+        </div>
       </div>
       {/* Music — Background Play */}
       <div className="rounded-lg border bg-card p-6">
@@ -1348,27 +1055,12 @@ function Settings() {
         </div>
         <div className="mt-3 flex items-center justify-between gap-3 border-t pt-3">
           <div className="min-w-0">
-            <div className="flex items-center gap-1.5 font-medium">
-              Background Play
-              {backgroundUnlocked ? (
-                <span className="rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-primary">
-                  VIP
-                </span>
-              ) : (
-                <Lock className="h-3 w-3 text-muted-foreground" aria-label="VIP required" />
-              )}
-            </div>
+            <div className="flex items-center gap-1.5 font-medium">Background Play</div>
             <p className="mt-0.5 text-xs text-muted-foreground">{BACKGROUND_PLAY_HELP}</p>
           </div>
           <button
             type="button"
             onClick={() => {
-              if (!backgroundUnlocked) {
-                toast.error(`Background play is a ${backgroundPlayPlan().label} perk.`, {
-                  action: { label: "Upgrade", onClick: () => setShowSubscriptions(true) },
-                });
-                return;
-              }
               const next = !backgroundPlay;
               setBackgroundPlayEnabled(next);
               toast.success(next ? "Background Play ON" : "Background Play OFF");
@@ -1376,27 +1068,17 @@ function Settings() {
             aria-pressed={backgroundPlay}
             aria-label="Toggle Background Play"
             className="h-7 w-12 shrink-0 rounded-full p-1 transition"
-            style={{ backgroundColor: backgroundPlay ? "var(--primary)" : "#333" }}
+            style={{ backgroundColor: backgroundPlay ? "var(--account-accent)" : "#333" }}
           >
             <div
               className="h-5 w-5 rounded-full transition"
               style={{
-                backgroundColor: backgroundPlay ? "var(--primary-foreground)" : "#ffffff",
+                backgroundColor: "white",
                 transform: backgroundPlay ? "translateX(20px)" : "translateX(0)",
               }}
             />
           </button>
         </div>
-        {!backgroundUnlocked && (
-          <button
-            type="button"
-            onClick={() => setShowSubscriptions(true)}
-            className="mt-3 w-full rounded-md bg-primary px-4 py-2 text-sm font-bold text-primary-foreground"
-          >
-            Unlock Background Play with {backgroundPlayPlan().label} · $
-            {backgroundPlayPlan().price.toFixed(2)}/mo
-          </button>
-        )}
         <p className="mt-2 text-xs text-muted-foreground">
           {mediaSessionReady
             ? "Lock-screen and notification controls are enabled — play, pause, next and previous work with the screen off."
@@ -1428,14 +1110,11 @@ function Settings() {
               toast.success(next ? "Low Data Mode ON" : "Low Data Mode OFF");
             }}
             className="flex h-7 w-12 shrink-0 items-center rounded-full p-1 transition"
-            style={{ backgroundColor: lowDataMode ? "var(--primary)" : "#333" }}
+            style={{ backgroundColor: lowDataMode ? "var(--account-accent)" : "#333" }}
           >
             <span
-              className="h-5 w-5 rounded-full transition"
-              style={{
-                backgroundColor: lowDataMode ? "var(--primary-foreground)" : "#ffffff",
-                transform: lowDataMode ? "translateX(20px)" : "translateX(0)",
-              }}
+              className="h-5 w-5 rounded-full bg-white transition"
+              style={{ transform: lowDataMode ? "translateX(20px)" : "translateX(0)" }}
             />
           </button>
         </div>
@@ -1472,7 +1151,7 @@ function Settings() {
                     <span className="block text-xs text-muted-foreground">{option.hint}</span>
                   )}
                 </span>
-                {active && <span className="shrink-0 text-primary">✓</span>}
+                {active && <span className="shrink-0 text-[var(--account-accent)]">✓</span>}
               </button>
             );
           })}
@@ -1482,9 +1161,9 @@ function Settings() {
       {/* Appearance */}
       <div className="rounded-2xl border bg-card p-4">
         <h2 className="font-semibold">Appearance</h2>
-        <p className="mt-1 text-sm text-muted-foreground">Choose an app theme.</p>
+        <p className="mt-1 text-sm text-muted-foreground">Choose your account accent color.</p>
         <div className="mt-3">
-          <ThemePicker theme={theme} changeTheme={changeTheme} />
+          <ThemePicker theme={theme} changeTheme={changeTheme} disabled={saving} />
         </div>
       </div>
 
@@ -1493,10 +1172,6 @@ function Settings() {
       </Suspense>
 
       {auth.user && <EditProfileDialog open={editing} onOpenChange={setEditing} />}
-      <OfflinePaywallDialog
-        open={showOfflinePaywall}
-        onClose={() => setShowOfflinePaywall(false)}
-      />
     </div>
   );
 }

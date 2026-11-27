@@ -245,7 +245,7 @@ function Messages() {
         if (!perm.allowed) {
           toast.error(
             perm.reason ||
-              "Only mutual followers can send pics & videos unless this user has 'Allow messages from everyone' on in Settings.",
+              "Only followers can send messages unless this user has 'Allow messages from everyone' on in Settings.",
           );
           return;
         }
@@ -652,7 +652,7 @@ function Messages() {
                   }}
                   className={`max-w-[78%] rounded-2xl text-sm select-none ${
                     isMine
-                      ? "ml-auto bg-primary text-primary-foreground"
+                      ? "ml-auto bg-[var(--account-bubble)] text-white"
                       : "border border-white/15 bg-card text-white"
                   } ${hasMediaBubble ? "overflow-hidden p-1.5" : "px-3 py-2"}`}
                 >

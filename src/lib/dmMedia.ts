@@ -34,7 +34,7 @@ export type DirectMessage = {
 
 export type DmMediaPermission = {
   allowed: boolean;
-  isMutual: boolean;
+  isFollower: boolean;
   allowEveryone: boolean;
   recipientId: string | null;
   recipientHandle: string;
@@ -297,7 +297,7 @@ export async function fetchAllowMessagesFromEveryone(userId: string): Promise<bo
   try {
     const { data, error } = await untypedDb
       .from("profiles")
-      .select("*")
+      .select("allow_messages_from_everyone")
       .eq("id", userId)
       .maybeSingle();
     if (error || !data) return localVal;
@@ -330,7 +330,7 @@ export async function syncAllowMessagesFromEveryone(
     .from("profiles")
     .update({ allow_messages_from_everyone: enabled })
     .eq("id", userId);
-  if (error && !isMissingColumnOrSchemaError(error)) {
+  if (error) {
     return { ok: false, error: error.message };
   }
   return { ok: true };
@@ -338,7 +338,7 @@ export async function syncAllowMessagesFromEveryone(
 
 /**
  * Checks whether `myUserId` / `myHandle` is allowed to send pics or videos to `targetHandle`.
- * Rule: Mutual followers are allowed, OR target user has "Allow messages from everyone" ON in Settings.
+ * Rule: Followers are allowed, OR target user has "Allow messages from everyone" ON in Settings.
  */
 export async function checkDmMediaPermission(params: {
   myUserId: string | null | undefined;
@@ -350,7 +350,7 @@ export async function checkDmMediaPermission(params: {
   if (!target || !params.myUserId || !me) {
     return {
       allowed: false,
-      isMutual: false,
+      isFollower: false,
       allowEveryone: false,
       recipientId: null,
       recipientHandle: target,
@@ -358,11 +358,10 @@ export async function checkDmMediaPermission(params: {
     };
   }
 
-  // Use `select("*")` so an unmigrated `profiles` table without `allow_messages_from_everyone`
-  // never throws a 400 "column does not exist" error.
+  // Request only columns visible to the signed-in sender.
   const { data: rawProfile } = await untypedDb
     .from("profiles")
-    .select("*")
+    .select("id,handle,allow_messages_from_everyone")
     .ilike("handle", target)
     .maybeSingle();
 
@@ -375,7 +374,7 @@ export async function checkDmMediaPermission(params: {
   if (!profile?.id || !profile.handle) {
     return {
       allowed: false,
-      isMutual: false,
+      isFollower: false,
       allowEveryone: false,
       recipientId: null,
       recipientHandle: target,
@@ -393,7 +392,7 @@ export async function checkDmMediaPermission(params: {
   if (profile.id === params.myUserId) {
     return {
       allowed: true,
-      isMutual: true,
+      isFollower: true,
       allowEveryone,
       recipientId: profile.id,
       recipientHandle: profile.handle,
@@ -403,35 +402,24 @@ export async function checkDmMediaPermission(params: {
   if (allowEveryone) {
     return {
       allowed: true,
-      isMutual: false,
+      isFollower: false,
       allowEveryone: true,
       recipientId: profile.id,
       recipientHandle: profile.handle,
     };
   }
 
-  const [{ data: iFollowRow }, { data: theyFollowRow }] = await Promise.all([
-    supabase
-      .from("follows")
-      .select("id")
-      .eq("follower_id", params.myUserId)
-      .ilike("following_username", profile.handle)
-      .limit(1)
-      .maybeSingle(),
-    supabase
-      .from("follows")
-      .select("id")
-      .eq("follower_id", profile.id)
-      .ilike("following_username", me)
-      .limit(1)
-      .maybeSingle(),
-  ]);
-
-  const isMutual = Boolean(iFollowRow && theyFollowRow);
-  if (isMutual) {
+  const { data: following } = await supabase
+    .from("follows")
+    .select("id")
+    .eq("follower_id", params.myUserId)
+    .eq("following_username", profile.handle)
+    .limit(1)
+    .maybeSingle();
+  if (following) {
     return {
       allowed: true,
-      isMutual: true,
+      isFollower: true,
       allowEveryone: false,
       recipientId: profile.id,
       recipientHandle: profile.handle,
@@ -440,11 +428,11 @@ export async function checkDmMediaPermission(params: {
 
   return {
     allowed: false,
-    isMutual: false,
+    isFollower: false,
     allowEveryone: false,
     recipientId: profile.id,
     recipientHandle: profile.handle,
-    reason: `Pics & videos are only allowed between people who follow each other unless @${profile.handle} turns on "Allow messages from everyone" in Settings.`,
+    reason: `Follow @${profile.handle} before messaging unless @${profile.handle} turns on "Allow messages from everyone" in Settings.`,
   };
 }
 
@@ -586,9 +574,7 @@ export async function resolveDmMediaUrl(rawUrl: string | null | undefined): Prom
     const path = rawUrl.slice(DM_MEDIA_PREFIX.length);
     const hit = signedDmUrlCache.get(path);
     if (hit && hit.expiresAt > Date.now()) return hit.url;
-    const { data, error } = await supabase.storage
-      .from("dm-media")
-      .createSignedUrl(path, 3600);
+    const { data, error } = await supabase.storage.from("dm-media").createSignedUrl(path, 3600);
     if (error || !data?.signedUrl) return "";
     signedDmUrlCache.set(path, {
       url: data.signedUrl,
@@ -636,8 +622,8 @@ export async function sendDirectMessage(params: {
     return { ok: false, error: `@${toHandle} hasn't joined Coolerup yet.` };
   }
 
-  // Block pics/videos between strangers unless recipient allows everyone in Settings.
-  if (params.mediaUrl) {
+  // Check the same recipient rule for every message type.
+  {
     const perm = await checkDmMediaPermission({
       myUserId: params.fromId,
       myHandle: fromHandle,
@@ -646,9 +632,7 @@ export async function sendDirectMessage(params: {
     if (!perm.allowed) {
       return {
         ok: false,
-        error:
-          perm.reason ||
-          `@${targetProfile.handle} only accepts pics and videos from mutual followers.`,
+        error: perm.reason || `@${targetProfile.handle} only accepts messages from followers.`,
       };
     }
   }

@@ -110,7 +110,7 @@ function GooglePayButton({
       type="button"
       onClick={onClick}
       disabled={disabled || busy}
-      className="flex h-12 w-full items-center justify-center gap-2 rounded-lg border border-border bg-black text-sm font-medium text-white transition-opacity hover:bg-black/90 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-black dark:hover:bg-white/90"
+      className="flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-black text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
     >
       <GoogleG className="h-5 w-5" />
       <span>{busy ? "Opening Google Pay…" : label}</span>
@@ -119,8 +119,10 @@ function GooglePayButton({
 }
 
 /**
- * Tap-to-pay sheet: opens from a plan's button, offers Google Pay first
- * and falls back to card details or Venmo.
+ * Tap-to-pay sheet. Tapping any plan opens this, then they pay with Google Pay,
+ * a card, or Venmo. The free hour is started from the plan card itself and needs
+ * no card, so this sheet only ever sells the paid plan — it starts once the
+ * payment is confirmed.
  */
 export function PaymentSheet({ plan, handle, sub, onClose, onSignIn }: Props) {
   const open = Boolean(plan);
@@ -145,6 +147,7 @@ export function PaymentSheet({ plan, handle, sub, onClose, onSignIn }: Props) {
     setBusy(false);
   }, [open, plan?.id, manage]);
 
+  // Only advertise Google Pay where it can actually render, and remember why.
   const checkGooglePay = () => {
     googlePayDiagnose().then((d) => {
       setGpayReady(d.ready);
@@ -170,20 +173,20 @@ export function PaymentSheet({ plan, handle, sub, onClose, onSignIn }: Props) {
   const amount = plan.price;
 
   const applyPaymentMethod = (pm: PaymentMethod) => {
-    setError(null);
     if (!handle) {
       onSignIn?.();
       return;
     }
     if (manage) {
       updatePaymentMethod(handle, pm);
-      setDone(`Payment method (${maskCard(pm)}) saved.`);
+      setDone("Payment method saved.");
       return;
     }
+    // No gateway is connected, so a "pay now" charge is recorded as pending
+    // until it is confirmed — same as the Venmo flow.
     requestPayment(handle, plan.id);
     updatePaymentMethod(handle, pm);
-    confirmPayment(handle);
-    setDone(`${plan.label} is active (${maskCard(pm)}).`);
+    setDone("Payment submitted — we'll confirm it shortly.");
   };
 
   const payWithGoogle = async () => {
@@ -209,6 +212,8 @@ export function PaymentSheet({ plan, handle, sub, onClose, onSignIn }: Props) {
         return;
       }
 
+      // The token is only worth something once the server has exchanged it with
+      // the gateway. Until then nothing has been charged or vaulted.
       if (manage) {
         const saved = await saveCardForTrial({
           data: { planId: plan.id, paymentToken: result.token },
@@ -217,14 +222,13 @@ export function PaymentSheet({ plan, handle, sub, onClose, onSignIn }: Props) {
           setError(saved.message);
           return;
         }
-        updatePaymentMethod(handle, {
+        applyPaymentMethod({
           ...result.paymentMethod,
           brand: cardBrandFrom(saved.card.brand, result.paymentMethod.brand),
           last4: saved.card.last4 !== "0000" ? saved.card.last4 : result.paymentMethod.last4,
           expMonth: saved.card.expMonth,
           expYear: saved.card.expYear,
         });
-        setDone("Payment method saved.");
         return;
       }
 
@@ -243,13 +247,18 @@ export function PaymentSheet({ plan, handle, sub, onClose, onSignIn }: Props) {
         expMonth: charge.card.expMonth,
         expYear: charge.card.expYear,
       };
-      requestPayment(handle, plan.id);
+
+      // A successful charge activates the plan right away instead of leaving it
+      // stuck at "pending" waiting for someone to hand-confirm a Venmo transfer.
       updatePaymentMethod(handle, pm);
+      requestPayment(handle, plan.id);
       if (charge.status === "succeeded") {
         confirmPayment(handle);
         setDone(`Paid $${(charge.amountCents / 100).toFixed(2)} \u2014 ${plan.label} is active.`);
-      } else {
+      } else if (charge.status === "processing") {
         setDone("Payment is processing \u2014 your plan activates as soon as it clears.");
+      } else {
+        setDone("Payment submitted \u2014 we'll confirm it shortly.");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Google Pay couldn't complete that payment.");
@@ -259,14 +268,13 @@ export function PaymentSheet({ plan, handle, sub, onClose, onSignIn }: Props) {
   };
 
   const payWithVenmo = () => {
-    setError(null);
     if (!handle) {
       onSignIn?.();
       return;
     }
-    requestPayment(handle, plan.id);
     window.open(venmoUrl(plan, handle), "_blank", "noopener,noreferrer");
-    setDone("Opened Venmo — send the payment there, then return here while it clears.");
+    requestPayment(handle, plan.id);
+    setDone("Opened Venmo — we'll activate your plan once the payment lands.");
   };
 
   const title = manage ? "Payment method" : `Pay for ${plan.label}`;
@@ -283,7 +291,7 @@ export function PaymentSheet({ plan, handle, sub, onClose, onSignIn }: Props) {
 
         {done ? (
           <div className="space-y-3">
-            <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm">
+            <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-3 text-sm">
               {done}
             </div>
             <Button className="w-full" onClick={onClose}>
@@ -291,25 +299,22 @@ export function PaymentSheet({ plan, handle, sub, onClose, onSignIn }: Props) {
             </Button>
           </div>
         ) : stage === "card" ? (
-          <div className="space-y-3">
-            <PaymentMethodForm
-              planLabel={plan.label}
-              price={amount}
-              submitLabel={manage ? "Save card" : `Pay $${amount.toFixed(2)}`}
-              onCancel={() => setStage("choose")}
-              onSubmit={applyPaymentMethod}
-            />
-            {error && <p className="text-center text-xs text-destructive">{error}</p>}
-          </div>
+          <PaymentMethodForm
+            planLabel={plan.label}
+            price={amount}
+            submitLabel={manage ? "Save card" : `Pay $${amount.toFixed(2)}`}
+            onCancel={() => setStage("choose")}
+            onSubmit={applyPaymentMethod}
+          />
         ) : (
           <div className="space-y-3">
             {!handle && (
-              <div className="rounded-lg border bg-muted/40 p-3 text-sm">
+              <div className="rounded-lg border border-border bg-muted/40 p-3 text-sm">
                 Sign in first so we can attach the plan to your account.
               </div>
             )}
 
-            <div className="rounded-lg border bg-muted/40 p-3 text-xs text-muted-foreground">
+            <div className="rounded-lg border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
               {manage ? (
                 <>Your card is what renews the plan. Nothing is charged right now.</>
               ) : (
@@ -325,6 +330,11 @@ export function PaymentSheet({ plan, handle, sub, onClose, onSignIn }: Props) {
               label={manage ? "Save with Google Pay" : `Pay $${amount.toFixed(2)} with Google Pay`}
               onClick={payWithGoogle}
               busy={busy}
+              // Never hard-disable on isReadyToPay: Google documents it as
+              // advisory, and in TEST mode it returns false for almost everyone
+              // even though the sheet still opens with Google's test cards.
+              // A disabled button with no explanation is worse than a click that
+              // surfaces the real error.
               disabled={busy}
             />
             {!gpayReady && (
@@ -340,7 +350,7 @@ export function PaymentSheet({ plan, handle, sub, onClose, onSignIn }: Props) {
                     resetGooglePay();
                     checkGooglePay();
                   }}
-                  className="text-[11px] font-medium text-primary underline underline-offset-2"
+                  className="text-[11px] font-medium text-foreground underline underline-offset-2"
                 >
                   Re-check Google Pay
                 </button>
@@ -359,22 +369,12 @@ export function PaymentSheet({ plan, handle, sub, onClose, onSignIn }: Props) {
               <span className="h-px flex-1 bg-border" />
             </div>
 
-            <Button
-              variant="secondary"
-              className="w-full"
-              disabled={busy}
-              onClick={() => setStage("card")}
-            >
+            <Button variant="secondary" className="w-full" onClick={() => setStage("card")}>
               {manage ? "Use a card instead" : "Pay with card"}
             </Button>
 
             {!manage && (
-              <Button
-                variant="ghost"
-                className="w-full border"
-                disabled={busy}
-                onClick={payWithVenmo}
-              >
+              <Button variant="ghost" className="w-full" onClick={payWithVenmo}>
                 Pay with Venmo
               </Button>
             )}
@@ -388,8 +388,8 @@ export function PaymentSheet({ plan, handle, sub, onClose, onSignIn }: Props) {
             {error && <p className="text-center text-xs text-destructive">{error}</p>}
 
             <p className="text-center text-[11px] leading-relaxed text-muted-foreground">
-              Your subscription is saved to this device. We store only the card brand and last 4
-              digits.
+              We store only the payment type and last 4 digits on this device. Card numbers never
+              touch our servers.
             </p>
           </div>
         )}

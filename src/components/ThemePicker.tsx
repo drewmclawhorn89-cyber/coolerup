@@ -1,6 +1,3 @@
-import { Check } from "lucide-react";
-import { Button } from "@/components/ui/button";
-
 export function ThemePicker({
   theme,
   changeTheme,
@@ -9,31 +6,33 @@ export function ThemePicker({
   changeTheme: (id: string) => void;
 }) {
   const themes = [
-    { id: "light", label: "Light" },
-    { id: "dark", label: "Dark" },
-    { id: "system", label: "System" },
-    { id: "blue", label: "Blue" },
-    { id: "purple", label: "Purple" },
-    { id: "pink", label: "Pink" },
-    { id: "green", label: "Green" },
-    { id: "red", label: "Red" },
-    { id: "christmas", label: "Christmas" },
+    { id: "light", label: "Light", color: "#ffffff", text: "#000000" },
+    { id: "dark", label: "Dark", color: "#000000", text: "#ffffff" },
+    { id: "system", label: "System", color: "#e5e7eb", text: "#000000" },
+    { id: "blue", label: "Blue", color: "#2563EB", text: "#ffffff" },
+    { id: "purple", label: "Purple", color: "#9333EA", text: "#ffffff" },
+    { id: "pink", label: "Pink", color: "#EC4899", text: "#ffffff" },
+    { id: "green", label: "Green", color: "#16A34A", text: "#ffffff" },
+    { id: "red", label: "Red", color: "#DC2626", text: "#ffffff" },
   ];
 
   return (
     <div className="flex flex-wrap gap-2" role="group" aria-label="App theme">
       {themes.map((t) => (
-        <Button
-          variant="outline"
+        <button
           key={t.id}
           type="button"
           onClick={() => changeTheme(t.id)}
           aria-pressed={theme === t.id}
-          className="gap-2"
+          style={{ backgroundColor: t.color, color: t.text }}
+          className={`rounded-md border px-4 py-2 text-sm font-medium transition ${
+            theme === t.id
+              ? "ring-2 ring-foreground ring-offset-2 ring-offset-background"
+              : "opacity-90 hover:opacity-100"
+          }`}
         >
-          <Check className={`h-4 w-4 text-theme-detail ${theme === t.id ? "visible" : "invisible"}`} />
           {t.label}
-        </Button>
+        </button>
       ))}
     </div>
   );

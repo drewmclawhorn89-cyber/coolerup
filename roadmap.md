@@ -1,5 +1,4 @@
 # Roadmap
-- [ ] Fix every theme's outer surfaces, verify six themes, provide phone-sized screenshot evidence and request publication (physical iPhone Safari unavailable).
 - [ ] Smart video downloads: detect existing social watermarks, preserve marked originals, and verify mandatory moving Coolerup marks on clean videos.
 - [x] Fix preview type errors in TikTok linking and age verification, then verify app loading.
 - [ ] Add YouTube links to Videos with embedded playback and verify saving.

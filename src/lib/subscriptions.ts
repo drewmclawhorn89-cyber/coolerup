@@ -272,7 +272,7 @@ function readRaw(handle: string): Subscription | null {
       startedAt: parsed.startedAt ?? new Date().toISOString(),
       paidAt: parsed.paidAt ?? null,
       paymentMethod: parsed.paymentMethod ?? null,
-      ...(parsed.source ? { source: parsed.source } : {}),
+      source: parsed.source,
       code: parsed.code ?? null,
       currentPeriodEnd: parsed.currentPeriodEnd ?? null,
     };

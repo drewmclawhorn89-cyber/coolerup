@@ -185,4 +185,48 @@ describe("PWA standalone layout, theme-only background & zero tap-flash buttons"
       'className="shrink-0 rounded-full bg-white px-4 py-1.5 text-[13px] font-bold text-black"',
     );
   });
+
+  it("portals feed overlays cleanly, respects iPhone safe areas, and keeps mobile inputs >= 16px to stop iOS auto-zoom", () => {
+    const shareMenu = read("src/components/ShareMenu.tsx");
+    expect(shareMenu).toContain("createPortal");
+    expect(shareMenu).toContain("rounded-t-2xl");
+    expect(shareMenu).toContain("pb-[calc(1.5rem+env(safe-area-inset-bottom))]");
+    expect(shareMenu).toContain("z-[90]");
+
+    const qualitySelector = read("src/components/QualitySelector.tsx");
+    expect(qualitySelector).toContain("createPortal");
+    expect(qualitySelector).toContain("z-[90]");
+
+    const videoCard = read("src/components/VideoCard.tsx");
+    expect(videoCard).toContain("createPortal");
+    expect(videoCard).toContain("pb-[calc(5rem+env(safe-area-inset-bottom))]");
+    expect(videoCard).toContain(
+      "text-base text-white placeholder:text-white/40 outline-none focus:border-[#FE2C55] sm:text-sm",
+    );
+
+    const dialog = read("src/components/ui/dialog.tsx");
+    expect(dialog).toContain("w-[calc(100%-2rem)]");
+    expect(dialog).toContain("max-h-[90dvh]");
+
+    for (const rel of [
+      "src/routes/u.$username.tsx",
+      "src/routes/search.tsx",
+      "src/routes/sound.$soundId.tsx",
+    ]) {
+      const content = read(rel);
+      expect(content).toContain("top-[calc(env(safe-area-inset-top)+0.75rem)]");
+    }
+
+    for (const rel of [
+      "src/components/SearchBar.tsx",
+      "src/components/ReportButton.tsx",
+      "src/components/CoolerupBrowser.tsx",
+      "src/routes/messages.tsx",
+      "src/routes/videos.tsx",
+      "src/routes/music.tsx",
+    ]) {
+      const content = read(rel);
+      expect(content).toContain("text-base");
+    }
+  });
 });

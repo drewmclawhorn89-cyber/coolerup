@@ -672,7 +672,7 @@ function MusicPage() {
   };
 
   return (
-    <div className="min-h-dvh bg-background pb-32">
+    <div className="min-h-dvh bg-background pb-[calc(8rem+env(safe-area-inset-bottom))]">
       {/* Header */}
       <div className="sticky top-0 z-30 border-b bg-background/95 backdrop-blur">
         <div className="mx-auto flex max-w-2xl items-center gap-2 px-4 pb-2 pt-[max(0.75rem,env(safe-area-inset-top))]">
@@ -728,7 +728,7 @@ function MusicPage() {
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search songs..."
               aria-label="Search songs"
-              className="h-10 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+              className="h-10 w-full bg-transparent text-base outline-none placeholder:text-muted-foreground sm:text-sm"
             />
             {query && (
               <button type="button" onClick={() => setQuery("")} aria-label="Clear search">

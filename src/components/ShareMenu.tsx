@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { Check, Download, Flag, Gauge, Link2, Lock, Pencil, Share2, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -148,13 +149,18 @@ export function ShareMenu({
     }
   };
 
-  return (
+  const sheet = (
     <div
-      className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end justify-center p-0"
+      className="fixed inset-0 z-[90] flex items-end justify-center bg-black/80 p-0 backdrop-blur-sm"
       onClick={onClose}
+      onTouchStart={(e) => e.stopPropagation()}
+      onTouchMove={(e) => e.stopPropagation()}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Share video"
     >
       <div
-        className="bg-zinc-900 w-full max-w-md rounded-t- p-6 space-y-5"
+        className="sheet-up w-full max-w-md space-y-5 rounded-t-2xl bg-zinc-900 p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">
@@ -296,7 +302,7 @@ export function ShareMenu({
           </div>
         )}
 
-        <div className="text-xs text-zinc-500 text-center pt-2">{url}</div>
+        <div className="break-all pt-2 text-center text-xs text-zinc-500">{url}</div>
       </div>
 
       <OfflinePaywallDialog open={paywallOpen} onClose={() => setPaywallOpen(false)} />
@@ -317,4 +323,9 @@ export function ShareMenu({
       </div>
     </div>
   );
+
+  if (typeof document !== "undefined" && document.body) {
+    return createPortal(sheet, document.body);
+  }
+  return sheet;
 }

@@ -604,7 +604,7 @@ function WatchPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-0 pb-24 sm:px-3">
+    <div className="mx-auto w-full max-w-6xl px-0 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-[env(safe-area-inset-top)] sm:px-3">
       <div className="flex items-center gap-2 px-3 py-2">
         <Link to="/videos" aria-label="Back to videos" className="rounded-full p-1 text-white">
           <ArrowLeft className="h-5 w-5" />

@@ -127,7 +127,7 @@ function SoundPage() {
   return (
     <div className="min-h-dvh bg-black text-white">
       <header className="sticky top-0 z-20 border-b border-white/10 bg-black/85 backdrop-blur">
-        <div className="mx-auto flex w-full max-w-3xl items-center gap-3 px-4 py-3">
+        <div className="mx-auto flex w-full max-w-3xl items-center gap-3 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
           <Link
             to="/"
             aria-label="Back to feed"
@@ -240,7 +240,7 @@ function SoundPage() {
             type="button"
             onClick={() => setOpenIndex(null)}
             aria-label="Close viewer"
-            className="absolute left-3 top-3 z-50 flex h-10 w-10 items-center justify-center rounded-full bg-black/50 text-white"
+            className="absolute left-3 top-[calc(env(safe-area-inset-top)+0.75rem)] z-50 flex h-10 w-10 items-center justify-center rounded-full bg-black/50 text-white"
           >
             <X className="h-5 w-5" />
           </button>

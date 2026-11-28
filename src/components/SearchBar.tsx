@@ -56,7 +56,7 @@ export const SearchBar = forwardRef<HTMLInputElement, Props>(function SearchBar(
           spellCheck={false}
           aria-label="Search"
           placeholder={placeholder}
-          className="min-w-0 flex-1 bg-transparent text-[15px] text-white outline-none placeholder:text-white/45 [&::-webkit-search-cancel-button]:hidden"
+          className="min-w-0 flex-1 bg-transparent text-base text-white outline-none placeholder:text-white/45 sm:text-[15px] [&::-webkit-search-cancel-button]:hidden"
         />
         {value.length > 0 && (
           <button

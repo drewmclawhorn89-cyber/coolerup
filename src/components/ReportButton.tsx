@@ -183,7 +183,7 @@ export function ReportButton({
               placeholder="Add details (optional)"
               maxLength={1000}
               rows={3}
-              className="mt-3 w-full resize-none rounded-lg border border-white/15 bg-black px-3 py-2 text-sm text-white placeholder:text-white/40 focus:border-[#FE2C55] focus:outline-none"
+              className="mt-3 w-full resize-none rounded-lg border border-white/15 bg-black px-3 py-2 text-base text-white placeholder:text-white/40 focus:border-[#FE2C55] focus:outline-none sm:text-sm"
             />
 
             <Button

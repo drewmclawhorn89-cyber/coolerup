@@ -85,7 +85,7 @@ function CreatorPage() {
   const remaining = next === null ? 0 : Math.max(0, next - fund.totalViews);
 
   return (
-    <div className="mx-auto min-h-screen w-full max-w-2xl bg-black px-4 pb-24 pt-4 text-white">
+    <div className="mx-auto min-h-dvh w-full max-w-2xl bg-black px-4 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-[calc(env(safe-area-inset-top)+1rem)] text-white">
       <header className="mb-4 flex items-center gap-2">
         <Link
           to="/wallet"

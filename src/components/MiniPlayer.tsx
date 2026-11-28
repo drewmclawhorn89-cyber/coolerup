@@ -29,6 +29,7 @@ import { hasBackgroundPlayAccess, SUBSCRIPTION_EVENT } from "@/lib/subscriptions
 import { LIFETIME_EVENT } from "@/lib/subscription";
 import { getSavedSoundIds, saveSound, unsaveSound } from "@/lib/sounds";
 import { requestUseSound, songPlayer, trackToSound, useSongPlayer } from "@/lib/songPlayer";
+import { useCommentsSheetOpen } from "@/lib/commentsOverlay";
 
 /**
  * MiniPlayer
@@ -55,6 +56,7 @@ export function MiniPlayer() {
   const [expanded, setExpanded] = useState(false);
   const [saved, setSaved] = useState(false);
   const [savingBusy, setSavingBusy] = useState(false);
+  const commentsOpen = useCommentsSheetOpen();
 
   const track = player.queue[player.index];
   const soundId = track?.soundId ?? "";
@@ -127,8 +129,16 @@ export function MiniPlayer() {
 
   const pct = player.duration > 0 ? (player.time / player.duration) * 100 : 0;
 
+  const hasPhoneBottomNav = pathname === "/" && !commentsOpen;
+
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex justify-center px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+    <div
+      className={`pointer-events-none fixed inset-x-0 z-50 flex justify-center px-2 ${
+        hasPhoneBottomNav
+          ? "bottom-[calc(4.25rem+env(safe-area-inset-bottom))] pb-1 md:bottom-0 md:pb-[max(0.5rem,env(safe-area-inset-bottom))]"
+          : "bottom-0 pb-[max(0.5rem,env(safe-area-inset-bottom))]"
+      }`}
+    >
       <div className="pointer-events-auto w-full max-w-md overflow-hidden rounded-2xl border border-white/10 bg-zinc-900/95 shadow-2xl backdrop-blur-xl">
         {/* Thin seek bar doubles as the progress indicator in the compact view. */}
         <input

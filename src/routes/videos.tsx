@@ -274,7 +274,7 @@ function VideosPage() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-3 pb-24 pt-3">
+    <div className="mx-auto w-full max-w-6xl px-3 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-[calc(env(safe-area-inset-top)+0.75rem)]">
       <div className="mb-3 flex items-center justify-between gap-3">
         <h1 className="text-xl font-bold">Videos</h1>
         <Button
@@ -291,7 +291,7 @@ function VideosPage() {
         </Button>
       </div>
       {/* Search bar, YouTube style: a wide rounded field with the icon inside. */}
-      <div className="sticky top-0 z-20 -mx-3 bg-background/95 px-3 pb-2 pt-1 backdrop-blur">
+      <div className="sticky top-0 z-20 -mx-3 bg-background/95 px-3 pb-2 pt-[max(0.25rem,env(safe-area-inset-top))] backdrop-blur">
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -314,7 +314,7 @@ function VideosPage() {
               onChange={(e) => setSearchInput(e.target.value)}
               placeholder="Search full videos"
               aria-label="Search full videos"
-              className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+              className="min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground sm:text-sm"
             />
           </div>
           <button

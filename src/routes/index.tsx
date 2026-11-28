@@ -1377,13 +1377,13 @@ function Index() {
 
       <main className="relative flex h-[100dvh] w-full min-w-0 flex-1 flex-col overflow-hidden bg-background md:h-auto md:bg-transparent">
         {offlineMode && (
-          <div className="flex shrink-0 items-center gap-2 bg-white/10 px-4 py-2 text-sm font-bold text-white md:px-10">
+          <div className="flex shrink-0 items-center gap-2 bg-white/10 px-4 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] text-sm font-bold text-white md:px-10 md:py-2">
             <WifiOff className="h-4 w-4" /> You're offline — watching saved videos
           </div>
         )}
 
         {!offlineMode && lite && (
-          <div className="flex shrink-0 items-center gap-2 bg-secondary px-4 py-1.5 text-xs font-bold text-muted-foreground md:px-10">
+          <div className="flex shrink-0 items-center gap-2 bg-secondary px-4 pb-1.5 pt-[max(0.375rem,env(safe-area-inset-top))] text-xs font-bold text-muted-foreground md:px-10 md:py-1.5">
             <Wifi className="h-3.5 w-3.5" /> Lite mode — saving data on a slow connection
           </div>
         )}
@@ -1538,7 +1538,7 @@ function Index() {
                 </div>
               </div>
 
-              <div className="mx-auto w-full max-w-2xl space-y-3 px-6 pb-28 pt-6">
+              <div className="mx-auto w-full max-w-2xl space-y-3 px-6 pb-[calc(7rem+env(safe-area-inset-bottom))] pt-6">
                 {inboxLoading && notifications.length === 0 ? (
                   <InboxSkeleton count={5} />
                 ) : filteredNotifications.length === 0 ? (

@@ -8,6 +8,7 @@ import {
   useState,
   type MouseEvent,
 } from "react";
+import { createPortal } from "react-dom";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Bookmark, Heart, MessageCircle, Music, Play, Repeat2, Share2 } from "lucide-react";
 import { toast } from "sonner";
@@ -1374,9 +1375,9 @@ function VideoCardImpl({
                 username into the middle of the frame. Order here is
                 top→bottom: caption, sound, @handle, repost attribution. */}
             <div
-              className={`video-caption absolute inset-x-0 bottom-0 z-20 pl-3 pr-16 pt-16 md:pb-4 ${
+              className={`video-caption absolute inset-x-0 bottom-0 z-20 pl-3 pr-20 pt-16 md:pb-4 ${
                 overlayBottomNav
-                  ? "pb-[calc(4.5rem+env(safe-area-inset-bottom))]"
+                  ? "pb-[calc(5rem+env(safe-area-inset-bottom))]"
                   : "pb-[max(1rem,env(safe-area-inset-bottom))]"
               }`}
             >
@@ -1429,7 +1430,7 @@ function VideoCardImpl({
                 onClick={seek}
                 className={`absolute inset-x-0 h-3 cursor-pointer md:bottom-0 ${
                   overlayBottomNav
-                    ? "bottom-[calc(3.5rem+env(safe-area-inset-bottom))]"
+                    ? "bottom-[calc(4rem+env(safe-area-inset-bottom))]"
                     : "bottom-[env(safe-area-inset-bottom)]"
                 }`}
               >
@@ -1460,7 +1461,7 @@ function VideoCardImpl({
         <div
           className={`absolute right-1.5 z-20 flex flex-col items-center gap-3.5 md:static md:mb-10 md:gap-3.5 ${
             overlayBottomNav
-              ? "bottom-[calc(4.75rem+env(safe-area-inset-bottom))]"
+              ? "bottom-[calc(5rem+env(safe-area-inset-bottom))]"
               : "bottom-[calc(3.5rem+env(safe-area-inset-bottom))]"
           }`}
         >
@@ -1597,61 +1598,69 @@ function VideoCardImpl({
           )}
         </div>
       </div>
-      {/* Long-press sheet: slides up from the bottom, dark like TikTok's. */}
-      {showLikeMenu && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label="Video options"
-          className="fixed inset-0 z-[60] flex items-end justify-center"
-        >
-          <button
-            type="button"
-            aria-label="Close menu"
-            onClick={() => setShowLikeMenu(false)}
-            className="absolute inset-0 bg-black/50 backdrop-blur-[2px]"
-          />
-          <div className="sheet-up relative w-full max-w-[430px] rounded-t-2xl bg-[#1c1c1e] p-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] text-white shadow-2xl md:mb-6 md:max-w-sm md:rounded-2xl">
-            <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-white/25" aria-hidden />
-            <button
-              type="button"
-              onClick={() => {
-                setShowLikeMenu(false);
-                void toggleRepost();
-              }}
-              className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-[15px] font-semibold"
+      {/* Long-press sheet: portaled to body so `.feed-card` containment never clips it behind nav. */}
+      {showLikeMenu &&
+        (() => {
+          const sheet = (
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label="Video options"
+              className="fixed inset-0 z-[90] flex items-end justify-center"
+              onTouchStart={(e) => e.stopPropagation()}
+              onTouchMove={(e) => e.stopPropagation()}
             >
-              <Repeat2
-                className={`h-5 w-5 ${reposted ? "text-yellow-400" : "text-white"}`}
-                aria-hidden
+              <button
+                type="button"
+                aria-label="Close menu"
+                onClick={() => setShowLikeMenu(false)}
+                className="absolute inset-0 bg-black/50 backdrop-blur-[2px]"
               />
-              <span>{reposted ? "Remove repost" : "Repost"}</span>
-              <span className="ml-auto text-xs font-bold text-white/50">
-                {formatCount(Math.max(repostCount ?? 0, reposted ? 1 : 0))}
-              </span>
-            </button>
-            <button
-              type="button"
-              onClick={hideVideo}
-              className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-[15px] font-semibold"
-            >
-              <span className="w-5 text-center text-lg leading-none" aria-hidden>
-                😒
-              </span>
-              <span>Not interested</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowLikeMenu(false)}
-              className="mt-1 w-full rounded-xl px-3 py-3 text-[15px] font-semibold text-white/70"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
+              <div className="sheet-up relative w-full max-w-[430px] rounded-t-2xl bg-[#1c1c1e] p-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] text-white shadow-2xl md:mb-6 md:max-w-sm md:rounded-2xl">
+                <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-white/25" aria-hidden />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowLikeMenu(false);
+                    void toggleRepost();
+                  }}
+                  className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-[15px] font-semibold"
+                >
+                  <Repeat2
+                    className={`h-5 w-5 ${reposted ? "text-yellow-400" : "text-white"}`}
+                    aria-hidden
+                  />
+                  <span>{reposted ? "Remove repost" : "Repost"}</span>
+                  <span className="ml-auto text-xs font-bold text-white/50">
+                    {formatCount(Math.max(repostCount ?? 0, reposted ? 1 : 0))}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={hideVideo}
+                  className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-[15px] font-semibold"
+                >
+                  <span className="w-5 text-center text-lg leading-none" aria-hidden>
+                    😒
+                  </span>
+                  <span>Not interested</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowLikeMenu(false)}
+                  className="mt-1 w-full rounded-xl px-3 py-3 text-[15px] font-semibold text-white/70"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          );
+          return typeof document !== "undefined" && document.body
+            ? createPortal(sheet, document.body)
+            : sheet;
+        })()}
       {showComments && (
-        <Suspense fallback={<ListRowSkeleton count={4} />}>
+        <Suspense fallback={null}>
           <Comments
             videoId={video.id}
             highlightComment={highlightComment}
@@ -1752,7 +1761,7 @@ function VideoCardImpl({
             onChange={(e) => setReportDetails(e.target.value.slice(0, 1000))}
             rows={3}
             placeholder="Add details (optional)"
-            className="w-full resize-none rounded-lg border border-white/15 bg-black px-3 py-2 text-sm text-white placeholder:text-white/40 outline-none focus:border-[#FE2C55]"
+            className="w-full resize-none rounded-lg border border-white/15 bg-black px-3 py-2 text-base text-white placeholder:text-white/40 outline-none focus:border-[#FE2C55] sm:text-sm"
           />
 
           <div className="flex items-center justify-end gap-2">

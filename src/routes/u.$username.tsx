@@ -1159,7 +1159,7 @@ function Profile() {
               setOpen(null);
               setReloadKey((k) => k + 1);
             }}
-            className="absolute left-3 top-3 z-50 text-white"
+            className="absolute left-3 top-[calc(env(safe-area-inset-top)+0.75rem)] z-50 flex h-10 w-10 items-center justify-center rounded-full bg-black/50 text-white"
           >
             <X />
           </Button>

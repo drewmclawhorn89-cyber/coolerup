@@ -1,5 +1,6 @@
 import { Check } from "lucide-react";
 import { useEffect } from "react";
+import { createPortal } from "react-dom";
 import { QUALITY_OPTIONS, resolveRendition, type QualityId } from "@/lib/videoQuality";
 import type { EffectiveType } from "@/lib/network";
 
@@ -38,14 +39,19 @@ export function QualitySelector({
 
   const autoPicks = resolveRendition("auto", effectiveType);
 
-  return (
-    <div className="fixed inset-0 z-40" onClick={onClose}>
+  const picker = (
+    <div
+      className="fixed inset-0 z-[90]"
+      onClick={onClose}
+      onTouchStart={(e) => e.stopPropagation()}
+      onTouchMove={(e) => e.stopPropagation()}
+    >
       <div
         role="dialog"
         aria-label="Video quality"
         aria-modal="true"
         onClick={(e) => e.stopPropagation()}
-        className="absolute bottom-20 right-2 w-56 overflow-hidden rounded-xl border border-white/10 bg-black/85 p-2 text-white shadow-2xl backdrop-blur"
+        className="absolute bottom-[calc(4.75rem+env(safe-area-inset-bottom))] right-3 w-56 overflow-hidden rounded-xl border border-white/10 bg-black/90 p-2 text-white shadow-2xl backdrop-blur"
       >
         <p className="px-2 pb-1 pt-0.5 text-[11px] font-bold uppercase tracking-widest text-white/50">
           Quality
@@ -64,7 +70,7 @@ export function QualitySelector({
                 }}
                 aria-pressed={active}
                 className={`flex w-full items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-left transition ${
-                  active ? "bg-white/15" : "hover:bg-white/10"
+                  active ? "bg-white/15" : ""
                 }`}
               >
                 <span className="min-w-0">
@@ -92,4 +98,9 @@ export function QualitySelector({
       </div>
     </div>
   );
+
+  if (typeof document !== "undefined" && document.body) {
+    return createPortal(picker, document.body);
+  }
+  return picker;
 }

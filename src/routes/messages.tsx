@@ -522,7 +522,7 @@ function Messages() {
             value={toUser}
             onChange={(e) => setToUser(e.target.value)}
             placeholder="Message @username"
-            className="mt-3 w-full rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm text-white placeholder:text-white/50 outline-none focus:border-white"
+            className="mt-3 w-full rounded-full border border-white/20 bg-white/10 px-4 py-2 text-base text-white placeholder:text-white/50 outline-none focus:border-white sm:text-sm"
           />
         </div>
 
@@ -887,7 +887,7 @@ function Messages() {
                 onKeyDown={(e) => e.key === "Enter" && void send()}
                 placeholder="Message..."
                 maxLength={2000}
-                className="min-w-0 flex-1 rounded-full border border-white/20 bg-white/10 px-4 py-2.5 text-sm text-white placeholder:text-white/50 outline-none focus:border-white"
+                className="min-w-0 flex-1 rounded-full border border-white/20 bg-white/10 px-4 py-2.5 text-base text-white placeholder:text-white/50 outline-none focus:border-white sm:text-sm"
               />
               <Button
                 onClick={() => void send()}

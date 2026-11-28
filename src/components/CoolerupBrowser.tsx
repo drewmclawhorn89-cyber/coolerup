@@ -544,7 +544,7 @@ export function CoolerupBrowser() {
               inputMode="search"
               autoComplete="off"
               spellCheck={false}
-              className="h-10 w-full min-w-0 bg-transparent text-sm text-neutral-900 outline-none placeholder:text-neutral-500"
+              className="h-10 w-full min-w-0 bg-transparent text-base text-neutral-900 outline-none placeholder:text-neutral-500 sm:text-sm"
             />
             {address && (
               <button
@@ -625,7 +625,7 @@ export function CoolerupBrowser() {
             onChange={(event) => setMusicUrl(event.target.value)}
             placeholder="Paste a YouTube song link…"
             aria-label="Paste a YouTube song link"
-            className="h-9 min-w-0 flex-1 rounded-full bg-white/10 px-3 text-xs outline-none placeholder:text-white/40"
+            className="h-9 min-w-0 flex-1 rounded-full bg-white/10 px-3 text-base outline-none placeholder:text-white/40 sm:text-xs"
           />
           <button
             type="submit"

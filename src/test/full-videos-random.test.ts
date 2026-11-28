@@ -62,8 +62,8 @@ vi.mock("@/lib/untypedDb", () => {
               ...(categoryEq ? [`category=${categoryEq}`] : []),
               ...orClauses.map((c) => `or(${c})`),
             ],
-            ...(rangeBounds && { range: rangeBounds }),
-            ...(inIds && { inIds }),
+            range: rangeBounds ?? undefined,
+            inIds: inIds ?? undefined,
           });
 
           if (

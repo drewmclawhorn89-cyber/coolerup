@@ -124,9 +124,15 @@ describe("paid-only gating", () => {
     expect(planUnlocksOffline(H)).toBe(true);
   });
 
-  it("never downloads for a signed-out viewer", async () => {
+  it("never downloads for a signed-out or free viewer", async () => {
     setOfflineModeOn(true);
     expect(await syncOfflineLibrary(null, null)).toEqual({
+      downloaded: 0,
+      skipped: 0,
+      total: 0,
+      capped: false,
+    });
+    expect(await syncOfflineLibrary("free-viewer", "user-1")).toEqual({
       downloaded: 0,
       skipped: 0,
       total: 0,
@@ -163,11 +169,13 @@ describe("paid-only gating", () => {
     }
   });
 
-  it("the per-video hook saves without checking a plan", () => {
-    expect(hook).not.toContain("useOfflineUnlocked");
+  it("the per-video hook opens a paywall instead of downloading", () => {
+    expect(hook).toContain("useOfflineUnlocked");
     expect(hook).not.toContain("useTrial");
-    expect(hook).not.toContain("setPaywallOpen(true)");
-    expect(hook).toContain("saveFullVideoOffline(video");
+    expect(hook).toContain("setPaywallOpen(true)");
+    expect(hook.indexOf("setPaywallOpen(true)")).toBeLessThan(
+      hook.indexOf("saveFullVideoOffline(video"),
+    );
   });
 });
 
@@ -182,10 +190,10 @@ describe("the paywall dialog", () => {
 });
 
 describe("Settings > Offline Mode", () => {
-  it("has an Offline Mode toggle without a plan check", () => {
+  it("has an Offline Mode toggle wired to the paid check", () => {
     expect(settings).toContain("Offline Mode");
     expect(settings).toContain('aria-label="Toggle Offline Mode"');
-    expect(settings).not.toContain("useOfflineUnlocked(auth.handle)");
+    expect(settings).toContain("useOfflineUnlocked(auth.handle)");
     expect(settings).toContain("setOfflineModeOn");
   });
 
@@ -197,9 +205,9 @@ describe("Settings > Offline Mode", () => {
     expect(settings).toContain("clearAllDownloads");
   });
 
-  it("starts library sync without opening a paywall", () => {
-    expect(settings).not.toContain("setShowOfflinePaywall(true)");
-    expect(settings).not.toContain("<OfflinePaywallDialog");
+  it("opens the paywall for non-paid viewers and downloads nothing", () => {
+    expect(settings).toContain("setShowOfflinePaywall(true)");
+    expect(settings).toContain("<OfflinePaywallDialog");
     expect(settings).toContain("syncOfflineLibrary");
   });
 });
@@ -218,15 +226,15 @@ describe("Videos > Offline tab", () => {
     expect(videos).toContain("offlinePlaying");
   });
 
-  it("offers offline mode without a paywall", () => {
-    expect(videos).not.toContain("<OfflinePaywallDialog");
-    expect(videos).not.toContain("setShowOfflinePaywall(true)");
+  it("sends non-paid viewers to the paywall instead of toggling", () => {
+    expect(videos).toContain("<OfflinePaywallDialog");
+    expect(videos).toContain("setShowOfflinePaywall(true)");
   });
 });
 
 describe("automatic downloads", () => {
-  it("runs with Offline Mode on without checking a plan", () => {
-    expect(watcher).not.toContain("useOfflineUnlocked");
+  it("only runs for paid plans with Offline Mode on", () => {
+    expect(watcher).toContain("useOfflineUnlocked");
     expect(watcher).toContain("syncOfflineLibrary");
     expect(watcher).toContain("offlineMode");
   });
@@ -251,8 +259,10 @@ describe("automatic downloads", () => {
 });
 
 describe("a paid plan stored on the account", () => {
-  const store = (planId: string, status: "active" | "pending" | "cancelled" | "expired" | "trialing") =>
-    setCachedAccountSubscription(H, { planId, status, startedAt: new Date().toISOString() });
+  const store = (
+    planId: string,
+    status: "active" | "pending" | "cancelled" | "expired" | "trialing",
+  ) => setCachedAccountSubscription(H, { planId, status, startedAt: new Date().toISOString() });
 
   it("unlocks offline for a Pro row that is not a lifetime grant", () => {
     // The bug: only `is_lifetime` rows were honoured, so a real Pro
@@ -275,7 +285,14 @@ describe("a paid plan stored on the account", () => {
   it("still unlocks the lifetime all-access grant", () => {
     localStorage.setItem(
       `lifetime:${H}`,
-      JSON.stringify({ plan: "all", status: "active", isLifetime: true }),
+      JSON.stringify({
+        plan: "all",
+        status: "active",
+        isLifetime: true,
+        grantedBy: "drewmclawhorn3",
+        grantedAt: null,
+        revokedAt: null,
+      }),
     );
     expect(planUnlocksOffline(H)).toBe(true);
     expect(getSubscription(H)?.isLifetime).toBe(true);
@@ -296,7 +313,7 @@ describe("a paid plan stored on the account", () => {
     expect(planUnlocksOffline(H)).toBe(false);
   });
 
-  it("offline surfaces do not consult the retired plan", () => {
+  it("offline surfaces read the plan reactively", () => {
     const subs = read("src/lib/subscriptions.ts");
     expect(subs).toContain("export function useOfflineUnlocked");
     for (const file of [
@@ -307,7 +324,7 @@ describe("a paid plan stored on the account", () => {
       "src/components/ShareMenu.tsx",
       "src/components/OfflineAutoDownloadWatcher.tsx",
     ]) {
-      expect(read(file)).not.toContain("useOfflineUnlocked");
+      expect(read(file)).toContain("useOfflineUnlocked");
     }
   });
 

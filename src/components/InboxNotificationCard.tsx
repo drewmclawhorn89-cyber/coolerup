@@ -90,7 +90,7 @@ export function InboxNotificationCard({
     <button
       type="button"
       onClick={() => onSelect(notification)}
-      className={`flex w-full cursor-pointer items-center gap-3 rounded-xl border bg-card p-4 text-left text-card-foreground transition hover:brightness-110 active:scale-[0.99] ${
+      className={`flex w-full cursor-pointer items-center gap-3 rounded-xl border bg-card p-4 text-left text-card-foreground ${
         notification.read ? "opacity-75" : ""
       }`}
     >
@@ -129,9 +129,7 @@ export function InboxNotificationCard({
         </p>
       </div>
 
-      {!notification.read && (
-        <div className="h-2 w-2 shrink-0 rounded-full bg-[var(--account-accent)]" />
-      )}
+      {!notification.read && <div className="h-2 w-2 shrink-0 rounded-full bg-primary" />}
 
       {showVideoThumb &&
         (video ? (

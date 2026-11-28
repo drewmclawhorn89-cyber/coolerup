@@ -81,13 +81,13 @@ async function canNotify(targetUserId: string, actorUserId: string): Promise<boo
  * Best-effort: a failed push must never break the action that caused it (a
  * like should still save even if the recipient's device is unreachable).
  */
-export async function notifyUser(input: NotifyInput): Promise<boolean> {
+export async function notifyUser(input: NotifyInput): Promise<void> {
   const { targetUserId, actorUserId, type, text, videoId, url, title } = input;
-  if (!targetUserId || !actorUserId || targetUserId === actorUserId) return false;
+  if (!targetUserId || !actorUserId || targetUserId === actorUserId) return;
 
   if (!(await canNotify(targetUserId, actorUserId))) {
     console.warn("[notify] blocked: no follow relationship with the recipient");
-    return false;
+    return;
   }
 
   const { error } = await supabase.from("notifications").insert({
@@ -99,7 +99,7 @@ export async function notifyUser(input: NotifyInput): Promise<boolean> {
   });
   if (error) {
     console.warn("[notify] couldn't save notification", error.message);
-    return false;
+    return;
   }
 
   try {
@@ -116,7 +116,6 @@ export async function notifyUser(input: NotifyInput): Promise<boolean> {
   } catch (e) {
     console.warn("[notify] push failed", e);
   }
-  return true;
 }
 
 /** Look up a profile id from a handle (without the leading @). */

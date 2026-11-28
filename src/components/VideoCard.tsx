@@ -8,6 +8,7 @@ import {
   useState,
   type MouseEvent,
 } from "react";
+import { createPortal } from "react-dom";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Bookmark, Heart, MessageCircle, Music, Play, Repeat2, Share2 } from "lucide-react";
 import { toast } from "sonner";
@@ -66,11 +67,15 @@ import { QualitySelector } from "@/components/QualitySelector";
 import { createWatchDurationTracker, recordWatchHistory } from "@/lib/watchHistory";
 import { MATURE_LABEL, useMatureGate } from "@/lib/matureVideos";
 import type { HighlightCommentTarget } from "@/lib/inboxNotifications";
+import { closeBottomSheetOverlay, openBottomSheetOverlay } from "@/lib/commentsOverlay";
 
 const Comments = lazy(() => import("./Comments").then((m) => ({ default: m.Comments })));
 const ShareMenu = lazy(() => import("./ShareMenu").then((m) => ({ default: m.ShareMenu })));
 const ChristmasGiftSheet = lazy(() =>
   import("./ChristmasGiftSheet").then((m) => ({ default: m.ChristmasGiftSheet })),
+);
+const AgeVerificationDialog = lazy(() =>
+  import("./AgeVerificationDialog").then((m) => ({ default: m.AgeVerificationDialog })),
 );
 
 /** Cache resolved avatar URLs per handle so feed scrolling doesn't refetch. */
@@ -132,6 +137,8 @@ export type VideoCardProps = {
   highlightComment?: HighlightCommentTarget | null;
   /** Feed controller hint: only "active" and "next" (+1) may load; "idle" unloads. */
   preloadMode?: "active" | "next" | "idle";
+  /** True when rendered behind the overlaid phone bottom nav on the main feed. */
+  overlayBottomNav?: boolean;
 };
 
 function VideoCardImpl({
@@ -149,6 +156,7 @@ function VideoCardImpl({
   initialShowComments = false,
   highlightComment = null,
   preloadMode,
+  overlayBottomNav = false,
 }: VideoCardProps) {
   const ref = useRef<HTMLVideoElement>(null);
   const [src, setSrc] = useState("");
@@ -194,6 +202,7 @@ function VideoCardImpl({
   // blocked outright. No camera or face scan is involved.
   const matureGate = useMatureGate(video);
   const [matureUnlocked, setMatureUnlocked] = useState(false);
+  const [ageDialogOpen, setAgeDialogOpen] = useState(false);
   const matureLocked = matureGate.mature && (!matureUnlocked || !matureGate.allowed);
   const [rawAuthorAvatar, setRawAuthorAvatar] = useState<string | null>(null);
   const authorAvatar = useCompressedThumbnail(rawAuthorAvatar, { maxDim: 120 });
@@ -765,6 +774,7 @@ function VideoCardImpl({
     // A locked 18+ video never plays from a tap. Tapping it offers the ID
     // check instead, so the lock can't be bypassed by tapping the frame.
     if (matureLocked) {
+      if (matureGate.needsVerification) setAgeDialogOpen(true);
       return;
     }
     const el = ref.current;
@@ -925,14 +935,18 @@ function VideoCardImpl({
   // Clear a pending timer if the card unmounts mid-press.
   useEffect(() => cancelLikePress, [cancelLikePress]);
 
-  // Escape closes the sheet, like every other overlay in the app.
+  // Escape closes the sheet, and bottom nav hides while it is open.
   useEffect(() => {
     if (!showLikeMenu) return;
+    openBottomSheetOverlay();
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setShowLikeMenu(false);
     };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    return () => {
+      closeBottomSheetOverlay();
+      window.removeEventListener("keydown", onKey);
+    };
   }, [showLikeMenu]);
 
   const hideVideo = useCallback(() => {
@@ -992,7 +1006,7 @@ function VideoCardImpl({
   const reposter = repostedBy && repostedBy !== video.username ? repostedBy : null;
 
   return (
-    <section className="feed-card relative h-full w-full snap-start snap-always bg-black md:flex md:items-center md:justify-center md:bg-transparent md:py-4">
+    <section className="feed-card relative h-full w-full snap-start snap-always bg-transparent md:flex md:items-center md:justify-center md:bg-transparent md:py-4">
       <div className="relative flex h-full w-full items-end md:h-auto md:w-auto md:gap-4">
         <div className="flex h-full min-w-0 flex-1 flex-col md:h-auto md:flex-none md:gap-3">
           <div
@@ -1019,7 +1033,7 @@ function VideoCardImpl({
               if (longPressRef.current) window.clearTimeout(longPressRef.current);
               longPressRef.current = null;
             }}
-            className="relative h-full w-full overflow-hidden bg-black md:aspect-[9/16] md:h-[calc(100dvh-11rem)] md:max-h-[760px] md:w-auto md:rounded-2xl md:bg-card"
+            className="relative h-full w-full overflow-hidden bg-transparent md:aspect-[9/16] md:h-[calc(100dvh-11rem)] md:max-h-[760px] md:w-auto md:rounded-2xl md:bg-card"
           >
             {isTikTok && (
               <div
@@ -1053,7 +1067,7 @@ function VideoCardImpl({
                 onLoad={() => setLoadState("ready")}
                 onError={() => setLoadState("error")}
                 onDoubleClick={() => !liked && toggleLike()}
-                className="h-full w-full cursor-pointer object-cover"
+                className="absolute inset-0 h-full w-full cursor-pointer object-cover"
               />
             )}
             {song && isImage && (
@@ -1147,7 +1161,7 @@ function VideoCardImpl({
                     if (Math.abs(a.currentTime - target) > 0.45) a.currentTime = target;
                   }
                 }}
-                className={`absolute inset-0 h-full w-full cursor-pointer object-cover ${full ? "md:object-contain" : ""} ${matureLocked ? "scale-110 blur-2xl" : ""}`}
+                className={`absolute inset-0 h-full w-full cursor-pointer ${full ? "object-contain" : "object-cover"} ${matureLocked ? "scale-110 blur-2xl" : ""}`}
               />
             )}
 
@@ -1175,7 +1189,7 @@ function VideoCardImpl({
                 {matureGate.allowed ? (
                   <>
                     <p className="max-w-xs text-xs" style={{ color: "rgba(255,255,255,0.75)" }}>
-                      This video is for adults. Your account birthday is 18 or older.
+                      This video is for adults. Your ID is verified.
                     </p>
                     <button
                       type="button"
@@ -1188,6 +1202,23 @@ function VideoCardImpl({
                       style={{ backgroundColor: "#fff", color: "#000" }}
                     >
                       Watch 18+ video
+                    </button>
+                  </>
+                ) : matureGate.needsVerification ? (
+                  <>
+                    <p className="max-w-xs text-sm font-semibold" style={{ color: "#fff" }}>
+                      {matureGate.blockedMessage}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setAgeDialogOpen(true);
+                      }}
+                      className="rounded-full px-5 py-2 text-sm font-bold"
+                      style={{ backgroundColor: "#FE2C55", color: "#fff" }}
+                    >
+                      Verify my ID
                     </button>
                   </>
                 ) : matureGate.needsBirthday ? (
@@ -1210,6 +1241,16 @@ function VideoCardImpl({
                   </p>
                 )}
               </div>
+            )}
+
+            {ageDialogOpen && (
+              <Suspense fallback={<PanelSkeleton />}>
+                <AgeVerificationDialog
+                  open={ageDialogOpen}
+                  onOpenChange={setAgeDialogOpen}
+                  onSubmitted={() => setAgeDialogOpen(false)}
+                />
+              </Suspense>
             )}
 
             {isPaid && !paidOwned && (
@@ -1255,7 +1296,7 @@ function VideoCardImpl({
                   e.stopPropagation();
                   void ref.current?.play().catch(() => {});
                 }}
-                className="absolute left-1/2 top-1/2 z-[6] flex h-16 w-16 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur transition hover:bg-black/75"
+                className="absolute left-1/2 top-1/2 z-[6] flex h-16 w-16 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur"
               >
                 <Play className="h-8 w-8 fill-current" />
               </button>
@@ -1273,7 +1314,7 @@ function VideoCardImpl({
                         setLoadState("loading");
                         setRetry((r) => r + 1);
                       }}
-                      className="rounded-full border border-white/30 px-4 py-1.5 text-xs font-bold text-white transition hover:bg-white/10"
+                      className="rounded-full border border-white/30 px-4 py-1.5 text-xs font-bold text-white"
                     >
                       Try again
                     </button>
@@ -1287,7 +1328,7 @@ function VideoCardImpl({
                         e.stopPropagation();
                         setManualLoad(true);
                       }}
-                      className="flex h-14 w-14 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur transition hover:bg-white/25"
+                      className="flex h-14 w-14 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur"
                     >
                       <Play className="h-7 w-7 fill-current" />
                     </button>
@@ -1325,7 +1366,7 @@ function VideoCardImpl({
                     🎄
                   </span>
                 ) : (
-                  <Heart className="heart-pop h-28 w-28 fill-[#FE2C55] text-[#FE2C55] drop-shadow-[0_0_24px_rgba(255,45,85,0.8)]" />
+                  <Heart className="heart-pop h-28 w-28 fill-primary text-primary drop-shadow-[0_0_24px_rgba(255,45,85,0.8)]" />
                 )}
               </div>
             )}
@@ -1338,7 +1379,13 @@ function VideoCardImpl({
                 grow *upward* from it, so a long caption never pushes the
                 username into the middle of the frame. Order here is
                 top→bottom: caption, sound, @handle, repost attribution. */}
-            <div className="video-caption absolute inset-x-0 bottom-0 z-20 pb-4 pl-3 pr-16 pt-16 md:pb-4">
+            <div
+              className={`video-caption absolute inset-x-0 bottom-0 z-20 pl-3 pr-16 pt-16 md:pb-4 ${
+                overlayBottomNav
+                  ? "pb-[calc(4.5rem+env(safe-area-inset-bottom))]"
+                  : "pb-[max(1rem,env(safe-area-inset-bottom))]"
+              }`}
+            >
               <div className={showCaptions ? "" : "md:hidden"}>
                 <p className="line-clamp-3 break-words text-sm">{captionText}</p>
               </div>
@@ -1386,16 +1433,26 @@ function VideoCardImpl({
             {!isImage && (
               <div
                 onClick={seek}
-                className="video-progress absolute inset-x-0 bottom-0 h-3 cursor-pointer"
+                className={`absolute inset-x-0 h-3 cursor-pointer md:bottom-0 ${
+                  overlayBottomNav
+                    ? "bottom-[calc(3.5rem+env(safe-area-inset-bottom))]"
+                    : "bottom-[env(safe-area-inset-bottom)]"
+                }`}
               >
-                <div className="absolute inset-x-0 bottom-0 h-1 bg-foreground/20">
-                  <div ref={progressRef} className="h-full bg-primary" style={{ width: "0%" }} />
+                <div className="absolute inset-x-0 bottom-0 h-1 bg-white/25">
+                  <div ref={progressRef} className="h-full bg-white" style={{ width: "0%" }} />
                 </div>
               </div>
             )}
             {/* Quality badge — only when the user picked a quality by hand. */}
             {!isImage && qualitySource.badge && (
-              <span className="video-quality pointer-events-none absolute bottom-3 right-3 z-20 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-bold leading-tight text-white backdrop-blur">
+              <span
+                className={`pointer-events-none absolute right-3 z-20 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-bold leading-tight text-white backdrop-blur md:bottom-3 ${
+                  overlayBottomNav
+                    ? "bottom-[calc(4.25rem+env(safe-area-inset-bottom))]"
+                    : "bottom-3"
+                }`}
+              >
                 {qualitySource.badge}
               </span>
             )}
@@ -1406,7 +1463,13 @@ function VideoCardImpl({
             <p className="text-sm text-muted-foreground">{captionText}</p>
           </div>
         </div>
-        <div className="video-actions absolute bottom-14 right-1.5 z-20 flex flex-col items-center gap-3.5 md:static md:mb-10 md:gap-3.5">
+        <div
+          className={`absolute right-1.5 z-20 flex flex-col items-center gap-3.5 md:static md:mb-10 md:gap-3.5 ${
+            overlayBottomNav
+              ? "bottom-[calc(4.75rem+env(safe-area-inset-bottom))]"
+              : "bottom-[calc(3.5rem+env(safe-area-inset-bottom))]"
+          }`}
+        >
           {/* Avatar + follow badge — TikTok pins the + onto the avatar's chin. */}
           <div className="flex flex-col items-center">
             <Link
@@ -1433,9 +1496,7 @@ function VideoCardImpl({
                 onClick={toggleFollow}
                 aria-label={isFollowing ? "Unfollow" : "Follow"}
                 aria-pressed={isFollowing}
-                className={`-mt-2.5 flex h-5 w-5 items-center justify-center rounded-full text-[12px] font-bold leading-none transition ${
-                  isFollowing ? "bg-white text-black" : "bg-[#fe2c55] text-white"
-                }`}
+                className="-mt-2.5 flex h-5 w-5 items-center justify-center rounded-full bg-white text-[12px] font-bold leading-none text-black"
               >
                 {isFollowing ? "✓" : "+"}
               </button>
@@ -1447,16 +1508,35 @@ function VideoCardImpl({
             label={formatCount(Math.max(likes ?? 0, liked ? 1 : 0))}
             onClick={handleLikeClick}
             pressed={liked}
-            activeClass="text-[#FE2C55]"
+            activeClass={christmas ? "christmas-heart" : "text-[#fe2c55]"}
             onPointerDown={startLikePress}
             onPointerUp={cancelLikePress}
             onPointerLeave={cancelLikePress}
             onPointerCancel={cancelLikePress}
             onContextMenu={(e) => e.preventDefault()}
           >
-            <Heart
-              className={`h-7 w-7 drop-shadow-lg ${liked ? "fill-[#FE2C55] text-[#FE2C55]" : "text-white"} ${liked && burst ? "heart-pop-btn" : ""}`}
-            />
+            {christmas && liked ? (
+              <span
+                className={`christmas-tree-pop text-[26px] leading-none drop-shadow-lg ${
+                  burst ? "heart-pop-btn" : ""
+                }`}
+                aria-hidden
+              >
+                🎄
+              </span>
+            ) : (
+              <Heart
+                className={`h-7 w-7 drop-shadow-lg ${
+                  liked
+                    ? christmas
+                      ? "fill-[#2ecc55] text-[#2ecc55]"
+                      : "fill-[#fe2c55] text-[#fe2c55]"
+                    : christmas
+                      ? "christmas-heart"
+                      : "text-white"
+                } ${liked && burst ? "heart-pop-btn" : ""}`}
+              />
+            )}
           </RailButton>
 
           {/* COMMENT */}
@@ -1523,59 +1603,67 @@ function VideoCardImpl({
           )}
         </div>
       </div>
-      {/* Long-press sheet: slides up from the bottom, dark like TikTok's. */}
-      {showLikeMenu && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label="Video options"
-          className="fixed inset-0 z-[60] flex items-end justify-center"
-        >
-          <button
-            type="button"
-            aria-label="Close menu"
-            onClick={() => setShowLikeMenu(false)}
-            className="absolute inset-0 bg-black/50 backdrop-blur-[2px]"
-          />
-          <div className="sheet-up relative w-full max-w-[430px] rounded-t-2xl bg-[#1c1c1e] p-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] text-white shadow-2xl md:mb-6 md:max-w-sm md:rounded-2xl">
-            <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-white/25" aria-hidden />
-            <button
-              type="button"
-              onClick={() => {
-                setShowLikeMenu(false);
-                void toggleRepost();
-              }}
-              className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-[15px] font-semibold transition active:bg-white/10 hover:bg-white/10"
-            >
-              <Repeat2
-                className={`h-5 w-5 ${reposted ? "text-yellow-400" : "text-white"}`}
-                aria-hidden
-              />
-              <span>{reposted ? "Remove repost" : "Repost"}</span>
-              <span className="ml-auto text-xs font-bold text-white/50">
-                {formatCount(Math.max(repostCount ?? 0, reposted ? 1 : 0))}
-              </span>
-            </button>
-            <button
-              type="button"
-              onClick={hideVideo}
-              className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-[15px] font-semibold transition active:bg-white/10 hover:bg-white/10"
-            >
-              <span className="w-5 text-center text-lg leading-none" aria-hidden>
-                😒
-              </span>
-              <span>Not interested</span>
-            </button>
-            <button
-              type="button"
+      {/* Long-press sheet: portaled above video and bottom nav, solid theme background. */}
+      {showLikeMenu &&
+        (() => {
+          const sheet = (
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label="Video options"
+              className="fixed inset-0 z-[90] flex items-end justify-center bg-black/55"
               onClick={() => setShowLikeMenu(false)}
-              className="mt-1 w-full rounded-xl px-3 py-3 text-[15px] font-semibold text-white/70 transition active:bg-white/10 hover:bg-white/10"
             >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
+              <aside
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  backgroundColor: "var(--background)",
+                  paddingBottom: "calc(env(safe-area-inset-bottom) + 16px)",
+                }}
+                className="sheet-up fixed bottom-0 left-0 z-[91] w-screen rounded-t-2xl border-t border-white/20 bg-background p-2 text-white shadow-2xl sm:left-1/2 sm:max-w-md sm:-translate-x-1/2"
+              >
+                <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-white/25" aria-hidden />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowLikeMenu(false);
+                    void toggleRepost();
+                  }}
+                  className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-[15px] font-semibold text-white"
+                >
+                  <Repeat2
+                    className={`h-5 w-5 ${reposted ? "text-yellow-400" : "text-white"}`}
+                    aria-hidden
+                  />
+                  <span>{reposted ? "Remove repost" : "Repost"}</span>
+                  <span className="ml-auto text-xs font-bold text-white/60">
+                    {formatCount(Math.max(repostCount ?? 0, reposted ? 1 : 0))}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={hideVideo}
+                  className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-[15px] font-semibold text-white"
+                >
+                  <span className="w-5 text-center text-lg leading-none" aria-hidden>
+                    😒
+                  </span>
+                  <span>Not interested</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowLikeMenu(false)}
+                  className="mt-1 w-full rounded-xl px-3 py-3 text-[15px] font-semibold text-white/75"
+                >
+                  Cancel
+                </button>
+              </aside>
+            </div>
+          );
+          return typeof document !== "undefined" && document.body
+            ? createPortal(sheet, document.body)
+            : sheet;
+        })()}
       {showComments && (
         <Suspense fallback={<ListRowSkeleton count={4} />}>
           <Comments
@@ -1611,7 +1699,7 @@ function VideoCardImpl({
         onClose={() => setShowQuality(false)}
       />
       {showShare && (
-        <Suspense fallback={<PanelSkeleton />}>
+        <Suspense fallback={null}>
           <ShareMenu
             video={video}
             qualityLabel={qualityLabel}
@@ -1652,10 +1740,10 @@ function VideoCardImpl({
                 key={r.id}
                 type="button"
                 onClick={() => setReportReason(r.id)}
-                className={`flex w-full items-start justify-between gap-3 rounded-lg border px-3 py-2.5 text-left text-white transition ${
+                className={`flex w-full items-start justify-between gap-3 rounded-lg border px-3 py-2.5 text-left text-white ${
                   reportReason === r.id
                     ? "border-[#FE2C55] bg-[#FE2C55]/15"
-                    : "border-white/15 bg-black hover:border-white/30"
+                    : "border-white/15 bg-black"
                 }`}
               >
                 <span className="min-w-0">
@@ -1682,15 +1770,11 @@ function VideoCardImpl({
           />
 
           <div className="flex items-center justify-end gap-2">
-            <Button
-              variant="ghost"
-              className="text-white/80 hover:bg-white/10 hover:text-white"
-              onClick={() => setShowReport(false)}
-            >
+            <Button variant="ghost" className="text-white/80" onClick={() => setShowReport(false)}>
               Cancel
             </Button>
             <Button
-              className="bg-[#FE2C55] text-white hover:bg-[#e9274d]"
+              className="bg-[#FE2C55] text-white"
               onClick={() => void submitReport()}
               disabled={!reportReason || submittingReport}
             >

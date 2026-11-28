@@ -1,3 +1,4 @@
+import { requireOfflineEntitlement } from "@/lib/offlineEntitlement";
 import { resolveVideoUrl, type Video } from "./loop";
 import { resolveFullVideoUrl, type FullVideo } from "./fullVideos";
 
@@ -62,6 +63,7 @@ export async function listSaved() {
 }
 
 export async function saveOffline(video: Video, onProgress?: (pct: number) => void) {
+  await requireOfflineEntitlement("video");
   if (!(await canSaveAnother(video.id))) throw new OfflineLimitError();
   const url = await resolveVideoUrl(video.video_url);
   const resp = await fetch(url);
@@ -87,6 +89,7 @@ export async function saveOffline(video: Video, onProgress?: (pct: number) => vo
 
 /** Download and persist a long-form video in its own IndexedDB store. */
 export async function saveFullVideoOffline(video: FullVideo, onProgress?: (pct: number) => void) {
+  await requireOfflineEntitlement("video");
   if (!(await canSaveAnother(video.id))) throw new OfflineLimitError();
   const url = await resolveFullVideoUrl(video.video_url);
   if (!url) throw new Error("Video is unavailable for download");

@@ -48,7 +48,16 @@ describe("App root & home route loading", () => {
     }
   });
 
-  it("renders /settings safely when an old subscription link is opened and storage is blocked", async () => {
+  it("validates /settings search params without forcing ?subscriptions=false and renders /settings safely if localStorage throws", async () => {
+    const { Route: SettingsRoute } = await import("@/routes/settings");
+    const validate = SettingsRoute.options.validateSearch as (search: Record<string, unknown>) => {
+      subscriptions?: boolean;
+    };
+
+    expect(validate({})).toEqual({});
+    expect(validate({ subscriptions: "1" })).toEqual({ subscriptions: true });
+    expect(validate({ subscriptions: true })).toEqual({ subscriptions: true });
+
     const origErr = console.error;
     const errors: unknown[] = [];
     console.error = (...args: unknown[]) => {
@@ -64,7 +73,7 @@ describe("App root & home route loading", () => {
     try {
       const router = createRouter({
         routeTree,
-        history: createMemoryHistory({ initialEntries: ["/settings?subscriptions=1"] }),
+        history: createMemoryHistory({ initialEntries: ["/settings"] }),
         context: { queryClient: new QueryClient() },
       });
 

@@ -1,13 +1,6 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /accountThemes/{uid} {
-      allow get: if request.auth != null && request.auth.uid == uid;
-      allow create, update: if request.auth != null && request.auth.uid == uid
-        && request.resource.data.keys().hasOnly(['theme'])
-        && request.resource.data.theme in ['light','dark','system','blue','purple','pink','green','red'];
-    }
-
     // Default deny safety net
     match /{document=**} {
       allow read, write: if false;

@@ -22,6 +22,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { FreeCoinClaimsPanel } from "@/components/FreeCoinClaimsPanel";
 import { TikTokSyncPanel } from "@/components/TikTokSyncPanel";
+import { AgeVerificationAdminPanel } from "@/components/AgeVerificationAdminPanel";
 import {
   adminCoinVenmoOrders,
   adminReviewCoinVenmoOrder,
@@ -67,7 +68,16 @@ export const Route = createFileRoute("/admin")({
   component: AdminPage,
 });
 
-type Tab = "reports" | "bans" | "log" | "coins" | "free" | "payouts" | "tiktok" | "update";
+type Tab =
+  | "reports"
+  | "bans"
+  | "log"
+  | "coins"
+  | "free"
+  | "payouts"
+  | "tiktok"
+  | "ageverify"
+  | "update";
 
 const reasonLabel = (id: string) => reasonDisplayLabel(id);
 
@@ -234,6 +244,18 @@ function AdminPage() {
             {pending.length} pending · {activeBans.length} banned · {activeMutes.length} muted
           </p>
         </div>
+        <Button asChild variant="secondary" size="sm" className="gap-2">
+          <Link to="/admin/codes">
+            <Gift className="h-4 w-4" />
+            Codes
+          </Link>
+        </Button>
+        <Button asChild variant="secondary" size="sm" className="gap-2">
+          <Link to="/admin/subscriptions">
+            <Crown className="h-4 w-4" />
+            Lifetime
+          </Link>
+        </Button>
         <Button
           variant="secondary"
           size="sm"
@@ -256,6 +278,7 @@ function AdminPage() {
             ["free", "Free coins"],
             ["payouts", "Payouts"],
             ["tiktok", "TikTok"],
+            ["ageverify", "ID Checks"],
           ] as const
         ).map(([id, label]) => (
           <button
@@ -597,6 +620,8 @@ function AdminPage() {
           <TikTokSyncPanel />
         </section>
       )}
+
+      {tab === "ageverify" && <AgeVerificationAdminPanel />}
 
       {tab === "update" && (
         <section className="space-y-4">

@@ -68,7 +68,7 @@ function mapFirebaseUserToSessionUser(fb: FirebaseUser): User {
     created_at: fb.metadata.creationTime
       ? new Date(fb.metadata.creationTime).toISOString()
       : new Date().toISOString(),
-    app_metadata: { firebaseSession: true, provider: "phone", providers: ["phone"] },
+    app_metadata: { provider: "phone", providers: ["phone"] },
     user_metadata: {
       phone_number: fb.phoneNumber ?? undefined,
       full_name: fb.displayName ?? undefined,

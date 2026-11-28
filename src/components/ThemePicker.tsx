@@ -1,21 +1,21 @@
 export function ThemePicker({
   theme,
   changeTheme,
-  disabled = false,
 }: {
   theme: string;
   changeTheme: (id: string) => void;
-  disabled?: boolean;
 }) {
   const themes = [
-    { id: "light", label: "Light", color: "#ffffff" },
-    { id: "dark", label: "Dark", color: "#000000" },
-    { id: "system", label: "System", color: "#e5e7eb" },
-    { id: "blue", label: "Blue", color: "#2563EB" },
-    { id: "purple", label: "Purple", color: "#9333EA" },
-    { id: "pink", label: "Pink", color: "#EC4899" },
-    { id: "green", label: "Green", color: "#16A34A" },
-    { id: "red", label: "Red", color: "#DC2626" },
+    { id: "dark", label: "Black", color: "#000000", text: "#ffffff" },
+    { id: "white", label: "White", color: "#ffffff", text: "#000000" },
+    { id: "system", label: "System", color: "#e5e7eb", text: "#000000" },
+    { id: "blue", label: "Blue", color: "#2563EB", text: "#ffffff" },
+    { id: "red", label: "Red", color: "#DC2626", text: "#ffffff" },
+    { id: "pink", label: "Pink", color: "#EC4899", text: "#ffffff" },
+    { id: "green", label: "Green", color: "#16A34A", text: "#ffffff" },
+    { id: "purple", label: "Purple", color: "#9333EA", text: "#ffffff" },
+    { id: "orange", label: "Orange", color: "#EA580C", text: "#ffffff" },
+    { id: "christmas", label: "Christmas", color: "#16A34A", text: "#ffffff" },
   ];
 
   return (
@@ -23,26 +23,14 @@ export function ThemePicker({
       {themes.map((t) => (
         <button
           key={t.id}
-          disabled={disabled}
           type="button"
           onClick={() => changeTheme(t.id)}
           aria-pressed={theme === t.id}
-          className={`flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium text-white transition ${
-            theme === t.id
-              ? "ring-2 ring-foreground ring-offset-2 ring-offset-background"
-              : "opacity-90 hover:opacity-100"
+          style={{ backgroundColor: t.color, color: t.text }}
+          className={`rounded-md border border-white/30 px-4 py-2 text-sm font-medium ${
+            theme === t.id ? "ring-2 ring-white ring-offset-2 ring-offset-background" : "opacity-90"
           }`}
         >
-          <span
-            aria-hidden="true"
-            className="size-4 rounded-full border border-white/30"
-            style={{ backgroundColor: t.color }}
-          />
-          {theme === t.id && (
-            <span aria-hidden="true" style={{ color: "var(--account-accent)" }}>
-              ✓
-            </span>
-          )}
           {t.label}
         </button>
       ))}

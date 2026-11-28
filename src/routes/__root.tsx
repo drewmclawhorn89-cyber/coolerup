@@ -34,8 +34,8 @@ import { AuthProvider, useAuth } from "../hooks/useAuth";
 import { resolveSupabaseUrl } from "../integrations/supabase/project";
 import { SnowEffect } from "../components/SnowEffect";
 import { LovableBadgeGuard } from "../components/LovableBadgeGuard";
-import { AccountTheme } from "../components/AccountTheme";
-import { ConnectionGate } from "@/components/ConnectionGate";
+import { SubscriptionSync } from "../components/SubscriptionSync";
+import { ThemeSync } from "../components/ThemeSync";
 import { MiniPlayer } from "../components/MiniPlayer";
 import { USE_SOUND_EVENT, type PlayerTrack } from "../lib/songPlayer";
 import type { Sound } from "../lib/sounds";
@@ -208,7 +208,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         { name: "theme-color", content: "#000000" },
         { name: "mobile-web-app-capable", content: "yes" },
         { name: "apple-mobile-web-app-capable", content: "yes" },
-        { name: "apple-mobile-web-app-status-bar-style", content: "black" },
+        { name: "apple-mobile-web-app-status-bar-style", content: "black-translucent" },
         { name: "apple-mobile-web-app-title", content: "coolerup" },
       ],
       links: [
@@ -249,10 +249,8 @@ function RootShell({ children }: { children: ReactNode }) {
         <HeadContent />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: COOLERUP_JSON_LD }} />
       </head>
-      <body>
-        <div id="root">
-          <div className="app-route-viewport">{children}</div>
-        </div>
+      <body className="bg-background text-foreground">
+        {children}
         <Scripts />
       </body>
     </html>
@@ -302,6 +300,9 @@ function RootComponent() {
 
   useEffect(() => {
     applyPrefs();
+    const mq = window.matchMedia?.("(prefers-color-scheme: light)");
+    mq?.addEventListener?.("change", applyPrefs);
+    return () => mq?.removeEventListener?.("change", applyPrefs);
   }, []);
 
   // Cache the app shell and static assets so Coolerup still opens on weak or
@@ -329,29 +330,25 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <AccountTheme>
-          <CallProvider>
-            <OnboardingGate />
-            {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-            {/* UpdateGate sits outermost: when a deploy is in progress, or a newer
+        <CallProvider>
+          <OnboardingGate />
+          {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+          {/* UpdateGate sits outermost: when a deploy is in progress, or a newer
               build has shipped, it unmounts the entire app — BanGate included. */}
-            <UpdateGate>
-              <BanGate>
-                <ConnectionGate>
-                  <Outlet />
-                </ConnectionGate>
-              </BanGate>
-            </UpdateGate>
-            <CallOverlay />
-            <WellbeingWatcher />
-            <OnlineStatusWatcher />
-            <OfflineAutoDownloadWatcher />
-            <PushRegistrar />
-            {/* Creator fund: celebrates the $1 first-follower reward exactly once. */}
-            <FollowerRewardWatcher />
-            <EarningsWatcher />
-          </CallProvider>
-        </AccountTheme>
+          <UpdateGate>
+            <BanGate>
+              <Outlet />
+            </BanGate>
+          </UpdateGate>
+          <CallOverlay />
+          <WellbeingWatcher />
+          <OnlineStatusWatcher />
+          <OfflineAutoDownloadWatcher />
+          <PushRegistrar />
+          {/* Creator fund: celebrates the $1 first-follower reward exactly once. */}
+          <FollowerRewardWatcher />
+          <EarningsWatcher />
+        </CallProvider>
         <PhoneAuthDialog />
         <OnboardingRequiredDialog />
         <Toaster theme="dark" position="top-center" />
@@ -361,7 +358,8 @@ function RootComponent() {
             playing when you switch top tabs, lock the phone, or leave the app. */}
         <MiniPlayer />
         <UseSoundHandler />
-
+        <SubscriptionSync />
+        <ThemeSync />
         <LovableBadgeGuard />
       </AuthProvider>
     </QueryClientProvider>

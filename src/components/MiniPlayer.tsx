@@ -19,8 +19,14 @@ import {
 } from "lucide-react";
 
 import { DownloadButton } from "@/components/DownloadButton";
-import { attachBackgroundPlay, isBackgroundPlayEnabled } from "@/lib/backgroundPlay";
+import {
+  attachBackgroundPlay,
+  isBackgroundPlayEnabled,
+  setBackgroundPlayEntitled,
+} from "@/lib/backgroundPlay";
 import { useAuth } from "@/hooks/useAuth";
+import { hasBackgroundPlayAccess, SUBSCRIPTION_EVENT } from "@/lib/subscriptions";
+import { LIFETIME_EVENT } from "@/lib/subscription";
 import { getSavedSoundIds, saveSound, unsaveSound } from "@/lib/sounds";
 import { requestUseSound, songPlayer, trackToSound, useSongPlayer } from "@/lib/songPlayer";
 
@@ -55,6 +61,22 @@ export function MiniPlayer() {
 
   // Lock-screen controls + "pause when hidden unless background play is on".
   useEffect(() => attachBackgroundPlay(), []);
+
+  // Background play is a VIP perk. Re-derive the entitlement whenever the plan
+  // changes, the app regains focus, or a lifetime grant is revoked, so a
+  // downgrade stops background audio immediately instead of at the next song.
+  useEffect(() => {
+    const sync = () => setBackgroundPlayEntitled(hasBackgroundPlayAccess(auth.handle));
+    sync();
+    window.addEventListener(SUBSCRIPTION_EVENT, sync);
+    window.addEventListener(LIFETIME_EVENT, sync);
+    window.addEventListener("focus", sync);
+    return () => {
+      window.removeEventListener(SUBSCRIPTION_EVENT, sync);
+      window.removeEventListener(LIFETIME_EVENT, sync);
+      window.removeEventListener("focus", sync);
+    };
+  }, [auth.handle]);
 
   // Reflect the heart state for whichever song is loaded.
   useEffect(() => {

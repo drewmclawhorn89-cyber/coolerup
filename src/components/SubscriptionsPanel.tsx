@@ -17,9 +17,9 @@ import { hasUsedTrial, startTrial, useTrial } from "@/lib/trial";
 
 function StatusBadge({ label, tone }: { label: string; tone: "active" | "pending" | "expired" }) {
   const styles = {
-    active: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
-    pending: "bg-amber-500/15 text-amber-600 dark:text-amber-400",
-    expired: "bg-muted text-muted-foreground",
+    active: "bg-emerald-500/15 text-emerald-500 border border-emerald-500/30",
+    pending: "bg-amber-500/15 text-amber-500 border border-amber-500/30",
+    expired: "bg-muted text-muted-foreground border",
   } as const;
   return (
     <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${styles[tone]}`}>{label}</span>
@@ -30,12 +30,11 @@ export function SubscriptionsPanel({
   handle,
   onSignIn,
 }: {
-  handle?: string | null;
-  onSignIn?: () => void;
+  handle?: string | null | undefined;
+  onSignIn?: (() => void) | undefined;
 }) {
   const sub = useSubscription(handle);
-  // Live free-hour state: ticks every second so countdowns stay accurate and
-  // the badge clears the moment the hour ends.
+  // Live free-hour state: ticks every second so countdowns stay accurate.
   const trial = useTrial(handle);
   const codeSummary = codeSubscriptionSummary(sub);
 
@@ -64,20 +63,25 @@ export function SubscriptionsPanel({
     toast.success(`1-hour free ${plan.label} trial started`);
   };
 
+  const handleCancel = (planId: string) => {
+    if (!handle) return;
+    cancelSubscription(handle);
+    toast.success(`Cancelled ${PLANS.find((p) => p.id === planId)?.label ?? "subscription"}`);
+  };
+
   return (
     <div className="mx-auto w-full max-w-2xl space-y-3 p-4 pb-24">
       <h2 className="text-xl font-bold">Subscriptions</h2>
       <p className="text-sm text-muted-foreground">
-        Pick a plan and pay with Google Pay, a card, or Venmo. Your perks start as soon as the
-        payment is confirmed. Every plan also comes with a one-hour free trial &mdash; no card
-        needed.
+        Pick a plan and pay with Google Pay, a card, or Venmo. Every plan also comes with a one-hour
+        free trial &mdash; no card needed.
       </p>
-      {!handle && <p className="text-sm">Sign in to subscribe.</p>}
+      {!handle && <p className="text-sm text-muted-foreground">Sign in to subscribe.</p>}
 
       {sub?.status === "expired" && (
-        <div className="rounded-xl border border-border bg-muted/50 p-3 text-sm">
-          <span className="font-semibold">Your subscription isn&apos;t active.</span> Pick a plan
-          below to get your perks back.
+        <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
+          <span className="font-semibold">Your subscription isn&apos;t active.</span> Paid features
+          are locked until you subscribe below.
         </div>
       )}
 
@@ -100,9 +104,8 @@ export function SubscriptionsPanel({
         const trialing = trial.active && trial.planId === p.id;
         const trialSpent = hasUsedTrial(handle, p.id);
         const highlighted = pending || active || trialing;
-        // A lifetime grant already covers every purchasable plan, so the card
-        // must not offer to sell it again.
         const lifetime = Boolean(sub?.isLifetime);
+        const coveredByLifetime = lifetime && (sub?.planId === "all" || current);
 
         return (
           <div
@@ -111,7 +114,6 @@ export function SubscriptionsPanel({
             tabIndex={0}
             aria-label={`${p.label} plan`}
             onClick={(e) => {
-              // Let real controls inside the card handle their own clicks.
               if ((e.target as HTMLElement).closest("button, a, input")) return;
               openSheet(p);
             }}
@@ -121,17 +123,18 @@ export function SubscriptionsPanel({
               e.preventDefault();
               openSheet(p);
             }}
-            className={`cursor-pointer rounded-xl border p-4 transition-colors hover:border-primary/60 active:scale-[0.995] ${
-              highlighted ? "border-primary" : "border-border"
+            className={`cursor-pointer rounded-xl border bg-card p-4 transition-colors hover:border-primary/60 active:scale-[0.995] ${
+              highlighted || coveredByLifetime ? "border-primary" : ""
             }`}
           >
             <div className="flex items-center justify-between">
               <div className="flex flex-wrap items-center gap-2 text-lg font-semibold">
                 <span>{p.emoji}</span>
                 <span>{p.label}</span>
-                {active && <StatusBadge label="Active" tone="active" />}
                 {pending && <StatusBadge label="Payment pending" tone="pending" />}
+                {active && <StatusBadge label="Active" tone="active" />}
                 {expired && <StatusBadge label="Inactive" tone="expired" />}
+                {coveredByLifetime && <StatusBadge label="Lifetime" tone="active" />}
               </div>
               <div className="text-right">
                 <div className="font-bold">
@@ -147,45 +150,37 @@ export function SubscriptionsPanel({
               ))}
             </ul>
 
-            {lifetime ? (
-              <p className="mt-3 rounded-lg border border-amber-400/40 bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-700 dark:text-amber-300">
+            {coveredByLifetime ? (
+              <p className="mt-3 rounded-lg border border-amber-400/40 bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-300">
                 Included in your lifetime plan
               </p>
             ) : pending ? (
               <div className="mt-3 space-y-2">
-                <p className="text-sm">
+                <p className="text-sm text-muted-foreground">
                   Payment pending &mdash; waiting for confirmation of your payment.
                 </p>
-                <Button
-                  className="w-full"
-                  variant="secondary"
-                  onClick={() => handle && cancelSubscription(handle)}
-                >
+                <Button className="w-full" variant="secondary" onClick={() => handleCancel(p.id)}>
                   Cancel
                 </Button>
               </div>
             ) : active ? (
               <div className="mt-3 space-y-2">
                 {sub.paymentMethod && (
-                  <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-xs">
+                  <div className="flex items-center justify-between rounded-lg border bg-muted/30 px-3 py-2 text-xs">
                     <span>
                       {maskCard(sub.paymentMethod)} &middot; exp {formatExpiry(sub.paymentMethod)}
                     </span>
                     <button
                       type="button"
-                      className="font-medium text-primary"
+                      className="font-medium text-primary underline underline-offset-2"
                       onClick={() => openSheet(p)}
                     >
                       Change
                     </button>
                   </div>
                 )}
-                <Button
-                  className="w-full"
-                  variant="secondary"
-                  onClick={() => handle && cancelSubscription(handle)}
-                >
-                  Subscribed &middot; Cancel
+                <Button className="w-full" variant="secondary" onClick={() => handleCancel(p.id)}>
+                  Cancel subscription
                 </Button>
               </div>
             ) : (
@@ -212,7 +207,9 @@ export function SubscriptionsPanel({
                     openSheet(p);
                   }}
                 >
-                  {`Get ${p.label} \u2014 $${p.price.toFixed(2)}/mo`}
+                  {sub?.status === "active"
+                    ? `Switch to ${p.label} \u2014 $${p.price.toFixed(2)}/mo`
+                    : `Get ${p.label} \u2014 $${p.price.toFixed(2)}/mo`}
                 </Button>
               </>
             )}

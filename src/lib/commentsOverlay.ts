@@ -9,18 +9,15 @@ function notify() {
   }
 }
 
-export function openBottomSheetOverlay(): void {
+export function openCommentsOverlay(): void {
   openCount += 1;
   notify();
 }
 
-export function closeBottomSheetOverlay(): void {
+export function closeCommentsOverlay(): void {
   openCount = Math.max(0, openCount - 1);
   notify();
 }
-
-export const openCommentsOverlay = openBottomSheetOverlay;
-export const closeCommentsOverlay = closeBottomSheetOverlay;
 
 function subscribe(listener: () => void): () => void {
   listeners.add(listener);
@@ -33,9 +30,7 @@ function getSnapshot(): boolean {
   return openCount > 0;
 }
 
-/** True while any bottom sheet (Comments, Share, Quality, etc.) is open so mobile bottom nav hides cleanly. */
-export function useBottomSheetOpen(): boolean {
+/** True while any video Comments bottom sheet is open so mobile bottom nav hides cleanly. */
+export function useCommentsSheetOpen(): boolean {
   return useSyncExternalStore(subscribe, getSnapshot, () => false);
 }
-
-export const useCommentsSheetOpen = useBottomSheetOpen;

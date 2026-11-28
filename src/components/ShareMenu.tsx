@@ -1,14 +1,13 @@
 import { useEffect, useState } from "react";
-import { createPortal } from "react-dom";
 import { Check, Download, Flag, Gauge, Link2, Lock, Pencil, Share2, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { deleteVideo, resolveVideoUrl, type Video } from "@/lib/loop";
-import { getSaved, removeOffline, saveOffline } from "@/lib/offline";
+import { formatBytes, getSaved, removeOffline, saveOffline } from "@/lib/offline";
 import { useOfflineUnlocked } from "@/lib/subscriptions";
 import { OfflinePaywallDialog } from "@/components/OfflinePaywallDialog";
 import { EditVideoDialog } from "@/components/EditVideoDialog";
-import { closeBottomSheetOverlay, openBottomSheetOverlay } from "@/lib/commentsOverlay";
 import {
   downloadExtension,
   prepareWatermarkedFile,
@@ -56,14 +55,6 @@ export function ShareMenu({
   const offlineUnlocked = useOfflineUnlocked(auth.handle);
   const isOwner = !!auth.user && !!auth.handle && auth.handle === video.username;
   const url = typeof window !== "undefined" ? `${window.location.origin}/v/${video.id}` : "";
-
-  // Hide the main bottom navigation whenever the Share sheet is mounted.
-  useEffect(() => {
-    openBottomSheetOverlay();
-    return () => {
-      closeBottomSheetOverlay();
-    };
-  }, []);
 
   useEffect(() => {
     getSaved(video.id)
@@ -157,44 +148,28 @@ export function ShareMenu({
     }
   };
 
-  const offlineLabel = savedSize ? "Remove" : offlineUnlocked ? "Save offline" : "Offline · Paid";
-
-  const content = (
+  return (
     <div
-      className="fixed inset-0 z-[90] bg-black/55"
+      className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end justify-center p-0"
       onClick={onClose}
-      role="dialog"
-      aria-modal="true"
-      aria-label="Share"
     >
-      <aside
+      <div
+        className="bg-zinc-900 w-full max-w-md rounded-t- p-6 space-y-5"
         onClick={(e) => e.stopPropagation()}
-        onTouchStart={(e) => e.stopPropagation()}
-        onTouchMove={(e) => e.stopPropagation()}
-        onWheel={(e) => e.stopPropagation()}
-        style={{
-          backgroundColor: "var(--background)",
-          paddingBottom: "calc(env(safe-area-inset-bottom) + 16px)",
-        }}
-        className="sheet-up fixed bottom-0 left-0 z-[91] w-screen overflow-hidden rounded-t-2xl border-t border-white/20 bg-background px-3 pt-4 text-white sm:left-1/2 sm:max-w-md sm:-translate-x-1/2"
       >
-        <header className="flex items-center justify-between px-1 pb-4">
-          <h2 className="text-base font-bold text-white">Share</h2>
+        <div className="flex items-center justify-between">
+          <h3 className="font-bold text-lg text-white">Share</h3>
           <button
-            type="button"
             onClick={onClose}
-            aria-label="Close"
-            className="flex h-8 w-8 items-center justify-center rounded-full text-white"
+            className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center"
           >
-            <X className="h-5 w-5" />
+            <X size={18} />
           </button>
-        </header>
+        </div>
 
-        <div className="grid grid-cols-4 grid-rows-2 gap-x-2 gap-y-4 pt-1">
-          {/* Row 1: Share | Copy link | Download | Save offline */}
+        <div className="grid grid-cols-4 gap-4 pt-2">
           <button
-            type="button"
-            className="col-start-1 row-start-1 flex w-full flex-col items-center gap-2 text-center"
+            className="flex flex-col items-center gap-2"
             onClick={async () => {
               if (navigator.share) {
                 try {
@@ -209,46 +184,44 @@ export function ShareMenu({
               }
             }}
           >
-            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full border border-white/25 bg-white/15 text-white">
-              <Share2 className="h-6 w-6" />
+            <div className="w-14 h-14 rounded-full bg-zinc-800 flex items-center justify-center">
+              <Share2 size={22} />
             </div>
-            <span className="w-full truncate whitespace-nowrap text-center text-[11px] font-medium leading-none text-white">
-              Share
-            </span>
+            <span className="text-xs text-zinc-300">Share</span>
           </button>
 
+          {/* EDIT — owner-only. Opens the trim/caption editor for this Short. */}
+          {isOwner && (
+            <button className="flex flex-col items-center gap-2" onClick={() => setEditing(true)}>
+              <div className="w-14 h-14 rounded-full bg-zinc-800 flex items-center justify-center">
+                <Pencil size={22} />
+              </div>
+              <span className="text-xs text-zinc-300">Edit</span>
+            </button>
+          )}
+
           <button
-            type="button"
-            className="col-start-2 row-start-1 flex w-full flex-col items-center gap-2 text-center"
+            className="flex flex-col items-center gap-2"
             onClick={async () => {
               await navigator.clipboard.writeText(url);
               toast.success("Link copied");
             }}
           >
-            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full border border-white/25 bg-white/15 text-white">
-              <Link2 className="h-6 w-6" />
+            <div className="w-14 h-14 rounded-full bg-zinc-800 flex items-center justify-center">
+              <Link2 size={22} />
             </div>
-            <span className="w-full truncate whitespace-nowrap text-center text-[11px] font-medium leading-none text-white">
-              Copy link
-            </span>
+            <span className="text-xs text-zinc-300">Copy link</span>
+          </button>
+
+          <button className="flex flex-col items-center gap-2" onClick={download}>
+            <div className="w-14 h-14 rounded-full bg-zinc-800 flex items-center justify-center">
+              <Download size={22} />
+            </div>
+            <span className="text-xs text-zinc-300">Download</span>
           </button>
 
           <button
-            type="button"
-            className="col-start-3 row-start-1 flex w-full flex-col items-center gap-2 text-center"
-            onClick={download}
-          >
-            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full border border-white/25 bg-white/15 text-white">
-              <Download className="h-6 w-6" />
-            </div>
-            <span className="w-full truncate whitespace-nowrap text-center text-[11px] font-medium leading-none text-white">
-              Download
-            </span>
-          </button>
-
-          <button
-            type="button"
-            className="col-start-4 row-start-1 flex w-full flex-col items-center gap-2 text-center"
+            className="flex flex-col items-center gap-2"
             onClick={async () => {
               // Keep the explicit save action separate (fourth slot) in case users want offline saving.
               if (savedSize) {
@@ -258,99 +231,73 @@ export function ShareMenu({
               }
             }}
           >
-            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full border border-white/25 bg-white/15 text-white">
+            <div
+              className={`w-14 h-14 rounded-full flex items-center justify-center ${
+                offlineUnlocked || savedSize ? "bg-zinc-800" : "bg-zinc-800/60"
+              }`}
+            >
               {savedSize ? (
-                <Trash2 className="h-6 w-6" />
+                <Trash2 size={22} />
               ) : offlineUnlocked ? (
-                <Check className="h-6 w-6" />
+                <Check size={22} />
               ) : (
-                <Lock className="h-6 w-6" />
+                <Lock size={22} />
               )}
             </div>
-            <span className="w-full truncate whitespace-nowrap text-center text-[11px] font-medium leading-none text-white">
-              {offlineLabel}
+            <span className="text-xs text-zinc-300">
+              {savedSize
+                ? `Remove (${formatBytes(savedSize)})`
+                : offlineUnlocked
+                  ? "Save offline"
+                  : "Offline · Paid"}
             </span>
           </button>
 
-          {/* Row 2: Quality · Auto | Report | (empty or Edit) | (empty or Delete) */}
-          {onOpenQuality ? (
-            <button
-              type="button"
-              className="col-start-1 row-start-2 flex w-full flex-col items-center gap-2 text-center"
-              onClick={onOpenQuality}
-            >
-              <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full border border-white/25 bg-white/15 text-white">
-                <Gauge className="h-6 w-6" />
+          {onOpenQuality && (
+            <button className="flex flex-col items-center gap-2" onClick={onOpenQuality}>
+              <div className="w-14 h-14 rounded-full bg-zinc-800 flex items-center justify-center">
+                <Gauge size={22} />
               </div>
-              <span className="w-full truncate whitespace-nowrap text-center text-[11px] font-medium leading-none text-white">
+              <span className="text-xs text-zinc-300">
                 Quality{qualityLabel ? ` · ${qualityLabel}` : ""}
               </span>
             </button>
-          ) : (
-            <div aria-hidden="true" className="col-start-1 row-start-2" />
           )}
 
-          {onReport ? (
+          {isOwner && (
+            <button className="flex flex-col items-center gap-2" onClick={deleteMine}>
+              <div className="w-14 h-14 rounded-full bg-red-600 flex items-center justify-center">
+                <Trash2 size={22} />
+              </div>
+              <span className="text-xs text-red-400">Delete</span>
+            </button>
+          )}
+
+          {/* REPORT — moved off the video rail and into the share sheet */}
+          {onReport && (
             <button
-              type="button"
-              className="col-start-2 row-start-2 flex w-full flex-col items-center gap-2 text-center"
+              className="flex flex-col items-center gap-2"
               onClick={() => {
                 onClose();
                 onReport();
               }}
             >
-              <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full border border-white/25 bg-white/15 text-white">
-                <Flag className="h-6 w-6" />
+              <div className="w-14 h-14 rounded-full bg-zinc-800 flex items-center justify-center">
+                <Flag size={22} />
               </div>
-              <span className="w-full truncate whitespace-nowrap text-center text-[11px] font-medium leading-none text-white">
-                Report
-              </span>
+              <span className="text-xs text-zinc-300">Report</span>
             </button>
-          ) : (
-            <div aria-hidden="true" className="col-start-2 row-start-2" />
-          )}
-
-          {isOwner ? (
-            <button
-              type="button"
-              className="col-start-3 row-start-2 flex w-full flex-col items-center gap-2 text-center"
-              onClick={() => setEditing(true)}
-            >
-              <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full border border-white/25 bg-white/15 text-white">
-                <Pencil className="h-6 w-6" />
-              </div>
-              <span className="w-full truncate whitespace-nowrap text-center text-[11px] font-medium leading-none text-white">
-                Edit
-              </span>
-            </button>
-          ) : (
-            <div aria-hidden="true" className="col-start-3 row-start-2" />
-          )}
-
-          {isOwner ? (
-            <button
-              type="button"
-              className="col-start-4 row-start-2 flex w-full flex-col items-center gap-2 text-center"
-              onClick={deleteMine}
-            >
-              <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full border border-red-500 bg-red-600 text-white">
-                <Trash2 className="h-6 w-6" />
-              </div>
-              <span className="w-full truncate whitespace-nowrap text-center text-[11px] font-medium leading-none text-red-400">
-                Delete
-              </span>
-            </button>
-          ) : (
-            <div aria-hidden="true" className="col-start-4 row-start-2" />
           )}
         </div>
 
         {progress !== null && (
-          <div className="mt-4 h-2 w-full overflow-hidden rounded-full bg-white/15">
+          <div className="w-full bg-zinc-800 h-2 rounded-full overflow-hidden">
             <div className="h-full bg-white transition-all" style={{ width: `${progress}%` }} />
           </div>
         )}
-      </aside>
+
+        <div className="text-xs text-zinc-500 text-center pt-2">{url}</div>
+      </div>
 
       <OfflinePaywallDialog open={paywallOpen} onClose={() => setPaywallOpen(false)} />
 
@@ -370,9 +317,4 @@ export function ShareMenu({
       </div>
     </div>
   );
-
-  if (typeof document !== "undefined" && document.body) {
-    return createPortal(content, document.body);
-  }
-  return content;
 }

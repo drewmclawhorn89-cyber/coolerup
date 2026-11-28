@@ -8,7 +8,6 @@ import {
   useState,
   type MouseEvent,
 } from "react";
-import { createPortal } from "react-dom";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Bookmark, Heart, MessageCircle, Music, Play, Repeat2, Share2 } from "lucide-react";
 import { toast } from "sonner";
@@ -67,7 +66,6 @@ import { QualitySelector } from "@/components/QualitySelector";
 import { createWatchDurationTracker, recordWatchHistory } from "@/lib/watchHistory";
 import { MATURE_LABEL, useMatureGate } from "@/lib/matureVideos";
 import type { HighlightCommentTarget } from "@/lib/inboxNotifications";
-import { closeBottomSheetOverlay, openBottomSheetOverlay } from "@/lib/commentsOverlay";
 
 const Comments = lazy(() => import("./Comments").then((m) => ({ default: m.Comments })));
 const ShareMenu = lazy(() => import("./ShareMenu").then((m) => ({ default: m.ShareMenu })));
@@ -935,18 +933,14 @@ function VideoCardImpl({
   // Clear a pending timer if the card unmounts mid-press.
   useEffect(() => cancelLikePress, [cancelLikePress]);
 
-  // Escape closes the sheet, and bottom nav hides while it is open.
+  // Escape closes the sheet, like every other overlay in the app.
   useEffect(() => {
     if (!showLikeMenu) return;
-    openBottomSheetOverlay();
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setShowLikeMenu(false);
     };
     window.addEventListener("keydown", onKey);
-    return () => {
-      closeBottomSheetOverlay();
-      window.removeEventListener("keydown", onKey);
-    };
+    return () => window.removeEventListener("keydown", onKey);
   }, [showLikeMenu]);
 
   const hideVideo = useCallback(() => {
@@ -1603,67 +1597,59 @@ function VideoCardImpl({
           )}
         </div>
       </div>
-      {/* Long-press sheet: portaled above video and bottom nav, solid theme background. */}
-      {showLikeMenu &&
-        (() => {
-          const sheet = (
-            <div
-              role="dialog"
-              aria-modal="true"
-              aria-label="Video options"
-              className="fixed inset-0 z-[90] flex items-end justify-center bg-black/55"
-              onClick={() => setShowLikeMenu(false)}
+      {/* Long-press sheet: slides up from the bottom, dark like TikTok's. */}
+      {showLikeMenu && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Video options"
+          className="fixed inset-0 z-[60] flex items-end justify-center"
+        >
+          <button
+            type="button"
+            aria-label="Close menu"
+            onClick={() => setShowLikeMenu(false)}
+            className="absolute inset-0 bg-black/50 backdrop-blur-[2px]"
+          />
+          <div className="sheet-up relative w-full max-w-[430px] rounded-t-2xl bg-[#1c1c1e] p-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] text-white shadow-2xl md:mb-6 md:max-w-sm md:rounded-2xl">
+            <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-white/25" aria-hidden />
+            <button
+              type="button"
+              onClick={() => {
+                setShowLikeMenu(false);
+                void toggleRepost();
+              }}
+              className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-[15px] font-semibold"
             >
-              <aside
-                onClick={(e) => e.stopPropagation()}
-                style={{
-                  backgroundColor: "var(--background)",
-                  paddingBottom: "calc(env(safe-area-inset-bottom) + 16px)",
-                }}
-                className="sheet-up fixed bottom-0 left-0 z-[91] w-screen rounded-t-2xl border-t border-white/20 bg-background p-2 text-white shadow-2xl sm:left-1/2 sm:max-w-md sm:-translate-x-1/2"
-              >
-                <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-white/25" aria-hidden />
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowLikeMenu(false);
-                    void toggleRepost();
-                  }}
-                  className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-[15px] font-semibold text-white"
-                >
-                  <Repeat2
-                    className={`h-5 w-5 ${reposted ? "text-yellow-400" : "text-white"}`}
-                    aria-hidden
-                  />
-                  <span>{reposted ? "Remove repost" : "Repost"}</span>
-                  <span className="ml-auto text-xs font-bold text-white/60">
-                    {formatCount(Math.max(repostCount ?? 0, reposted ? 1 : 0))}
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  onClick={hideVideo}
-                  className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-[15px] font-semibold text-white"
-                >
-                  <span className="w-5 text-center text-lg leading-none" aria-hidden>
-                    😒
-                  </span>
-                  <span>Not interested</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowLikeMenu(false)}
-                  className="mt-1 w-full rounded-xl px-3 py-3 text-[15px] font-semibold text-white/75"
-                >
-                  Cancel
-                </button>
-              </aside>
-            </div>
-          );
-          return typeof document !== "undefined" && document.body
-            ? createPortal(sheet, document.body)
-            : sheet;
-        })()}
+              <Repeat2
+                className={`h-5 w-5 ${reposted ? "text-yellow-400" : "text-white"}`}
+                aria-hidden
+              />
+              <span>{reposted ? "Remove repost" : "Repost"}</span>
+              <span className="ml-auto text-xs font-bold text-white/50">
+                {formatCount(Math.max(repostCount ?? 0, reposted ? 1 : 0))}
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={hideVideo}
+              className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-[15px] font-semibold"
+            >
+              <span className="w-5 text-center text-lg leading-none" aria-hidden>
+                😒
+              </span>
+              <span>Not interested</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowLikeMenu(false)}
+              className="mt-1 w-full rounded-xl px-3 py-3 text-[15px] font-semibold text-white/70"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
       {showComments && (
         <Suspense fallback={<ListRowSkeleton count={4} />}>
           <Comments
@@ -1699,7 +1685,7 @@ function VideoCardImpl({
         onClose={() => setShowQuality(false)}
       />
       {showShare && (
-        <Suspense fallback={null}>
+        <Suspense fallback={<PanelSkeleton />}>
           <ShareMenu
             video={video}
             qualityLabel={qualityLabel}
